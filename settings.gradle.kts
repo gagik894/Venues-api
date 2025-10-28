@@ -23,5 +23,6 @@ include(":app")
 include(":common")
 include(":shared")
 include(":user")
+include(":venue")
 
 rootProject.name = "Venues-api"

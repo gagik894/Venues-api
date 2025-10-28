@@ -113,14 +113,14 @@ class JwtAuthenticationFilter(
      */
     private fun authenticateWithJwt(jwt: String, request: HttpServletRequest) {
         try {
-            // Extract user information from JWT
-            val userId = jwtService.getUserIdFromToken(jwt)
-            val email = jwtService.getUsernameFromToken(jwt)
+            // Extract principal information from JWT
+            val principalId = jwtService.getIdFromToken(jwt)
+            val email = jwtService.getEmailFromToken(jwt)
             val role = jwtService.getRoleFromToken(jwt)
 
             // Check if token is expired
             if (jwtService.isTokenExpired(jwt)) {
-                log.debug { "JWT token is expired for user: $email" }
+                log.debug { "JWT token is expired for principal: $email" }
                 return
             }
 
@@ -130,7 +130,7 @@ class JwtAuthenticationFilter(
             // Create principal as a Map containing user info
             // This makes it easy to extract userId in SecurityUtil
             val principal = mapOf(
-                "userId" to userId,
+                "userId" to principalId,
                 "email" to email,
                 "role" to role
             )
@@ -148,7 +148,7 @@ class JwtAuthenticationFilter(
             // Set authentication in SecurityContext
             SecurityContextHolder.getContext().authentication = authentication
 
-            log.debug { "User authenticated successfully: userId=$userId, email=$email, role=$role" }
+            log.debug { "Principal authenticated successfully: principalId=$principalId, email=$email, role=$role" }
         } catch (e: Exception) {
             log.warn(e) { "Failed to authenticate with JWT: ${e.message}" }
             // Don't throw exception - let other filters handle it

@@ -100,6 +100,34 @@ class SecurityUtil {
     }
 
     /**
+     * Gets the current authenticated user's subject from the SecurityContext.
+     *
+     * The subject can be:
+     * - User ID as string for regular users
+     * - "VENUE:{venueId}" for venue accounts
+     *
+     * @return JWT subject claim
+     * @throws VenuesException.AuthenticationFailure if user is not authenticated
+     */
+    fun getCurrentUserSubject(): String {
+        val authentication = getAuthentication()
+            ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
+
+        return when (val principal = authentication.principal) {
+            is UserDetails -> principal.username
+            is String -> principal
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                (principal as? Map<String, Any>)?.get("sub")?.toString()
+                    ?: throw VenuesException.InternalError("Subject not found in authentication token")
+            }
+
+            else -> authentication.name
+                ?: throw VenuesException.InternalError("Unable to extract subject from authentication")
+        }
+    }
+
+    /**
      * Gets the current authenticated user's role from the SecurityContext.
      *
      * @return Current user's role (e.g., "USER", "ADMIN")

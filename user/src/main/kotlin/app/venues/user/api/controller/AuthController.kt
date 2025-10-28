@@ -13,11 +13,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 /**
  * REST controller for user authentication operations.
@@ -49,21 +45,23 @@ class AuthController(
      * @return Created user information (without password)
      */
     @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
     @Operation(
         summary = "Register new user",
         description = "Create a new user account. Email verification required before login."
     )
     fun register(
         @Valid @RequestBody request: UserRegistrationRequest
-    ): ResponseEntity<ApiResponse<UserResponse>> {
+    ): ApiResponse<UserResponse> {
         logger.info { "Registration request received for email: ${request.email}" }
 
         val user = userService.registerUser(request)
         val response = UserMapper.toResponse(user)
 
-        return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(ApiResponse.success(response))
+        return ApiResponse.success(
+            data = response,
+            message = "User registered successfully. Please check your email to verify your account.",
+        )
     }
 
     /**
@@ -82,12 +80,15 @@ class AuthController(
     )
     fun login(
         @Valid @RequestBody request: LoginRequest
-    ): ResponseEntity<ApiResponse<LoginResponse>> {
+    ): ApiResponse<LoginResponse> {
         logger.info { "Login request received for email: ${request.email}" }
 
         val loginResponse = userAuthService.login(request)
 
-        return ResponseEntity.ok(ApiResponse.success(loginResponse))
+        return ApiResponse.success(
+            data = loginResponse,
+            message = "Login successful"
+        )
     }
 }
 

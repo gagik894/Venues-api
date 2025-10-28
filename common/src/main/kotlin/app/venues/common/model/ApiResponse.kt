@@ -1,5 +1,6 @@
 package app.venues.common.model
 
+import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 
 /**
@@ -8,36 +9,60 @@ import kotlinx.serialization.Serializable
  * Provides a consistent response structure across all API endpoints.
  * This ensures clients can reliably parse responses and extract metadata.
  *
- * @param T The type of data being returned
+ * @param T The type of data being returned (can be Unit for operations with no data)
  * @property success Indicates if the operation was successful (always true for this class)
- * @property data The actual response payload
+ * @property message Human-readable success message
+ * @property data The actual response payload (optional - null for operations like delete, password change)
  * @property timestamp ISO-8601 formatted timestamp of the response
  * @property metadata Optional metadata about the response (pagination, etc.)
  */
 @Serializable
 data class ApiResponse<T>(
     val success: Boolean = true,
-    val data: T,
+    val message: String = "Operation completed successfully",
+    val data: T? = null,
     val timestamp: String,
     val metadata: ResponseMetadata? = null
 ) {
     companion object {
         /**
-         * Factory method to create a successful API response.
+         * Factory method to create a successful API response with data.
          *
          * @param data The payload to return
+         * @param message Optional success message
          * @param metadata Optional response metadata
          * @return ApiResponse wrapping the provided data
          */
         fun <T> success(
             data: T,
+            message: String = "Operation completed successfully",
             metadata: ResponseMetadata? = null
         ): ApiResponse<T> {
             return ApiResponse(
                 success = true,
+                message = message,
                 data = data,
-                timestamp = kotlinx.datetime.Clock.System.now().toString(),
+                timestamp = Clock.System.now().toString(),
                 metadata = metadata
+            )
+        }
+
+        /**
+         * Factory method to create a successful API response without data (message only).
+         * Useful for operations like delete, password change, etc.
+         *
+         * @param message Success message
+         * @return ApiResponse with no data payload
+         */
+        fun success(
+            message: String = "Operation completed successfully"
+        ): ApiResponse<Unit> {
+            return ApiResponse(
+                success = true,
+                message = message,
+                data = null,
+                timestamp = Clock.System.now().toString(),
+                metadata = null
             )
         }
     }

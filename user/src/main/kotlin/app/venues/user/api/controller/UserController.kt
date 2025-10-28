@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import org.springframework.http.ResponseEntity
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 
@@ -52,14 +51,17 @@ class UserController(
         summary = "Get current user profile",
         description = "Returns profile information for the authenticated user"
     )
-    fun getCurrentUser(): ResponseEntity<ApiResponse<UserResponse>> {
+    fun getCurrentUser(): ApiResponse<UserResponse> {
         val userId = securityUtil.getCurrentUserId()
         logger.debug { "Get current user profile request: userId=$userId" }
 
         val user = userService.getUserById(userId)
         val response = UserMapper.toResponse(user)
 
-        return ResponseEntity.ok(ApiResponse.success(response))
+        return ApiResponse.success(
+            data = response,
+            message = "User profile retrieved successfully"
+        )
     }
 
     /**
@@ -78,14 +80,17 @@ class UserController(
     )
     fun updateCurrentUser(
         @Valid @RequestBody request: UserUpdateRequest
-    ): ResponseEntity<ApiResponse<UserResponse>> {
+    ): ApiResponse<UserResponse> {
         val userId = securityUtil.getCurrentUserId()
         logger.info { "Update user profile request: userId=$userId" }
 
         val user = userService.updateUserProfile(userId, request)
         val response = UserMapper.toResponse(user)
 
-        return ResponseEntity.ok(ApiResponse.success(response))
+        return ApiResponse.success(
+            data = response,
+            message = "User profile updated successfully"
+        )
     }
 
     /**
@@ -103,13 +108,13 @@ class UserController(
     )
     fun changePassword(
         @Valid @RequestBody request: PasswordChangeRequest
-    ): ResponseEntity<ApiResponse<String>> {
+    ): ApiResponse<Unit> {
         val userId = securityUtil.getCurrentUserId()
         logger.info { "Change password request: userId=$userId" }
 
         userService.changePassword(userId, request.currentPassword, request.newPassword)
 
-        return ResponseEntity.ok(ApiResponse.success("Password changed successfully"))
+        return ApiResponse.success("Password changed successfully")
     }
 
     /**
@@ -127,13 +132,16 @@ class UserController(
     )
     fun getUserById(
         @PathVariable id: Long
-    ): ResponseEntity<ApiResponse<UserResponse>> {
+    ): ApiResponse<UserResponse> {
         logger.debug { "Get user by ID request: userId=$id" }
 
         val user = userService.getUserById(id)
         val response = UserMapper.toResponse(user)
 
-        return ResponseEntity.ok(ApiResponse.success(response))
+        return ApiResponse.success(
+            data = response,
+            message = "User retrieved successfully"
+        )
     }
 
     /**
@@ -148,13 +156,16 @@ class UserController(
         summary = "Get all users (Admin)",
         description = "Returns list of all users. Requires ADMIN role."
     )
-    fun getAllUsers(): ResponseEntity<ApiResponse<List<UserResponse>>> {
+    fun getAllUsers(): ApiResponse<List<UserResponse>> {
         logger.debug { "Get all users request" }
 
         val users = userService.getAllUsers()
         val response = UserMapper.toResponseList(users)
 
-        return ResponseEntity.ok(ApiResponse.success(response))
+        return ApiResponse.success(
+            data = response,
+            message = "Users retrieved successfully"
+        )
     }
 }
 

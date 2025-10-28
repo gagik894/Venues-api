@@ -1,10 +1,3 @@
-/*
- * Venues API - Government-Sponsored Cultural Venues Portal
- * Copyright (c) 2025 Government Cultural Department
- *
- * JWT (JSON Web Token) service for token generation and validation.
- */
-
 package app.venues.shared.security.jwt
 
 import app.venues.common.constants.AppConstants
@@ -21,22 +14,32 @@ import javax.crypto.SecretKey
 /**
  * Service for JWT token generation, validation, and parsing.
  *
+ * This service is shared across all modules and handles JWT operations for:
+ * - Users (with ROLE_USER)
+ * - Venues (with ROLE_VENUE)
+ * - Any other authenticated principals
+ *
  * JWT Structure:
  * - Header: Algorithm and token type
- * - Payload: Claims (user info, expiration, etc.)
+ * - Payload: Claims (principal info, expiration, etc.)
  * - Signature: Verifies token integrity
  *
  * Token Claims:
- * - sub (subject): User email
+ * - sub (subject): Principal email/identifier
  * - iat (issued at): Token creation timestamp
  * - exp (expiration): Token expiration timestamp
- * - userId: Custom claim for user ID
- * - role: Custom claim for user role
+ * - userId: Custom claim for principal ID (user ID or venue ID)
+ * - role: Custom claim for principal role (ROLE_USER, ROLE_VENUE, etc.)
  *
  * Security:
  * - Tokens are signed with HMAC-SHA256
- * - Secret key must be at least 256 bits
+ * - Secret key must be at least 256 bits (configured via properties)
  * - Tokens expire after configured duration
+ * - Same token validation logic applies to all principal types
+ *
+ * Usage Examples:
+ * - User: generateToken(email = "user@example.com", userId = 123, role = "USER")
+ * - Venue: generateToken(email = "venue@example.com", userId = 456, role = "VENUE")
  */
 @Service
 class JwtService {
@@ -58,59 +61,74 @@ class JwtService {
     }
 
     /**
-     * Generates a JWT token for a user.
+     * Generates a JWT token for any authenticated principal (user, venue, etc.).
      *
-     * @param email User's email (used as subject)
-     * @param userId User's ID
-     * @param role User's role
+     * This method is generic and works for any principal type that needs a JWT token.
+     * The role parameter determines what kind of principal this is.
+     *
+     * @param email Principal's email/identifier (used as subject)
+     * @param id Principal's unique ID (user ID, venue ID, etc.)
+     * @param role Principal's role (USER, VENUE, ADMIN, etc.) - determines authorization level
      * @return Generated JWT token
      */
-    fun generateToken(email: String, userId: Long, role: String): String {
+    fun generateToken(email: String, id: Long, role: String): String {
         val now = Date()
         val expiryDate = Date(now.time + jwtExpirationMs)
 
         val token = Jwts.builder()
             .subject(email)
-            .claim("userId", userId)
+            .claim("id", id)
             .claim("role", role)
             .issuedAt(now)
             .expiration(expiryDate)
             .signWith(secretKey)
             .compact()
 
-        logger.debug { "Generated JWT token for user: $email" }
+        logger.debug { "Generated JWT token for principal: $email (role: $role)" }
 
         return token
     }
 
     /**
-     * Extracts the username (email) from a JWT token.
+     * Extracts the email from a JWT token.
+     *
+     * The email is stored in the JWT's "sub" (subject) claim and serves as
+     * the unique identifier for any principal (user, venue, etc.).
+     *
+     * Works for any principal type (user, venue, etc.).
      *
      * @param token JWT token
-     * @return Username (email) from token subject
+     * @return Email/identifier from token subject claim
      */
-    fun getUsernameFromToken(token: String): String {
+    fun getEmailFromToken(token: String): String {
         return getClaimsFromToken(token).subject
     }
 
     /**
-     * Extracts the user ID from a JWT token.
+     * Extracts the principal ID from a JWT token.
+     *
+     * Returns the unique identifier for any principal:
+     * - User ID for user tokens
+     * - Venue ID for venue tokens
+     * - Any other principal ID for other token types
      *
      * @param token JWT token
-     * @return User ID from custom claim
+     * @return Principal ID from custom claim
      */
-    fun getUserIdFromToken(token: String): Long {
+    fun getIdFromToken(token: String): Long {
         val claims = getClaimsFromToken(token)
-        return claims["userId"] as? Long
-            ?: (claims["userId"] as? Int)?.toLong()
-            ?: throw IllegalArgumentException("User ID not found in token")
+        return claims["id"] as? Long
+            ?: (claims["id"] as? Int)?.toLong()
+            ?: throw IllegalArgumentException("Principal ID not found in token")
     }
 
     /**
-     * Extracts the user role from a JWT token.
+     * Extracts the principal role from a JWT token.
+     *
+     * Examples: USER, VENUE, ADMIN, etc.
      *
      * @param token JWT token
-     * @return User role from custom claim
+     * @return Principal role from custom claim
      */
     fun getRoleFromToken(token: String): String {
         return getClaimsFromToken(token)["role"] as String
@@ -120,18 +138,23 @@ class JwtService {
      * Validates a JWT token.
      *
      * Checks:
-     * - Token signature is valid
+     * - Token signature is valid (not tampered with)
      * - Token is not expired
-     * - Username matches the provided UserDetails
+     * - Email in token matches the provided UserDetails username
+     *
+     * Note: UserDetails.username contains the email for both users and venues.
+     *
+     * Works for any principal type (user, venue, etc.).
      *
      * @param token JWT token to validate
-     * @param userDetails UserDetails to compare against
-     * @return true if token is valid
+     * @param userDetails UserDetails to compare against (implements principal details)
+     * @return true if token is valid and email matches
      */
     fun validateToken(token: String, userDetails: UserDetails): Boolean {
         return try {
-            val username = getUsernameFromToken(token)
-            username == userDetails.username && !isTokenExpired(token)
+            val email = getEmailFromToken(token)
+            // UserDetails.username contains email for both users and venues
+            email == userDetails.username && !isTokenExpired(token)
         } catch (e: Exception) {
             logger.warn(e) { "Token validation failed" }
             false

@@ -22,6 +22,7 @@ repositories {
 dependencies {
     // Feature modules
     implementation(project(":user"))
+    implementation(project(":venue"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))

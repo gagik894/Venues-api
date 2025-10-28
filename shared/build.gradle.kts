@@ -1,12 +1,19 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
-    kotlin("plugin.spring") version "2.1.10"
-    id("org.springframework.boot") version "3.5.7" apply false
-    id("io.spring.dependency-management") version "1.1.7"
+    `java-library`
+    alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.kotlinSpring)
+    alias(libs.plugins.springBoot) apply false
+    alias(libs.plugins.springDependencyManagement)
 }
 
 group = "app.venues"
 version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -27,6 +34,10 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-validation")
     api("org.springframework.boot:spring-boot-starter-security")
     api("org.springframework.boot:spring-boot-starter-data-jpa")
+
+    // Database Migration
+    api("org.flywaydb:flyway-core")
+    api("org.flywaydb:flyway-database-postgresql")
 
     // Jackson for JSON processing
     api("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -64,4 +75,3 @@ kotlin {
         freeCompilerArgs.addAll("-Xjsr305=strict")
     }
 }
-

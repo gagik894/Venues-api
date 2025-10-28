@@ -1,6 +1,6 @@
 package app.venues.shared.security.config
 
-import app.venues.common.constants.AppConstants
+import app.venues.shared.security.jwt.JwtAuthenticationFilter
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -14,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -47,8 +48,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 class SecurityConfig(
-    // Inject JWT filter when implemented
-    // private val jwtAuthenticationFilter: JwtAuthenticationFilter
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -124,8 +124,7 @@ class SecurityConfig(
             }
 
         // Add JWT authentication filter before username/password authentication
-        // Uncomment when JwtAuthenticationFilter is implemented
-        // http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         val filterChain = http.build()
         logger.info { "Spring Security filter chain configured successfully" }

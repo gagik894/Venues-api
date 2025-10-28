@@ -1,10 +1,17 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
-    kotlin("plugin.serialization") version "2.1.10"
+    `java-library`
+    alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.kotlinPluginSerialization)
 }
 
 group = "app.venues"
 version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 
 repositories {
     mavenCentral()

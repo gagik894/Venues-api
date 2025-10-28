@@ -1,6 +1,7 @@
 package app.venues.shared.persistence.config
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.boot.autoconfigure.domain.EntityScan
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement
  * - JPA Auditing: Automatic tracking of entity creation/modification timestamps and users
  * - JPA Repositories: Spring Data JPA repository support across all modules
  * - Transaction Management: Declarative transaction management with @Transactional
+ * - Entity Scanning: Scans for @Entity classes across all modules
  *
  * JPA Auditing Configuration:
  * With @EnableJpaAuditing, entities can use:
@@ -25,6 +27,10 @@ import org.springframework.transaction.annotation.EnableTransactionManagement
  * Scans for @Repository interfaces in app.venues package and all subpackages,
  * including domain modules (user, venue, etc.).
  *
+ * Entity Scanning:
+ * Scans for @Entity classes in app.venues package and all subpackages,
+ * including all domain entities from feature modules (user.domain, venue.domain, etc.).
+ *
  * Transaction Management:
  * Enables @Transactional annotation for declarative transaction boundaries.
  * Transactions are automatically committed on success or rolled back on exceptions.
@@ -32,6 +38,9 @@ import org.springframework.transaction.annotation.EnableTransactionManagement
 @Configuration
 @EnableJpaAuditing
 @EnableJpaRepositories(
+    basePackages = ["app.venues"]
+)
+@EntityScan(
     basePackages = ["app.venues"]
 )
 @EnableTransactionManagement

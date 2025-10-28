@@ -7,6 +7,7 @@ import app.venues.common.model.ErrorDetail
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
+import kotlinx.datetime.Clock
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.NoHandlerFoundException
-import java.util.UUID
+import java.util.*
 
 /**
  * Global exception handler for all REST API controllers.
@@ -62,18 +63,6 @@ class GlobalExceptionHandler {
     ): ResponseEntity<ApiErrorResponse> {
         val traceId = generateTraceId()
 
-        val status = when (ex) {
-            is VenuesException.ResourceNotFound -> HttpStatus.NOT_FOUND
-            is VenuesException.AuthenticationFailure -> HttpStatus.UNAUTHORIZED
-            is VenuesException.AuthorizationFailure -> HttpStatus.FORBIDDEN
-            is VenuesException.ValidationFailure -> HttpStatus.UNPROCESSABLE_ENTITY
-            is VenuesException.ResourceConflict -> HttpStatus.CONFLICT
-            is VenuesException.BusinessRuleViolation -> HttpStatus.BAD_REQUEST
-            is VenuesException.RateLimitExceeded -> HttpStatus.TOO_MANY_REQUESTS
-            is VenuesException.ExternalServiceFailure -> HttpStatus.BAD_GATEWAY
-            is VenuesException.InternalError -> HttpStatus.INTERNAL_SERVER_ERROR
-        }
-
         logger.warn { "[$traceId] VenuesException occurred: ${ex.message}" }
 
         val details = if (ex is VenuesException.ValidationFailure) ex.violations else null
@@ -85,12 +74,12 @@ class GlobalExceptionHandler {
                 message = ex.message,
                 details = details
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
 
-        return ResponseEntity.status(status).body(errorResponse)
+        return ResponseEntity.status(ex.httpStatus).body(errorResponse)
     }
 
     /**
@@ -127,11 +116,11 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "VALIDATION_FAILED",
-                message = "Validation failed for one or more fields",
+                code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
+                message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
                 details = violations
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -162,11 +151,11 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "CONSTRAINT_VIOLATION",
-                message = "Constraint violation occurred",
+                code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
+                message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
                 details = violations
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -196,10 +185,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "AUTHENTICATION_FAILED",
-                message = "Authentication failed. Please check your credentials."
+                code = AppConstants.ErrorCode.AUTHENTICATION_FAILED.code,
+                message = AppConstants.ErrorCode.AUTHENTICATION_FAILED.message
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -228,10 +217,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "ACCESS_DENIED",
-                message = "You don't have permission to access this resource."
+                code = AppConstants.ErrorCode.AUTHORIZATION_FAILED.code,
+                message = AppConstants.ErrorCode.AUTHORIZATION_FAILED.message
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -258,10 +247,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "MALFORMED_REQUEST",
-                message = "Request body is malformed or contains invalid data"
+                code = AppConstants.ErrorCode.MALFORMED_REQUEST.code,
+                message = AppConstants.ErrorCode.MALFORMED_REQUEST.message
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -288,10 +277,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "MISSING_PARAMETER",
-                message = "Required request parameter '${ex.parameterName}' is missing"
+                code = AppConstants.ErrorCode.MISSING_PARAMETERS.code,
+                message = AppConstants.ErrorCode.MISSING_PARAMETERS.formatMessage("parameterName" to ex.parameterName)
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -318,10 +307,13 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "INVALID_PARAMETER_TYPE",
-                message = "Parameter '${ex.name}' has invalid type. Expected: ${ex.requiredType?.simpleName}"
+                code = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.code,
+                message = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.formatMessage(
+                    "parameterName" to ex.name,
+                    "expectedType" to (ex.requiredType?.simpleName ?: "unknown")
+                )
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -348,10 +340,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "ENDPOINT_NOT_FOUND",
-                message = "The requested endpoint does not exist"
+                code = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.code,
+                message = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.message
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )
@@ -381,10 +373,10 @@ class GlobalExceptionHandler {
         val errorResponse = ApiErrorResponse(
             success = false,
             error = ErrorDetail(
-                code = "INTERNAL_ERROR",
-                message = "An unexpected error occurred. Please try again later."
+                code = AppConstants.ErrorCode.INTERNAL_ERROR.code,
+                message = AppConstants.ErrorCode.INTERNAL_ERROR.message
             ),
-            timestamp = kotlinx.datetime.Clock.System.now().toString(),
+            timestamp = Clock.System.now().toString(),
             path = request.requestURI,
             traceId = traceId
         )

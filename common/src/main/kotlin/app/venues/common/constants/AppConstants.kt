@@ -99,37 +99,50 @@ object AppConstants {
         const val USERS_CACHE_NAME = "users"
     }
 
-    /**
-     * Error codes for different types of failures.
-     */
-    object ErrorCodes {
-        // General errors
-        const val INTERNAL_ERROR = "ERR_INTERNAL_000"
-        const val BAD_REQUEST = "ERR_BAD_REQUEST_001"
-        const val NOT_FOUND = "ERR_NOT_FOUND_002"
+    enum class ErrorCode(val code: String, val httpStatus: Int, val message: String) {
+        // General
+        INTERNAL_ERROR("INTERNAL_ERROR", 500, "An unexpected error occurred. Please try again later"),
+        BAD_REQUEST("BAD_REQUEST", 400, "The request could not be understood or was missing required parameters"),
+        NOT_FOUND("NOT_FOUND", 404, "The requested resource was not found"),
+        ENDPOINT_NOT_FOUND("ENDPOINT_NOT_FOUND", 404, "The requested endpoint does not exist"),
 
-        // Authentication & Authorization
-        const val AUTHENTICATION_FAILED = "ERR_AUTH_100"
-        const val AUTHORIZATION_FAILED = "ERR_AUTH_101"
-        const val INVALID_TOKEN = "ERR_AUTH_102"
-        const val TOKEN_EXPIRED = "ERR_AUTH_103"
+        // Auth
+        AUTHENTICATION_FAILED("AUTHENTICATION_FAILED", 401, "Authentication failed. Please check your credentials"),
+        AUTHORIZATION_FAILED("AUTHORIZATION_FAILED", 403, "You do not have permission to access this resource"),
+        INVALID_TOKEN("INVALID_TOKEN", 401, "The provided authentication token is invalid"),
+        TOKEN_EXPIRED("TOKEN_EXPIRED", 401, "Your session has expired. Please log in again"),
 
         // Validation
-        const val VALIDATION_FAILED = "ERR_VALIDATION_200"
-        const val INVALID_INPUT = "ERR_VALIDATION_201"
-        const val MISSING_REQUIRED_FIELD = "ERR_VALIDATION_202"
+        VALIDATION_FAILED("VALIDATION_FAILED", 422, "Validation failed for one or more fields"),
+        INVALID_INPUT("INVALID_INPUT", 422, "One or more input values are invalid"),
+        MISSING_REQUIRED_FIELD("MISSING_REQUIRED_FIELD", 422, "Required field is missing"),
+        INVALID_PARAMETER_TYPE(
+            "INVALID_PARAMETER_TYPE",
+            400,
+            "Parameter '\${parameterName}' has an invalid type. Expected: \${expectedType}"
+        ),
+        MALFORMED_REQUEST("MALFORMED_REQUEST", 400, "The request is malformed or contains invalid syntax"),
+        MISSING_PARAMETERS("MISSING_PARAMETERS", 400, "Required request parameter '\${parameterName}' is missing"),
 
         // Business logic
-        const val RESOURCE_CONFLICT = "ERR_BUSINESS_300"
-        const val DUPLICATE_RESOURCE = "ERR_BUSINESS_301"
-        const val BUSINESS_RULE_VIOLATION = "ERR_BUSINESS_302"
+        RESOURCE_CONFLICT("RESOURCE_CONFLICT", 409, "The operation conflicts with the current state of the resource"),
+        DUPLICATE_RESOURCE("DUPLICATE_RESOURCE", 409, "A resource with the same identifier already exists"),
+        BUSINESS_RULE_VIOLATION("BUSINESS_RULE_VIOLATION", 422, "The operation violates business rules"),
 
         // External services
-        const val EXTERNAL_SERVICE_ERROR = "ERR_EXTERNAL_400"
-        const val DATABASE_ERROR = "ERR_EXTERNAL_401"
+        EXTERNAL_SERVICE_ERROR("EXTERNAL_SERVICE_ERROR", 502, "An external service is currently unavailable"),
+        DATABASE_ERROR("DATABASE_ERROR", 500, "A database error occurred while processing your request"),
 
         // Rate limiting
-        const val RATE_LIMIT_EXCEEDED = "ERR_RATE_500"
+        RATE_LIMIT_EXCEEDED("RATE_LIMIT_EXCEEDED", 429, "Too many requests. Please try again later");
+
+        fun formatMessage(vararg params: Pair<String, Any>): String {
+            var result = message
+            params.forEach { (key, value) ->
+                result = result.replace("\${$key}", value.toString())
+            }
+            return result
+        }
     }
 
     /**

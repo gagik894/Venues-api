@@ -1,7 +1,7 @@
 package app.venues.venue.api.controller
 
-import app.venues.common.constants.AppConstants
 import app.venues.common.model.ApiResponse
+import app.venues.common.util.PaginationUtil
 import app.venues.shared.security.util.SecurityUtil
 import app.venues.venue.api.dto.*
 import app.venues.venue.service.VenueAuthService
@@ -12,8 +12,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
@@ -58,16 +56,24 @@ class VenueController(
         description = "Public endpoint to browse all active venues"
     )
     fun getAllVenues(
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_SIZE}") limit: Int,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_PAGE}") offset: Int,
-        @RequestParam(defaultValue = "createdAt") sortBy: String,
-        @RequestParam(defaultValue = "DESC") sortDirection: String
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) sortBy: String?,
+        @RequestParam(required = false) sortDirection: String?
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Fetching all active venues")
 
-        val pageSize = limit.coerceIn(AppConstants.Pagination.MIN_SIZE, AppConstants.Pagination.MAX_SIZE)
-        val sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy)
-        val pageable = PageRequest.of(offset, pageSize, sort)
+        // Whitelist of allowed sort fields for Venue entity
+        val allowedSortFields = setOf("createdAt", "name", "city", "category", "id")
+
+        val pageable = PaginationUtil.createPageable(
+            limit = limit,
+            offset = offset,
+            sortBy = sortBy,
+            sortDirection = sortDirection,
+            allowedSortFields = allowedSortFields
+        )
+
 
         val venues = venueService.getAllActiveVenues(pageable)
 
@@ -87,13 +93,12 @@ class VenueController(
     )
     fun searchVenues(
         @RequestParam("q") searchTerm: String,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_SIZE}") limit: Int,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_PAGE}") offset: Int
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Searching venues: {}", searchTerm)
 
-        val pageSize = limit.coerceIn(AppConstants.Pagination.MIN_SIZE, AppConstants.Pagination.MAX_SIZE)
-        val pageable = PageRequest.of(offset, pageSize)
+        val pageable = PaginationUtil.createPageable(limit, offset)
 
         val venues = venueService.searchVenues(searchTerm, pageable)
 
@@ -113,13 +118,12 @@ class VenueController(
     )
     fun getVenuesByCity(
         @PathVariable city: String,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_SIZE}") limit: Int,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_PAGE}") offset: Int
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Fetching venues in city: {}", city)
 
-        val pageSize = limit.coerceIn(AppConstants.Pagination.MIN_SIZE, AppConstants.Pagination.MAX_SIZE)
-        val pageable = PageRequest.of(offset, pageSize)
+        val pageable = PaginationUtil.createPageable(limit, offset)
 
         val venues = venueService.getVenuesByCity(city, pageable)
 
@@ -139,13 +143,12 @@ class VenueController(
     )
     fun getVenuesByCategory(
         @PathVariable category: String,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_SIZE}") limit: Int,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_PAGE}") offset: Int
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Fetching venues in category: {}", category)
 
-        val pageSize = limit.coerceIn(AppConstants.Pagination.MIN_SIZE, AppConstants.Pagination.MAX_SIZE)
-        val pageable = PageRequest.of(offset, pageSize)
+        val pageable = PaginationUtil.createPageable(limit, offset)
 
         val venues = venueService.getVenuesByCategory(category, pageable)
 
@@ -459,13 +462,19 @@ class VenueController(
     )
     fun getReviews(
         @PathVariable id: Long,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_SIZE}") limit: Int,
-        @RequestParam(defaultValue = "${AppConstants.Pagination.DEFAULT_PAGE}") offset: Int
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueReviewResponse>> {
         logger.debug("Fetching reviews for venue: {}", id)
 
-        val pageSize = limit.coerceIn(AppConstants.Pagination.MIN_SIZE, AppConstants.Pagination.MAX_SIZE)
-        val pageable = PageRequest.of(offset, pageSize, Sort.by("createdAt").descending())
+        val allowedSortFields = setOf("createdAt", "rating", "id")
+        val pageable = PaginationUtil.createPageable(
+            limit = limit,
+            offset = offset,
+            sortBy = "createdAt",
+            sortDirection = "DESC",
+            allowedSortFields = allowedSortFields
+        )
 
         val reviews = venueService.getReviews(id, pageable)
 

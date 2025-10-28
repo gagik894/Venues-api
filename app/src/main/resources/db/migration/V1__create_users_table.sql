@@ -12,10 +12,14 @@
 CREATE TABLE IF NOT EXISTS users
 (
     -- Primary Key
-    id                    BIGSERIAL PRIMARY KEY,
+    id
+                          BIGSERIAL
+        PRIMARY
+            KEY,
 
     -- Authentication
-    email                 VARCHAR(255) NOT NULL UNIQUE,
+    email
+                          VARCHAR(255) NOT NULL UNIQUE,
     password_hash         VARCHAR(255) NOT NULL,
 
     -- Profile Information
@@ -38,9 +42,31 @@ CREATE TABLE IF NOT EXISTS users
     last_modified_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     -- Constraints
-    CONSTRAINT chk_role CHECK (role IN ('USER', 'ADMIN')),
-    CONSTRAINT chk_status CHECK (status IN ('ACTIVE', 'PENDING_VERIFICATION', 'SUSPENDED', 'DELETED')),
-    CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    CONSTRAINT chk_role CHECK
+        (
+        role
+            IN
+        (
+         'USER',
+         'ADMIN'
+            )),
+    CONSTRAINT chk_status CHECK
+        (
+        status
+            IN
+        (
+         'ACTIVE',
+         'PENDING_VERIFICATION',
+         'SUSPENDED',
+         'DELETED'
+            )),
+    CONSTRAINT chk_email_format CHECK
+        (
+        email
+            ~
+            *
+        '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+        )
 );
 
 -- ===================================================================
@@ -66,21 +92,36 @@ CREATE INDEX IF NOT EXISTS idx_user_created_at ON users (created_at);
 -- Comments for Documentation
 -- ===================================================================
 
-COMMENT ON TABLE users IS 'Registered users of the Venues API system';
-COMMENT ON COLUMN users.id IS 'Primary key, auto-generated';
-COMMENT ON COLUMN users.email IS 'User email address, used for login (unique)';
-COMMENT ON COLUMN users.password_hash IS 'BCrypt hashed password (never store plain text)';
-COMMENT ON COLUMN users.first_name IS 'User first name';
-COMMENT ON COLUMN users.last_name IS 'User last name';
-COMMENT ON COLUMN users.phone_number IS 'User phone number (optional)';
-COMMENT ON COLUMN users.role IS 'User role: USER or ADMIN';
-COMMENT ON COLUMN users.status IS 'Account status: ACTIVE, PENDING_VERIFICATION, SUSPENDED, DELETED';
-COMMENT ON COLUMN users.failed_login_attempts IS 'Number of consecutive failed login attempts';
-COMMENT ON COLUMN users.locked_until IS 'Account locked until this timestamp (null if not locked)';
-COMMENT ON COLUMN users.last_login_at IS 'Timestamp of last successful login';
-COMMENT ON COLUMN users.email_verified IS 'Whether email address has been verified';
-COMMENT ON COLUMN users.created_at IS 'Account creation timestamp';
-COMMENT ON COLUMN users.last_modified_at IS 'Last modification timestamp';
+COMMENT
+    ON TABLE users IS 'Registered users of the Venues API system';
+COMMENT
+    ON COLUMN users.id IS 'Primary key, auto-generated';
+COMMENT
+    ON COLUMN users.email IS 'User email address, used for login (unique)';
+COMMENT
+    ON COLUMN users.password_hash IS 'BCrypt hashed password (never store plain text)';
+COMMENT
+    ON COLUMN users.first_name IS 'User first name';
+COMMENT
+    ON COLUMN users.last_name IS 'User last name';
+COMMENT
+    ON COLUMN users.phone_number IS 'User phone number (optional)';
+COMMENT
+    ON COLUMN users.role IS 'User role: USER or ADMIN';
+COMMENT
+    ON COLUMN users.status IS 'Account status: ACTIVE, PENDING_VERIFICATION, SUSPENDED, DELETED';
+COMMENT
+    ON COLUMN users.failed_login_attempts IS 'Number of consecutive failed login attempts';
+COMMENT
+    ON COLUMN users.locked_until IS 'Account locked until this timestamp (null if not locked)';
+COMMENT
+    ON COLUMN users.last_login_at IS 'Timestamp of last successful login';
+COMMENT
+    ON COLUMN users.email_verified IS 'Whether email address has been verified';
+COMMENT
+    ON COLUMN users.created_at IS 'Account creation timestamp';
+COMMENT
+    ON COLUMN users.last_modified_at IS 'Last modification timestamp';
 
 -- ===================================================================
 -- Seed Data (Optional - for development/testing)
@@ -113,14 +154,17 @@ ON CONFLICT (email) DO NOTHING;
 -- Trigger for Automatic last_modified_at Update
 -- ===================================================================
 
-CREATE OR REPLACE FUNCTION update_last_modified_at()
+CREATE
+    OR REPLACE FUNCTION update_last_modified_at()
     RETURNS TRIGGER AS
 $$
 BEGIN
-    NEW.last_modified_at = CURRENT_TIMESTAMP;
+    NEW.last_modified_at
+        = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$
+    LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_users_last_modified_at
     BEFORE UPDATE

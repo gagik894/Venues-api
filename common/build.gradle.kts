@@ -2,6 +2,8 @@ plugins {
     `java-library`
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinPluginSerialization)
+    alias(libs.plugins.springBoot) apply false
+    alias(libs.plugins.springDependencyManagement)
 }
 
 group = "app.venues"
@@ -16,6 +18,13 @@ java {
 repositories {
     mavenCentral()
 }
+
+dependencyManagement {
+    imports {
+        mavenBom(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    }
+}
+
 
 dependencies {
     // Kotlin Standard Library
@@ -33,6 +42,10 @@ dependencies {
 
     // Validation annotations (JSR 380)
     api("jakarta.validation:jakarta.validation-api:3.1.0")
+
+    // Spring Data Commons - provides Pageable, Sort, PageRequest
+    // Using spring-data-commons instead of full JPA starter since common is pure Kotlin
+    api("org.springframework.data:spring-data-commons")
 
     // Testing
     testImplementation(kotlin("test"))

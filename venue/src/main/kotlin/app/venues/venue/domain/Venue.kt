@@ -89,15 +89,17 @@ data class Venue(
     var city: String? = null,
 
     /**
-     * Latitude coordinate
+     * Latitude coordinate (WGS84)
+     * Valid range: -90 to 90 degrees
      */
-    @Column(precision = 10, scale = 8)
+    @Column(name = "latitude")
     var latitude: Double? = null,
 
     /**
-     * Longitude coordinate
+     * Longitude coordinate (WGS84)
+     * Valid range: -180 to 180 degrees
      */
-    @Column(precision = 11, scale = 8)
+    @Column(name = "longitude")
     var longitude: Double? = null,
 
     // ===========================================

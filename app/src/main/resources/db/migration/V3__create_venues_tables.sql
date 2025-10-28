@@ -20,8 +20,8 @@ CREATE TABLE venues
     -- Location
     address                             VARCHAR(500)        NOT NULL,
     city                                VARCHAR(100),
-    latitude                            DECIMAL(10, 8),
-    longitude                           DECIMAL(11, 8),
+    latitude                            DOUBLE PRECISION,
+    longitude                           DOUBLE PRECISION,
 
     -- Contact
     email                               VARCHAR(255) UNIQUE NOT NULL,
@@ -212,17 +212,18 @@ CREATE INDEX idx_venue_promo_code_active ON venue_promo_codes (is_active);
 -- ===========================================
 
 COMMENT
-ON TABLE venues IS 'Cultural venues (theaters, opera houses, museums, etc.) that host events';
+    ON TABLE venues IS 'Cultural venues (theaters, opera houses, museums, etc.) that host events';
 COMMENT
-ON TABLE venue_schedules IS 'Operating hours for venues by day of week';
+    ON TABLE venue_schedules IS 'Operating hours for venues by day of week';
 COMMENT
-ON TABLE venue_translations IS 'Multi-language translations for venue name and description';
+    ON TABLE venue_translations IS 'Multi-language translations for venue name and description';
 COMMENT
-ON TABLE venue_photos IS 'Photos uploaded for venues';
+    ON TABLE venue_photos IS 'Photos uploaded for venues';
 COMMENT
-ON TABLE venue_reviews IS 'User reviews and ratings for venues';
+    ON TABLE venue_reviews IS 'User reviews and ratings for venues';
 COMMENT
-ON TABLE venue_followers IS 'Users following venues for updates';
+    ON TABLE venue_followers IS 'Users following venues for updates';
 COMMENT
-ON TABLE venue_promo_codes IS 'Promotional discount codes offered by venues';
+    ON TABLE venue_promo_codes IS 'Promotional discount codes offered by venues';
+
 

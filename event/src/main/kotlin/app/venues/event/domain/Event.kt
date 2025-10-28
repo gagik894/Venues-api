@@ -124,10 +124,11 @@ data class Event(
     var currency: String = "AMD",
 
     /**
-     * Seating chart ID reference (external system or file reference)
+     * Seating chart for this event (optional - for seated events)
      */
-    @Column(name = "seating_chart_id", length = 100)
-    var seatingChartId: String? = null,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seating_chart_id")
+    var seatingChart: app.venues.seating.domain.SeatingChart? = null,
 
     // ===========================================
     // Status & State

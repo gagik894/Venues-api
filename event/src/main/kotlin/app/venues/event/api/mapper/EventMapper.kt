@@ -32,7 +32,7 @@ class EventMapper {
             tags = event.tags.toSet(),
             priceRange = event.priceRange,
             currency = event.currency,
-            seatingChartId = event.seatingChartId,
+            seatingChartName = event.seatingChart?.name,
             status = event.status,
             createdAt = event.createdAt.toString(),
             lastModifiedAt = event.lastModifiedAt.toString(),

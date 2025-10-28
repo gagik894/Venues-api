@@ -23,6 +23,7 @@ dependencies {
     // Feature modules
     implementation(project(":user"))
     implementation(project(":venue"))
+    implementation(project(":seating"))
     implementation(project(":event"))
 
     // Shared module dependency (includes common, security, web config, etc.)

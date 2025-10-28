@@ -12,6 +12,7 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/event" />
+            <option value="$PROJECT_DIR$/seating" />
             <option value="$PROJECT_DIR$/shared" />
             <option value="$PROJECT_DIR$/user" />
             <option value="$PROJECT_DIR$/venue" />

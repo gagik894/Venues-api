@@ -9,7 +9,7 @@ plugins {
 
 group = "app.venues"
 version = "0.0.1-SNAPSHOT"
-description = "event"
+description = "seating"
 
 java {
     toolchain {
@@ -31,11 +31,8 @@ dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
 
-    // Venue module dependency (events belong to venues)
+    // Venue module dependency (seating charts belong to venues)
     api(project(":venue"))
-
-    // Seating module dependency (events use seating charts)
-    api(project(":seating"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

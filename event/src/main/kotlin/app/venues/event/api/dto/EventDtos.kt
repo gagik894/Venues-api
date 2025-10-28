@@ -41,7 +41,7 @@ data class EventRequest(
     @field:Size(min = 3, max = 3, message = "Currency must be 3 characters (ISO 4217)")
     val currency: String = "AMD",
 
-    val seatingChartId: String? = null,
+    val seatingChartId: Long? = null,
 
     val status: EventStatus = EventStatus.DRAFT
 )
@@ -65,7 +65,7 @@ data class EventResponse(
     val tags: Set<String>,
     val priceRange: String?,
     val currency: String,
-    val seatingChartId: String?,
+    val seatingChartName: String?,
     val status: EventStatus,
     val createdAt: String,
     val lastModifiedAt: String,

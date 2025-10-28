@@ -9,6 +9,7 @@ import app.venues.event.domain.EventStatus
 import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
+import app.venues.seating.repository.SeatingChartRepository
 import app.venues.venue.repository.VenueRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
@@ -32,6 +33,7 @@ import java.time.Instant
 class EventService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
+    private val seatingChartRepository: SeatingChartRepository,
     private val venueRepository: VenueRepository,
     private val eventMapper: EventMapper
 ) {
@@ -50,6 +52,12 @@ class EventService(
         val venue = venueRepository.findById(venueId)
             .orElseThrow { VenuesException.ResourceNotFound("Venue not found with ID: $venueId") }
 
+        // Fetch seating chart if provided
+        val seatingChart = request.seatingChartId?.let { chartId ->
+            seatingChartRepository.findById(chartId)
+                .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
+        }
+
         val event = Event(
             title = request.title,
             description = request.description,
@@ -60,7 +68,7 @@ class EventService(
             longitude = request.longitude,
             priceRange = request.priceRange,
             currency = request.currency,
-            seatingChartId = request.seatingChartId,
+            seatingChart = seatingChart,
             status = request.status
         )
 
@@ -108,6 +116,12 @@ class EventService(
             throw VenuesException.ValidationFailure("Event cannot be edited in current status: ${event.status}")
         }
 
+        // Fetch seating chart if provided
+        val seatingChart = request.seatingChartId?.let { chartId ->
+            seatingChartRepository.findById(chartId)
+                .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
+        }
+
         // Update fields
         event.title = request.title
         event.description = request.description
@@ -117,7 +131,7 @@ class EventService(
         event.longitude = request.longitude
         event.priceRange = request.priceRange
         event.currency = request.currency
-        event.seatingChartId = request.seatingChartId
+        event.seatingChart = seatingChart
         event.status = request.status
 
         // Update collections

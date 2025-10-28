@@ -168,6 +168,64 @@ class SecurityUtil {
     }
 
     /**
+     * Requires that the current authenticated user owns the specified venue.
+     *
+     * This method verifies that:
+     * 1. User is authenticated
+     * 2. User has VENUE role
+     * 3. User's ID matches the specified venueId
+     *
+     * @param venueId The venue ID to verify ownership for
+     * @throws VenuesException.AuthorizationFailure if user doesn't own the venue
+     */
+    fun requireVenueOwnership(venueId: Long) {
+        val currentUserId = getCurrentUserId()
+        val currentRole = getCurrentUserRole()
+
+        // Verify user has VENUE role
+        if (currentRole != "VENUE") {
+            throw VenuesException.AuthorizationFailure(
+                "Only venue owners can perform this action",
+                "INSUFFICIENT_PERMISSIONS"
+            )
+        }
+
+        // Verify venue ownership (user ID should match venue ID)
+        if (currentUserId != venueId) {
+            throw VenuesException.AuthorizationFailure(
+                "You can only manage your own venue",
+                "VENUE_OWNERSHIP_REQUIRED"
+            )
+        }
+    }
+
+    /**
+     * Requires that the current authenticated user owns the specified user account.
+     *
+     * This method verifies that the current user's ID matches the specified userId.
+     * Admins bypass this check.
+     *
+     * @param userId The user ID to verify ownership for
+     * @throws VenuesException.AuthorizationFailure if user doesn't own the account
+     */
+    fun requireUserOwnership(userId: Long) {
+        // Admins can access any user
+        if (isAdmin()) {
+            return
+        }
+
+        val currentUserId = getCurrentUserId()
+
+        // Verify user ownership
+        if (currentUserId != userId) {
+            throw VenuesException.AuthorizationFailure(
+                "You can only access your own account",
+                "USER_OWNERSHIP_REQUIRED"
+            )
+        }
+    }
+
+    /**
      * Checks if the current user is authenticated.
      *
      * @return true if user is authenticated

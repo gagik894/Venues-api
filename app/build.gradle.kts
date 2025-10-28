@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":venue"))
     implementation(project(":seating"))
     implementation(project(":event"))
+    implementation(project(":booking"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))

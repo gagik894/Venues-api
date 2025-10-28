@@ -1,68 +1,42 @@
 package app.venues.venue.repository
 
-import app.venues.venue.domain.VenueReview
+import app.venues.venue.domain.DayOfWeek
 import app.venues.venue.domain.VenueSchedule
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
-import java.time.DayOfWeek
 import java.util.*
 
 /**
- * Repository for VenueSchedule entity.
+ * Repository interface for VenueSchedule entity operations.
+ *
+ * Provides database access methods for venue operating schedules.
+ * Supports finding schedules by venue and day combinations.
  */
 @Repository
 interface VenueScheduleRepository : JpaRepository<VenueSchedule, Long> {
 
     /**
-     * Find all schedules for a venue
+     * Find all schedules for a specific venue.
+     *
+     * @param venueId The venue ID
+     * @return List of schedules for the venue
      */
     fun findByVenueId(venueId: Long): List<VenueSchedule>
 
     /**
-     * Find schedule for specific day
+     * Find schedule for a specific venue and day of week.
+     *
+     * @param venueId The venue ID
+     * @param dayOfWeek The day of the week
+     * @return Optional schedule for the venue and day
      */
     fun findByVenueIdAndDayOfWeek(venueId: Long, dayOfWeek: DayOfWeek): Optional<VenueSchedule>
 
     /**
-     * Delete all schedules for a venue
+     * Delete all schedules for a venue.
+     * Used when a venue is deleted.
+     *
+     * @param venueId The venue ID
      */
     fun deleteByVenueId(venueId: Long)
 }
-
-/**
- * Repository for VenueReview entity.
- */
-@Repository
-interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
-
-    /**
-     * Find all reviews for a venue
-     */
-    fun findByVenueIdAndIsModeratedFalse(venueId: Long, pageable: Pageable): Page<VenueReview>
-
-    /**
-     * Find review by user and venue
-     */
-    fun findByVenueIdAndUserId(venueId: Long, userId: Long): Optional<VenueReview>
-
-    /**
-     * Check if user has already reviewed this venue
-     */
-    fun existsByVenueIdAndUserId(venueId: Long, userId: Long): Boolean
-
-    /**
-     * Calculate average rating for a venue
-     */
-    @Query("SELECT AVG(r.rating) FROM VenueReview r WHERE r.venue.id = :venueId AND r.isModerated = false")
-    fun calculateAverageRating(@Param("venueId") venueId: Long): Double?
-
-    /**
-     * Count reviews for a venue
-     */
-    fun countByVenueIdAndIsModeratedFalse(venueId: Long): Long
-}
-

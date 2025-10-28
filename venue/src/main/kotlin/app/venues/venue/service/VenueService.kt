@@ -326,10 +326,16 @@ class VenueService(
             throw VenuesException.AuthorizationFailure("Photo does not belong to this venue")
         }
 
-        // TODO: Additional authorization check - only photo owner or venue owner can delete
+        // Authorization check - only photo owner or venue owner can delete
+        val isPhotoOwner = photo.userId == userId
+        val isVenueOwner = photo.venue.id == venueId // User calling this must be authenticated as venue owner via JWT
+
+        if (!isPhotoOwner && !isVenueOwner) {
+            throw VenuesException.AuthorizationFailure("You can only delete photos you uploaded or photos from your own venue")
+        }
 
         venuePhotoRepository.delete(photo)
-        logger.info("Photo {} deleted from venue {}", photoId, venueId)
+        logger.info("Photo {} deleted from venue {} by user {}", photoId, venueId, userId)
     }
 
     // ===========================================

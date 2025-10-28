@@ -2,38 +2,103 @@ package app.venues.venue.repository
 
 import app.venues.venue.domain.VenueFollower
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
-import java.util.*
 
 /**
- * Repository for VenueFollower entity.
+ * Repository interface for VenueFollower entity operations.
+ *
+ * Provides database access methods for venue following/follower relationships.
+ * Supports notification preferences and engagement tracking.
  */
 @Repository
 interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
 
     /**
-     * Find follower relationship
+     * Find all followers of a specific venue.
+     *
+     * @param venueId The venue ID
+     * @return List of followers for the venue
      */
-    fun findByVenueIdAndUserId(venueId: Long, userId: Long): Optional<VenueFollower>
+    fun findByVenueId(venueId: Long): List<VenueFollower>
 
     /**
-     * Check if user follows venue
+     * Find all venues followed by a specific user.
+     *
+     * @param userId The user ID
+     * @return List of venues followed by the user
+     */
+    fun findByUserId(userId: Long): List<VenueFollower>
+
+    /**
+     * Find followers of a venue who have notifications enabled.
+     * Used for sending venue updates and notifications.
+     *
+     * @param venueId The venue ID
+     * @return List of followers with notifications enabled
+     */
+    fun findByVenueIdAndNotificationsEnabledTrue(venueId: Long): List<VenueFollower>
+
+    /**
+     * Check if a user is following a venue.
+     *
+     * @param venueId The venue ID
+     * @param userId The user ID
+     * @return True if user is following the venue
      */
     fun existsByVenueIdAndUserId(venueId: Long, userId: Long): Boolean
 
     /**
-     * Count followers for a venue
+     * Count total followers for a venue.
+     *
+     * @param venueId The venue ID
+     * @return Number of followers for the venue
      */
     fun countByVenueId(venueId: Long): Long
 
     /**
-     * Delete follower relationship
+     * Count venues followed by a user.
+     *
+     * @param userId The user ID
+     * @return Number of venues followed by the user
      */
+    fun countByUserId(userId: Long): Long
+
+    /**
+     * Delete a follow relationship.
+     *
+     * @param venueId The venue ID
+     * @param userId The user ID
+     */
+    @Modifying
+    @Query("DELETE FROM VenueFollower vf WHERE vf.venue.id = :venueId AND vf.userId = :userId")
     fun deleteByVenueIdAndUserId(venueId: Long, userId: Long)
 
     /**
-     * Find all venues followed by a user
+     * Delete all followers for a venue.
+     * Used when a venue is deleted.
+     *
+     * @param venueId The venue ID
      */
-    fun findByUserId(userId: Long): List<VenueFollower>
-}
+    fun deleteByVenueId(venueId: Long)
 
+    /**
+     * Delete all follows by a user.
+     * Used when a user is deleted.
+     *
+     * @param userId The user ID
+     */
+    fun deleteByUserId(userId: Long)
+
+    /**
+     * Update notification preferences for a follow relationship.
+     *
+     * @param venueId The venue ID
+     * @param userId The user ID
+     * @param notificationsEnabled Whether notifications should be enabled
+     */
+    @Modifying
+    @Query("UPDATE VenueFollower vf SET vf.notificationsEnabled = :notificationsEnabled WHERE vf.venue.id = :venueId AND vf.userId = :userId")
+    fun updateNotificationPreferences(venueId: Long, userId: Long, notificationsEnabled: Boolean)
+}

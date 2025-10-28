@@ -1,88 +1,81 @@
 package app.venues.venue.domain
 
 import jakarta.persistence.*
-import java.time.DayOfWeek
-import java.time.LocalTime
+import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.annotation.LastModifiedDate
+import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.time.Instant
 
 /**
- * Venue Schedule Entity
+ * Entity representing a venue schedule for a specific day of the week.
  *
- * Represents the operating hours for a specific day of the week.
- * Each venue can have multiple schedules (one per day).
- *
- * Examples:
- * - Monday: 09:00 - 18:00
- * - Tuesday: Closed
- * - Saturday: 10:00 - 22:00
+ * Each venue can have different operating hours for each day of the week.
+ * This allows flexible scheduling including closed days, different weekend hours, etc.
  */
 @Entity
 @Table(
     name = "venue_schedules",
-    indexes = [
-        Index(name = "idx_venue_schedule_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_schedule_day", columnList = "day_of_week")
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_venue_schedule_venue_day",
+            columnNames = ["venue_id", "day_of_week"]
+        )
     ]
 )
+@EntityListeners(AuditingEntityListener::class)
 data class VenueSchedule(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue this schedule belongs to
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
-     * Day of the week
+     * Day of the week (MONDAY, TUESDAY, etc.)
      */
-    @Enumerated(EnumType.STRING)
     @Column(name = "day_of_week", nullable = false, length = 10)
+    @Enumerated(EnumType.STRING)
     var dayOfWeek: DayOfWeek,
 
     /**
      * Opening time (null if closed)
      */
     @Column(name = "open_time")
-    var openTime: LocalTime? = null,
+    var openTime: java.time.LocalTime? = null,
 
     /**
      * Closing time (null if closed)
      */
     @Column(name = "close_time")
-    var closeTime: LocalTime? = null,
+    var closeTime: java.time.LocalTime? = null,
 
     /**
-     * Flag indicating if venue is closed on this day
+     * Whether the venue is closed on this day
      */
-    @Column(nullable = false)
-    var isClosed: Boolean = false
-) {
-    /**
-     * Check if venue is currently open (based on current time)
-     */
-    fun isOpenAt(time: LocalTime): Boolean {
-        if (isClosed) return false
-        if (openTime == null || closeTime == null) return false
+    @Column(name = "is_closed", nullable = false)
+    var isClosed: Boolean = false,
 
-        return time.isAfter(openTime) && time.isBefore(closeTime)
-    }
+    // ===========================================
+    // Audit Fields
+    // ===========================================
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: Instant = Instant.now(),
 
-        other as VenueSchedule
+    @LastModifiedDate
+    @Column(name = "last_modified_at", nullable = false)
+    var lastModifiedAt: Instant = Instant.now()
+)
 
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenueSchedule(id=$id, dayOfWeek=$dayOfWeek, openTime=$openTime, closeTime=$closeTime, isClosed=$isClosed)"
-    }
+/**
+ * Days of the week enum for venue schedules
+ */
+enum class DayOfWeek {
+    MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY
 }
-

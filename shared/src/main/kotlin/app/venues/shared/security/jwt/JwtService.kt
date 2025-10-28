@@ -28,7 +28,7 @@ import javax.crypto.SecretKey
  * - sub (subject): Principal email/identifier
  * - iat (issued at): Token creation timestamp
  * - exp (expiration): Token expiration timestamp
- * - userId: Custom claim for principal ID (user ID or venue ID)
+ * - id: Custom claim for principal ID (user ID or venue ID)
  * - role: Custom claim for principal role (ROLE_USER, ROLE_VENUE, etc.)
  *
  * Security:

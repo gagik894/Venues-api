@@ -6,79 +6,63 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
- * Venue Photo Entity
+ * Entity representing a photo uploaded for a venue.
  *
- * Represents photos uploaded by users or venue owners.
- * Can be associated with a user (uploader) and the venue.
- *
- * Features:
- * - Track who uploaded the photo
- * - Track when it was uploaded
- * - Support for moderation (future)
+ * Photos can be uploaded by venue owners or users who have visited the venue.
+ * This allows for crowd-sourced venue imagery while maintaining attribution.
  */
 @Entity
 @Table(
     name = "venue_photos",
     indexes = [
         Index(name = "idx_venue_photo_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_photo_user_id", columnList = "user_id")
+        Index(name = "idx_venue_photo_user_id", columnList = "user_id"),
+        Index(name = "idx_venue_photo_display_order", columnList = "venue_id, display_order")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenuePhoto(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue this photo belongs to
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
      * ID of the user who uploaded this photo
-     * Stored as Long to avoid coupling with User module
+     * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
     var userId: Long,
 
     /**
-     * URL of the photo (stored in cloud storage)
+     * URL/path to the photo file
      */
-    @Column(nullable = false, length = 500)
+    @Column(name = "url", nullable = false, length = 500)
     var url: String,
 
     /**
-     * Optional caption or description
+     * Optional caption for the photo
      */
-    @Column(length = 500)
+    @Column(name = "caption", length = 500)
     var caption: String? = null,
 
     /**
-     * Display order (lower numbers appear first)
+     * Display order for sorting photos (lower numbers first)
      */
-    @Column(nullable = false)
+    @Column(name = "display_order", nullable = false)
     var displayOrder: Int = 0,
 
+    // ===========================================
+    // Audit Fields
+    // ===========================================
+
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as VenuePhoto
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenuePhoto(id=$id, userId=$userId, url='$url')"
-    }
-}
-
+)

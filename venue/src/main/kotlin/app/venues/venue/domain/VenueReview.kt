@@ -7,92 +7,80 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
- * Venue Review Entity
+ * Entity representing a user review and rating for a venue.
  *
- * Represents user reviews and ratings for a venue.
- * Users can rate venues from 1 to 5 stars and leave comments.
- *
- * Features:
- * - One review per user per venue (enforced by unique constraint)
- * - Rating from 1 to 5
- * - Optional text comment
- * - Moderation support (future)
+ * Reviews help other users make informed decisions about venues.
+ * Each user can only have one review per venue (can be updated).
  */
 @Entity
 @Table(
     name = "venue_reviews",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_venue_review_user_venue",
+            columnNames = ["venue_id", "user_id"]
+        )
+    ],
     indexes = [
         Index(name = "idx_venue_review_venue_id", columnList = "venue_id"),
         Index(name = "idx_venue_review_user_id", columnList = "user_id"),
-        Index(name = "idx_venue_review_rating", columnList = "rating")
-    ],
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_venue_review_user_venue", columnNames = ["venue_id", "user_id"])
+        Index(name = "idx_venue_review_rating", columnList = "rating"),
+        Index(name = "idx_venue_review_moderated", columnList = "is_moderated")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenueReview(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue being reviewed
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
      * ID of the user who wrote this review
-     * Stored as Long to avoid coupling with User module
+     * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
     var userId: Long,
 
     /**
-     * Rating from 1 to 5
+     * Rating from 1 to 5 stars
      */
-    @Column(nullable = false)
+    @Column(name = "rating", nullable = false)
     var rating: Int,
 
     /**
-     * Optional review comment
+     * Optional written comment
      */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "comment", columnDefinition = "TEXT")
     var comment: String? = null,
 
     /**
-     * Flag for moderation (if review is inappropriate)
+     * Whether this review has been moderated/approved
+     * Used for content moderation in government applications
      */
-    @Column(nullable = false)
+    @Column(name = "is_moderated", nullable = false)
     var isModerated: Boolean = false,
 
+    // ===========================================
+    // Audit Fields
+    // ===========================================
+
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),
 
     @LastModifiedDate
-    @Column(nullable = false)
+    @Column(name = "last_modified_at", nullable = false)
     var lastModifiedAt: Instant = Instant.now()
 ) {
     init {
+        // Validate rating is between 1 and 5
         require(rating in 1..5) { "Rating must be between 1 and 5" }
     }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as VenueReview
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenueReview(id=$id, userId=$userId, rating=$rating)"
-    }
 }
-

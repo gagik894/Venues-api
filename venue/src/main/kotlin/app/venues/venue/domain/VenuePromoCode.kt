@@ -7,108 +7,113 @@ import java.math.BigDecimal
 import java.time.Instant
 
 /**
- * Venue Promo Code Entity
+ * Entity representing a promotional discount code offered by a venue.
  *
- * Represents promotional codes offered by venues for discounts.
- *
- * Features:
- * - Percentage or fixed amount discounts
- * - Expiration dates
- * - Usage limits
- * - Active/inactive status
+ * Venues can create promotional codes to offer discounts to customers.
+ * Supports both percentage and fixed amount discounts with usage limits.
  */
 @Entity
 @Table(
     name = "venue_promo_codes",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_venue_promo_code_venue_code",
+            columnNames = ["venue_id", "code"]
+        )
+    ],
     indexes = [
         Index(name = "idx_venue_promo_code_venue_id", columnList = "venue_id"),
         Index(name = "idx_venue_promo_code_code", columnList = "code"),
-        Index(name = "idx_venue_promo_code_active", columnList = "is_active")
-    ],
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_venue_promo_code_venue_code", columnNames = ["venue_id", "code"])
+        Index(name = "idx_venue_promo_code_active", columnList = "is_active"),
+        Index(name = "idx_venue_promo_code_expires", columnList = "expires_at")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenuePromoCode(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue offering this promo code
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
-     * The promo code string (e.g., "SUMMER2025")
+     * The promotional code (e.g., "SUMMER2024", "WELCOME10")
      */
-    @Column(nullable = false, length = 50)
+    @Column(name = "code", nullable = false, length = 50)
     var code: String,
 
     /**
-     * Description of the promo code
+     * Description of what this promo code offers
      */
-    @Column(length = 255)
+    @Column(name = "description", length = 255)
     var description: String? = null,
 
     /**
-     * Discount type: PERCENTAGE or FIXED_AMOUNT
+     * Type of discount (PERCENTAGE or FIXED_AMOUNT)
      */
+    @Column(name = "discount_type", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    var discountType: DiscountType = DiscountType.PERCENTAGE,
+    var discountType: DiscountType,
 
     /**
      * Discount value (percentage or fixed amount)
      */
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "discount_value", nullable = false, precision = 10, scale = 2)
     var discountValue: BigDecimal,
 
     /**
-     * Minimum order amount required to use this promo code
+     * Minimum order amount required to use this code
      */
-    @Column(precision = 10, scale = 2)
+    @Column(name = "min_order_amount", precision = 10, scale = 2)
     var minOrderAmount: BigDecimal? = null,
 
     /**
-     * Maximum discount amount (for percentage discounts)
+     * Maximum discount amount (useful for percentage discounts)
      */
-    @Column(precision = 10, scale = 2)
+    @Column(name = "max_discount_amount", precision = 10, scale = 2)
     var maxDiscountAmount: BigDecimal? = null,
 
     /**
      * Maximum number of times this code can be used (null = unlimited)
      */
-    @Column
+    @Column(name = "max_usage_count")
     var maxUsageCount: Int? = null,
 
     /**
-     * Current usage count
+     * Current number of times this code has been used
      */
-    @Column(nullable = false)
+    @Column(name = "current_usage_count", nullable = false)
     var currentUsageCount: Int = 0,
 
     /**
-     * Expiration date (null = no expiration)
+     * When this promo code expires (null = no expiration)
      */
-    @Column
+    @Column(name = "expires_at")
     var expiresAt: Instant? = null,
 
     /**
-     * Active status
+     * Whether this promo code is currently active
      */
-    @Column(nullable = false)
+    @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
 
+    // ===========================================
+    // Audit Fields
+    // ===========================================
+
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
 ) {
     /**
-     * Check if promo code is currently valid
+     * Check if this promo code is currently valid for use
      */
-    fun isValid(): Boolean {
+    fun isValidForUse(): Boolean {
         if (!isActive) return false
         if (expiresAt?.isBefore(Instant.now()) == true) return false
         if (maxUsageCount != null && currentUsageCount >= maxUsageCount!!) return false
@@ -116,42 +121,30 @@ data class VenuePromoCode(
     }
 
     /**
-     * Increment usage count
+     * Calculate discount amount for a given order total
      */
-    fun incrementUsage() {
-        currentUsageCount++
-    }
+    fun calculateDiscount(orderAmount: BigDecimal): BigDecimal {
+        if (!isValidForUse()) return BigDecimal.ZERO
+        if (minOrderAmount != null && orderAmount < minOrderAmount!!) return BigDecimal.ZERO
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+        val discount = when (discountType) {
+            DiscountType.PERCENTAGE -> orderAmount * (discountValue / BigDecimal(100))
+            DiscountType.FIXED_AMOUNT -> discountValue
+        }
 
-        other as VenuePromoCode
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenuePromoCode(id=$id, code='$code', discountType=$discountType, discountValue=$discountValue)"
+        // Apply maximum discount limit if set
+        return if (maxDiscountAmount != null && discount > maxDiscountAmount!!) {
+            maxDiscountAmount!!
+        } else {
+            discount
+        }
     }
 }
 
 /**
- * Discount Type Enum
+ * Types of discounts supported by promo codes
  */
 enum class DiscountType {
-    /**
-     * Percentage discount (e.g., 20% off)
-     */
     PERCENTAGE,
-
-    /**
-     * Fixed amount discount (e.g., $10 off)
-     */
     FIXED_AMOUNT
 }
-

@@ -6,69 +6,58 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
- * Venue Follower Entity
+ * Entity representing a user following a venue.
  *
- * Represents the many-to-many relationship between users and venues.
- * Users can follow venues to receive updates about new events.
- *
- * Features:
- * - Track when user started following
- * - Support for notifications preferences (future)
+ * When users follow venues, they can receive notifications about new events,
+ * updates, promotions, etc. This creates engagement and helps venues build
+ * an audience.
  */
 @Entity
 @Table(
     name = "venue_followers",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_venue_follower_user_venue",
+            columnNames = ["venue_id", "user_id"]
+        )
+    ],
     indexes = [
         Index(name = "idx_venue_follower_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_follower_user_id", columnList = "user_id")
-    ],
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_venue_follower_user_venue", columnNames = ["venue_id", "user_id"])
+        Index(name = "idx_venue_follower_user_id", columnList = "user_id"),
+        Index(name = "idx_venue_follower_notifications", columnList = "notifications_enabled")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenueFollower(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue being followed
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
-     * ID of the user who is following this venue
-     * Stored as Long to avoid coupling with User module
+     * ID of the user following this venue
+     * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
     var userId: Long,
 
     /**
-     * Flag indicating if user wants to receive notifications
+     * Whether the user wants to receive notifications from this venue
      */
-    @Column(nullable = false)
+    @Column(name = "notifications_enabled", nullable = false)
     var notificationsEnabled: Boolean = true,
 
+    // ===========================================
+    // Audit Fields
+    // ===========================================
+
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now()
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as VenueFollower
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenueFollower(id=$id, userId=$userId, notificationsEnabled=$notificationsEnabled)"
-    }
-}
-
+)

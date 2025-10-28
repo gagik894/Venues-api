@@ -7,80 +7,65 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
- * Venue Translation Entity
+ * Entity representing a translation of venue information in different languages.
  *
- * Provides multi-language support for venue information.
- * Each venue can have translations in multiple languages.
- *
- * Translatable fields:
- * - name
- * - description
- *
- * Language codes follow ISO 639-1 standard (e.g., "en", "es", "fr", "hy")
+ * Supports multi-language venue names and descriptions for international accessibility.
+ * This allows venues to provide information in multiple languages for diverse audiences.
  */
 @Entity
 @Table(
     name = "venue_translations",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_venue_translation_venue_language",
+            columnNames = ["venue_id", "language"]
+        )
+    ],
     indexes = [
         Index(name = "idx_venue_translation_venue_id", columnList = "venue_id"),
         Index(name = "idx_venue_translation_language", columnList = "language")
-    ],
-    uniqueConstraints = [
-        UniqueConstraint(name = "uk_venue_translation_venue_language", columnNames = ["venue_id", "language"])
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenueTranslation(
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+    var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /**
+     * The venue this translation belongs to
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
-     * ISO 639-1 language code (e.g., "en", "es", "fr", "hy", "ru")
+     * Language code (e.g., "en", "fr", "es", "hy", "ru")
      */
-    @Column(nullable = false, length = 10)
+    @Column(name = "language", nullable = false, length = 10)
     var language: String,
 
     /**
      * Translated venue name
      */
-    @Column(nullable = false, length = 255)
+    @Column(name = "name", nullable = false, length = 255)
     var name: String,
 
     /**
      * Translated venue description
      */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
+    // ===========================================
+    // Audit Fields
+    // ===========================================
+
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),
 
     @LastModifiedDate
-    @Column(nullable = false)
+    @Column(name = "last_modified_at", nullable = false)
     var lastModifiedAt: Instant = Instant.now()
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as VenueTranslation
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "VenueTranslation(id=$id, language='$language', name='$name')"
-    }
-}
-
+)

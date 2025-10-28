@@ -43,7 +43,7 @@ class HealthController {
         summary = "Ping health check",
         description = "Returns a simple pong response to verify the service is running"
     )
-    fun ping(): ResponseEntity<ApiResponse<String>> {
+    fun ping(): ResponseEntity<ApiResponse<Unit>> {
         logger.debug { "Health check ping received" }
 
         return ResponseEntity.ok(

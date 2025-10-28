@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter
  * Mapper for converting between Venue entities and DTOs.
  *
  * Handles bidirectional mapping for all venue-related objects.
- * Uses extension functions for clean, readable conversions.
+ * Includes proper type conversions for timestamps and monetary values.
  */
 @Component
 class VenueMapper {
@@ -109,7 +109,9 @@ class VenueMapper {
             id = translation.id!!,
             language = translation.language,
             name = translation.name,
-            description = translation.description
+            description = translation.description,
+            createdAt = translation.createdAt,
+            lastModifiedAt = translation.lastModifiedAt
         )
     }
 
@@ -139,7 +141,7 @@ class VenueMapper {
             caption = photo.caption,
             displayOrder = photo.displayOrder,
             userId = photo.userId,
-            createdAt = photo.createdAt
+            createdAt = photo.createdAt,
         )
     }
 
@@ -170,7 +172,8 @@ class VenueMapper {
             rating = review.rating,
             comment = review.comment,
             createdAt = review.createdAt,
-            lastModifiedAt = review.lastModifiedAt
+            lastModifiedAt = review.lastModifiedAt,
+            isModerated = review.isModerated
         )
     }
 
@@ -199,9 +202,9 @@ class VenueMapper {
             code = promoCode.code,
             description = promoCode.description,
             discountType = promoCode.discountType,
-            discountValue = promoCode.discountValue,
-            minOrderAmount = promoCode.minOrderAmount,
-            maxDiscountAmount = promoCode.maxDiscountAmount,
+            discountValue = promoCode.discountValue.toString(),
+            minOrderAmount = promoCode.minOrderAmount.toString(),
+            maxDiscountAmount = promoCode.maxDiscountAmount.toString(),
             maxUsageCount = promoCode.maxUsageCount,
             currentUsageCount = promoCode.currentUsageCount,
             expiresAt = promoCode.expiresAt,

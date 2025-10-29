@@ -1,14 +1,9 @@
-package app.venues.booking.domain
+package app.venues.event.domain
 
-import app.venues.event.domain.EventPriceTemplate
-import app.venues.event.domain.EventSession
 import app.venues.seating.domain.Level
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
  * Session level configuration entity.
@@ -26,7 +21,6 @@ import java.time.Instant
         Index(name = "idx_session_level_config_session", columnList = "session_id"),
         Index(name = "idx_session_level_config_level", columnList = "level_id"),
         Index(name = "idx_session_level_config_template", columnList = "price_template_id"),
-        Index(name = "idx_session_level_config_status", columnList = "status")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
@@ -54,14 +48,30 @@ data class SessionLevelConfig(
     @Enumerated(EnumType.STRING)
     var status: ConfigStatus = ConfigStatus.AVAILABLE,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
+    /**
+     * Session-specific capacity for GA level.
+     * Different sessions can have different capacities for the same area.
+     * For example: One concert might allow 1000 standing, another only 500.
+     */
+    @Column(name = "capacity")
+    var capacity: Int? = null,
 
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    /**
+     * Denormalized count of sold GA tickets.
+     * Updated when bookings are confirmed/cancelled.
+     * Avoids expensive COUNT queries on bookings table.
+     */
+    @Column(name = "sold_count", nullable = false)
+    var soldCount: Int = 0,
+
+    ) {
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
+
+    /**
+     * Get available capacity for GA level.
+     */
+    fun getAvailableCapacity(): Int? {
+        return capacity?.let { it - soldCount }
+    }
 }
 

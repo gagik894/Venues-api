@@ -24,25 +24,3 @@ enum class BookingStatus {
      */
     REFUNDED
 }
-
-/**
- * Session seat/level configuration status.
- */
-enum class ConfigStatus {
-    /**
-     * Available for booking
-     */
-    AVAILABLE,
-
-    /**
-     * Closed for this specific session
-     */
-    CLOSED,
-
-    /**
-     * Blocked (obstructed view, maintenance, etc.)
-     * Only applicable to seats
-     */
-    BLOCKED
-}
-

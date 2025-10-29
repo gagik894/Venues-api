@@ -1,7 +1,5 @@
-package app.venues.booking.domain
+package app.venues.event.domain
 
-import app.venues.event.domain.EventPriceTemplate
-import app.venues.event.domain.EventSession
 import app.venues.seating.domain.Seat
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate

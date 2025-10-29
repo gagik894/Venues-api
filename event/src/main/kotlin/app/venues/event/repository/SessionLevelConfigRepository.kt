@@ -1,7 +1,7 @@
-package app.venues.booking.repository
+package app.venues.event.repository
 
-import app.venues.booking.domain.ConfigStatus
-import app.venues.booking.domain.SessionLevelConfig
+import app.venues.event.domain.ConfigStatus
+import app.venues.event.domain.SessionLevelConfig
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository

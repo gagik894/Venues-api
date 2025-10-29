@@ -1,5 +1,6 @@
 package app.venues.booking.domain
 
+import app.venues.event.domain.SessionSeatConfig
 import app.venues.seating.domain.Level
 import app.venues.seating.domain.Seat
 import jakarta.persistence.*

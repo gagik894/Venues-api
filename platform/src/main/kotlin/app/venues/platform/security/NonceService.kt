@@ -1,6 +1,7 @@
 package app.venues.platform.security
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
@@ -18,6 +19,7 @@ import java.time.Duration
  */
 @Service
 class NonceService(
+    @param:Qualifier("platformRedisTemplate")
     private val redisTemplate: RedisTemplate<String, String>
 ) {
     private val logger = KotlinLogging.logger {}

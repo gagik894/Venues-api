@@ -20,12 +20,11 @@ class CartMapper {
      */
     fun toCartSeatResponse(cartSeat: CartSeat, price: BigDecimal, priceTemplateName: String?): CartSeatResponse {
         return CartSeatResponse(
-            id = cartSeat.id!!,
-            seatId = cartSeat.seat.id!!,
             seatIdentifier = cartSeat.seat.seatIdentifier,
             seatNumber = cartSeat.seat.seatNumber,
             rowLabel = cartSeat.seat.rowLabel,
             levelName = cartSeat.seat.level.levelName,
+            levelIdentifier = cartSeat.seat.level.levelIdentifier,
             price = price.toString(),
             priceTemplateName = priceTemplateName
         )
@@ -42,8 +41,7 @@ class CartMapper {
         val totalPrice = unitPrice.multiply(BigDecimal(cartItem.quantity))
 
         return CartGAItemResponse(
-            id = cartItem.id!!,
-            levelId = cartItem.level.id!!,
+            levelIdentifier = cartItem.level.levelIdentifier,
             levelName = cartItem.level.levelName,
             quantity = cartItem.quantity,
             unitPrice = unitPrice.toString(),

@@ -18,6 +18,18 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun findBySessionIdAndSeatId(sessionId: Long, seatId: Long): SessionSeatConfig?
 
     /**
+     * Find config by session and seat identifier
+     */
+    @Query(
+        """
+        SELECT sc FROM SessionSeatConfig sc
+        WHERE sc.session.id = :sessionId
+        AND sc.seat.seatIdentifier = :seatIdentifier
+    """
+    )
+    fun findBySessionIdAndSeatIdentifier(sessionId: Long, seatIdentifier: String): SessionSeatConfig?
+
+    /**
      * Find all available seat configs for session
      */
     fun findBySessionIdAndStatus(sessionId: Long, status: ConfigStatus): List<SessionSeatConfig>

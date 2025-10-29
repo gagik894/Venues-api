@@ -93,18 +93,18 @@ class CartController(
     /**
      * Remove seat from cart.
      */
-    @DeleteMapping("/{token}/seats/{seatId}")
+    @DeleteMapping("/{token}/seats/{seatIdentifier}")
     @Operation(
         summary = "Remove seat from cart",
         description = "Remove a specific seat from cart"
     )
     fun removeSeatFromCart(
         @PathVariable token: UUID,
-        @PathVariable seatId: Long
+        @PathVariable seatIdentifier: String
     ): ApiResponse<Unit> {
-        logger.debug { "Removing seat from cart: token=$token, seatId=$seatId" }
+        logger.debug { "Removing seat from cart: token=$token, seatIdentifier=$seatIdentifier" }
 
-        cartService.removeSeatFromCart(token, seatId)
+        cartService.removeSeatFromCart(token, seatIdentifier)
 
         return ApiResponse.success(
             data = Unit,

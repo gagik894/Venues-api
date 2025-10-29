@@ -14,10 +14,10 @@ import java.util.*
  */
 data class AddSeatToCartRequest(
     @field:NotNull(message = "Session ID is required")
-    val sessionId: Long,
+    var sessionId: Long,
 
-    @field:NotNull(message = "Seat ID is required")
-    val seatId: Long
+    @field:NotNull(message = "Seat identifier is required")
+    var seatIdentifier: String
 )
 
 /**
@@ -25,14 +25,14 @@ data class AddSeatToCartRequest(
  */
 data class AddGAToCartRequest(
     @field:NotNull(message = "Session ID is required")
-    val sessionId: Long,
+    var sessionId: Long,
 
-    @field:NotNull(message = "Level ID is required")
-    val levelId: Long,
+    @field:NotNull(message = "Level identifier is required")
+    var levelIdentifier: String,
 
     @field:Min(value = 1, message = "Quantity must be at least 1")
     @field:Max(value = 10, message = "Maximum 10 tickets per transaction")
-    val quantity: Int
+    var quantity: Int
 )
 
 // ===========================================
@@ -43,12 +43,11 @@ data class AddGAToCartRequest(
  * Cart seat item response
  */
 data class CartSeatResponse(
-    val id: Long,
-    val seatId: Long,
     val seatIdentifier: String,
     val seatNumber: String?,
     val rowLabel: String?,
     val levelName: String,
+    val levelIdentifier: String?,
     val price: String,
     val priceTemplateName: String?
 )
@@ -57,8 +56,7 @@ data class CartSeatResponse(
  * Cart GA item response
  */
 data class CartGAItemResponse(
-    val id: Long,
-    val levelId: Long,
+    val levelIdentifier: String?,
     val levelName: String,
     val quantity: Int,
     val unitPrice: String,

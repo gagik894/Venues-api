@@ -29,6 +29,11 @@ interface SeatRepository : JpaRepository<Seat, Long> {
     fun findByLevelIdAndSeatIdentifier(levelId: Long, seatIdentifier: String): Seat?
 
     /**
+     * Find seat by identifier only (must be globally unique within chart)
+     */
+    fun findBySeatIdentifier(seatIdentifier: String): Seat?
+
+    /**
      * Find seats by seating chart
      */
     @Query(

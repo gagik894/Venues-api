@@ -16,10 +16,18 @@ class EventMapper {
      * Convert Event entity to EventResponse DTO.
      *
      * @param event Event entity to convert
+     * @param venueName Venue name (must be fetched from venue module)
+     * @param seatingChartName Optional seating chart name (must be fetched from seating module)
      * @param includeStats Whether to include statistics (session counts)
      * @param language Optional language code for translations (e.g., "hy", "ru", "en")
      */
-    fun toResponse(event: Event, includeStats: Boolean = false, language: String? = null): EventResponse {
+    fun toResponse(
+        event: Event,
+        venueName: String,
+        seatingChartName: String? = null,
+        includeStats: Boolean = false,
+        language: String? = null
+    ): EventResponse {
         // Apply event translation if requested language exists
         val translation = language?.let { lang ->
             event.translations.find { it.language.equals(lang, ignoreCase = true) }
@@ -34,22 +42,13 @@ class EventMapper {
             event.category?.name
         }
 
-        // Apply venue translation if language is specified
-        val venueName = if (language != null) {
-            event.venue.translations
-                .find { it.language.equals(language, ignoreCase = true) }
-                ?.name ?: event.venue.name
-        } else {
-            event.venue.name
-        }
-
         return EventResponse(
             id = event.id!!,
             title = translation?.title ?: event.title,
             description = translation?.description ?: event.description,
             imgUrl = event.imgUrl,
             secondaryImgUrls = event.secondaryImgUrls.toList(),
-            venueId = event.venue.id!!,
+            venueId = event.venueId,
             venueName = venueName,
             location = event.location,
             latitude = event.latitude,
@@ -59,7 +58,7 @@ class EventMapper {
             tags = event.tags.toSet(),
             priceRange = event.priceRange,
             currency = event.currency,
-            seatingChartName = event.seatingChart?.name,
+            seatingChartName = seatingChartName,
             status = event.status,
             createdAt = event.createdAt.toString(),
             lastModifiedAt = event.lastModifiedAt.toString(),

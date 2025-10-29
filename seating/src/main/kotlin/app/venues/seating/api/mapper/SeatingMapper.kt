@@ -19,12 +19,13 @@ class SeatingMapper {
 
     /**
      * Convert SeatingChart entity to SeatingChartResponse DTO.
+     * Note: venueName must be fetched separately via venue service if needed
      */
-    fun toResponse(chart: SeatingChart): SeatingChartResponse {
+    fun toResponse(chart: SeatingChart, venueName: String? = null): SeatingChartResponse {
         return SeatingChartResponse(
             id = chart.id!!,
-            venueId = chart.venue.id!!,
-            venueName = chart.venue.name,
+            venueId = chart.venueId,
+            venueName = venueName ?: "Unknown", // Venue name must be provided from venue module
             name = chart.name,
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,
@@ -39,8 +40,9 @@ class SeatingMapper {
 
     /**
      * Convert SeatingChart entity to detailed response with levels.
+     * Note: venueName must be fetched separately via venue service if needed
      */
-    fun toDetailedResponse(chart: SeatingChart): SeatingChartDetailedResponse {
+    fun toDetailedResponse(chart: SeatingChart, venueName: String? = null): SeatingChartDetailedResponse {
         // Get top-level sections (no parent)
         val topLevels = chart.levels.filter { it.parentLevel == null }
             .sortedBy { it.levelName }
@@ -48,8 +50,8 @@ class SeatingMapper {
 
         return SeatingChartDetailedResponse(
             id = chart.id!!,
-            venueId = chart.venue.id!!,
-            venueName = chart.venue.name,
+            venueId = chart.venueId,
+            venueName = venueName ?: "Unknown", // Venue name must be provided from venue module
             name = chart.name,
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,

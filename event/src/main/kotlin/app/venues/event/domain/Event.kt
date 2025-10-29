@@ -1,6 +1,5 @@
 package app.venues.event.domain
 
-import app.venues.venue.domain.Venue
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
@@ -12,6 +11,10 @@ import java.time.Instant
  *
  * An event is hosted by a venue and can have multiple sessions (time slots).
  * Events support translations for international audiences.
+ *
+ * Cross-module relationships:
+ * - venueId references venue module
+ * - seatingChartId references seating module
  */
 @Entity
 @Table(
@@ -64,11 +67,11 @@ data class Event(
     // ===========================================
 
     /**
-     * The venue hosting this event
+     * Venue ID - references venue module
+     * Stored as ID to avoid cross-module entity dependencies
      */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "venue_id", nullable = false)
-    var venue: Venue,
+    @Column(name = "venue_id", nullable = false)
+    var venueId: Long,
 
     /**
      * Specific location/address if different from venue's main address
@@ -93,7 +96,7 @@ data class Event(
     // ===========================================
 
     /**
-     * Event category (references EventCategory table)
+     * Event category (references EventCategory table within same module)
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
@@ -124,11 +127,12 @@ data class Event(
     var currency: String = "AMD",
 
     /**
-     * Seating chart for this event (optional - for seated events)
+     * Seating chart ID - references seating module
+     * Stored as ID to avoid cross-module entity dependencies
+     * Optional - for seated events only
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seating_chart_id")
-    var seatingChart: app.venues.seating.domain.SeatingChart? = null,
+    @Column(name = "seating_chart_id")
+    var seatingChartId: Long? = null,
 
     // ===========================================
     // Status & State

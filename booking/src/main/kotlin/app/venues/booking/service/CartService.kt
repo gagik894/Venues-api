@@ -17,6 +17,8 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.seating.repository.LevelRepository
+import app.venues.seating.repository.SeatRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -38,6 +40,8 @@ class CartService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
+    private val seatRepository: SeatRepository,
+    private val levelRepository: LevelRepository,
     private val cartMapper: CartMapper,
     private val eventPublisher: ApplicationEventPublisher
 ) {
@@ -58,7 +62,7 @@ class CartService(
         logger.debug { "Adding seat to cart: sessionId=${request.sessionId}, seatIdentifier=${request.seatIdentifier}" }
 
         // Validate session exists
-        val session = eventSessionRepository.findById(request.sessionId)
+        eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
         // Check if seat config exists and is available
@@ -70,8 +74,8 @@ class CartService(
             throw VenuesException.ValidationFailure("Seat is not available (status: ${seatConfig.status})")
         }
 
-        // Get the seat entity
-        val seat = seatConfig.seat
+        // Get seat ID from config
+        val seatId = seatConfig.seatId
 
         // Check if seat is already in any cart (including expired)
         if (cartSeatRepository.existsBySessionIdAndSeatIdentifier(request.sessionId, request.seatIdentifier)) {
@@ -84,8 +88,8 @@ class CartService(
 
         // Create cart seat
         val cartSeat = CartSeat(
-            session = session,
-            seat = seat,
+            sessionId = request.sessionId,
+            seatId = seatId,
             reservationToken = reservationToken,
             expiresAt = expiresAt
         )
@@ -93,12 +97,18 @@ class CartService(
         cartSeatRepository.save(cartSeat)
         logger.info { "Seat added to cart: token=$reservationToken, seatIdentifier=${request.seatIdentifier}" }
 
+        // Fetch seat and level info for event
+        val seat = seatRepository.findById(seatId)
+            .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
+        val level = levelRepository.findById(seat.level.id!!)
+            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+
         // Publish event for webhook notifications
         eventPublisher.publishEvent(
             SeatReservedEvent(
                 sessionId = request.sessionId,
                 seatIdentifier = request.seatIdentifier,
-                levelName = seat.level.levelName,
+                levelName = level.levelName,
                 reservationToken = reservationToken,
                 expiresAt = expiresAt.toString()
             )
@@ -118,7 +128,7 @@ class CartService(
         logger.debug { "Adding GA to cart: sessionId=${request.sessionId}, levelIdentifier=${request.levelIdentifier}, quantity=${request.quantity}" }
 
         // Validate session exists
-        val session = eventSessionRepository.findById(request.sessionId)
+        eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
         // Check if level config exists and is available
@@ -130,8 +140,12 @@ class CartService(
             throw VenuesException.ValidationFailure("GA level is not available")
         }
 
-        // Get the level entity
-        val level = levelConfig.level
+        // Get level ID from config
+        val levelId = levelConfig.levelId
+
+        // Fetch level entity to verify GA and get capacity
+        val level = levelRepository.findById(levelId)
+            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
 
         // Verify it's a GA level
         if (!level.isGeneralAdmission()) {
@@ -141,7 +155,7 @@ class CartService(
         // Check capacity
         val capacity = level.capacity ?: throw VenuesException.ValidationFailure("Level capacity not set")
         val now = Instant.now()
-        val reserved = cartItemRepository.countActiveGATicketsBySessionAndLevel(request.sessionId, level.id!!, now)
+        val reserved = cartItemRepository.countActiveGATicketsBySessionAndLevel(request.sessionId, levelId, now)
 
         if (reserved + request.quantity > capacity) {
             throw VenuesException.ResourceConflict("Not enough tickets available. Capacity: $capacity, Reserved: $reserved, Requested: ${request.quantity}")
@@ -153,8 +167,8 @@ class CartService(
 
         // Create cart item
         val cartItem = CartItem(
-            session = session,
-            level = level,
+            sessionId = request.sessionId,
+            levelId = levelId,
             reservationToken = reservationToken,
             quantity = request.quantity,
             expiresAt = expiresAt
@@ -208,32 +222,51 @@ class CartService(
         }
 
         // Get session info (from first item)
-        val session = seats.firstOrNull()?.session ?: gaItems.first().session
-        val sessionId = session.id!!
-        val eventTitle = session.event.title
-        val currency = session.event.currency
+        val sessionId = seats.firstOrNull()?.sessionId ?: gaItems.first().sessionId
+        val session = eventSessionRepository.findById(sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        val event = session.event
+        val eventTitle = event.title
+        val currency = event.currency
 
         // Map seats with pricing
         val seatResponses = seats.map { cartSeat ->
-            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seat.id!!)
+            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
 
+            // Fetch seat and level data
+            val seat = seatRepository.findById(cartSeat.seatId)
+                .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
+            val level = levelRepository.findById(seat.level.id!!)
+                .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+
             cartMapper.toCartSeatResponse(
-                cartSeat,
-                config.price,
-                config.priceTemplate?.templateName
+                cartSeat = cartSeat,
+                seatIdentifier = seat.seatIdentifier,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                levelName = level.levelName,
+                levelIdentifier = level.levelIdentifier,
+                price = config.price,
+                priceTemplateName = config.priceTemplate?.templateName
             )
         }
 
         // Map GA items with pricing
         val gaItemResponses = gaItems.map { cartItem ->
-            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.level.id!!)
+            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
 
+            // Fetch level data
+            val level = levelRepository.findById(cartItem.levelId)
+                .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+
             cartMapper.toCartGAItemResponse(
-                cartItem,
-                config.price,
-                config.priceTemplate?.templateName
+                cartItem = cartItem,
+                levelIdentifier = level.levelIdentifier,
+                levelName = level.levelName,
+                unitPrice = config.price,
+                priceTemplateName = config.priceTemplate?.templateName
             )
         }
 
@@ -268,11 +301,21 @@ class CartService(
         logger.debug { "Removing seat from cart: token=$token, seatIdentifier=$seatIdentifier" }
 
         val cartSeats = cartSeatRepository.findByReservationToken(token)
-        val cartSeat = cartSeats.find { it.seat.seatIdentifier == seatIdentifier }
-            ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
-        val sessionId = cartSeat.session.id!!
-        val levelName = cartSeat.seat.level.levelName
+        // Find cart seat by fetching seat and comparing identifiers
+        val cartSeat = cartSeats.find { cartSeat ->
+            val seat = seatRepository.findById(cartSeat.seatId).orElse(null)
+            seat?.seatIdentifier == seatIdentifier
+        } ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
+
+        val sessionId = cartSeat.sessionId
+
+        // Fetch seat and level info for event
+        val seat = seatRepository.findById(cartSeat.seatId)
+            .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
+        val level = levelRepository.findById(seat.level.id!!)
+            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+        val levelName = level.levelName
 
         cartSeatRepository.delete(cartSeat)
         logger.info { "Seat removed from cart: token=$token, seatIdentifier=$seatIdentifier" }

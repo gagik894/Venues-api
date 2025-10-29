@@ -1,6 +1,5 @@
 package app.venues.seating.domain
 
-import app.venues.venue.domain.Venue
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
@@ -18,6 +17,9 @@ import java.time.Instant
  * - Hierarchical sections (levels)
  * - Individual seats or GA (General Admission) areas
  * - Multi-language support via translations
+ *
+ * Cross-module relationships:
+ * - venueId references venue module
  */
 @Entity
 @Table(
@@ -34,11 +36,11 @@ data class SeatingChart(
     var id: Long? = null,
 
     /**
-     * The venue this seating chart belongs to
+     * Venue ID - references venue module
+     * Stored as ID to avoid cross-module entity dependencies
      */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "venue_id", nullable = false)
-    var venue: Venue,
+    @Column(name = "venue_id", nullable = false)
+    var venueId: Long,
 
     /**
      * Name of the seating chart (e.g., "Main Hall", "Balcony Layout")
@@ -66,6 +68,7 @@ data class SeatingChart(
 
     /**
      * Levels (sections/areas) in this seating chart
+     * TODO: Refactor this ManyToMany to be managed by the application service layer to avoid direct cross-module entity dependencies.
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -77,6 +80,7 @@ data class SeatingChart(
 
     /**
      * Seats included in this seating chart
+     * TODO: Refactor this ManyToMany to be managed by the application service layer to avoid direct cross-module entity dependencies.
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

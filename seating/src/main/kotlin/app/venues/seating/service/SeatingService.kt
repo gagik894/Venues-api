@@ -46,8 +46,10 @@ class SeatingService(
     fun createSeatingChart(venueId: Long, request: SeatingChartRequest): SeatingChartResponse {
         logger.debug { "Creating seating chart for venue: $venueId" }
 
-        val venue = venueRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Venue not found with ID: $venueId") }
+        // Verify venue exists (via repository check)
+        if (!venueRepository.existsById(venueId)) {
+            throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
+        }
 
         // Check for duplicate name
         if (seatingChartRepository.existsByVenueIdAndName(venueId, request.name)) {
@@ -55,7 +57,7 @@ class SeatingService(
         }
 
         val chart = SeatingChart(
-            venue = venue,
+            venueId = venueId,
             name = request.name,
             seatIndicatorSize = request.seatIndicatorSize,
             levelIndicatorSize = request.levelIndicatorSize,
@@ -65,7 +67,8 @@ class SeatingService(
         val savedChart = seatingChartRepository.save(chart)
         logger.info { "Seating chart created successfully: ID=${savedChart.id}" }
 
-        return seatingMapper.toResponse(savedChart)
+        // TODO: Fetch venue name from venue service for response
+        return seatingMapper.toResponse(savedChart, venueName = null)
     }
 
     /**
@@ -78,7 +81,8 @@ class SeatingService(
         val chart = seatingChartRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
-        return seatingMapper.toResponse(chart)
+        // TODO: Fetch venue name from venue service for response
+        return seatingMapper.toResponse(chart, venueName = null)
     }
 
     /**
@@ -91,7 +95,8 @@ class SeatingService(
         val chart = seatingChartRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
-        return seatingMapper.toDetailedResponse(chart)
+        // TODO: Fetch venue name from venue service for response
+        return seatingMapper.toDetailedResponse(chart, venueName = null)
     }
 
     /**
@@ -100,8 +105,9 @@ class SeatingService(
     @Transactional(readOnly = true)
     fun getSeatingChartsByVenue(venueId: Long, pageable: Pageable): Page<SeatingChartResponse> {
         logger.debug { "Fetching seating charts for venue: $venueId" }
+        // TODO: Fetch venue name from venue service for response
         return seatingChartRepository.findByVenueId(venueId, pageable)
-            .map { seatingMapper.toResponse(it) }
+            .map { seatingMapper.toResponse(it, venueName = null) }
     }
 
     /**
@@ -114,7 +120,7 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         // Verify ownership
-        if (chart.venue.id != venueId) {
+        if (chart.venueId != venueId) {
             throw VenuesException.AuthorizationFailure("You can only update your own seating charts")
         }
 
@@ -132,7 +138,8 @@ class SeatingService(
         val savedChart = seatingChartRepository.save(chart)
         logger.info { "Seating chart updated successfully: $chartId" }
 
-        return seatingMapper.toResponse(savedChart)
+        // TODO: Fetch venue name from venue service for response
+        return seatingMapper.toResponse(savedChart, venueName = null)
     }
 
     /**
@@ -145,7 +152,7 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         // Verify ownership
-        if (chart.venue.id != venueId) {
+        if (chart.venueId != venueId) {
             throw VenuesException.AuthorizationFailure("You can only delete your own seating charts")
         }
 

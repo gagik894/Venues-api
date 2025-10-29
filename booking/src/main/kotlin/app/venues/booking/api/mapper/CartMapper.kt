@@ -11,20 +11,40 @@ import java.util.*
 
 /**
  * Mapper for converting between Cart entities and DTOs.
+ *
+ * Requires external seat/level data to maintain strict module boundaries.
  */
 @Component
 class CartMapper {
 
     /**
      * Convert CartSeat to response DTO
+     *
+     * @param cartSeat The cart seat entity
+     * @param seatIdentifier Seat identifier (from seating module)
+     * @param seatNumber Seat number (from seating module)
+     * @param rowLabel Row label (from seating module)
+     * @param levelName Level name (from seating module)
+     * @param levelIdentifier Level identifier (from seating module)
+     * @param price Seat price
+     * @param priceTemplateName Price template name
      */
-    fun toCartSeatResponse(cartSeat: CartSeat, price: BigDecimal, priceTemplateName: String?): CartSeatResponse {
+    fun toCartSeatResponse(
+        cartSeat: CartSeat,
+        seatIdentifier: String,
+        seatNumber: String?,
+        rowLabel: String?,
+        levelName: String,
+        levelIdentifier: String?,
+        price: BigDecimal,
+        priceTemplateName: String?
+    ): CartSeatResponse {
         return CartSeatResponse(
-            seatIdentifier = cartSeat.seat.seatIdentifier,
-            seatNumber = cartSeat.seat.seatNumber,
-            rowLabel = cartSeat.seat.rowLabel,
-            levelName = cartSeat.seat.level.levelName,
-            levelIdentifier = cartSeat.seat.level.levelIdentifier,
+            seatIdentifier = seatIdentifier,
+            seatNumber = seatNumber,
+            rowLabel = rowLabel,
+            levelName = levelName,
+            levelIdentifier = levelIdentifier,
             price = price.toString(),
             priceTemplateName = priceTemplateName
         )
@@ -32,17 +52,25 @@ class CartMapper {
 
     /**
      * Convert CartItem to response DTO
+     *
+     * @param cartItem The cart item entity
+     * @param levelIdentifier Level identifier (from seating module)
+     * @param levelName Level name (from seating module)
+     * @param unitPrice Unit price per ticket
+     * @param priceTemplateName Price template name
      */
     fun toCartGAItemResponse(
         cartItem: CartItem,
+        levelIdentifier: String?,
+        levelName: String,
         unitPrice: BigDecimal,
         priceTemplateName: String?
     ): CartGAItemResponse {
         val totalPrice = unitPrice.multiply(BigDecimal(cartItem.quantity))
 
         return CartGAItemResponse(
-            levelIdentifier = cartItem.level.levelIdentifier,
-            levelName = cartItem.level.levelName,
+            levelIdentifier = levelIdentifier,
+            levelName = levelName,
             quantity = cartItem.quantity,
             unitPrice = unitPrice.toString(),
             totalPrice = totalPrice.toString(),

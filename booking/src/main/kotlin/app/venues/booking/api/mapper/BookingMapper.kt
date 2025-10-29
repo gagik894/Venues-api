@@ -3,34 +3,51 @@ package app.venues.booking.api.mapper
 import app.venues.booking.api.dto.BookingItemResponse
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.domain.Booking
-import app.venues.booking.domain.BookingItem
 import org.springframework.stereotype.Component
 
 /**
  * Mapper for converting between Booking entities and DTOs.
+ *
+ * Requires external data for cross-module entities to maintain strict module boundaries.
  */
 @Component
 class BookingMapper {
 
     /**
      * Convert Booking entity to BookingResponse DTO.
+     *
+     * @param booking The booking entity
+     * @param eventTitle Event title (from event module)
+     * @param eventDescription Event description (from event module)
+     * @param venueName Venue name (from venue module)
+     * @param sessionStartTime Session start time (from event module)
+     * @param sessionEndTime Session end time (from event module)
+     * @param customerEmail Customer email (from user/guest)
+     * @param customerName Customer name (from user/guest)
+     * @param itemsData Booking items with external data
      */
-    fun toResponse(booking: Booking): BookingResponse {
-        val customerEmail = booking.user?.email ?: booking.guest?.email ?: ""
-        val customerName = booking.user?.let { "${it.firstName} ${it.lastName}" }
-            ?: booking.guest?.name ?: ""
-
+    fun toResponse(
+        booking: Booking,
+        eventTitle: String,
+        eventDescription: String?,
+        venueName: String,
+        sessionStartTime: String,
+        sessionEndTime: String,
+        customerEmail: String,
+        customerName: String,
+        itemsData: List<BookingItemData>
+    ): BookingResponse {
         return BookingResponse(
             id = booking.id.toString(),
-            sessionId = booking.session.id!!,
-            eventTitle = booking.session.event.title,
-            eventDescription = booking.session.event.description,
-            venueName = booking.session.event.venue.name,
-            sessionStartTime = booking.session.startTime.toString(),
-            sessionEndTime = booking.session.endTime.toString(),
+            sessionId = booking.sessionId,
+            eventTitle = eventTitle,
+            eventDescription = eventDescription,
+            venueName = venueName,
+            sessionStartTime = sessionStartTime,
+            sessionEndTime = sessionEndTime,
             customerEmail = customerEmail,
             customerName = customerName,
-            items = booking.items.map { toItemResponse(it) },
+            items = itemsData.map { toItemResponse(it) },
             totalPrice = booking.totalPrice.toString(),
             currency = booking.currency,
             status = booking.status,
@@ -43,20 +60,35 @@ class BookingMapper {
     }
 
     /**
-     * Convert BookingItem to response.
+     * Convert BookingItem data to response.
      */
-    private fun toItemResponse(item: BookingItem): BookingItemResponse {
+    private fun toItemResponse(itemData: BookingItemData): BookingItemResponse {
         return BookingItemResponse(
-            id = item.id!!,
-            seatId = item.seat?.id,
-            seatIdentifier = item.seat?.seatIdentifier,
-            levelId = item.level?.id,
-            levelName = item.level?.levelName,
-            quantity = item.quantity,
-            unitPrice = item.unitPrice.toString(),
-            totalPrice = item.getTotalPrice().toString(),
-            priceTemplateName = item.priceTemplateName
+            id = itemData.id,
+            seatId = itemData.seatId,
+            seatIdentifier = itemData.seatIdentifier,
+            levelId = itemData.levelId,
+            levelName = itemData.levelName,
+            quantity = itemData.quantity,
+            unitPrice = itemData.unitPrice,
+            totalPrice = itemData.totalPrice,
+            priceTemplateName = itemData.priceTemplateName
         )
     }
 }
+
+/**
+ * Data class to hold booking item data with cross-module information.
+ */
+data class BookingItemData(
+    val id: Long,
+    val seatId: Long?,
+    val seatIdentifier: String?,
+    val levelId: Long?,
+    val levelName: String?,
+    val quantity: Int,
+    val unitPrice: String,
+    val totalPrice: String,
+    val priceTemplateName: String?
+)
 

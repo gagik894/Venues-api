@@ -1,8 +1,5 @@
 package app.venues.booking.domain
 
-import app.venues.event.domain.SessionSeatConfig
-import app.venues.seating.domain.Level
-import app.venues.seating.domain.Seat
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
@@ -17,6 +14,11 @@ import java.time.Instant
  * - GA tickets for a level (quantity > 0)
  *
  * One booking can have multiple seats AND multiple GA levels.
+ *
+ * Cross-module relationships:
+ * - seatId references seating module
+ * - levelId references seating module
+ * - sessionSeatConfigId references event module
  */
 @Entity
 @Table(
@@ -38,17 +40,26 @@ data class BookingItem(
     @JoinColumn(name = "booking_id", nullable = false, columnDefinition = "UUID")
     var booking: Booking,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seat_id")
-    var seat: Seat? = null,
+    /**
+     * Seat ID - references seating module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "seat_id")
+    var seatId: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "level_id")
-    var level: Level? = null,
+    /**
+     * Level ID - references seating module (for GA tickets)
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "level_id")
+    var levelId: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "session_seat_config_id")
-    var sessionSeatConfig: SessionSeatConfig? = null,
+    /**
+     * Session seat config ID - references event module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "session_seat_config_id")
+    var sessionSeatConfigId: Long? = null,
 
     @Column(nullable = false)
     var quantity: Int = 1,
@@ -65,8 +76,8 @@ data class BookingItem(
 ) {
     fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 
-    fun isSeat(): Boolean = seat != null
+    fun isSeat(): Boolean = seatId != null
 
-    fun isGA(): Boolean = level != null
+    fun isGA(): Boolean = levelId != null
 }
 

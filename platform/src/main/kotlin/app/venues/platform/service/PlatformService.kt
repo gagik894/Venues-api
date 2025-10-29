@@ -307,23 +307,25 @@ class PlatformService(
         logger.info { "Platform ${platform.name} completed sale: bookingId=${booking.id}, total=${booking.totalPrice}" }
 
         // Map booking items to response
+        // Note: Since BookingItem now stores only IDs, we return basic info
+        // The booking service can be enhanced to return full details if needed
         val seats = booking.items
-            .filter { it.seat != null }
+            .filter { it.seatId != null }
             .map { item ->
                 ReservedSeatInfo(
-                    seatIdentifier = item.seat!!.seatIdentifier,
-                    levelName = item.seat!!.level.levelName,
-                    seatNumber = item.seat!!.seatNumber,
-                    rowLabel = item.seat!!.rowLabel
+                    seatIdentifier = "Seat ${item.seatId}", // TODO: Fetch actual seat identifier from seating service
+                    levelName = "Unknown", // TODO: Fetch from seating service
+                    seatNumber = null,
+                    rowLabel = null
                 )
             }
 
         val gaTickets = booking.items
-            .filter { it.level != null }
+            .filter { it.levelId != null }
             .map { item ->
                 ReservedGAInfo(
-                    levelIdentifier = item.level!!.levelIdentifier ?: "",
-                    levelName = item.level!!.levelName,
+                    levelIdentifier = item.levelId.toString(), // TODO: Fetch actual level identifier from seating service
+                    levelName = "Unknown", // TODO: Fetch from seating service
                     quantity = item.quantity
                 )
             }

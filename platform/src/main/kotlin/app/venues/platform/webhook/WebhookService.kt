@@ -195,7 +195,7 @@ class WebhookService(
 
         // Create webhook event record
         val webhookEvent = WebhookEvent(
-            platform = platform,
+            platformId = platform.id!!,
             eventType = eventType,
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
@@ -280,7 +280,10 @@ class WebhookService(
         pendingWebhooks.forEach { webhookEvent ->
             if (webhookEvent.shouldRetry()) {
                 try {
-                    val platform = webhookEvent.platform
+                    // Fetch platform by ID
+                    val platform = platformRepository.findById(webhookEvent.platformId)
+                        .orElseThrow { IllegalStateException("Platform not found: ${webhookEvent.platformId}") }
+
                     deliverWebhook(webhookEvent, platform, webhookEvent.payload)
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to retry webhook ${webhookEvent.id}" }

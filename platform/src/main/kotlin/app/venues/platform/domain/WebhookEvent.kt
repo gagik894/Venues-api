@@ -11,8 +11,11 @@ import java.util.*
  *
  * Records all webhook callbacks sent to platforms when seat availability changes.
  *
+ * Cross-module relationships:
+ * - platformId references platform module (same module via ID for consistency)
+ *
  * @property id Webhook event unique identifier
- * @property platform The platform receiving the webhook
+ * @property platformId The platform ID receiving the webhook
  * @property eventType Type of event (e.g., SEAT_RESERVED, SEAT_RELEASED)
  * @property sessionId Event session ID
  * @property seatIdentifier Seat identifier (if applicable)
@@ -45,11 +48,11 @@ data class WebhookEvent(
     var id: UUID? = null,
 
     /**
-     * Platform receiving the webhook
+     * Platform ID receiving the webhook
+     * Stored as ID to maintain consistency with architectural principles
      */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "platform_id", nullable = false)
-    var platform: Platform,
+    @Column(name = "platform_id", nullable = false)
+    var platformId: Long,
 
     /**
      * Event type

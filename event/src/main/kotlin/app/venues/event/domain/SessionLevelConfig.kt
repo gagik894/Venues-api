@@ -1,6 +1,5 @@
 package app.venues.event.domain
 
-import app.venues.seating.domain.Level
 import jakarta.persistence.*
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
@@ -10,6 +9,11 @@ import java.math.BigDecimal
  *
  * Maps GA level pricing and availability per session.
  * Allows different GA prices for different showtimes.
+ *
+ * Cross-module relationships:
+ * - session references event module (same module)
+ * - levelId references seating module
+ * - priceTemplate references event module (same module)
  */
 @Entity
 @Table(
@@ -33,9 +37,12 @@ data class SessionLevelConfig(
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "level_id", nullable = false)
-    var level: Level,
+    /**
+     * Level ID - references seating module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "level_id", nullable = false)
+    var levelId: Long,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")

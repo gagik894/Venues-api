@@ -1,7 +1,5 @@
 package app.venues.booking.domain
 
-import app.venues.event.domain.EventSession
-import app.venues.user.domain.User
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
@@ -15,6 +13,11 @@ import java.util.*
  *
  * Created in Phase 2 after cart is converted to booking.
  * Contains all booking details and payment information.
+ *
+ * Cross-module relationships:
+ * - userId references user module
+ * - guestId references booking module (same module)
+ * - sessionId references event module
  */
 @Entity
 @Table(
@@ -35,17 +38,27 @@ data class Booking(
     @Column(columnDefinition = "UUID")
     var id: UUID = UUID.randomUUID(),
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    var user: User? = null,
+    /**
+     * User ID - references user module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "user_id")
+    var userId: Long? = null,
 
+    /**
+     * Guest ID - references Guest entity in booking module
+     * Can be null for logged-in users
+     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "guest_id")
     var guest: Guest? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "session_id", nullable = false)
-    var session: EventSession,
+    /**
+     * Session ID - references event module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "session_id", nullable = false)
+    var sessionId: Long,
 
     @Column(name = "reservation_token", unique = true, nullable = false, columnDefinition = "UUID")
     var reservationToken: UUID,

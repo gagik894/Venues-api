@@ -49,19 +49,16 @@ class SessionSeatingService(
         // 1. Get session and validate
         val session = getSessionOrThrow(sessionId)
         val event = session.event
-        val seatingChart = event.seatingChart
+        val seatingChartId = event.seatingChartId
             ?: throw VenuesException.ValidationFailure("Event does not have a seating chart assigned")
-
-        val seatingChartId = seatingChart.id
-            ?: throw VenuesException.ValidationFailure("Seating chart ID is null")
 
         // 2. Batch load all seat configs for this session (1 query)
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
-        val seatConfigMap = seatConfigs.associateBy { it.seat.id }
+        val seatConfigMap = seatConfigs.associateBy { it.seatId }
 
         // 3. Batch load all level configs for this session (1 query)
         val levelConfigs = sessionLevelConfigRepository.findBySessionId(sessionId)
-        val levelConfigMap = levelConfigs.associateBy { it.level.id }
+        val levelConfigMap = levelConfigs.associateBy { it.levelId }
 
         // 4. Get price templates
         val priceTemplates = getPriceTemplatesForSession(event)
@@ -132,7 +129,7 @@ class SessionSeatingService(
             eventId = eventId,
             eventTitle = event.title,
             seatingChartId = seatingChartId,
-            seatingChartName = seatingChart.name,
+            seatingChartName = "Unknown", // TODO: Fetch from seating service
             priceTemplates = priceTemplates,
             seats = seats,
             gaAreas = gaAreas,

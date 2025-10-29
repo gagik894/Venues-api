@@ -1,6 +1,7 @@
 package app.venues.booking.service
 
 import app.venues.booking.api.dto.*
+import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
@@ -9,8 +10,11 @@ import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartSeatRepository
 import app.venues.common.exception.VenuesException
+import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.seating.repository.LevelRepository
+import app.venues.seating.repository.SeatRepository
 import app.venues.user.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
@@ -34,6 +38,9 @@ class BookingService(
     private val cartItemRepository: CartItemRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val eventSessionRepository: EventSessionRepository,
+    private val seatRepository: SeatRepository,
+    private val levelRepository: LevelRepository,
     private val userRepository: UserRepository,
     private val guestService: GuestService,
     private val bookingMapper: BookingMapper
@@ -59,21 +66,22 @@ class BookingService(
         }
 
         // Verify not expired
-        java.time.Instant.now()
         if (cartSeats.any { it.isExpired() } || cartItems.any { it.isExpired() }) {
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        // Get session (all items should be from same session)
-        val session = cartSeats.firstOrNull()?.session ?: cartItems.first().session
+        // Get session ID (all items should be from same session)
+        val sessionId = cartSeats.firstOrNull()?.sessionId ?: cartItems.first().sessionId
+
+        // Fetch session from event module
+        val session = eventSessionRepository.findById(sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
+
+        // Get event from session for currency
+        val event = session.event
 
         // Determine user or guest
-        val user = userId?.let {
-            userRepository.findById(it)
-                .orElseThrow { VenuesException.ResourceNotFound("User not found") }
-        }
-
-        val guest = if (user == null) {
+        val guest = if (userId == null) {
             guestService.findOrCreateGuest(request.email, request.name, request.phone)
         } else null
 
@@ -83,20 +91,20 @@ class BookingService(
 
         // Add seat items
         cartSeats.forEach { cartSeat ->
-            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(session.id!!, cartSeat.seat.id!!)
+            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
 
             val item = BookingItem(
                 booking = Booking(
-                    user = user,
+                    userId = userId,
                     guest = guest,
-                    session = session,
+                    sessionId = sessionId,
                     reservationToken = request.token,
                     totalPrice = BigDecimal.ZERO, // Will update later
-                    currency = session.event.currency
+                    currency = event.currency
                 ),
-                seat = cartSeat.seat,
-                sessionSeatConfig = config,
+                seatId = cartSeat.seatId,
+                sessionSeatConfigId = config.id,
                 quantity = 1,
                 unitPrice = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
@@ -107,20 +115,20 @@ class BookingService(
 
         // Add GA items
         cartItems.forEach { cartItem ->
-            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(session.id!!, cartItem.level.id!!)
+            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
 
             val itemTotal = config.price.multiply(BigDecimal(cartItem.quantity))
             val item = BookingItem(
                 booking = Booking(
-                    user = user,
+                    userId = userId,
                     guest = guest,
-                    session = session,
+                    sessionId = sessionId,
                     reservationToken = request.token,
                     totalPrice = BigDecimal.ZERO,
-                    currency = session.event.currency
+                    currency = event.currency
                 ),
-                level = cartItem.level,
+                levelId = cartItem.levelId,
                 quantity = cartItem.quantity,
                 unitPrice = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
@@ -131,12 +139,12 @@ class BookingService(
 
         // Create booking
         val booking = Booking(
-            user = user,
+            userId = userId,
             guest = guest,
-            session = session,
+            sessionId = sessionId,
             reservationToken = request.token,
             totalPrice = totalPrice,
-            currency = session.event.currency
+            currency = event.currency
         )
 
         // Add items to booking
@@ -151,8 +159,11 @@ class BookingService(
 
         logger.info { "Checkout completed: bookingId=${savedBooking.id}, total=$totalPrice" }
 
+        // Prepare response with fetched data
+        val bookingResponse = prepareBookingResponse(savedBooking)
+
         return CheckoutResponse(
-            booking = bookingMapper.toResponse(savedBooking),
+            booking = bookingResponse,
             message = "Booking created successfully. Please complete payment to confirm."
         )
     }
@@ -171,7 +182,7 @@ class BookingService(
             .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
 
         // Verify ownership if user is authenticated
-        if (userId != null && booking.user?.id != userId) {
+        if (userId != null && booking.userId != userId) {
             throw VenuesException.AuthorizationFailure("You can only confirm your own bookings")
         }
 
@@ -180,7 +191,7 @@ class BookingService(
 
         logger.info { "Booking confirmed: $bookingId" }
 
-        return bookingMapper.toResponse(savedBooking)
+        return prepareBookingResponse(savedBooking)
     }
 
     /**
@@ -193,7 +204,7 @@ class BookingService(
             .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
 
         // Verify ownership if user is authenticated
-        if (userId != null && booking.user?.id != userId) {
+        if (userId != null && booking.userId != userId) {
             throw VenuesException.AuthorizationFailure("You can only cancel your own bookings")
         }
 
@@ -206,7 +217,7 @@ class BookingService(
 
         logger.info { "Booking cancelled: $bookingId" }
 
-        return bookingMapper.toResponse(savedBooking)
+        return prepareBookingResponse(savedBooking)
     }
 
     /**
@@ -220,11 +231,11 @@ class BookingService(
             .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
 
         // Verify ownership if user is authenticated
-        if (userId != null && booking.user?.id != userId) {
+        if (userId != null && booking.userId != userId) {
             throw VenuesException.AuthorizationFailure("You can only view your own bookings")
         }
 
-        return bookingMapper.toResponse(booking)
+        return prepareBookingResponse(booking)
     }
 
     /**
@@ -235,7 +246,7 @@ class BookingService(
         logger.debug { "Fetching bookings for user: $userId" }
 
         return bookingRepository.findByUserId(userId, pageable)
-            .map { bookingMapper.toResponse(it) }
+            .map { prepareBookingResponse(it) }
     }
 
     /**
@@ -249,7 +260,61 @@ class BookingService(
             ?: throw VenuesException.ResourceNotFound("No bookings found for this email")
 
         return bookingRepository.findByGuestId(guest.id!!, pageable)
-            .map { bookingMapper.toResponse(it) }
+            .map { prepareBookingResponse(it) }
+    }
+
+    /**
+     * Prepare booking response by fetching all cross-module data.
+     */
+    private fun prepareBookingResponse(booking: Booking): BookingResponse {
+        // Fetch session from event module
+        val session = eventSessionRepository.findById(booking.sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
+
+        val event = session.event
+
+        // Get customer info
+        val customerEmail = booking.userId?.let {
+            userRepository.findById(it).map { user -> user.email }.orElse("")
+        } ?: booking.guest?.email ?: ""
+
+        val customerName = booking.userId?.let {
+            userRepository.findById(it).map { user -> "${user.firstName} ${user.lastName}" }.orElse("")
+        } ?: booking.guest?.name ?: ""
+
+        // Prepare items data
+        val itemsData = booking.items.map { item ->
+            val seatIdentifier = item.seatId?.let {
+                seatRepository.findById(it).map { seat -> seat.seatIdentifier }.orElse(null)
+            }
+            val levelName = item.levelId?.let {
+                levelRepository.findById(it).map { level -> level.levelName }.orElse(null)
+            }
+
+            BookingItemData(
+                id = item.id!!,
+                seatId = item.seatId,
+                seatIdentifier = seatIdentifier,
+                levelId = item.levelId,
+                levelName = levelName,
+                quantity = item.quantity,
+                unitPrice = item.unitPrice.toString(),
+                totalPrice = item.getTotalPrice().toString(),
+                priceTemplateName = item.priceTemplateName
+            )
+        }
+
+        return bookingMapper.toResponse(
+            booking = booking,
+            eventTitle = event.title,
+            eventDescription = event.description,
+            venueName = "Unknown", // TODO: Fetch from venue service
+            sessionStartTime = session.startTime.toString(),
+            sessionEndTime = session.endTime.toString(),
+            customerEmail = customerEmail,
+            customerName = customerName,
+            itemsData = itemsData
+        )
     }
 
     // ===========================================
@@ -293,9 +358,15 @@ class BookingService(
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        // Get session (all items should be from same session)
-        val session = cartSeats.firstOrNull()?.session ?: cartItems.first().session
-        val venueId = session.event.venue.id
+        // Get session ID (all items should be from same session)
+        val sessionId = cartSeats.firstOrNull()?.sessionId ?: cartItems.first().sessionId
+
+        // Fetch session from event module
+        val session = eventSessionRepository.findById(sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
+
+        val event = session.event
+        val venueId = event.venueId
 
         // Create or find guest if email provided
         val guest = if (guestEmail != null && guestName != null) {
@@ -308,21 +379,21 @@ class BookingService(
 
         // Add seat items
         cartSeats.forEach { cartSeat ->
-            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(session.id!!, cartSeat.seat.id!!)
+            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
 
             val item = BookingItem(
                 booking = Booking(
                     guest = guest,
-                    session = session,
+                    sessionId = sessionId,
                     reservationToken = reservationToken,
                     platformId = platformId,
                     venueId = venueId,
                     totalPrice = BigDecimal.ZERO,
-                    currency = session.event.currency
+                    currency = event.currency
                 ),
-                seat = cartSeat.seat,
-                sessionSeatConfig = config,
+                seatId = cartSeat.seatId,
+                sessionSeatConfigId = config.id,
                 quantity = 1,
                 unitPrice = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
@@ -333,21 +404,21 @@ class BookingService(
 
         // Add GA items
         cartItems.forEach { cartItem ->
-            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(session.id!!, cartItem.level.id!!)
+            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
 
             val itemTotal = config.price.multiply(BigDecimal(cartItem.quantity))
             val item = BookingItem(
                 booking = Booking(
                     guest = guest,
-                    session = session,
+                    sessionId = sessionId,
                     reservationToken = reservationToken,
                     platformId = platformId,
                     venueId = venueId,
                     totalPrice = BigDecimal.ZERO,
-                    currency = session.event.currency
+                    currency = event.currency
                 ),
-                level = cartItem.level,
+                levelId = cartItem.levelId,
                 quantity = cartItem.quantity,
                 unitPrice = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
@@ -359,12 +430,12 @@ class BookingService(
         // Create booking
         val booking = Booking(
             guest = guest,
-            session = session,
+            sessionId = sessionId,
             reservationToken = reservationToken,
             platformId = platformId,
             venueId = venueId,
             totalPrice = totalPrice,
-            currency = session.event.currency,
+            currency = event.currency,
             paymentId = paymentReference
         )
 

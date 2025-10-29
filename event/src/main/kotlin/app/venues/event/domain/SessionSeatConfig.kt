@@ -1,6 +1,5 @@
 package app.venues.event.domain
 
-import app.venues.seating.domain.Seat
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
@@ -13,6 +12,11 @@ import java.time.Instant
  *
  * Maps seat pricing and availability per session.
  * Allows different prices for different showtimes (matinee vs evening).
+ *
+ * Cross-module relationships:
+ * - session references event module (same module)
+ * - seatId references seating module
+ * - priceTemplate references event module (same module)
  */
 @Entity
 @Table(
@@ -37,9 +41,12 @@ data class SessionSeatConfig(
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "seat_id", nullable = false)
-    var seat: Seat,
+    /**
+     * Seat ID - references seating module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "seat_id", nullable = false)
+    var seatId: Long,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")

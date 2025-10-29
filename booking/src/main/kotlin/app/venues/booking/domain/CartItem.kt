@@ -1,8 +1,5 @@
 package app.venues.booking.domain
 
-import app.venues.event.domain.EventSession
-import app.venues.seating.domain.Level
-import app.venues.user.domain.User
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
@@ -14,6 +11,12 @@ import java.util.*
  *
  * Created when user selects GA tickets.
  * Auto-expires after 15 minutes if not converted to booking.
+ *
+ * Cross-module relationships:
+ * - sessionId references event module
+ * - levelId references seating module
+ * - userId references user module
+ * - guest references booking module (same module)
  */
 @Entity
 @Table(
@@ -30,18 +33,31 @@ data class CartItem(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "session_id", nullable = false)
-    var session: EventSession,
+    /**
+     * Session ID - references event module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "session_id", nullable = false)
+    var sessionId: Long,
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "level_id", nullable = false)
-    var level: Level,
+    /**
+     * Level ID - references seating module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "level_id", nullable = false)
+    var levelId: Long,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    var user: User? = null,
+    /**
+     * User ID - references user module
+     * Stored as ID to avoid cross-module entity dependencies
+     */
+    @Column(name = "user_id")
+    var userId: Long? = null,
 
+    /**
+     * Guest - references booking module (same module)
+     * Can be null for logged-in users
+     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "guest_id")
     var guest: Guest? = null,

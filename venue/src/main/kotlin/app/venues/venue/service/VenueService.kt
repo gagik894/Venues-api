@@ -94,8 +94,8 @@ class VenueService(
      * @throws VenuesException.ResourceNotFound if venue not found
      */
     @Transactional(readOnly = true)
-    fun getVenueById(id: Long, includeStats: Boolean = false): VenueResponse {
-        logger.debug("Fetching venue by ID: {}", id)
+    fun getVenueById(id: Long, includeStats: Boolean = false, language: String? = null): VenueResponse {
+        logger.debug("Fetching venue by ID: {}, language: {}", id, language)
 
         val venue = venueRepository.findById(id)
             .orElseThrow {
@@ -103,7 +103,7 @@ class VenueService(
                 VenuesException.ResourceNotFound("Venue not found with ID: $id")
             }
 
-        return venueMapper.toResponse(venue, includeStats)
+        return venueMapper.toResponse(venue, includeStats, language)
     }
 
     /**
@@ -156,40 +156,40 @@ class VenueService(
      * Get all active venues (public listing).
      */
     @Transactional(readOnly = true)
-    fun getAllActiveVenues(pageable: Pageable): Page<VenueResponse> {
-        logger.debug("Fetching all active venues")
+    fun getAllActiveVenues(pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Fetching all active venues, language: {}", language)
         return venueRepository.findByStatus(VenueStatus.ACTIVE, pageable)
-            .map { venueMapper.toResponse(it, includeStats = true) }
+            .map { venueMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Search venues by name.
      */
     @Transactional(readOnly = true)
-    fun searchVenues(searchTerm: String, pageable: Pageable): Page<VenueResponse> {
-        logger.debug("Searching venues: {}", searchTerm)
+    fun searchVenues(searchTerm: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Searching venues: {}, language: {}", searchTerm, language)
         return venueRepository.searchByName(searchTerm, VenueStatus.ACTIVE, pageable)
-            .map { venueMapper.toResponse(it, includeStats = true) }
+            .map { venueMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Get venues by city.
      */
     @Transactional(readOnly = true)
-    fun getVenuesByCity(city: String, pageable: Pageable): Page<VenueResponse> {
-        logger.debug("Fetching venues in city: {}", city)
+    fun getVenuesByCity(city: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Fetching venues in city: {}, language: {}", city, language)
         return venueRepository.findByCityAndStatus(city, VenueStatus.ACTIVE, pageable)
-            .map { venueMapper.toResponse(it, includeStats = true) }
+            .map { venueMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Get venues by category.
      */
     @Transactional(readOnly = true)
-    fun getVenuesByCategory(category: String, pageable: Pageable): Page<VenueResponse> {
-        logger.debug("Fetching venues in category: {}", category)
+    fun getVenuesByCategory(category: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Fetching venues in category: {}, language: {}", category, language)
         return venueRepository.findByCategoryAndStatus(category, VenueStatus.ACTIVE, pageable)
-            .map { venueMapper.toResponse(it, includeStats = true) }
+            .map { venueMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     // ===========================================

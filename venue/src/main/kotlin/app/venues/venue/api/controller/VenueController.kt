@@ -53,15 +53,16 @@ class VenueController(
     @GetMapping
     @Operation(
         summary = "Get all active venues",
-        description = "Public endpoint to browse all active venues"
+        description = "Public endpoint to browse all active venues. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
     )
     fun getAllVenues(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) sortBy: String?,
-        @RequestParam(required = false) sortDirection: String?
+        @RequestParam(required = false) sortDirection: String?,
+        @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching all active venues")
+        logger.debug("Fetching all active venues, language: {}", lang)
 
         // Whitelist of allowed sort fields for Venue entity
         val allowedSortFields = setOf("createdAt", "name", "city", "category", "id")
@@ -74,8 +75,7 @@ class VenueController(
             allowedSortFields = allowedSortFields
         )
 
-
-        val venues = venueService.getAllActiveVenues(pageable)
+        val venues = venueService.getAllActiveVenues(pageable, language = lang)
 
         return ApiResponse.success(
             data = venues,
@@ -89,18 +89,19 @@ class VenueController(
     @GetMapping("/search")
     @Operation(
         summary = "Search venues by name",
-        description = "Search for venues by name (case-insensitive)"
+        description = "Search for venues by name (case-insensitive). Use 'lang' parameter for translations"
     )
     fun searchVenues(
         @RequestParam("q") searchTerm: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Searching venues: {}", searchTerm)
+        logger.debug("Searching venues: {}, language: {}", searchTerm, lang)
 
         val pageable = PaginationUtil.createPageable(limit, offset)
 
-        val venues = venueService.searchVenues(searchTerm, pageable)
+        val venues = venueService.searchVenues(searchTerm, pageable, language = lang)
 
         return ApiResponse.success(
             data = venues,
@@ -114,18 +115,19 @@ class VenueController(
     @GetMapping("/city/{city}")
     @Operation(
         summary = "Get venues by city",
-        description = "Get all venues in a specific city"
+        description = "Get all venues in a specific city. Use 'lang' parameter for translations"
     )
     fun getVenuesByCity(
         @PathVariable city: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in city: {}", city)
+        logger.debug("Fetching venues in city: {}, language: {}", city, lang)
 
         val pageable = PaginationUtil.createPageable(limit, offset)
 
-        val venues = venueService.getVenuesByCity(city, pageable)
+        val venues = venueService.getVenuesByCity(city, pageable, language = lang)
 
         return ApiResponse.success(
             data = venues,
@@ -139,18 +141,19 @@ class VenueController(
     @GetMapping("/category/{category}")
     @Operation(
         summary = "Get venues by category",
-        description = "Get all venues in a specific category"
+        description = "Get all venues in a specific category. Use 'lang' parameter for translations"
     )
     fun getVenuesByCategory(
         @PathVariable category: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in category: {}", category)
+        logger.debug("Fetching venues in category: {}, language: {}", category, lang)
 
         val pageable = PaginationUtil.createPageable(limit, offset)
 
-        val venues = venueService.getVenuesByCategory(category, pageable)
+        val venues = venueService.getVenuesByCategory(category, pageable, language = lang)
 
         return ApiResponse.success(
             data = venues,
@@ -164,12 +167,13 @@ class VenueController(
     @GetMapping("/{id}")
     @Operation(
         summary = "Get venue by ID",
-        description = "Get detailed venue information by ID"
+        description = "Get detailed venue information by ID. Use 'lang' parameter for translations"
     )
     fun getVenueById(
-        @PathVariable id: Long
+        @PathVariable id: Long,
+        @RequestParam(required = false) lang: String?
     ): ApiResponse<VenueDetailedResponse> {
-        logger.debug("Fetching venue by ID: {}", id)
+        logger.debug("Fetching venue by ID: {}, language: {}", id, lang)
 
         val venue = venueService.getVenueDetailed(id)
 

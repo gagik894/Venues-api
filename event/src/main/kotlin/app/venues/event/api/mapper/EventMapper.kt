@@ -20,7 +20,7 @@ class EventMapper {
      * @param language Optional language code for translations (e.g., "hy", "ru", "en")
      */
     fun toResponse(event: Event, includeStats: Boolean = false, language: String? = null): EventResponse {
-        // Apply translation if requested language exists
+        // Apply event translation if requested language exists
         val translation = language?.let { lang ->
             event.translations.find { it.language.equals(lang, ignoreCase = true) }
         }
@@ -34,6 +34,15 @@ class EventMapper {
             event.category?.name
         }
 
+        // Apply venue translation if language is specified
+        val venueName = if (language != null) {
+            event.venue.translations
+                .find { it.language.equals(language, ignoreCase = true) }
+                ?.name ?: event.venue.name
+        } else {
+            event.venue.name
+        }
+
         return EventResponse(
             id = event.id!!,
             title = translation?.title ?: event.title,
@@ -41,7 +50,7 @@ class EventMapper {
             imgUrl = event.imgUrl,
             secondaryImgUrls = event.secondaryImgUrls.toList(),
             venueId = event.venue.id!!,
-            venueName = event.venue.name,
+            venueName = venueName,
             location = event.location,
             latitude = event.latitude,
             longitude = event.longitude,

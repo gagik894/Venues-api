@@ -23,12 +23,21 @@ class VenueMapper {
 
     /**
      * Convert Venue entity to VenueResponse DTO
+     *
+     * @param venue Venue entity to convert
+     * @param includeStats Whether to include statistics (follower count, reviews, etc.)
+     * @param language Optional language code for translations (e.g., "hy", "ru", "en")
      */
-    fun toResponse(venue: Venue, includeStats: Boolean = false): VenueResponse {
+    fun toResponse(venue: Venue, includeStats: Boolean = false, language: String? = null): VenueResponse {
+        // Apply translation if requested language exists
+        val translation = language?.let { lang ->
+            venue.translations.find { it.language.equals(lang, ignoreCase = true) }
+        }
+
         return VenueResponse(
             id = venue.id!!,
-            name = venue.name,
-            description = venue.description,
+            name = translation?.name ?: venue.name,
+            description = translation?.description ?: venue.description,
             imageUrl = venue.imageUrl,
             address = venue.address,
             city = venue.city,

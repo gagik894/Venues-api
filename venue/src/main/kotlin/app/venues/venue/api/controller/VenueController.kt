@@ -194,7 +194,7 @@ class VenueController(
         description = "Get authenticated venue's profile information"
     )
     fun getCurrentVenue(): ApiResponse<VenueResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.debug("Fetching current venue profile: {}", venueId)
 
         val venue = venueService.getVenueById(venueId, includeStats = true)
@@ -218,7 +218,7 @@ class VenueController(
     fun updateVenue(
         @Valid @RequestBody request: VenueUpdateRequest
     ): ApiResponse<VenueResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Updating venue profile: {}", venueId)
 
         val venue = venueService.updateVenue(venueId, request)
@@ -242,7 +242,7 @@ class VenueController(
     fun changePassword(
         @Valid @RequestBody request: VenuePasswordChangeRequest
     ): ApiResponse<Unit> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Changing password for venue: {}", venueId)
 
         venueAuthService.changePassword(venueId, request.currentPassword, request.newPassword)
@@ -290,7 +290,7 @@ class VenueController(
     fun setSchedule(
         @Valid @RequestBody request: VenueScheduleRequest
     ): ApiResponse<VenueScheduleResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Setting schedule for venue {} on {}", venueId, request.dayOfWeek)
 
         val schedule = venueService.setSchedule(venueId, request)
@@ -339,7 +339,7 @@ class VenueController(
     fun setTranslation(
         @Valid @RequestBody request: VenueTranslationRequest
     ): ApiResponse<VenueTranslationResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Setting translation for venue {} in language {}", venueId, request.language)
 
         val translation = venueService.setTranslation(venueId, request)
@@ -363,7 +363,7 @@ class VenueController(
     fun deleteTranslation(
         @PathVariable language: String
     ): ApiResponse<Unit> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Deleting translation for venue {} in language {}", venueId, language)
 
         venueService.deleteTranslation(venueId, language)
@@ -412,7 +412,7 @@ class VenueController(
     fun addPhoto(
         @Valid @RequestBody request: VenuePhotoRequest
     ): ApiResponse<VenuePhotoResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         val userId = securityUtil.getCurrentUserId()
         logger.info("Adding photo to venue {} by user {}", venueId, userId)
 
@@ -437,7 +437,7 @@ class VenueController(
     fun deletePhoto(
         @PathVariable photoId: Long
     ): ApiResponse<Unit> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         val userId = securityUtil.getCurrentUserId()
         logger.info("Deleting photo {} from venue {}", photoId, venueId)
 
@@ -547,7 +547,7 @@ class VenueController(
         description = "Get all active promo codes for the venue"
     )
     fun getPromoCodes(): ApiResponse<List<VenuePromoCodeResponse>> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.debug("Fetching promo codes for venue: {}", venueId)
 
         val promoCodes = venueService.getPromoCodes(venueId)
@@ -572,7 +572,7 @@ class VenueController(
     fun createPromoCode(
         @Valid @RequestBody request: VenuePromoCodeRequest
     ): ApiResponse<VenuePromoCodeResponse> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Creating promo code for venue: {}", venueId)
 
         val promoCode = venueService.createPromoCode(venueId, request)
@@ -596,7 +596,7 @@ class VenueController(
     fun deactivatePromoCode(
         @PathVariable codeId: Long
     ): ApiResponse<Unit> {
-        val venueId = extractVenueId()
+        val venueId = securityUtil.getCurrentUserId()
         logger.info("Deactivating promo code {} for venue {}", codeId, venueId)
 
         venueService.deactivatePromoCode(venueId, codeId)
@@ -675,20 +675,6 @@ class VenueController(
         return ApiResponse.success(
             data = mapOf("isFollowing" to isFollowing)
         )
-    }
-
-    // ===========================================
-    // HELPER METHODS
-    // ===========================================
-
-    /**
-     * Extract venue ID from JWT token.
-     * Token subject format: "VENUE:{venueId}"
-     */
-    private fun extractVenueId(): Long {
-        val subject = securityUtil.getCurrentUserSubject()
-        return subject.removePrefix("VENUE:").toLongOrNull()
-            ?: throw IllegalStateException("Invalid venue token format")
     }
 }
 

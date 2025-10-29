@@ -8,6 +8,7 @@
 package app.venues.shared.security.util
 
 import app.venues.common.exception.VenuesException
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.core.userdetails.UserDetails
@@ -39,6 +40,8 @@ import org.springframework.stereotype.Component
 @Component
 class SecurityUtil {
 
+    private val logger = KotlinLogging.logger {}
+
     /**
      * Gets the current authenticated user's ID from the SecurityContext.
      *
@@ -63,10 +66,17 @@ class SecurityUtil {
             }
 
             is Map<*, *> -> {
-                // If Map (from JWT), userId should be directly available
+                // If Map (from JWT), id should be directly available
                 @Suppress("UNCHECKED_CAST")
-                (principal as? Map<String, Any>)?.get("userId")?.toString()?.toLongOrNull()
-                    ?: throw VenuesException.InternalError("User ID not found in authentication token")
+                val principalMap = principal as? Map<String, Any>
+                val id = principalMap?.get("id")?.toString()?.toLongOrNull()
+
+                if (id == null) {
+                    logger.error { "ID not found in principal Map. Map contents: $principalMap" }
+                    throw VenuesException.InternalError("ID not found in authentication token. Available keys: ${principalMap?.keys}")
+                }
+
+                id
             }
 
             else -> {
@@ -91,39 +101,18 @@ class SecurityUtil {
             is String -> principal
             is Map<*, *> -> {
                 @Suppress("UNCHECKED_CAST")
-                (principal as? Map<String, Any>)?.get("sub")?.toString()
-                    ?: throw VenuesException.InternalError("Email not found in authentication token")
+                val principalMap = principal as? Map<String, Any>
+                val email = principalMap?.get("email")?.toString()
+
+                if (email == null) {
+                    logger.error { "Email not found in principal Map. Map contents: $principalMap" }
+                    throw VenuesException.InternalError("Email not found in authentication token. Available keys: ${principalMap?.keys}")
+                }
+
+                email
             }
 
             else -> throw VenuesException.InternalError("Unable to extract email from authentication")
-        }
-    }
-
-    /**
-     * Gets the current authenticated user's subject from the SecurityContext.
-     *
-     * The subject can be:
-     * - User ID as string for regular users
-     * - "VENUE:{venueId}" for venue accounts
-     *
-     * @return JWT subject claim
-     * @throws VenuesException.AuthenticationFailure if user is not authenticated
-     */
-    fun getCurrentUserSubject(): String {
-        val authentication = getAuthentication()
-            ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
-
-        return when (val principal = authentication.principal) {
-            is UserDetails -> principal.username
-            is String -> principal
-            is Map<*, *> -> {
-                @Suppress("UNCHECKED_CAST")
-                (principal as? Map<String, Any>)?.get("sub")?.toString()
-                    ?: throw VenuesException.InternalError("Subject not found in authentication token")
-            }
-
-            else -> authentication.name
-                ?: throw VenuesException.InternalError("Unable to extract subject from authentication")
         }
     }
 

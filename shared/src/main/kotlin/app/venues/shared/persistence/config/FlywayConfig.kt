@@ -35,42 +35,48 @@ class FlywayConfig {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Development migration strategy with automatic repair and clean.
+     * Development migration strategy with automatic repair.
      *
      * This strategy:
-     * 1. CLEANS the database (drops all objects including tables) - DEVELOPMENT ONLY!
-     * 2. Runs all migrations from scratch
+     * 1. Repairs checksum mismatches automatically (if needed)
+     * 2. Runs pending migrations
      * 3. Validates migrations
      *
-     * Use this profile during development when you need to reset the database.
-     * NEVER use this in production - it will DELETE ALL DATA!
+     * Use this profile during development when migrations change frequently.
+     * Database is NOT cleaned automatically - data persists across restarts.
      *
-     * To disable clean, set spring.flyway.clean-disabled=true in application.properties
+     * To manually clean the database, run: ./gradlew flywayClean
      */
     @Bean
     @Profile("dev", "local", "default")
     fun flywayMigrationStrategyDevelopment(): FlywayMigrationStrategy {
         logger.info { "Configuring Flyway migration strategy for DEVELOPMENT environment" }
-        logger.warn { "⚠️  Flyway CLEAN is ENABLED - database will be wiped and recreated on startup!" }
-        logger.warn { "⚠️  This is ONLY for development - NEVER use in production!" }
+        logger.info { "✅ Database will be PRESERVED across restarts" }
+        logger.info { "ℹ️  To reset database manually, run: ./gradlew flywayClean flywayMigrate" }
 
         return FlywayMigrationStrategy { flyway ->
             try {
-                // DEVELOPMENT ONLY: Clean database (drops all tables)
-                // This fixes issues when tables are manually deleted
-                logger.warn { "🗑️  Cleaning database - dropping all objects..." }
-                flyway.clean()
-                logger.info { "✅ Database cleaned successfully" }
-
-                // Run all migrations from scratch
-                logger.info { "📦 Running all migrations from scratch..." }
-                val migrationsApplied = flyway.migrate()
-                logger.info { "✅ Applied ${migrationsApplied.migrationsExecuted} migration(s)" }
-
-                // Validate migrations after they've been applied
+                // Validate migrations first
                 logger.info { "🔍 Validating migrations..." }
-                flyway.validate()
-                logger.info { "✅ Migration validation successful" }
+                try {
+                    flyway.validate()
+                    logger.info { "✅ Migration validation successful" }
+                } catch (e: Exception) {
+                    // If validation fails due to checksum mismatch, repair automatically in dev
+                    logger.warn { "⚠️  Migration validation failed - attempting auto-repair..." }
+                    flyway.repair()
+                    logger.info { "✅ Migrations repaired successfully" }
+                }
+
+                // Run pending migrations
+                logger.info { "📦 Running pending migrations..." }
+                val migrationsApplied = flyway.migrate()
+
+                if (migrationsApplied.migrationsExecuted > 0) {
+                    logger.info { "✅ Applied ${migrationsApplied.migrationsExecuted} new migration(s)" }
+                } else {
+                    logger.info { "✅ No new migrations to apply - database is up to date" }
+                }
 
             } catch (e: Exception) {
                 logger.error(e) { "❌ Flyway migration failed: ${e.message}" }

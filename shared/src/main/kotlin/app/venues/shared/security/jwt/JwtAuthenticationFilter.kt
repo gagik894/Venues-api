@@ -127,10 +127,10 @@ class JwtAuthenticationFilter(
             // Create authorities from role
             val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
 
-            // Create principal as a Map containing user info
-            // This makes it easy to extract userId in SecurityUtil
+            // Create principal as a Map containing principal info
+            // Using "id" (not "userId") to be generic - works for users, venues, companies, etc.
             val principal = mapOf(
-                "userId" to principalId,
+                "id" to principalId,
                 "email" to email,
                 "role" to role
             )

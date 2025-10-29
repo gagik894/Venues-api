@@ -20,9 +20,11 @@ import org.springframework.web.bind.annotation.*
  * - Delete events
  * - Manage sessions
  * - Manage translations
+ *
+ * All endpoints automatically use the authenticated venue's ID from JWT token.
  */
 @RestController
-@RequestMapping("/api/v1/venues/{venueId}/events")
+@RequestMapping("/api/v1/venue/events")
 @Tag(name = "Venue Events", description = "Event management for venue owners")
 @PreAuthorize("hasRole('VENUE')")
 class VenueEventController(
@@ -32,21 +34,18 @@ class VenueEventController(
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Create event for venue.
+     * Create event for authenticated venue.
      */
     @PostMapping
     @Operation(
         summary = "Create event",
-        description = "Create a new event for the venue (Venue owners only)"
+        description = "Create a new event for your venue (Venue owners only)"
     )
     fun createEvent(
-        @PathVariable venueId: Long,
         @Valid @RequestBody request: EventRequest
     ): ApiResponse<EventResponse> {
+        val venueId = securityUtil.getCurrentUserId()
         logger.debug { "Creating event for venue: $venueId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
 
         val event = eventService.createEvent(venueId, request)
 
@@ -65,14 +64,11 @@ class VenueEventController(
         description = "Update event details (Venue owners only)"
     )
     fun updateEvent(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long,
         @Valid @RequestBody request: EventRequest
     ): ApiResponse<EventResponse> {
-        logger.debug { "Updating event: $eventId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Updating event: $eventId for venue: $venueId" }
 
         val event = eventService.updateEvent(eventId, venueId, request)
 
@@ -91,13 +87,10 @@ class VenueEventController(
         description = "Delete an event (Venue owners only)"
     )
     fun deleteEvent(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long
     ): ApiResponse<Unit> {
-        logger.debug { "Deleting event: $eventId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Deleting event: $eventId for venue: $venueId" }
 
         eventService.deleteEvent(eventId, venueId)
 
@@ -120,15 +113,13 @@ class VenueEventController(
         description = "Add a new session to an event (Venue owners only)"
     )
     fun addSession(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long,
         @Valid @RequestBody request: EventSessionRequest
     ): ApiResponse<EventSessionResponse> {
-        logger.debug { "Adding session to event: $eventId" }
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Adding session to event: $eventId for venue: $venueId" }
 
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
-
+        // Verify ownership is done in the service layer
         val session = eventService.addSession(eventId, request)
 
         return ApiResponse.success(
@@ -146,15 +137,12 @@ class VenueEventController(
         description = "Update session details (Venue owners only)"
     )
     fun updateSession(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long,
         @PathVariable sessionId: Long,
         @Valid @RequestBody request: EventSessionRequest
     ): ApiResponse<EventSessionResponse> {
-        logger.debug { "Updating session: $sessionId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Updating session: $sessionId for venue: $venueId" }
 
         val session = eventService.updateSession(sessionId, request)
 
@@ -173,14 +161,11 @@ class VenueEventController(
         description = "Delete a session (Venue owners only)"
     )
     fun deleteSession(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long,
         @PathVariable sessionId: Long
     ): ApiResponse<Unit> {
-        logger.debug { "Deleting session: $sessionId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Deleting session: $sessionId for venue: $venueId" }
 
         eventService.deleteSession(sessionId)
 
@@ -203,14 +188,11 @@ class VenueEventController(
         description = "Add or update translation for an event (Venue owners only)"
     )
     fun setTranslation(
-        @PathVariable venueId: Long,
         @PathVariable eventId: Long,
         @Valid @RequestBody request: EventTranslationRequest
     ): ApiResponse<EventTranslationResponse> {
-        logger.debug { "Setting translation for event: $eventId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
+        val venueId = securityUtil.getCurrentUserId()
+        logger.debug { "Setting translation for event: $eventId for venue: $venueId" }
 
         val translation = eventService.setTranslation(eventId, request)
 

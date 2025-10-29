@@ -88,13 +88,13 @@ class EventService(
      * Get event by ID.
      */
     @Transactional(readOnly = true)
-    fun getEventById(id: Long, includeStats: Boolean = false): EventResponse {
-        logger.debug { "Fetching event by ID: $id" }
+    fun getEventById(id: Long, includeStats: Boolean = false, language: String? = null): EventResponse {
+        logger.debug { "Fetching event by ID: $id, language: $language" }
 
         val event = eventRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $id") }
 
-        return eventMapper.toResponse(event, includeStats)
+        return eventMapper.toResponse(event, includeStats, language)
     }
 
     /**
@@ -172,50 +172,50 @@ class EventService(
      * Get all publicly visible events.
      */
     @Transactional(readOnly = true)
-    fun getAllEvents(pageable: Pageable): Page<EventResponse> {
-        logger.debug { "Fetching all publicly visible events" }
+    fun getAllEvents(pageable: Pageable, language: String? = null): Page<EventResponse> {
+        logger.debug { "Fetching all publicly visible events, language: $language" }
         return eventRepository.findByStatus(EventStatus.UPCOMING, pageable)
-            .map { eventMapper.toResponse(it, includeStats = true) }
+            .map { eventMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Search events by title.
      */
     @Transactional(readOnly = true)
-    fun searchEvents(searchTerm: String, pageable: Pageable): Page<EventResponse> {
-        logger.debug { "Searching events: $searchTerm" }
+    fun searchEvents(searchTerm: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
+        logger.debug { "Searching events: $searchTerm, language: $language" }
         return eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable)
-            .map { eventMapper.toResponse(it, includeStats = true) }
+            .map { eventMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Get events by venue.
      */
     @Transactional(readOnly = true)
-    fun getEventsByVenue(venueId: Long, pageable: Pageable): Page<EventResponse> {
-        logger.debug { "Fetching events for venue: $venueId" }
+    fun getEventsByVenue(venueId: Long, pageable: Pageable, language: String? = null): Page<EventResponse> {
+        logger.debug { "Fetching events for venue: $venueId, language: $language" }
         return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
-            .map { eventMapper.toResponse(it, includeStats = true) }
+            .map { eventMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Get events by category.
      */
     @Transactional(readOnly = true)
-    fun getEventsByCategory(categoryId: Long, pageable: Pageable): Page<EventResponse> {
-        logger.debug { "Fetching events for category: $categoryId" }
+    fun getEventsByCategory(categoryId: Long, pageable: Pageable, language: String? = null): Page<EventResponse> {
+        logger.debug { "Fetching events for category: $categoryId, language: $language" }
         return eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.UPCOMING, pageable)
-            .map { eventMapper.toResponse(it, includeStats = true) }
+            .map { eventMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     /**
      * Get events by tag.
      */
     @Transactional(readOnly = true)
-    fun getEventsByTag(tag: String, pageable: Pageable): Page<EventResponse> {
-        logger.debug { "Fetching events for tag: $tag" }
+    fun getEventsByTag(tag: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
+        logger.debug { "Fetching events for tag: $tag, language: $language" }
         return eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable)
-            .map { eventMapper.toResponse(it, includeStats = true) }
+            .map { eventMapper.toResponse(it, includeStats = true, language = language) }
     }
 
     // ===========================================

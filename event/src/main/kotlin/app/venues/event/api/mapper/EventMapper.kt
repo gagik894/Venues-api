@@ -14,12 +14,30 @@ class EventMapper {
 
     /**
      * Convert Event entity to EventResponse DTO.
+     *
+     * @param event Event entity to convert
+     * @param includeStats Whether to include statistics (session counts)
+     * @param language Optional language code for translations (e.g., "hy", "ru", "en")
      */
-    fun toResponse(event: Event, includeStats: Boolean = false): EventResponse {
+    fun toResponse(event: Event, includeStats: Boolean = false, language: String? = null): EventResponse {
+        // Apply translation if requested language exists
+        val translation = language?.let { lang ->
+            event.translations.find { it.language.equals(lang, ignoreCase = true) }
+        }
+
+        // Apply category translation if language is specified
+        val categoryName = if (language != null && event.category != null) {
+            event.category!!.translations
+                .find { it.language.equals(language, ignoreCase = true) }
+                ?.name ?: event.category!!.name
+        } else {
+            event.category?.name
+        }
+
         return EventResponse(
             id = event.id!!,
-            title = event.title,
-            description = event.description,
+            title = translation?.title ?: event.title,
+            description = translation?.description ?: event.description,
             imgUrl = event.imgUrl,
             secondaryImgUrls = event.secondaryImgUrls.toList(),
             venueId = event.venue.id!!,
@@ -28,7 +46,7 @@ class EventMapper {
             latitude = event.latitude,
             longitude = event.longitude,
             categoryId = event.category?.id,
-            categoryName = event.category?.name,
+            categoryName = categoryName,
             tags = event.tags.toSet(),
             priceRange = event.priceRange,
             currency = event.currency,
@@ -36,6 +54,8 @@ class EventMapper {
             status = event.status,
             createdAt = event.createdAt.toString(),
             lastModifiedAt = event.lastModifiedAt.toString(),
+            // Automatically populate sessions
+            sessions = event.sessions.map { toSessionResponse(it) },
             sessionCount = if (includeStats) event.sessions.size else null,
             upcomingSessionCount = if (includeStats) event.sessions.count { it.status == EventStatus.UPCOMING } else null
         )

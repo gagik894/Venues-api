@@ -69,6 +69,8 @@ data class EventResponse(
     val status: EventStatus,
     val createdAt: String,
     val lastModifiedAt: String,
+    // Sessions
+    val sessions: List<EventSessionResponse> = emptyList(),
     // Statistics
     val sessionCount: Int? = null,
     val upcomingSessionCount: Int? = null

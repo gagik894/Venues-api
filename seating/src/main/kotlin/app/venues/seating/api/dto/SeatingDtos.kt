@@ -76,8 +76,6 @@ data class LevelRequest(
     @field:Size(max = 50, message = "Level identifier must not exceed 50 characters")
     val levelIdentifier: String? = null,
 
-    val levelNumber: Int? = null,
-
     val positionX: Double? = null,
 
     val positionY: Double? = null,
@@ -94,7 +92,6 @@ data class LevelResponse(
     val parentLevelId: Long?,
     val levelName: String,
     val levelIdentifier: String?,
-    val levelNumber: Int?,
     val positionX: Double?,
     val positionY: Double?,
     val capacity: Int?,

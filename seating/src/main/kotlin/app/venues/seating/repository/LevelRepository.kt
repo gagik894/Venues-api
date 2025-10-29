@@ -28,13 +28,14 @@ interface LevelRepository : JpaRepository<Level, Long> {
 
     /**
      * Find levels in a specific seating chart
+     * Ordered by level name for consistent display
      */
     @Query(
         """
         SELECT l FROM Level l
         JOIN l.seatingCharts sc
         WHERE sc.id = :chartId
-        ORDER BY l.levelNumber
+        ORDER BY l.levelName
     """
     )
     fun findBySeatingChartId(chartId: Long): List<Level>

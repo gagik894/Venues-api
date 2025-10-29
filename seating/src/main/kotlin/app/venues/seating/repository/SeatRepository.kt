@@ -41,7 +41,7 @@ interface SeatRepository : JpaRepository<Seat, Long> {
         SELECT s FROM Seat s
         JOIN s.seatingCharts sc
         WHERE sc.id = :chartId
-        ORDER BY s.level.levelNumber, s.seatIdentifier
+        ORDER BY s.level.levelName, s.seatIdentifier
     """
     )
     fun findBySeatingChartId(chartId: Long): List<Seat>

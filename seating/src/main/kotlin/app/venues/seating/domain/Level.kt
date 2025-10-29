@@ -53,11 +53,6 @@ data class Level(
     @Column(name = "level_identifier", length = 50)
     var levelIdentifier: String? = null,
 
-    /**
-     * Numeric order for sorting levels
-     */
-    @Column(name = "level_number")
-    var levelNumber: Int? = null,
 
     /**
      * X coordinate for rendering (for GA sections and visual positioning)

@@ -176,7 +176,6 @@ class SeatingService(
             parentLevel = parentLevel,
             levelName = request.levelName,
             levelIdentifier = request.levelIdentifier,
-            levelNumber = request.levelNumber,
             positionX = request.positionX,
             positionY = request.positionY,
             capacity = request.capacity
@@ -222,7 +221,6 @@ class SeatingService(
 
         level.levelName = request.levelName
         level.levelIdentifier = request.levelIdentifier
-        level.levelNumber = request.levelNumber
         level.positionX = request.positionX
         level.positionY = request.positionY
         level.capacity = request.capacity

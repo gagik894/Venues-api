@@ -43,7 +43,7 @@ class SeatingMapper {
     fun toDetailedResponse(chart: SeatingChart): SeatingChartDetailedResponse {
         // Get top-level sections (no parent)
         val topLevels = chart.levels.filter { it.parentLevel == null }
-            .sortedBy { it.levelNumber }
+            .sortedBy { it.levelName }
             .map { toLevelResponse(it, includeChildren = true) }
 
         return SeatingChartDetailedResponse(
@@ -66,7 +66,7 @@ class SeatingMapper {
      */
     fun toLevelResponse(level: Level, includeChildren: Boolean = false): LevelResponse {
         val childLevels = if (includeChildren) {
-            level.childLevels.sortedBy { it.levelNumber }.map { toLevelResponse(it, includeChildren = true) }
+            level.childLevels.sortedBy { it.levelName }.map { toLevelResponse(it, includeChildren = true) }
         } else {
             null
         }
@@ -76,7 +76,6 @@ class SeatingMapper {
             parentLevelId = level.parentLevel?.id,
             levelName = level.levelName,
             levelIdentifier = level.levelIdentifier,
-            levelNumber = level.levelNumber,
             positionX = level.positionX,
             positionY = level.positionY,
             capacity = level.capacity,

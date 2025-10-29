@@ -189,14 +189,16 @@ VALUES
 -- ================================================================
 -- 4. EVENTS
 -- ================================================================
-INSERT INTO events (id, venue_id, title, description, currency, status, category_id, created_at, last_modified_at)
-VALUES (1, 1, 'Swan Lake', 'Pyotr Ilyich Tchaikovsky''s timeless ballet masterpiece', 'AMD', 'UPCOMING', 1, NOW(),
+INSERT INTO events (id, venue_id, title, description, currency, status, category_id, seating_chart_id, created_at,
+                    last_modified_at)
+VALUES (1, 1, 'Swan Lake', 'Pyotr Ilyich Tchaikovsky''s timeless ballet masterpiece', 'AMD', 'UPCOMING', 1, 1, NOW(),
         NOW()),
-       (2, 2, 'Hamlet', 'William Shakespeare''s classic tragedy performed in Armenian', 'AMD', 'UPCOMING', 3, NOW(),
+       (2, 2, 'Hamlet', 'William Shakespeare''s classic tragedy performed in Armenian', 'AMD', 'UPCOMING', 3, 2, NOW(),
         NOW()),
        (3, 3, 'Armenian National Philharmonic Orchestra',
-        'An evening of classical masterworks featuring Khachaturian and Komitas', 'AMD', 'UPCOMING', 4, NOW(), NOW()),
-       (4, 3, 'Rock Night - Past Event', 'Past rock concert for testing purposes', 'AMD', 'PAST', 4,
+        'An evening of classical masterworks featuring Khachaturian and Komitas', 'AMD', 'UPCOMING', 4, NULL, NOW(),
+        NOW()),
+       (4, 3, 'Rock Night - Past Event', 'Past rock concert for testing purposes', 'AMD', 'PAST', 4, NULL,
         NOW() - INTERVAL '10 days', NOW() - INTERVAL '5 days');
 
 SELECT setval('events_id_seq', 4, true);
@@ -289,15 +291,15 @@ SELECT setval('seating_charts_id_seq', 2, true);
 -- ================================================================
 -- 7. LEVELS (Sections)
 -- ================================================================
-INSERT INTO levels (id, parent_level_id, level_name, level_identifier, level_number, position_x, position_y, capacity,
+INSERT INTO levels (id, parent_level_id, level_name, level_identifier, position_x, position_y, capacity,
                     created_at, last_modified_at)
 VALUES
 -- Opera House levels
-(1, NULL, 'Orchestra', 'ORCH', 1, 50.0, 100.0, NULL, NOW(), NOW()),
-(2, NULL, 'Balcony', 'BALC', 2, 50.0, 50.0, NULL, NOW(), NOW()),
-(3, NULL, 'Standing Area', 'STAND', 3, 50.0, 150.0, 100, NOW(), NOW()), -- GA area
+(1, NULL, 'Orchestra', 'ORCH', 50.0, 100.0, NULL, NOW(), NOW()),
+(2, NULL, 'Balcony', 'BALC', 50.0, 50.0, NULL, NOW(), NOW()),
+(3, NULL, 'Standing Area', 'STAND', 50.0, 150.0, 100, NOW(), NOW()), -- GA area
 -- Drama Theatre levels
-(4, NULL, 'Parterre', 'PART', 1, 50.0, 100.0, NULL, NOW(), NOW());
+(4, NULL, 'Parterre', 'PART', 50.0, 100.0, NULL, NOW(), NOW());
 
 SELECT setval('levels_id_seq', 4, true);
 
@@ -375,6 +377,66 @@ FROM seats
 WHERE level_id = 4;
 
 -- ================================================================
+-- 10.1 SESSION SEAT CONFIGS (Pricing & Availability per Session)
+-- ================================================================
+-- Session 1: Swan Lake (matinee pricing)
+INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+SELECT 1,       -- Session 1
+       id,      -- Seat ID
+       CASE
+           WHEN seat_type = 'vip' THEN 8000.00
+           ELSE 5000.00
+           END, -- Price based on seat type
+       CASE
+           WHEN id <= (SELECT MIN(id) + 25 FROM seats WHERE level_id = 1) THEN 'SOLD'::config_status
+           ELSE 'AVAILABLE'::config_status
+           END, -- First 25 seats sold
+       NOW(),
+       NOW()
+FROM seats
+WHERE level_id IN (1, 2);
+-- Orchestra and Balcony only
+
+-- Session 2: Swan Lake (evening pricing - higher)
+INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+SELECT 2,                          -- Session 2
+       id,
+       CASE
+           WHEN seat_type = 'vip' THEN 10000.00
+           ELSE 6000.00
+           END,
+       'AVAILABLE'::config_status, -- All available
+       NOW(),
+       NOW()
+FROM seats
+WHERE level_id IN (1, 2);
+
+-- Session 3: Hamlet
+INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+SELECT 3,       -- Session 3
+       id,
+       3000.00, -- Flat pricing
+       CASE
+           WHEN id <= (SELECT MIN(id) + 15 FROM seats WHERE level_id = 4) THEN 'SOLD'::config_status
+           ELSE 'AVAILABLE'::config_status
+           END,
+       NOW(),
+       NOW()
+FROM seats
+WHERE level_id = 4;
+-- Parterre
+
+-- ================================================================
+-- 10.2 SESSION LEVEL CONFIGS (GA Capacity & Pricing per Session)
+-- ================================================================
+-- Session 1: Standing Area for Swan Lake
+INSERT INTO session_level_configs (session_id, level_id, price, capacity, sold_count, status, created_at,
+                                   last_modified_at)
+VALUES (1, 3, 2000.00, 100, 25, 'AVAILABLE'::config_status, NOW(), NOW()),
+       -- Session 2: Standing Area for Swan Lake (evening - higher capacity)
+       (2, 3, 2500.00, 120, 0, 'AVAILABLE'::config_status, NOW(), NOW());
+
+-- ================================================================
 -- 11. BOOKINGS
 -- ================================================================
 INSERT INTO bookings (id, user_id, guest_id, session_id, reservation_token, platform_id, venue_id, total_price,
@@ -434,6 +496,12 @@ UNION ALL
 SELECT 'Seats', COUNT(*)
 FROM seats
 UNION ALL
+SELECT 'Session Seat Configs', COUNT(*)
+FROM session_seat_configs
+UNION ALL
+SELECT 'Session Level Configs', COUNT(*)
+FROM session_level_configs
+UNION ALL
 SELECT 'Bookings', COUNT(*)
 FROM bookings;
 
@@ -450,11 +518,13 @@ $$
         RAISE NOTICE '   - 6 Event Categories (with 3 language translations each)';
         RAISE NOTICE '   - 4 Events with 5 Sessions (with Armenian, Russian, French translations)';
         RAISE NOTICE '   - 2 Seating Charts, 4 Levels, 74 Seats';
+        RAISE NOTICE '   - Session Configs: Seat pricing & GA capacity per session';
         RAISE NOTICE '   - 4 Bookings (2 confirmed, 1 pending, 1 cancelled)';
         RAISE NOTICE '';
         RAISE NOTICE '🌍 Translations: Armenian (hy), Russian (ru), French (fr)';
         RAISE NOTICE '🎭 Ready to test all API endpoints with multilingual support!';
         RAISE NOTICE '';
+        RAISE NOTICE '📝 Test session seating: GET /api/v1/sessions/1/seating';
         RAISE NOTICE '📝 Test translations: GET /api/v1/events/1?lang=hy';
         RAISE NOTICE '📝 Test translations: GET /api/v1/venues/1?lang=ru';
     END

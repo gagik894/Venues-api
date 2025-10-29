@@ -8,6 +8,9 @@ import app.venues.booking.api.mapper.CartMapper
 import app.venues.booking.domain.CartItem
 import app.venues.booking.domain.CartSeat
 import app.venues.booking.domain.ConfigStatus
+import app.venues.booking.event.GAAvailabilityChangedEvent
+import app.venues.booking.event.SeatReleasedEvent
+import app.venues.booking.event.SeatReservedEvent
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartSeatRepository
 import app.venues.booking.repository.SessionLevelConfigRepository
@@ -15,6 +18,7 @@ import app.venues.booking.repository.SessionSeatConfigRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -34,7 +38,8 @@ class CartService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val cartMapper: CartMapper
+    private val cartMapper: CartMapper,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -87,6 +92,17 @@ class CartService(
 
         cartSeatRepository.save(cartSeat)
         logger.info { "Seat added to cart: token=$reservationToken, seatIdentifier=${request.seatIdentifier}" }
+
+        // Publish event for webhook notifications
+        eventPublisher.publishEvent(
+            SeatReservedEvent(
+                sessionId = request.sessionId,
+                seatIdentifier = request.seatIdentifier,
+                levelName = seat.level.levelName,
+                reservationToken = reservationToken,
+                expiresAt = expiresAt.toString()
+            )
+        )
 
         return AddToCartResponse(
             token = reservationToken,
@@ -146,6 +162,18 @@ class CartService(
 
         cartItemRepository.save(cartItem)
         logger.info { "GA tickets added to cart: token=$reservationToken, levelIdentifier=${request.levelIdentifier}, quantity=${request.quantity}" }
+
+        // Publish event for webhook notifications
+        val availableTickets = capacity - (reserved + request.quantity)
+        eventPublisher.publishEvent(
+            GAAvailabilityChangedEvent(
+                sessionId = request.sessionId,
+                levelIdentifier = level.levelIdentifier ?: "",
+                levelName = level.levelName,
+                availableTickets = availableTickets,
+                totalCapacity = capacity
+            )
+        )
 
         return AddToCartResponse(
             token = reservationToken,
@@ -243,8 +271,20 @@ class CartService(
         val cartSeat = cartSeats.find { it.seat.seatIdentifier == seatIdentifier }
             ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
+        val sessionId = cartSeat.session.id!!
+        val levelName = cartSeat.seat.level.levelName
+
         cartSeatRepository.delete(cartSeat)
         logger.info { "Seat removed from cart: token=$token, seatIdentifier=$seatIdentifier" }
+
+        // Publish event for webhook notifications
+        eventPublisher.publishEvent(
+            SeatReleasedEvent(
+                sessionId = sessionId,
+                seatIdentifier = seatIdentifier,
+                levelName = levelName
+            )
+        )
     }
 
     /**

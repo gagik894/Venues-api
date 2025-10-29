@@ -13,9 +13,8 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.seating.repository.LevelRepository
-import app.venues.seating.repository.SeatRepository
-import app.venues.user.repository.UserRepository
+import app.venues.seating.api.SeatingApi
+import app.venues.user.api.UserApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -26,6 +25,9 @@ import java.util.*
 
 /**
  * Service for booking management operations.
+ *
+ * Uses API interfaces (UserApi, SeatingApi) for cross-module communication,
+ * enforcing Hexagonal Architecture boundaries.
  *
  * Handles checkout, confirmation, cancellation, and booking retrieval.
  */
@@ -39,11 +41,11 @@ class BookingService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val seatRepository: SeatRepository,
-    private val levelRepository: LevelRepository,
-    private val userRepository: UserRepository,
     private val guestService: GuestService,
-    private val bookingMapper: BookingMapper
+    private val bookingMapper: BookingMapper,
+    // API interfaces for cross-module communication (Hexagonal Architecture)
+    private val userApi: UserApi,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -264,7 +266,7 @@ class BookingService(
     }
 
     /**
-     * Prepare booking response by fetching all cross-module data.
+     * Prepare booking response by fetching all cross-module data using API interfaces.
      */
     private fun prepareBookingResponse(booking: Booking): BookingResponse {
         // Fetch session from event module
@@ -273,22 +275,22 @@ class BookingService(
 
         val event = session.event
 
-        // Get customer info
+        // Get customer info using UserApi (Hexagonal Architecture)
         val customerEmail = booking.userId?.let {
-            userRepository.findById(it).map { user -> user.email }.orElse("")
+            userApi.getUserEmail(it) ?: ""
         } ?: booking.guest?.email ?: ""
 
         val customerName = booking.userId?.let {
-            userRepository.findById(it).map { user -> "${user.firstName} ${user.lastName}" }.orElse("")
+            userApi.getUserFullName(it) ?: ""
         } ?: booking.guest?.name ?: ""
 
-        // Prepare items data
+        // Prepare items data using SeatingApi (Hexagonal Architecture)
         val itemsData = booking.items.map { item ->
             val seatIdentifier = item.seatId?.let {
-                seatRepository.findById(it).map { seat -> seat.seatIdentifier }.orElse(null)
+                seatingApi.getSeatInfo(it)?.seatIdentifier
             }
             val levelName = item.levelId?.let {
-                levelRepository.findById(it).map { level -> level.levelName }.orElse(null)
+                seatingApi.getLevelInfo(it)?.levelName
             }
 
             BookingItemData(
@@ -308,7 +310,7 @@ class BookingService(
             booking = booking,
             eventTitle = event.title,
             eventDescription = event.description,
-            venueName = "Unknown", // TODO: Fetch from venue service
+            venueName = "Unknown", // TODO: Fetch from VenueApi
             sessionStartTime = session.startTime.toString(),
             sessionEndTime = session.endTime.toString(),
             customerEmail = customerEmail,

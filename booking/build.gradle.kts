@@ -31,10 +31,14 @@ dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
 
-    // Module dependencies
-    api(project(":user"))      // Bookings belong to users
-    api(project(":event"))     // Bookings are for event sessions
-    api(project(":seating"))   // Bookings reserve seats
+    // API Contract Modules - depend on interfaces, not implementations
+    // This enforces Hexagonal Architecture boundaries
+    api(project(":user-api"))      // UserApi for user information
+    api(project(":seating-api"))   // SeatingApi for seat/level information
+
+    // Event module - we still need the implementation for event sessions
+    // since booking module owns the relationship with events
+    api(project(":event"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

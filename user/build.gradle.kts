@@ -28,6 +28,9 @@ dependencyManagement {
 }
 
 dependencies {
+    // API Contract Module - this module implements the UserApi interface
+    api(project(":user-api"))
+
     // Expose common module as part of public API
     api(project(":shared"))
 

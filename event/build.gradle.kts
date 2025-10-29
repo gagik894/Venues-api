@@ -31,11 +31,10 @@ dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
 
-    // Venue module dependency (events belong to venues)
-    api(project(":venue"))
-
-    // Seating module dependency (events use seating charts)
-    api(project(":seating"))
+    // API Contract Modules - depend on interfaces, not implementations
+    // This enforces Hexagonal Architecture boundaries
+    api(project(":venue-api"))    // VenueApi for venue information
+    api(project(":seating-api"))  // SeatingApi for seating chart information
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

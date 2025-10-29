@@ -9,8 +9,8 @@ import app.venues.event.domain.EventStatus
 import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
-import app.venues.seating.repository.SeatingChartRepository
-import app.venues.venue.repository.VenueRepository
+import app.venues.seating.api.SeatingApi
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -20,6 +20,9 @@ import java.time.Instant
 
 /**
  * Service for event management operations.
+ *
+ * Uses API interfaces (VenueApi, SeatingApi) for cross-module communication,
+ * enforcing Hexagonal Architecture boundaries.
  *
  * Handles:
  * - Event CRUD operations
@@ -33,9 +36,10 @@ import java.time.Instant
 class EventService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val seatingChartRepository: SeatingChartRepository,
-    private val venueRepository: VenueRepository,
-    private val eventMapper: EventMapper
+    private val eventMapper: EventMapper,
+    // API interfaces for cross-module communication (Hexagonal Architecture)
+    private val venueApi: VenueApi,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -49,14 +53,17 @@ class EventService(
     fun createEvent(venueId: Long, request: EventRequest): EventResponse {
         logger.debug { "Creating event for venue: $venueId" }
 
-        // Verify venue exists
-        if (!venueRepository.existsById(venueId)) {
+        // Verify venue exists using VenueApi (Hexagonal Architecture)
+        if (!venueApi.venueExists(venueId)) {
             throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
         }
 
-        // Verify seating chart exists if provided
-        if (request.seatingChartId != null && !seatingChartRepository.existsById(request.seatingChartId)) {
-            throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
+        // Verify seating chart exists if provided using SeatingApi (Hexagonal Architecture)
+        if (request.seatingChartId != null) {
+            val chartName = seatingApi.getSeatingChartName(request.seatingChartId)
+            if (chartName == null) {
+                throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
+            }
         }
 
         val event = Event(
@@ -82,8 +89,11 @@ class EventService(
         val savedEvent = eventRepository.save(event)
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
-        // TODO: Fetch venue name and seating chart name from their respective services
-        return eventMapper.toResponse(savedEvent, venueName = "Unknown", seatingChartName = null)
+        // Fetch venue name and seating chart name via API (Hexagonal Architecture)
+        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
+        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
     }
 
     /**
@@ -96,11 +106,14 @@ class EventService(
         val event = eventRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $id") }
 
-        // TODO: Fetch venue name from venue service
+        // Fetch venue name via VenueApi (Hexagonal Architecture)
+        val venueName = venueApi.getVenueNameTranslated(event.venueId, language) ?: "Unknown"
+        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
         return eventMapper.toResponse(
             event,
-            venueName = "Unknown",
-            seatingChartName = null,
+            venueName = venueName,
+            seatingChartName = seatingChartName,
             includeStats = includeStats,
             language = language
         )
@@ -125,9 +138,10 @@ class EventService(
             throw VenuesException.ValidationFailure("Event cannot be edited in current status: ${event.status}")
         }
 
-        // Verify seating chart exists if provided
-        if (request.seatingChartId != null && !seatingChartRepository.existsById(request.seatingChartId)) {
-            throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
+        // Verify seating chart exists if provided using SeatingApi (Hexagonal Architecture)
+        if (request.seatingChartId != null) {
+            seatingApi.getSeatingChartName(request.seatingChartId)
+                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
         }
 
         // Update fields
@@ -151,8 +165,11 @@ class EventService(
         val savedEvent = eventRepository.save(event)
         logger.info { "Event updated successfully: $eventId" }
 
-        // TODO: Fetch venue name and seating chart name from their respective services
-        return eventMapper.toResponse(savedEvent, venueName = "Unknown", seatingChartName = null)
+        // Fetch venue name and seating chart name via API (Hexagonal Architecture)
+        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
+        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
     }
 
     /**

@@ -1,6 +1,8 @@
 package app.venues.user.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.user.api.UserApi
+import app.venues.user.api.dto.UserBasicInfoDto
 import app.venues.user.api.dto.UserRegistrationRequest
 import app.venues.user.api.dto.UserUpdateRequest
 import app.venues.user.domain.User
@@ -15,25 +17,62 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * Service class for User domain business logic.
  *
+ * This is the ADAPTER in Hexagonal Architecture.
+ * Implements UserApi (the PORT) to provide a stable public API for other modules.
+ *
  * Responsibilities:
  * - User registration and profile management
  * - Password management
  * - Account status management
  * - Business rule enforcement
- *
- * Transactional Boundaries:
- * - @Transactional ensures atomic operations
- * - Automatic rollback on exceptions
- * - Proper database connection management
+ * - Cross-module API (via UserApi implementation)
  */
 @Service
 @Transactional(readOnly = true)
 class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder
-) {
+) : UserApi {
 
     private val logger = KotlinLogging.logger {}
+
+    // ===========================================
+    // PUBLIC API IMPLEMENTATION (UserApi Port)
+    // ===========================================
+
+    override fun getUserBasicInfo(userId: Long): UserBasicInfoDto? {
+        return userRepository.findById(userId)
+            .map { user ->
+                UserBasicInfoDto(
+                    id = user.id!!,
+                    email = user.email,
+                    firstName = user.firstName,
+                    lastName = user.lastName,
+                    phoneNumber = user.phoneNumber
+                )
+            }
+            .orElse(null)
+    }
+
+    override fun getUserEmail(userId: Long): String? {
+        return userRepository.findById(userId)
+            .map { it.email }
+            .orElse(null)
+    }
+
+    override fun getUserFullName(userId: Long): String? {
+        return userRepository.findById(userId)
+            .map { "${it.firstName} ${it.lastName}" }
+            .orElse(null)
+    }
+
+    override fun userExists(userId: Long): Boolean {
+        return userRepository.existsById(userId)
+    }
+
+    // ===========================================
+    // INTERNAL BUSINESS LOGIC
+    // ===========================================
 
     /**
      * Registers a new user account.

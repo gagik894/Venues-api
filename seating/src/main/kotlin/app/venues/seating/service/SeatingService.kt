@@ -1,6 +1,7 @@
 package app.venues.seating.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.*
 import app.venues.seating.api.mapper.SeatingMapper
 import app.venues.seating.domain.Level
@@ -19,11 +20,15 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * Service for seating chart management operations.
  *
+ * This is the ADAPTER in Hexagonal Architecture.
+ * Implements SeatingApi (the PORT) to provide a stable public API for other modules.
+ *
  * Handles:
  * - Seating chart CRUD
  * - Level (section) management
  * - Seat management
  * - Translation management
+ * - Cross-module API (via SeatingApi implementation)
  */
 @Service
 @Transactional
@@ -33,8 +38,96 @@ class SeatingService(
     private val seatRepository: SeatRepository,
     private val venueRepository: VenueRepository,
     private val seatingMapper: SeatingMapper
-) {
+) : SeatingApi {
     private val logger = KotlinLogging.logger {}
+
+    // ===========================================
+    // PUBLIC API IMPLEMENTATION (SeatingApi Port)
+    // ===========================================
+
+    override fun getSeatInfo(seatId: Long): SeatInfoDto? {
+        return seatRepository.findById(seatId)
+            .map { seat ->
+                val level = seat.level
+                SeatInfoDto(
+                    id = seat.id!!,
+                    seatIdentifier = seat.seatIdentifier,
+                    seatNumber = seat.seatNumber,
+                    rowLabel = seat.rowLabel,
+                    levelId = level.id!!,
+                    levelName = level.levelName
+                )
+            }
+            .orElse(null)
+    }
+
+    override fun getLevelInfo(levelId: Long): LevelInfoDto? {
+        return levelRepository.findById(levelId)
+            .map { level ->
+                LevelInfoDto(
+                    id = level.id!!,
+                    levelName = level.levelName,
+                    levelIdentifier = level.levelIdentifier,
+                    capacity = level.capacity,
+                    isGeneralAdmission = level.isGeneralAdmission()
+                )
+            }
+            .orElse(null)
+    }
+
+    override fun getSeatingChartName(chartId: Long): String? {
+        return seatingChartRepository.findById(chartId)
+            .map { it.name }
+            .orElse(null)
+    }
+
+    override fun seatExists(seatId: Long): Boolean {
+        return seatRepository.existsById(seatId)
+    }
+
+    override fun levelExists(levelId: Long): Boolean {
+        return levelRepository.existsById(levelId)
+    }
+
+    override fun getChartStructure(chartId: Long): SeatingChartStructureDto? {
+        val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
+
+        // Load all levels for this chart
+        val levels = levelRepository.findBySeatingChartId(chartId)
+        val levelDtos = levels.map { level ->
+            LevelDto(
+                id = level.id!!,
+                levelName = level.levelName,
+                levelIdentifier = level.levelIdentifier,
+                parentLevelId = level.parentLevel?.id,
+                capacity = level.capacity,
+                positionX = level.positionX,
+                positionY = level.positionY
+            )
+        }
+
+        // Load all seats for this chart
+        val seats = seatRepository.findBySeatingChartId(chartId)
+        val seatDtos = seats.map { seat ->
+            SeatDto(
+                id = seat.id!!,
+                seatIdentifier = seat.seatIdentifier,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                levelId = seat.level.id!!,
+                positionX = seat.positionX,
+                positionY = seat.positionY,
+                seatType = seat.seatType
+            )
+        }
+
+        return SeatingChartStructureDto(
+            chartId = chart.id!!,
+            chartName = chart.name,
+            levels = levelDtos,
+            seats = seatDtos
+        )
+    }
 
     // ===========================================
     // SEATING CHART OPERATIONS

@@ -17,8 +17,7 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.seating.repository.LevelRepository
-import app.venues.seating.repository.SeatRepository
+import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -30,6 +29,8 @@ import java.util.*
 /**
  * Service for cart management operations.
  *
+ * Uses SeatingApi for cross-module communication (Hexagonal Architecture).
+ *
  * This is the core of the booking system - handles all cart operations.
  */
 @Service
@@ -40,10 +41,10 @@ class CartService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val seatRepository: SeatRepository,
-    private val levelRepository: LevelRepository,
     private val cartMapper: CartMapper,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    // API interface for cross-module communication (Hexagonal Architecture)
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -97,18 +98,18 @@ class CartService(
         cartSeatRepository.save(cartSeat)
         logger.info { "Seat added to cart: token=$reservationToken, seatIdentifier=${request.seatIdentifier}" }
 
-        // Fetch seat and level info for event
-        val seat = seatRepository.findById(seatId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
-        val level = levelRepository.findById(seat.level.id!!)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+        // Fetch seat and level info for event using SeatingApi (Hexagonal Architecture)
+        val seatInfo = seatingApi.getSeatInfo(seatId)
+            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
+            ?: throw VenuesException.ResourceNotFound("Level not found")
 
         // Publish event for webhook notifications
         eventPublisher.publishEvent(
             SeatReservedEvent(
                 sessionId = request.sessionId,
                 seatIdentifier = request.seatIdentifier,
-                levelName = level.levelName,
+                levelName = levelInfo.levelName,
                 reservationToken = reservationToken,
                 expiresAt = expiresAt.toString()
             )
@@ -143,17 +144,17 @@ class CartService(
         // Get level ID from config
         val levelId = levelConfig.levelId
 
-        // Fetch level entity to verify GA and get capacity
-        val level = levelRepository.findById(levelId)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+        // Fetch level entity to verify GA and get capacity using SeatingApi (Hexagonal Architecture)
+        val levelInfo = seatingApi.getLevelInfo(levelId)
+            ?: throw VenuesException.ResourceNotFound("Level not found")
 
         // Verify it's a GA level
-        if (!level.isGeneralAdmission()) {
+        if (!levelInfo.isGeneralAdmission) {
             throw VenuesException.ValidationFailure("Level is not general admission")
         }
 
         // Check capacity
-        val capacity = level.capacity ?: throw VenuesException.ValidationFailure("Level capacity not set")
+        val capacity = levelInfo.capacity ?: throw VenuesException.ValidationFailure("Level capacity not set")
         val now = Instant.now()
         val reserved = cartItemRepository.countActiveGATicketsBySessionAndLevel(request.sessionId, levelId, now)
 
@@ -182,8 +183,8 @@ class CartService(
         eventPublisher.publishEvent(
             GAAvailabilityChangedEvent(
                 sessionId = request.sessionId,
-                levelIdentifier = level.levelIdentifier ?: "",
-                levelName = level.levelName,
+                levelIdentifier = levelInfo.levelIdentifier ?: "",
+                levelName = levelInfo.levelName,
                 availableTickets = availableTickets,
                 totalCapacity = capacity
             )
@@ -229,42 +230,42 @@ class CartService(
         val eventTitle = event.title
         val currency = event.currency
 
-        // Map seats with pricing
+        // Map seats with pricing using SeatingApi (Hexagonal Architecture)
         val seatResponses = seats.map { cartSeat ->
             val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
 
-            // Fetch seat and level data
-            val seat = seatRepository.findById(cartSeat.seatId)
-                .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
-            val level = levelRepository.findById(seat.level.id!!)
-                .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+            // Fetch seat and level data from SeatingApi
+            val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
+                ?: throw VenuesException.ResourceNotFound("Seat not found")
+            val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
+                ?: throw VenuesException.ResourceNotFound("Level not found")
 
             cartMapper.toCartSeatResponse(
                 cartSeat = cartSeat,
-                seatIdentifier = seat.seatIdentifier,
-                seatNumber = seat.seatNumber,
-                rowLabel = seat.rowLabel,
-                levelName = level.levelName,
-                levelIdentifier = level.levelIdentifier,
+                seatIdentifier = seatInfo.seatIdentifier,
+                seatNumber = seatInfo.seatNumber,
+                rowLabel = seatInfo.rowLabel,
+                levelName = levelInfo.levelName,
+                levelIdentifier = levelInfo.levelIdentifier,
                 price = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
             )
         }
 
-        // Map GA items with pricing
+        // Map GA items with pricing using SeatingApi (Hexagonal Architecture)
         val gaItemResponses = gaItems.map { cartItem ->
             val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
 
-            // Fetch level data
-            val level = levelRepository.findById(cartItem.levelId)
-                .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
+            // Fetch level data from SeatingApi
+            val levelInfo = seatingApi.getLevelInfo(cartItem.levelId)
+                ?: throw VenuesException.ResourceNotFound("Level not found")
 
             cartMapper.toCartGAItemResponse(
                 cartItem = cartItem,
-                levelIdentifier = level.levelIdentifier,
-                levelName = level.levelName,
+                levelIdentifier = levelInfo.levelIdentifier,
+                levelName = levelInfo.levelName,
                 unitPrice = config.price,
                 priceTemplateName = config.priceTemplate?.templateName
             )
@@ -302,20 +303,20 @@ class CartService(
 
         val cartSeats = cartSeatRepository.findByReservationToken(token)
 
-        // Find cart seat by fetching seat and comparing identifiers
+        // Find cart seat by fetching seat and comparing identifiers using SeatingApi
         val cartSeat = cartSeats.find { cartSeat ->
-            val seat = seatRepository.findById(cartSeat.seatId).orElse(null)
-            seat?.seatIdentifier == seatIdentifier
+            val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
+            seatInfo?.seatIdentifier == seatIdentifier
         } ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
         val sessionId = cartSeat.sessionId
 
-        // Fetch seat and level info for event
-        val seat = seatRepository.findById(cartSeat.seatId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seat not found") }
-        val level = levelRepository.findById(seat.level.id!!)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found") }
-        val levelName = level.levelName
+        // Fetch seat and level info for event using SeatingApi (Hexagonal Architecture)
+        val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
+            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
+            ?: throw VenuesException.ResourceNotFound("Level not found")
+        val levelName = levelInfo.levelName
 
         cartSeatRepository.delete(cartSeat)
         logger.info { "Seat removed from cart: token=$token, seatIdentifier=$seatIdentifier" }

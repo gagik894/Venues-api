@@ -19,14 +19,26 @@ plugins {
 // Include the `app` and `utils` subprojects in the build.
 // If there are changes in only one of the projects, Gradle will rebuild only the one that has changed.
 // Learn more about structuring projects with Gradle - https://docs.gradle.org/8.7/userguide/multi_project_builds.html
+
+// Core application module
 include(":app")
+
+// Infrastructure modules
 include(":common")
 include(":shared")
+
+// API Contract Modules (Hexagonal Architecture Ports)
+include(":user-api")
+include(":venue-api")
+include(":seating-api")
+
+// Feature Implementation Modules (Hexagonal Architecture Adapters)
 include(":user")
 include(":venue")
 include(":seating")
 include(":event")
 include(":booking")
 include(":platform")
+
 
 rootProject.name = "Venues-api"

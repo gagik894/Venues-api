@@ -7,9 +7,8 @@ import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.seating.domain.Level
-import app.venues.seating.repository.LevelRepository
-import app.venues.seating.repository.SeatRepository
+import app.venues.seating.api.SeatingApi
+import app.venues.seating.api.dto.LevelDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,8 +16,11 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * Service for retrieving session-specific seating charts.
  *
+ * Uses SeatingApi for cross-module communication (Hexagonal Architecture).
+ * This service has ZERO knowledge of seating module's internal entities or repositories.
+ *
  * Optimized for large venues (10k+ seats) by:
- * - Using batch queries to minimize database round trips
+ * - Making a single bulk call to SeatingApi.getChartStructure()
  * - Building hierarchy in memory (efficient for read operations)
  * - Lazy loading price templates only when needed
  * - Caching static seating structure
@@ -28,8 +30,8 @@ class SessionSeatingService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val levelRepository: LevelRepository,
-    private val seatRepository: SeatRepository
+    // API interface for cross-module communication (Hexagonal Architecture)
+    private val seatingApi: SeatingApi
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -52,27 +54,31 @@ class SessionSeatingService(
         val seatingChartId = event.seatingChartId
             ?: throw VenuesException.ValidationFailure("Event does not have a seating chart assigned")
 
-        // 2. Batch load all seat configs for this session (1 query)
+        // 2. Fetch complete seating chart structure via SeatingApi (single call - Hexagonal Architecture)
+        val chartStructure = seatingApi.getChartStructure(seatingChartId)
+            ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: $seatingChartId")
+
+        // 3. Batch load all seat configs for this session (1 query)
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
         val seatConfigMap = seatConfigs.associateBy { it.seatId }
 
-        // 3. Batch load all level configs for this session (1 query)
+        // 4. Batch load all level configs for this session (1 query)
         val levelConfigs = sessionLevelConfigRepository.findBySessionId(sessionId)
         val levelConfigMap = levelConfigs.associateBy { it.levelId }
 
-        // 4. Get price templates
+        // 5. Get price templates
         val priceTemplates = getPriceTemplatesForSession(event)
 
-        // 5. Load all levels and build hierarchy map
-        val allLevels = levelRepository.findBySeatingChartId(seatingChartId)
-        val levelHierarchyMap = buildLevelHierarchyMap(allLevels)
+        // 6. Build level hierarchy map from DTOs (no entity access)
+        val levelHierarchyMap = buildLevelHierarchyMap(chartStructure.levels)
 
-        // 6. Build flat seats array with level hierarchy embedded
+        // 7. Build flat seats array with level hierarchy embedded
         val seats = mutableListOf<SessionSeatResponse>()
         val gaAreas = mutableListOf<SessionGAAreaResponse>()
 
-        for (level in allLevels) {
-            val levelId = level.id ?: continue
+        // Process levels from chart structure DTOs
+        for (levelDto in chartStructure.levels) {
+            val levelId = levelDto.id
             val levelConfig = levelConfigMap[levelId]
 
             // Check if this is a GA level (has capacity in session config)
@@ -83,8 +89,8 @@ class SessionSeatingService(
 
                 gaAreas.add(
                     SessionGAAreaResponse(
-                        levelName = level.levelName,
-                        levels = levelHierarchyMap[levelId] ?: listOf(level.levelName),
+                        levelName = levelDto.levelName,
+                        levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
                         capacity = sessionCapacity,
                         available = available,
                         price = levelConfig.price.toString(),
@@ -93,19 +99,19 @@ class SessionSeatingService(
                     )
                 )
             } else {
-                // Seated level - get all seats
-                val levelSeats = seatRepository.findByLevelId(levelId)
-                for (seat in levelSeats) {
-                    val config = seatConfigMap[seat.id] ?: continue
+                // Seated level - get all seats from chart structure
+                val levelSeats = chartStructure.seats.filter { it.levelId == levelId }
+                for (seatDto in levelSeats) {
+                    val config = seatConfigMap[seatDto.id] ?: continue
 
                     seats.add(
                         SessionSeatResponse(
-                            seatIdentifier = seat.seatIdentifier,
-                            seatNumber = seat.seatNumber,
-                            rowLabel = seat.rowLabel,
-                            levels = levelHierarchyMap[levelId] ?: listOf(level.levelName),
-                            positionX = seat.positionX,
-                            positionY = seat.positionY,
+                            seatIdentifier = seatDto.seatIdentifier,
+                            seatNumber = seatDto.seatNumber,
+                            rowLabel = seatDto.rowLabel,
+                            levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
+                            positionX = seatDto.positionX,
+                            positionY = seatDto.positionY,
                             status = config.status.name,
                             price = config.price.toString(),
                             priceTemplateId = config.priceTemplate?.id,
@@ -117,7 +123,7 @@ class SessionSeatingService(
             }
         }
 
-        // 7. Calculate totals
+        // 8. Calculate totals
         val totalSeats = seatConfigs.size
         val availableSeats = seatConfigs.count { it.status.name == "AVAILABLE" }
         val soldSeats = session.ticketsSold
@@ -129,7 +135,7 @@ class SessionSeatingService(
             eventId = eventId,
             eventTitle = event.title,
             seatingChartId = seatingChartId,
-            seatingChartName = "Unknown", // TODO: Fetch from seating service
+            seatingChartName = chartStructure.chartName,
             priceTemplates = priceTemplates,
             seats = seats,
             gaAreas = gaAreas,
@@ -140,21 +146,22 @@ class SessionSeatingService(
     }
 
     /**
-     * Build level hierarchy map.
+     * Build level hierarchy map from LevelDTOs.
      * Returns Map<levelId, List<levelNames>> where list goes from root to leaf.
      *
      * Example: levelId=5 -> ["Orchestra", "Main Floor", "Row A"]
+     *
+     * This operates entirely on DTOs with no entity access.
      */
-    private fun buildLevelHierarchyMap(allLevels: List<Level>): Map<Long?, List<String>> {
-        val levelMap = allLevels.filter { it.id != null }.associateBy { it.id }
-        val hierarchyMap = mutableMapOf<Long?, List<String>>()
+    private fun buildLevelHierarchyMap(allLevels: List<LevelDto>): Map<Long, List<String>> {
+        val levelMap = allLevels.associateBy { it.id }
+        val hierarchyMap = mutableMapOf<Long, List<String>>()
 
-        fun getHierarchy(level: Level): List<String> {
-            return if (level.parentLevel == null) {
+        fun getHierarchy(level: LevelDto): List<String> {
+            return if (level.parentLevelId == null) {
                 listOf(level.levelName)
             } else {
-                val parentId = level.parentLevel?.id
-                val parent = if (parentId != null) levelMap[parentId] else null
+                val parent = levelMap[level.parentLevelId]
                 if (parent != null) {
                     getHierarchy(parent) + level.levelName
                 } else {

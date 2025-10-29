@@ -1,6 +1,7 @@
 package app.venues.venue.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueMapper
 import app.venues.venue.domain.Venue
@@ -17,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * Service for venue management operations.
  *
+ * This is the ADAPTER in Hexagonal Architecture.
+ * Implements VenueApi (the PORT) to provide a stable public API for other modules.
+ *
  * Handles:
  * - Venue registration and profile management
  * - Schedule management
@@ -25,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional
  * - Review management
  * - Promo code management
  * - Follower management
+ * - Cross-module API (via VenueApi implementation)
  */
 @Service
 @Transactional
@@ -38,8 +43,58 @@ class VenueService(
     private val venueFollowerRepository: VenueFollowerRepository,
     private val passwordEncoder: PasswordEncoder,
     private val venueMapper: VenueMapper
-) {
+) : VenueApi {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    // ===========================================
+    // PUBLIC API IMPLEMENTATION (VenueApi Port)
+    // ===========================================
+
+    override fun getVenueBasicInfo(venueId: Long): VenueBasicInfoDto? {
+        return venueRepository.findById(venueId)
+            .map { venue ->
+                VenueBasicInfoDto(
+                    id = venue.id!!,
+                    name = venue.name,
+                    address = venue.address,
+                    latitude = venue.latitude,
+                    longitude = venue.longitude
+                )
+            }
+            .orElse(null)
+    }
+
+    override fun getVenueName(venueId: Long): String? {
+        return venueRepository.findById(venueId)
+            .map { it.name }
+            .orElse(null)
+    }
+
+    override fun getVenueNameTranslated(venueId: Long, language: String?): String? {
+        val venue = venueRepository.findById(venueId).orElse(null) ?: return null
+
+        if (language != null) {
+            val translation = venue.translations
+                .find { it.language.equals(language, ignoreCase = true) }
+            if (translation != null) {
+                return translation.name
+            }
+        }
+
+        return venue.name
+    }
+
+    override fun venueExists(venueId: Long): Boolean {
+        return venueRepository.existsById(venueId)
+    }
+
+    override fun getVenueOwnerId(venueId: Long): Long? {
+        // NOTE: Venue entity doesn't have an ownerId field yet
+        // This would need to be added to the Venue entity for proper owner tracking
+        // For now, returning null as venues authenticate via email/password
+        // TODO: Add ownerId field to Venue entity to track which User owns the venue
+        return null
+    }
 
     // ===========================================
     // VENUE REGISTRATION & PROFILE

@@ -212,7 +212,7 @@ data class PlatformReleaseResponse(
  * Platform sell response (booking confirmation)
  */
 data class PlatformSellResponse(
-    val bookingId: Long,
+    val bookingId: String,
     val bookingReference: String,
     val message: String,
     val totalAmount: String,

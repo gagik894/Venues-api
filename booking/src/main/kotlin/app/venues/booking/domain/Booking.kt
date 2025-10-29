@@ -24,7 +24,9 @@ import java.util.*
         Index(name = "idx_booking_guest_id", columnList = "guest_id"),
         Index(name = "idx_booking_session_id", columnList = "session_id"),
         Index(name = "idx_booking_status", columnList = "status"),
-        Index(name = "idx_booking_reservation_token", columnList = "reservation_token")
+        Index(name = "idx_booking_reservation_token", columnList = "reservation_token"),
+        Index(name = "idx_booking_platform_id", columnList = "platform_id"),
+        Index(name = "idx_booking_venue_id", columnList = "venue_id")
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
@@ -47,6 +49,19 @@ data class Booking(
 
     @Column(name = "reservation_token", unique = true, nullable = false, columnDefinition = "UUID")
     var reservationToken: UUID,
+
+    /**
+     * Platform ID if booking was made through external platform integration
+     */
+    @Column(name = "platform_id")
+    var platformId: Long? = null,
+
+    /**
+     * Venue ID - the venue where the event is held
+     * Denormalized for reporting and analytics
+     */
+    @Column(name = "venue_id")
+    var venueId: Long? = null,
 
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     var totalPrice: BigDecimal,

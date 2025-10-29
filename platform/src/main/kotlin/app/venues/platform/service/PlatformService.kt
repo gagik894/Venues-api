@@ -2,6 +2,7 @@ package app.venues.platform.service
 
 import app.venues.booking.api.dto.AddGAToCartRequest
 import app.venues.booking.api.dto.AddSeatToCartRequest
+import app.venues.booking.service.BookingService
 import app.venues.booking.service.CartService
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
@@ -25,7 +26,8 @@ import java.util.*
 class PlatformService(
     private val platformRepository: PlatformRepository,
     private val webhookEventRepository: WebhookEventRepository,
-    private val cartService: CartService
+    private val cartService: CartService,
+    private val bookingService: BookingService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -173,9 +175,6 @@ class PlatformService(
 
         // Create a reservation token for this platform reservation
         val reservationToken = UUID.randomUUID()
-
-        val reservedSeats = mutableListOf<ReservedSeatInfo>()
-        val reservedGA = mutableListOf<ReservedGAInfo>()
         var expiresAt: String? = null
 
         // Reserve individual seats
@@ -186,16 +185,6 @@ class PlatformService(
             )
             val result = cartService.addSeatToCart(cartRequest, reservationToken)
             expiresAt = result.expiresAt
-
-            // TODO: Get seat details for response
-            reservedSeats.add(
-                ReservedSeatInfo(
-                    seatIdentifier = seatIdentifier,
-                    levelName = "TODO",
-                    seatNumber = null,
-                    rowLabel = null
-                )
-            )
         }
 
         // Reserve GA tickets
@@ -207,24 +196,39 @@ class PlatformService(
             )
             val result = cartService.addGAToCart(cartRequest, reservationToken)
             expiresAt = result.expiresAt
+        }
 
-            reservedGA.add(
-                ReservedGAInfo(
-                    levelIdentifier = ga.levelIdentifier,
-                    levelName = "TODO",
-                    quantity = ga.quantity
-                )
+        // Get actual cart details after all reservations are made
+        val cartSummary = cartService.getCartSummary(reservationToken)
+
+        logger.info { "Platform ${platform.name} reserved ${cartSummary.seats.size} seats and ${cartSummary.gaItems.size} GA tickets" }
+
+
+        // Map cart seats to response with actual details
+        val actualSeats = cartSummary.seats.map { seat ->
+            ReservedSeatInfo(
+                seatIdentifier = seat.seatIdentifier,
+                levelName = seat.levelName,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel
             )
         }
 
-        logger.info { "Platform ${platform.name} reserved ${reservedSeats.size} seats and ${reservedGA.size} GA tickets" }
+        // Map GA items to response with actual details
+        val actualGA = cartSummary.gaItems.map { ga ->
+            ReservedGAInfo(
+                levelIdentifier = ga.levelIdentifier ?: "",
+                levelName = ga.levelName,
+                quantity = ga.quantity
+            )
+        }
 
         return PlatformReservationResponse(
             reservationToken = reservationToken,
             message = "Reservation successful",
             expiresAt = expiresAt ?: "",
-            seats = reservedSeats.takeIf { it.isNotEmpty() },
-            gaTickets = reservedGA.takeIf { it.isNotEmpty() }
+            seats = actualSeats.takeIf { it.isNotEmpty() },
+            gaTickets = actualGA.takeIf { it.isNotEmpty() }
         )
     }
 
@@ -245,15 +249,30 @@ class PlatformService(
             throw VenuesException.ValidationFailure("Platform is not active")
         }
 
+        // Get cart summary before clearing to track counts
+        val cartSummary = try {
+            cartService.getCartSummary(request.reservationToken)
+        } catch (e: VenuesException) {
+            // Cart not found or already expired
+            return PlatformReleaseResponse(
+                message = "Reservation not found or already expired",
+                releasedSeats = 0,
+                releasedGATickets = 0
+            )
+        }
+
+        val seatCount = cartSummary.seats.size
+        val gaCount = cartSummary.gaItems.sumOf { it.quantity }
+
         // Clear the cart by token
         cartService.clearCart(request.reservationToken)
 
-        logger.info { "Platform ${platform.name} released reservation ${request.reservationToken}" }
+        logger.info { "Platform ${platform.name} released $seatCount seats and $gaCount GA tickets" }
 
         return PlatformReleaseResponse(
             message = "Reservation released successfully",
-            releasedSeats = 0, // TODO: Track actual counts
-            releasedGATickets = 0
+            releasedSeats = seatCount,
+            releasedGATickets = gaCount
         )
     }
 
@@ -274,34 +293,50 @@ class PlatformService(
             throw VenuesException.ValidationFailure("Platform is not active")
         }
 
-        // TODO: Implement actual booking creation
-        // This requires BookingService from booking module
-        // For now, return placeholder response
-
-        throw VenuesException.ValidationFailure("Sell functionality not yet implemented - requires booking service integration")
-
-        /*
-        // Future implementation:
+        // Create booking from cart
         val booking = bookingService.createBookingFromCart(
             reservationToken = request.reservationToken,
+            platformId = platformId,
             paymentMethod = request.paymentMethod,
             paymentReference = request.paymentReference,
             guestEmail = request.guestEmail,
             guestName = request.guestName,
-            guestPhone = request.guestPhone,
-            externalReference = request.externalReference
+            guestPhone = request.guestPhone
         )
 
+        logger.info { "Platform ${platform.name} completed sale: bookingId=${booking.id}, total=${booking.totalPrice}" }
+
+        // Map booking items to response
+        val seats = booking.items
+            .filter { it.seat != null }
+            .map { item ->
+                ReservedSeatInfo(
+                    seatIdentifier = item.seat!!.seatIdentifier,
+                    levelName = item.seat!!.level.levelName,
+                    seatNumber = item.seat!!.seatNumber,
+                    rowLabel = item.seat!!.rowLabel
+                )
+            }
+
+        val gaTickets = booking.items
+            .filter { it.level != null }
+            .map { item ->
+                ReservedGAInfo(
+                    levelIdentifier = item.level!!.levelIdentifier ?: "",
+                    levelName = item.level!!.levelName,
+                    quantity = item.quantity
+                )
+            }
+
         return PlatformSellResponse(
-            bookingId = booking.id,
-            bookingReference = booking.reference,
+            bookingId = booking.id.toString(),
+            bookingReference = booking.id.toString(), // Can be enhanced with human-readable reference
             message = "Booking confirmed successfully",
-            totalAmount = booking.totalAmount.toString(),
+            totalAmount = booking.totalPrice.toString(),
             currency = booking.currency,
-            seats = ...,
-            gaTickets = ...
+            seats = seats.takeIf { it.isNotEmpty() },
+            gaTickets = gaTickets.takeIf { it.isNotEmpty() }
         )
-        */
     }
 
     // ===========================================

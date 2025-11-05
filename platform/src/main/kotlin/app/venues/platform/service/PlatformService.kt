@@ -10,6 +10,7 @@ import app.venues.platform.domain.Platform
 import app.venues.platform.domain.PlatformStatus
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
+import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -20,6 +21,8 @@ import java.util.*
 
 /**
  * Service for platform management and API operations.
+ *
+ * Uses SeatingApi for cross-module communication (Hexagonal Architecture).
  */
 @Service
 @Transactional
@@ -27,7 +30,8 @@ class PlatformService(
     private val platformRepository: PlatformRepository,
     private val webhookEventRepository: WebhookEventRepository,
     private val cartService: CartService,
-    private val bookingService: BookingService
+    private val bookingService: BookingService,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -306,28 +310,44 @@ class PlatformService(
 
         logger.info { "Platform ${platform.name} completed sale: bookingId=${booking.id}, total=${booking.totalPrice}" }
 
-        // Map booking items to response
-        // Note: Since BookingItem now stores only IDs, we return basic info
-        // The booking service can be enhanced to return full details if needed
+        // Batch fetch seat and level information via SeatingApi (Hexagonal Architecture)
+        val seatIds = booking.items.mapNotNull { it.seatId }.toSet()
+        val levelIds = booking.items.mapNotNull { it.levelId }.toSet()
+
+        val seatInfoMap = seatIds.associateWith { seatId ->
+            seatingApi.getSeatInfo(seatId)
+        }
+
+        val levelInfoMap = levelIds.associateWith { levelId ->
+            seatingApi.getLevelInfo(levelId)
+        }
+
+        // Map booking items to response with fetched data
         val seats = booking.items
             .filter { it.seatId != null }
-            .map { item ->
-                ReservedSeatInfo(
-                    seatIdentifier = "Seat ${item.seatId}", // TODO: Fetch actual seat identifier from seating service
-                    levelName = "Unknown", // TODO: Fetch from seating service
-                    seatNumber = null,
-                    rowLabel = null
-                )
+            .mapNotNull { item ->
+                val seatInfo = seatInfoMap[item.seatId]
+                if (seatInfo != null) {
+                    ReservedSeatInfo(
+                        seatIdentifier = seatInfo.seatIdentifier,
+                        levelName = seatInfo.levelName,
+                        seatNumber = seatInfo.seatNumber,
+                        rowLabel = seatInfo.rowLabel
+                    )
+                } else null
             }
 
         val gaTickets = booking.items
             .filter { it.levelId != null }
-            .map { item ->
-                ReservedGAInfo(
-                    levelIdentifier = item.levelId.toString(), // TODO: Fetch actual level identifier from seating service
-                    levelName = "Unknown", // TODO: Fetch from seating service
-                    quantity = item.quantity
-                )
+            .mapNotNull { item ->
+                val levelInfo = levelInfoMap[item.levelId]
+                if (levelInfo != null) {
+                    ReservedGAInfo(
+                        levelIdentifier = levelInfo.levelIdentifier ?: item.levelId.toString(),
+                        levelName = levelInfo.levelName,
+                        quantity = item.quantity
+                    )
+                } else null
             }
 
         return PlatformSellResponse(

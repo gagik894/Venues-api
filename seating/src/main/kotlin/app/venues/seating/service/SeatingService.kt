@@ -10,7 +10,7 @@ import app.venues.seating.domain.SeatingChart
 import app.venues.seating.repository.LevelRepository
 import app.venues.seating.repository.SeatRepository
 import app.venues.seating.repository.SeatingChartRepository
-import app.venues.venue.repository.VenueRepository
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -36,8 +36,8 @@ class SeatingService(
     private val seatingChartRepository: SeatingChartRepository,
     private val levelRepository: LevelRepository,
     private val seatRepository: SeatRepository,
-    private val venueRepository: VenueRepository,
-    private val seatingMapper: SeatingMapper
+    private val seatingMapper: SeatingMapper,
+    private val venueApi: VenueApi
 ) : SeatingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -139,8 +139,8 @@ class SeatingService(
     fun createSeatingChart(venueId: Long, request: SeatingChartRequest): SeatingChartResponse {
         logger.debug { "Creating seating chart for venue: $venueId" }
 
-        // Verify venue exists (via repository check)
-        if (!venueRepository.existsById(venueId)) {
+        // Verify venue exists using VenueApi
+        if (!venueApi.venueExists(venueId)) {
             throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
         }
 
@@ -160,8 +160,9 @@ class SeatingService(
         val savedChart = seatingChartRepository.save(chart)
         logger.info { "Seating chart created successfully: ID=${savedChart.id}" }
 
-        // TODO: Fetch venue name from venue service for response
-        return seatingMapper.toResponse(savedChart, venueName = null)
+        // Fetch venue name via VenueApi
+        val venueName = venueApi.getVenueName(venueId)
+        return seatingMapper.toResponse(savedChart, venueName = venueName)
     }
 
     /**
@@ -174,8 +175,8 @@ class SeatingService(
         val chart = seatingChartRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
-        // TODO: Fetch venue name from venue service for response
-        return seatingMapper.toResponse(chart, venueName = null)
+        val venueName = venueApi.getVenueName(chart.venueId)
+        return seatingMapper.toResponse(chart, venueName = venueName)
     }
 
     /**
@@ -188,8 +189,8 @@ class SeatingService(
         val chart = seatingChartRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
-        // TODO: Fetch venue name from venue service for response
-        return seatingMapper.toDetailedResponse(chart, venueName = null)
+        val venueName = venueApi.getVenueName(chart.venueId)
+        return seatingMapper.toDetailedResponse(chart, venueName = venueName)
     }
 
     /**
@@ -198,9 +199,11 @@ class SeatingService(
     @Transactional(readOnly = true)
     fun getSeatingChartsByVenue(venueId: Long, pageable: Pageable): Page<SeatingChartResponse> {
         logger.debug { "Fetching seating charts for venue: $venueId" }
-        // TODO: Fetch venue name from venue service for response
+
+        val venueName = venueApi.getVenueName(venueId)
+
         return seatingChartRepository.findByVenueId(venueId, pageable)
-            .map { seatingMapper.toResponse(it, venueName = null) }
+            .map { seatingMapper.toResponse(it, venueName = venueName) }
     }
 
     /**
@@ -231,8 +234,9 @@ class SeatingService(
         val savedChart = seatingChartRepository.save(chart)
         logger.info { "Seating chart updated successfully: $chartId" }
 
-        // TODO: Fetch venue name from venue service for response
-        return seatingMapper.toResponse(savedChart, venueName = null)
+        // Fetch venue name via VenueApi (Hexagonal Architecture)
+        val venueName = venueApi.getVenueName(venueId)
+        return seatingMapper.toResponse(savedChart, venueName = venueName)
     }
 
     /**

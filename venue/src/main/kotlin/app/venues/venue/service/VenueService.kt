@@ -96,6 +96,24 @@ class VenueService(
         return null
     }
 
+    override fun getVenueNamesBatch(venueIds: Set<Long>, language: String?): Map<Long, String> {
+        if (venueIds.isEmpty()) return emptyMap()
+
+        val venues = venueRepository.findAllById(venueIds)
+
+        return venues.associate { venue ->
+            val venueName = if (language != null) {
+                venue.translations
+                    .find { it.language.equals(language, ignoreCase = true) }
+                    ?.name
+                    ?: venue.name
+            } else {
+                venue.name
+            }
+            venue.id!! to venueName
+        }
+    }
+
     // ===========================================
     // VENUE REGISTRATION & PROFILE
     // ===========================================

@@ -38,5 +38,14 @@ interface VenueApi {
      * Get venue owner ID.
      */
     fun getVenueOwnerId(venueId: Long): Long?
+
+    /**
+     * Get venue names in batch (for performance optimization).
+     * Returns a map of venueId to venue name.
+     *
+     * @param venueIds Set of venue IDs to fetch
+     * @param language Optional language code for translations
+     */
+    fun getVenueNamesBatch(venueIds: Set<Long>, language: String? = null): Map<Long, String>
 }
 

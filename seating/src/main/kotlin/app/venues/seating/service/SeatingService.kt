@@ -162,7 +162,7 @@ class SeatingService(
 
         // Fetch venue name via VenueApi
         val venueName = venueApi.getVenueName(venueId)
-        return seatingMapper.toResponse(savedChart, venueName = venueName)
+        return seatingMapper.toResponse(savedChart, levelRepository, seatRepository, venueName = venueName)
     }
 
     /**
@@ -176,7 +176,7 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
         val venueName = venueApi.getVenueName(chart.venueId)
-        return seatingMapper.toResponse(chart, venueName = venueName)
+        return seatingMapper.toResponse(chart, levelRepository, seatRepository, venueName = venueName)
     }
 
     /**
@@ -190,7 +190,7 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
         val venueName = venueApi.getVenueName(chart.venueId)
-        return seatingMapper.toDetailedResponse(chart, venueName = venueName)
+        return seatingMapper.toDetailedResponse(chart, levelRepository, seatRepository, venueName = venueName)
     }
 
     /**
@@ -203,7 +203,7 @@ class SeatingService(
         val venueName = venueApi.getVenueName(venueId)
 
         return seatingChartRepository.findByVenueId(venueId, pageable)
-            .map { seatingMapper.toResponse(it, venueName = venueName) }
+            .map { seatingMapper.toResponse(it, levelRepository, seatRepository, venueName = venueName) }
     }
 
     /**
@@ -236,7 +236,7 @@ class SeatingService(
 
         // Fetch venue name via VenueApi (Hexagonal Architecture)
         val venueName = venueApi.getVenueName(venueId)
-        return seatingMapper.toResponse(savedChart, venueName = venueName)
+        return seatingMapper.toResponse(savedChart, levelRepository, seatRepository, venueName = venueName)
     }
 
     /**
@@ -267,7 +267,7 @@ class SeatingService(
     fun addLevel(chartId: Long, request: LevelRequest): LevelResponse {
         logger.debug { "Adding level to chart: $chartId" }
 
-        val chart = seatingChartRepository.findById(chartId)
+        seatingChartRepository.findById(chartId)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         // Get parent level if specified
@@ -277,6 +277,7 @@ class SeatingService(
         }
 
         val level = Level(
+            seatingChartId = chartId,
             parentLevel = parentLevel,
             levelName = request.levelName,
             levelIdentifier = request.levelIdentifier,
@@ -286,8 +287,6 @@ class SeatingService(
         )
 
         val savedLevel = levelRepository.save(level)
-        chart.addLevel(savedLevel)
-        seatingChartRepository.save(chart)
 
         logger.info { "Level added successfully: ID=${savedLevel.id}" }
 
@@ -358,7 +357,8 @@ class SeatingService(
     fun addSeat(chartId: Long, request: SeatRequest): SeatResponse {
         logger.debug { "Adding seat to level: ${request.levelId}" }
 
-        val chart = seatingChartRepository.findById(chartId)
+        // Verify chart exists
+        seatingChartRepository.findById(chartId)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         val level = levelRepository.findById(request.levelId)
@@ -380,8 +380,6 @@ class SeatingService(
         )
 
         val savedSeat = seatRepository.save(seat)
-        chart.addSeat(savedSeat)
-        seatingChartRepository.save(chart)
 
         logger.info { "Seat added successfully: ID=${savedSeat.id}, identifier=${savedSeat.seatIdentifier}" }
 
@@ -394,7 +392,8 @@ class SeatingService(
     fun addSeats(chartId: Long, request: BatchSeatRequest): List<SeatResponse> {
         logger.debug { "Batch adding ${request.seats.size} seats to level: ${request.levelId}" }
 
-        val chart = seatingChartRepository.findById(chartId)
+        // Verify chart exists
+        seatingChartRepository.findById(chartId)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         val level = levelRepository.findById(request.levelId)
@@ -416,12 +415,9 @@ class SeatingService(
                 seatType = item.seatType
             )
 
-            val savedSeat = seatRepository.save(seat)
-            chart.addSeat(savedSeat)
-            savedSeat
+            seatRepository.save(seat)
         }
 
-        seatingChartRepository.save(chart)
         logger.info { "Batch added ${savedSeats.size} seats successfully" }
 
         return savedSeats.map { seatingMapper.toSeatResponse(it) }

@@ -7,6 +7,8 @@ import app.venues.seating.api.dto.SeatingChartResponse
 import app.venues.seating.domain.Level
 import app.venues.seating.domain.Seat
 import app.venues.seating.domain.SeatingChart
+import app.venues.seating.repository.LevelRepository
+import app.venues.seating.repository.SeatRepository
 import org.springframework.stereotype.Component
 
 /**
@@ -21,7 +23,12 @@ class SeatingMapper {
      * Convert SeatingChart entity to SeatingChartResponse DTO.
      * Note: venueName must be fetched separately via venue service if needed
      */
-    fun toResponse(chart: SeatingChart, venueName: String? = null): SeatingChartResponse {
+    fun toResponse(
+        chart: SeatingChart,
+        levelRepository: LevelRepository,
+        seatRepository: SeatRepository,
+        venueName: String? = null
+    ): SeatingChartResponse {
         return SeatingChartResponse(
             id = chart.id!!,
             venueId = chart.venueId,
@@ -30,9 +37,9 @@ class SeatingMapper {
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = chart.getTotalCapacity(),
-            levelCount = chart.levels.size,
-            seatCount = chart.seats.size,
+            totalCapacity = chart.getTotalCapacity(levelRepository, seatRepository),
+            levelCount = chart.getLevels(levelRepository).size,
+            seatCount = chart.getSeats(seatRepository).size,
             createdAt = chart.createdAt.toString(),
             lastModifiedAt = chart.lastModifiedAt.toString()
         )
@@ -42,9 +49,15 @@ class SeatingMapper {
      * Convert SeatingChart entity to detailed response with levels.
      * Note: venueName must be fetched separately via venue service if needed
      */
-    fun toDetailedResponse(chart: SeatingChart, venueName: String? = null): SeatingChartDetailedResponse {
+    fun toDetailedResponse(
+        chart: SeatingChart,
+        levelRepository: LevelRepository,
+        seatRepository: SeatRepository,
+        venueName: String? = null
+    ): SeatingChartDetailedResponse {
         // Get top-level sections (no parent)
-        val topLevels = chart.levels.filter { it.parentLevel == null }
+        val topLevels = chart.getLevels(levelRepository)
+            .filter { it.parentLevel == null }
             .sortedBy { it.levelName }
             .map { toLevelResponse(it, includeChildren = true) }
 
@@ -56,7 +69,7 @@ class SeatingMapper {
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = chart.getTotalCapacity(),
+            totalCapacity = chart.getTotalCapacity(levelRepository, seatRepository),
             levels = topLevels,
             createdAt = chart.createdAt.toString(),
             lastModifiedAt = chart.lastModifiedAt.toString()

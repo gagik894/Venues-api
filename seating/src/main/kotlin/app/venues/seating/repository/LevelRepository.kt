@@ -27,17 +27,9 @@ interface LevelRepository : JpaRepository<Level, Long> {
     fun findByLevelIdentifier(identifier: String): Level?
 
     /**
-     * Find levels in a specific seating chart
-     * Ordered by level name for consistent display
+     * Find levels in a specific seating chart.
+     * Uses direct column reference for clean architecture.
      */
-    @Query(
-        """
-        SELECT l FROM Level l
-        JOIN l.seatingCharts sc
-        WHERE sc.id = :chartId
-        ORDER BY l.levelName
-    """
-    )
     fun findBySeatingChartId(chartId: Long): List<Level>
 
     /**

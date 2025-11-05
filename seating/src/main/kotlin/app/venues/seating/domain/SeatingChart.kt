@@ -66,30 +66,6 @@ data class SeatingChart(
     @Column(name = "background_url", length = 500)
     var backgroundUrl: String? = null,
 
-    /**
-     * Levels (sections/areas) in this seating chart
-     * TODO: Refactor this ManyToMany to be managed by the application service layer to avoid direct cross-module entity dependencies.
-     */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "level_seating_charts",
-        joinColumns = [JoinColumn(name = "seating_chart_id")],
-        inverseJoinColumns = [JoinColumn(name = "level_id")]
-    )
-    var levels: MutableSet<Level> = mutableSetOf(),
-
-    /**
-     * Seats included in this seating chart
-     * TODO: Refactor this ManyToMany to be managed by the application service layer to avoid direct cross-module entity dependencies.
-     */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "seat_seating_charts",
-        joinColumns = [JoinColumn(name = "seating_chart_id")],
-        inverseJoinColumns = [JoinColumn(name = "seat_id")]
-    )
-    var seats: MutableSet<Seat> = mutableSetOf(),
-
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.now(),
@@ -99,41 +75,34 @@ data class SeatingChart(
     var lastModifiedAt: Instant = Instant.now()
 ) {
     /**
-     * Add a level to this seating chart
+     * Get all levels for this seating chart.
+     * Levels are managed via repository queries, not bidirectional relationships.
+     * This maintains proper module boundaries.
      */
-    fun addLevel(level: Level) {
-        levels.add(level)
-        level.seatingCharts.add(this)
+    fun getLevels(levelRepository: app.venues.seating.repository.LevelRepository): List<Level> {
+        return id?.let { levelRepository.findBySeatingChartId(it) } ?: emptyList()
     }
 
     /**
-     * Remove a level from this seating chart
+     * Get all seats for this seating chart.
+     * Seats are managed via repository queries, not bidirectional relationships.
+     * This maintains proper module boundaries.
      */
-    fun removeLevel(level: Level) {
-        levels.remove(level)
-        level.seatingCharts.remove(this)
+    fun getSeats(seatRepository: app.venues.seating.repository.SeatRepository): List<Seat> {
+        return id?.let { seatRepository.findBySeatingChartId(it) } ?: emptyList()
     }
 
     /**
-     * Add a seat to this seating chart
+     * Get total capacity including GA areas and individual seats.
+     * Requires repositories to be passed in - follows clean architecture.
      */
-    fun addSeat(seat: Seat) {
-        seats.add(seat)
-        seat.seatingCharts.add(this)
-    }
+    fun getTotalCapacity(
+        levelRepository: app.venues.seating.repository.LevelRepository,
+        seatRepository: app.venues.seating.repository.SeatRepository
+    ): Int {
+        val levels = getLevels(levelRepository)
+        val seats = getSeats(seatRepository)
 
-    /**
-     * Remove a seat from this seating chart
-     */
-    fun removeSeat(seat: Seat) {
-        seats.remove(seat)
-        seat.seatingCharts.remove(this)
-    }
-
-    /**
-     * Get total capacity including GA areas and individual seats
-     */
-    fun getTotalCapacity(): Int {
         val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
         val seatedCapacity = seats.size
         return gaCapacity + seatedCapacity

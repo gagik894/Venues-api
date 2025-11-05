@@ -34,13 +34,13 @@ interface SeatRepository : JpaRepository<Seat, Long> {
     fun findBySeatIdentifier(seatIdentifier: String): Seat?
 
     /**
-     * Find seats by seating chart
+     * Find seats by seating chart.
+     * Uses level's seatingChartId for clean architecture.
      */
     @Query(
         """
         SELECT s FROM Seat s
-        JOIN s.seatingCharts sc
-        WHERE sc.id = :chartId
+        WHERE s.level.seatingChartId = :chartId
         ORDER BY s.level.levelName, s.seatIdentifier
     """
     )

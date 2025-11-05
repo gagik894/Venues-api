@@ -23,6 +23,7 @@ import java.time.Instant
 @Table(
     name = "levels",
     indexes = [
+        Index(name = "idx_level_seating_chart_id", columnList = "seating_chart_id"),
         Index(name = "idx_level_parent_id", columnList = "parent_level_id"),
         Index(name = "idx_level_identifier", columnList = "level_identifier")
     ]
@@ -39,6 +40,13 @@ data class Level(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_level_id")
     var parentLevel: Level? = null,
+
+    /**
+     * Seating chart ID this level belongs to.
+     * Stored as ID to maintain proper module boundaries.
+     */
+    @Column(name = "seating_chart_id", nullable = false)
+    var seatingChartId: Long,
 
     /**
      * Name of the level (default language)
@@ -72,11 +80,6 @@ data class Level(
     @Column(name = "capacity")
     var capacity: Int? = null,
 
-    /**
-     * Seating charts that include this level (M:N relationship)
-     */
-    @ManyToMany(mappedBy = "levels", fetch = FetchType.LAZY)
-    var seatingCharts: MutableSet<SeatingChart> = mutableSetOf(),
 
     /**
      * Child levels (for nested hierarchy)

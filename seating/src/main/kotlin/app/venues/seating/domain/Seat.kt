@@ -81,11 +81,6 @@ data class Seat(
     @Column(name = "seat_type", length = 50)
     var seatType: String? = null,
 
-    /**
-     * Seating charts that include this seat (M:N relationship)
-     */
-    @ManyToMany(mappedBy = "seats", fetch = FetchType.LAZY)
-    var seatingCharts: MutableSet<SeatingChart> = mutableSetOf(),
 
     /**
      * Translations for seat label

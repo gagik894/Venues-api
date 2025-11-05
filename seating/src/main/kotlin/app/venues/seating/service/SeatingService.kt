@@ -61,6 +61,19 @@ class SeatingService(
             .orElse(null)
     }
 
+    override fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto? {
+        val seat = seatRepository.findBySeatIdentifier(seatIdentifier) ?: return null
+        val level = seat.level
+        return SeatInfoDto(
+            id = seat.id!!,
+            seatIdentifier = seat.seatIdentifier,
+            seatNumber = seat.seatNumber,
+            rowLabel = seat.rowLabel,
+            levelId = level.id!!,
+            levelName = level.levelName
+        )
+    }
+
     override fun getLevelInfo(levelId: Long): LevelInfoDto? {
         return levelRepository.findById(levelId)
             .map { level ->
@@ -73,6 +86,17 @@ class SeatingService(
                 )
             }
             .orElse(null)
+    }
+
+    override fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto? {
+        val level = levelRepository.findByLevelIdentifier(levelIdentifier) ?: return null
+        return LevelInfoDto(
+            id = level.id!!,
+            levelName = level.levelName,
+            levelIdentifier = level.levelIdentifier,
+            capacity = level.capacity,
+            isGeneralAdmission = level.isGeneralAdmission()
+        )
     }
 
     override fun getSeatingChartName(chartId: Long): String? {

@@ -20,9 +20,21 @@ interface SeatingApi {
     fun getSeatInfo(seatId: Long): SeatInfoDto?
 
     /**
+     * Get seat information by seat identifier string.
+     * Used for API operations that reference seats by their human-readable identifier.
+     */
+    fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto?
+
+    /**
      * Get level information by ID.
      */
     fun getLevelInfo(levelId: Long): LevelInfoDto?
+
+    /**
+     * Get level information by level identifier string.
+     * Used for API operations that reference levels by their human-readable identifier.
+     */
+    fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto?
 
     /**
      * Get seating chart name by ID.

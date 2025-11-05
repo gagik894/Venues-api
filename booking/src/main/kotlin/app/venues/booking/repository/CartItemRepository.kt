@@ -29,8 +29,8 @@ interface CartItemRepository : JpaRepository<CartItem, Long> {
     @Query(
         """
         SELECT COALESCE(SUM(ci.quantity), 0) FROM CartItem ci
-        WHERE ci.session.id = :sessionId
-        AND ci.level.id = :levelId
+        WHERE ci.sessionId = :sessionId
+        AND ci.levelId = :levelId
         AND ci.expiresAt > :now
     """
     )

@@ -43,7 +43,6 @@ class CartService(
     private val eventSessionRepository: EventSessionRepository,
     private val cartMapper: CartMapper,
     private val eventPublisher: ApplicationEventPublisher,
-    // API interface for cross-module communication (Hexagonal Architecture)
     private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
@@ -66,20 +65,22 @@ class CartService(
         eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
+        // Resolve seat identifier to seat ID using SeatingApi (Hexagonal Architecture)
+        val seatInfo = seatingApi.getSeatInfoByIdentifier(request.seatIdentifier)
+            ?: throw VenuesException.ValidationFailure("Seat not found with identifier: ${request.seatIdentifier}")
+        val seatId = seatInfo.id
+
         // Check if seat config exists and is available
-        val seatConfig =
-            sessionSeatConfigRepository.findBySessionIdAndSeatIdentifier(request.sessionId, request.seatIdentifier)
+        val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(request.sessionId, seatId)
             ?: throw VenuesException.ValidationFailure("Seat is not configured for this session")
 
         if (seatConfig.status != ConfigStatus.AVAILABLE) {
             throw VenuesException.ValidationFailure("Seat is not available (status: ${seatConfig.status})")
         }
 
-        // Get seat ID from config
-        val seatId = seatConfig.seatId
 
         // Check if seat is already in any cart (including expired)
-        if (cartSeatRepository.existsBySessionIdAndSeatIdentifier(request.sessionId, request.seatIdentifier)) {
+        if (cartSeatRepository.existsBySessionIdAndSeatId(request.sessionId, seatId)) {
             throw VenuesException.ResourceConflict("Seat is already reserved")
         }
 
@@ -98,9 +99,7 @@ class CartService(
         cartSeatRepository.save(cartSeat)
         logger.info { "Seat added to cart: token=$reservationToken, seatIdentifier=${request.seatIdentifier}" }
 
-        // Fetch seat and level info for event using SeatingApi (Hexagonal Architecture)
-        val seatInfo = seatingApi.getSeatInfo(seatId)
-            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        // Fetch level info for event using SeatingApi (Hexagonal Architecture)
         val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
             ?: throw VenuesException.ResourceNotFound("Level not found")
 
@@ -132,21 +131,21 @@ class CartService(
         eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
+        // Resolve level identifier to level ID using SeatingApi (Hexagonal Architecture)
+        // Note: We need to fetch all levels and find by identifier since we can't query by identifier directly
+        val levelInfo = seatingApi.getLevelInfoByIdentifier(request.levelIdentifier)
+            ?: throw VenuesException.ValidationFailure("Level not found with identifier: ${request.levelIdentifier}")
+        val levelId = levelInfo.id
+
         // Check if level config exists and is available
-        val levelConfig =
-            sessionLevelConfigRepository.findBySessionIdAndLevelIdentifier(request.sessionId, request.levelIdentifier)
+        val levelConfig = sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelId)
             ?: throw VenuesException.ValidationFailure("GA level is not configured for this session")
 
         if (levelConfig.status != ConfigStatus.AVAILABLE) {
             throw VenuesException.ValidationFailure("GA level is not available")
         }
 
-        // Get level ID from config
-        val levelId = levelConfig.levelId
-
-        // Fetch level entity to verify GA and get capacity using SeatingApi (Hexagonal Architecture)
-        val levelInfo = seatingApi.getLevelInfo(levelId)
-            ?: throw VenuesException.ResourceNotFound("Level not found")
+        // Verify it's a GA level
 
         // Verify it's a GA level
         if (!levelInfo.isGeneralAdmission) {

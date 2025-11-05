@@ -29,24 +29,12 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
     fun existsBySessionIdAndSeatId(sessionId: Long, seatId: Long): Boolean
 
     /**
-     * Check if seat is in cart for session by identifier
-     */
-    @Query(
-        """
-        SELECT COUNT(cs) > 0 FROM CartSeat cs
-        WHERE cs.session.id = :sessionId
-        AND cs.seat.seatIdentifier = :seatIdentifier
-    """
-    )
-    fun existsBySessionIdAndSeatIdentifier(sessionId: Long, seatIdentifier: String): Boolean
-
-    /**
      * Get reserved seat IDs for session (including expired)
      */
     @Query(
         """
-        SELECT cs.seat.id FROM CartSeat cs
-        WHERE cs.session.id = :sessionId
+        SELECT cs.seatId FROM CartSeat cs
+        WHERE cs.sessionId = :sessionId
     """
     )
     fun findReservedSeatIdsBySession(sessionId: Long): List<Long>
@@ -56,8 +44,8 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
      */
     @Query(
         """
-        SELECT cs.seat.id FROM CartSeat cs
-        WHERE cs.session.id = :sessionId
+        SELECT cs.seatId FROM CartSeat cs
+        WHERE cs.sessionId = :sessionId
         AND cs.expiresAt > :now
     """
     )

@@ -195,7 +195,12 @@ class SessionSeatingService(
 
         // Only include seat identifiers for small venues (< 1000 seats)
         val availableIdentifiers = if (totalSeats < 1000) {
-            sessionSeatConfigRepository.findAvailableSeatIdentifiers(sessionId)
+            // Get available seat IDs
+            val availableSeatIds = sessionSeatConfigRepository.findAvailableSeatIdsBySession(sessionId)
+            // Resolve to seat identifiers via SeatingApi (Hexagonal Architecture)
+            availableSeatIds.mapNotNull { seatId ->
+                seatingApi.getSeatInfo(seatId)?.seatIdentifier
+            }.sorted()
         } else {
             emptyList()
         }

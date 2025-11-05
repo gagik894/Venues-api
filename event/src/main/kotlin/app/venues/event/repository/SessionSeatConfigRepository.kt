@@ -18,18 +18,6 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun findBySessionIdAndSeatId(sessionId: Long, seatId: Long): SessionSeatConfig?
 
     /**
-     * Find config by session and seat identifier
-     */
-    @Query(
-        """
-        SELECT sc FROM SessionSeatConfig sc
-        WHERE sc.session.id = :sessionId
-        AND sc.seat.seatIdentifier = :seatIdentifier
-    """
-    )
-    fun findBySessionIdAndSeatIdentifier(sessionId: Long, seatIdentifier: String): SessionSeatConfig?
-
-    /**
      * Find all available seat configs for session
      */
     fun findBySessionIdAndStatus(sessionId: Long, status: ConfigStatus): List<SessionSeatConfig>
@@ -44,7 +32,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
      */
     @Query(
         """
-        SELECT sc.seat.id FROM SessionSeatConfig sc
+        SELECT sc.seatId FROM SessionSeatConfig sc
         WHERE sc.session.id = :sessionId
         AND sc.status = 'AVAILABLE'
     """
@@ -66,18 +54,5 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     """
     )
     fun getAvailabilityStatsRaw(sessionId: Long): Array<Long>
-
-    /**
-     * Get available seat identifiers (for small venues only).
-     */
-    @Query(
-        """
-        SELECT sc.seat.seatIdentifier FROM SessionSeatConfig sc
-        WHERE sc.session.id = :sessionId
-        AND sc.status = 'AVAILABLE'
-        ORDER BY sc.seat.seatIdentifier
-    """
-    )
-    fun findAvailableSeatIdentifiers(sessionId: Long): List<String>
 }
 

@@ -30,7 +30,6 @@ class SessionSeatingService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
-    // API interface for cross-module communication (Hexagonal Architecture)
     private val seatingApi: SeatingApi
 ) {
 
@@ -188,10 +187,19 @@ class SessionSeatingService(
         val session = getSessionOrThrow(sessionId)
 
         // Optimized query - count only, no entity loading
-        val statsArray = sessionSeatConfigRepository.getAvailabilityStatsRaw(sessionId)
-        val totalSeats = statsArray[0].toInt()
-        val availableSeats = statsArray[1].toInt()
-        val reservedSeats = statsArray[2].toInt()
+        val stats = sessionSeatConfigRepository.getAvailabilityStatsRaw(sessionId)
+            ?: return SeatAvailabilityResponse(
+                sessionId = sessionId,
+                totalSeats = 0,
+                availableSeats = 0,
+                soldSeats = session.ticketsSold,
+                reservedSeats = 0,
+                availableSeatIdentifiers = emptyList()
+            )
+
+        val totalSeats = stats.totalSeats
+        val availableSeats = stats.availableSeats
+        val reservedSeats = stats.reservedSeats
 
         // Only include seat identifiers for small venues (< 1000 seats)
         val availableIdentifiers = if (totalSeats < 1000) {
@@ -207,10 +215,10 @@ class SessionSeatingService(
 
         return SeatAvailabilityResponse(
             sessionId = sessionId,
-            totalSeats = totalSeats,
-            availableSeats = availableSeats,
+            totalSeats = totalSeats.toInt(),
+            availableSeats = availableSeats.toInt(),
             soldSeats = session.ticketsSold,
-            reservedSeats = reservedSeats,
+            reservedSeats = reservedSeats.toInt(),
             availableSeatIdentifiers = availableIdentifiers
         )
     }

@@ -2,6 +2,7 @@ package app.venues.event.repository
 
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.SessionSeatConfig
+import app.venues.event.dto.AvailabilityStatsDto
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
@@ -41,18 +42,18 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
 
     /**
      * Get availability statistics for session (optimized - count only).
-     * Returns [totalSeats, availableSeats, reservedSeats]
+     * Returns aggregated seat counts: total, available, and reserved.
      */
     @Query(
         """
-        SELECT 
+        SELECT NEW app.venues.event.dto.AvailabilityStatsDto(
             COUNT(sc.id),
             SUM(CASE WHEN sc.status = 'AVAILABLE' THEN 1 ELSE 0 END),
             SUM(CASE WHEN sc.status = 'RESERVED' THEN 1 ELSE 0 END)
+        )        
         FROM SessionSeatConfig sc
         WHERE sc.session.id = :sessionId
     """
     )
-    fun getAvailabilityStatsRaw(sessionId: Long): Array<Long>
+    fun getAvailabilityStatsRaw(sessionId: Long): AvailabilityStatsDto?
 }
-

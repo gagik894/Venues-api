@@ -186,7 +186,12 @@ class SeatingService(
 
         // Fetch venue name via VenueApi
         val venueName = venueApi.getVenueName(venueId)
-        return seatingMapper.toResponse(savedChart, levelRepository, seatRepository, venueName = venueName)
+
+        // Fetch levels and seats for this chart (service layer responsibility)
+        val levels = levelRepository.findBySeatingChartId(savedChart.id!!)
+        val seats = seatRepository.findBySeatingChartId(savedChart.id!!)
+
+        return seatingMapper.toResponse(savedChart, levels, seats, venueName = venueName)
     }
 
     /**
@@ -200,7 +205,12 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
         val venueName = venueApi.getVenueName(chart.venueId)
-        return seatingMapper.toResponse(chart, levelRepository, seatRepository, venueName = venueName)
+
+        // Service layer fetches children and aggregates data (proper layered architecture)
+        val levels = levelRepository.findBySeatingChartId(id)
+        val seats = seatRepository.findBySeatingChartId(id)
+
+        return seatingMapper.toResponse(chart, levels, seats, venueName = venueName)
     }
 
     /**
@@ -213,8 +223,12 @@ class SeatingService(
         val chart = seatingChartRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
 
+        // Service layer aggregates data from repositories
+        val levels = levelRepository.findBySeatingChartId(id)
+        val seats = seatRepository.findBySeatingChartId(id)
         val venueName = venueApi.getVenueName(chart.venueId)
-        return seatingMapper.toDetailedResponse(chart, levelRepository, seatRepository, venueName = venueName)
+
+        return seatingMapper.toDetailedResponse(chart, levels, seats, venueName = venueName)
     }
 
     /**
@@ -227,7 +241,12 @@ class SeatingService(
         val venueName = venueApi.getVenueName(venueId)
 
         return seatingChartRepository.findByVenueId(venueId, pageable)
-            .map { seatingMapper.toResponse(it, levelRepository, seatRepository, venueName = venueName) }
+            .map { chart ->
+                // Service layer fetches children for each chart
+                val levels = levelRepository.findBySeatingChartId(chart.id!!)
+                val seats = seatRepository.findBySeatingChartId(chart.id!!)
+                seatingMapper.toResponse(chart, levels, seats, venueName = venueName)
+            }
     }
 
     /**
@@ -260,7 +279,12 @@ class SeatingService(
 
         // Fetch venue name via VenueApi (Hexagonal Architecture)
         val venueName = venueApi.getVenueName(venueId)
-        return seatingMapper.toResponse(savedChart, levelRepository, seatRepository, venueName = venueName)
+
+        // Service layer fetches children
+        val levels = levelRepository.findBySeatingChartId(chartId)
+        val seats = seatRepository.findBySeatingChartId(chartId)
+
+        return seatingMapper.toResponse(savedChart, levels, seats, venueName = venueName)
     }
 
     /**

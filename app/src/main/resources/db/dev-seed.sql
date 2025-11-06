@@ -112,13 +112,13 @@ VALUES
 -- Password: admin123 (BCrypt hash)
 INSERT INTO users (id, email, password_hash, first_name, last_name, phone_number, role, status, failed_login_attempts,
                    created_at, last_modified_at)
-VALUES (1, 'admin@gov.am', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Admin', 'User',
+VALUES (1, 'admin@gov.am', '$2a$12$qUufnGELImjm6LnAbFLhyuvcenhdtDUXmbDulbp6cUXS/nP.I1tde', 'Admin', 'User',
         '+37411111111', 'ADMIN', 'ACTIVE', 0, NOW(), NOW()),
-       (2, 'anna.petrosyan@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Anna',
+       (2, 'anna.petrosyan@example.com', '$2a$12$qUufnGELImjm6LnAbFLhyuvcenhdtDUXmbDulbp6cUXS/nP.I1tde', 'Anna',
         'Petrosyan', '+37422222222', 'USER', 'ACTIVE', 0, NOW(), NOW()),
-       (3, 'karen.sargsyan@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Karen',
+       (3, 'karen.sargsyan@example.com', '$2a$12$qUufnGELImjm6LnAbFLhyuvcenhdtDUXmbDulbp6cUXS/nP.I1tde', 'Karen',
         'Sargsyan', '+37433333333', 'USER', 'ACTIVE', 0, NOW(), NOW()),
-       (4, 'maria.khachatryan@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Maria',
+       (4, 'maria.khachatryan@example.com', '$2a$12$qUufnGELImjm6LnAbFLhyuvcenhdtDUXmbDulbp6cUXS/nP.I1tde', 'Maria',
         'Khachatryan', '+37444444444', 'USER', 'ACTIVE', 0, NOW(), NOW());
 
 SELECT setval('users_id_seq', 4, true);

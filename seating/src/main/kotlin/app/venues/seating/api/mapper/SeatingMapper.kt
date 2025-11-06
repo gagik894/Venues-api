@@ -7,39 +7,47 @@ import app.venues.seating.api.dto.SeatingChartResponse
 import app.venues.seating.domain.Level
 import app.venues.seating.domain.Seat
 import app.venues.seating.domain.SeatingChart
-import app.venues.seating.repository.LevelRepository
-import app.venues.seating.repository.SeatRepository
 import org.springframework.stereotype.Component
 
 /**
  * Mapper for converting between Seating entities and DTOs.
  *
- * Handles bidirectional mapping for all seating-related objects.
+ * Follows clean architecture - mapper only converts data, does not fetch it.
+ * All data fetching is done by the service layer before calling the mapper.
  */
 @Component
 class SeatingMapper {
 
     /**
      * Convert SeatingChart entity to SeatingChartResponse DTO.
-     * Note: venueName must be fetched separately via venue service if needed
+     * Service layer must provide all pre-fetched data.
+     *
+     * @param chart SeatingChart entity
+     * @param levels Pre-fetched levels for this chart
+     * @param seats Pre-fetched seats for this chart
+     * @param venueName Venue name (optional, fetched via VenueApi)
      */
     fun toResponse(
         chart: SeatingChart,
-        levelRepository: LevelRepository,
-        seatRepository: SeatRepository,
+        levels: List<Level>,
+        seats: List<Seat>,
         venueName: String? = null
     ): SeatingChartResponse {
+        val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
+        val seatedCapacity = seats.size
+        val totalCapacity = gaCapacity + seatedCapacity
+
         return SeatingChartResponse(
             id = chart.id!!,
             venueId = chart.venueId,
-            venueName = venueName ?: "Unknown", // Venue name must be provided from venue module
+            venueName = venueName ?: "Unknown",
             name = chart.name,
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = chart.getTotalCapacity(levelRepository, seatRepository),
-            levelCount = chart.getLevels(levelRepository).size,
-            seatCount = chart.getSeats(seatRepository).size,
+            totalCapacity = totalCapacity,
+            levelCount = levels.size,
+            seatCount = seats.size,
             createdAt = chart.createdAt.toString(),
             lastModifiedAt = chart.lastModifiedAt.toString()
         )
@@ -47,29 +55,38 @@ class SeatingMapper {
 
     /**
      * Convert SeatingChart entity to detailed response with levels.
-     * Note: venueName must be fetched separately via venue service if needed
+     * Service layer must provide all pre-fetched data.
+     *
+     * @param chart SeatingChart entity
+     * @param levels Pre-fetched levels for this chart
+     * @param seats Pre-fetched seats for this chart
+     * @param venueName Venue name (optional, fetched via VenueApi)
      */
     fun toDetailedResponse(
         chart: SeatingChart,
-        levelRepository: LevelRepository,
-        seatRepository: SeatRepository,
+        levels: List<Level>,
+        seats: List<Seat>,
         venueName: String? = null
     ): SeatingChartDetailedResponse {
         // Get top-level sections (no parent)
-        val topLevels = chart.getLevels(levelRepository)
+        val topLevels = levels
             .filter { it.parentLevel == null }
             .sortedBy { it.levelName }
             .map { toLevelResponse(it, includeChildren = true) }
 
+        val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
+        val seatedCapacity = seats.size
+        val totalCapacity = gaCapacity + seatedCapacity
+
         return SeatingChartDetailedResponse(
             id = chart.id!!,
             venueId = chart.venueId,
-            venueName = venueName ?: "Unknown", // Venue name must be provided from venue module
+            venueName = venueName ?: "Unknown",
             name = chart.name,
             seatIndicatorSize = chart.seatIndicatorSize,
             levelIndicatorSize = chart.levelIndicatorSize,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = chart.getTotalCapacity(levelRepository, seatRepository),
+            totalCapacity = totalCapacity,
             levels = topLevels,
             createdAt = chart.createdAt.toString(),
             lastModifiedAt = chart.lastModifiedAt.toString()
@@ -121,4 +138,3 @@ class SeatingMapper {
         )
     }
 }
-

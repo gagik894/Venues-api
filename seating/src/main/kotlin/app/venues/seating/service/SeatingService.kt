@@ -91,7 +91,7 @@ class SeatingService(
     override fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto? {
         val level = levelRepository.findByLevelIdentifier(levelIdentifier) ?: return null
         return LevelInfoDto(
-            id = level.id!!,
+            id = level.id ?: throw IllegalStateException("Level ID should not be null"),
             levelName = level.levelName,
             levelIdentifier = level.levelIdentifier,
             capacity = level.capacity,
@@ -120,7 +120,7 @@ class SeatingService(
         val levels = levelRepository.findBySeatingChartId(chartId)
         val levelDtos = levels.map { level ->
             LevelDto(
-                id = level.id!!,
+                id = level.id ?: throw IllegalStateException("Level ID should not be null"),
                 levelName = level.levelName,
                 levelIdentifier = level.levelIdentifier,
                 parentLevelId = level.parentLevel?.id,

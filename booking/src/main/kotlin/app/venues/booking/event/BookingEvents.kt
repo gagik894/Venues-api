@@ -12,7 +12,6 @@ import java.util.*
 data class SeatReservedEvent(
     val sessionId: Long,
     val seatIdentifier: String,
-    val levelName: String,
     val reservationToken: UUID,
     val expiresAt: String
 )

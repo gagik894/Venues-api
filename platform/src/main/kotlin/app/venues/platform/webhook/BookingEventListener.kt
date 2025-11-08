@@ -31,7 +31,6 @@ class BookingEventListener(
         webhookService.notifySeatReserved(
             sessionId = event.sessionId,
             seatIdentifier = event.seatIdentifier,
-            levelName = event.levelName,
             reservationToken = event.reservationToken.toString(),
             expiresAt = event.expiresAt
         )

@@ -63,7 +63,6 @@ class WebhookService(
     fun notifySeatReserved(
         sessionId: Long,
         seatIdentifier: String,
-        levelName: String,
         reservationToken: String,
         expiresAt: String
     ) {
@@ -73,7 +72,6 @@ class WebhookService(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
-            levelName = levelName,
             reservationToken = java.util.UUID.fromString(reservationToken),
             expiresAt = expiresAt
         )

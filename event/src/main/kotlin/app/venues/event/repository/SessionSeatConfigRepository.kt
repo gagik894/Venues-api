@@ -4,6 +4,7 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.dto.AvailabilityStatsDto
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 
@@ -35,10 +36,28 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         """
         SELECT sc.seatId FROM SessionSeatConfig sc
         WHERE sc.session.id = :sessionId
-        AND sc.status = 'AVAILABLE'
+        AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
     """
     )
     fun findAvailableSeatIdsBySession(sessionId: Long): List<Long>
+
+    /**
+     * Atomically reserve a seat if it's available.
+     * @param sessionId Event session ID
+     * @param seatId Seat ID to reserve
+     * @return Number of rows updated (0 or 1)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.RESERVED
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId = :seatId
+        AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+    """
+    )
+    fun reserveSeatIfAvailable(sessionId: Long, seatId: Long): Int
 
     /**
      * Get availability statistics for session (optimized - count only).
@@ -48,8 +67,8 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         """
         SELECT NEW app.venues.event.dto.AvailabilityStatsDto(
             COUNT(sc.id),
-            SUM(CASE WHEN sc.status = 'AVAILABLE' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN sc.status = 'RESERVED' THEN 1 ELSE 0 END)
+            SUM(CASE WHEN sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE THEN 1 ELSE 0 END),
+            SUM(CASE WHEN sc.status = app.venues.event.domain.ConfigStatus.RESERVED THEN 1 ELSE 0 END)
         )        
         FROM SessionSeatConfig sc
         WHERE sc.session.id = :sessionId

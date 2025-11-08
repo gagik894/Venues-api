@@ -261,7 +261,6 @@ data class SeatReservedPayload(
     override val timestamp: String,
     override val sessionId: Long,
     val seatIdentifier: String,
-    val levelName: String,
     val reservationToken: UUID,
     val expiresAt: String
 ) : WebhookPayload

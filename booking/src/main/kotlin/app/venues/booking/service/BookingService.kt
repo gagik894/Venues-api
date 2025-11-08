@@ -353,11 +353,11 @@ class BookingService(
                 seatId = cartSeat.seatId,
                 sessionSeatConfigId = config.id,
                 quantity = 1,
-                unitPrice = config.price,
+                unitPrice = cartSeat.unitPrice,
                 priceTemplateName = config.priceTemplate?.templateName
             )
             bookingItems.add(item)
-            totalPrice = totalPrice.add(config.price)
+            totalPrice = totalPrice.add(cartSeat.unitPrice)
         }
 
         // Add GA items
@@ -365,7 +365,7 @@ class BookingService(
             val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(session.id!!, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
 
-            val itemTotal = config.price.multiply(BigDecimal(cartItem.quantity))
+            val itemTotal = cartItem.unitPrice.multiply(BigDecimal(cartItem.quantity))
             val item = BookingItem(
                 booking = Booking(
                     userId = userId,
@@ -380,7 +380,7 @@ class BookingService(
                 ),
                 levelId = cartItem.levelId,
                 quantity = cartItem.quantity,
-                unitPrice = config.price,
+                unitPrice = cartItem.unitPrice,
                 priceTemplateName = config.priceTemplate?.templateName
             )
             bookingItems.add(item)

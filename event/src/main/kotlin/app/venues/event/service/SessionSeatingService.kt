@@ -92,7 +92,7 @@ class SessionSeatingService(
                         levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
                         capacity = sessionCapacity,
                         available = available,
-                        price = levelConfig.price.toString(),
+                        price = levelConfig.priceTemplate?.price?.toString() ?: "0.00",
                         priceTemplateId = levelConfig.priceTemplate?.id,
                         priceTemplateName = levelConfig.priceTemplate?.templateName
                     )
@@ -112,7 +112,7 @@ class SessionSeatingService(
                             positionX = seatDto.positionX,
                             positionY = seatDto.positionY,
                             status = config.status.name,
-                            price = config.price.toString(),
+                            price = config.priceTemplate?.price?.toString() ?: "0.00",
                             priceTemplateId = config.priceTemplate?.id,
                             priceTemplateName = config.priceTemplate?.templateName,
                             priceTemplateColor = config.priceTemplate?.color

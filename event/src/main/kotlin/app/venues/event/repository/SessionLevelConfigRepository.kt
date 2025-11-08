@@ -14,8 +14,16 @@ import org.springframework.stereotype.Repository
 interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long> {
 
     /**
-     * Find config by session and level
+     * Find config by session and level with eagerly loaded priceTemplate
      */
+    @Query(
+        """
+        SELECT slc FROM SessionLevelConfig slc
+        LEFT JOIN FETCH slc.priceTemplate
+        WHERE slc.session.id = :sessionId
+        AND slc.levelId = :levelId
+    """
+    )
     fun findBySessionIdAndLevelId(sessionId: Long, levelId: Long): SessionLevelConfig?
 
 
@@ -28,6 +36,29 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
      * Find all level configs for session
      */
     fun findBySessionId(sessionId: Long): List<SessionLevelConfig>
+
+    /**
+     * Atomically reserve GA level tickets if available capacity exists.
+     * Returns the price that was active at reservation time.
+     *
+     * @param sessionId Event session ID
+     * @param levelId Level ID to reserve from
+     * @param quantity Number of tickets to reserve
+     * @return Price from template if reservation successful, null if failed
+     */
+    @Query(
+        """
+        SELECT pt.price
+        FROM SessionLevelConfig slc
+        JOIN slc.priceTemplate pt
+        WHERE slc.session.id = :sessionId
+        AND slc.levelId = :levelId
+        AND slc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        AND (slc.capacity - slc.soldCount) >= :quantity
+        AND slc.priceTemplate IS NOT NULL
+    """
+    )
+    fun getGAPriceIfAvailable(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
 
     /**
      * Atomically reserve GA level tickets if available capacity exists.

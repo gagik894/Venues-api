@@ -15,8 +15,16 @@ import org.springframework.stereotype.Repository
 interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
 
     /**
-     * Find config by session and seat
+     * Find config by session and seat with eagerly loaded priceTemplate
      */
+    @Query(
+        """
+        SELECT sc FROM SessionSeatConfig sc
+        LEFT JOIN FETCH sc.priceTemplate
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId = :seatId
+    """
+    )
     fun findBySessionIdAndSeatId(sessionId: Long, seatId: Long): SessionSeatConfig?
 
     /**
@@ -40,6 +48,27 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     """
     )
     fun findAvailableSeatIdsBySession(sessionId: Long): List<Long>
+
+    /**
+     * Get the price for a seat if it's available for reservation.
+     * This should be called BEFORE reserveSeatIfAvailable to check price.
+     *
+     * @param sessionId Event session ID
+     * @param seatId Seat ID
+     * @return Price from template if seat is available, null if not available or not priced
+     */
+    @Query(
+        """
+        SELECT pt.price
+        FROM SessionSeatConfig sc
+        JOIN sc.priceTemplate pt
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId = :seatId
+        AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        AND sc.priceTemplate IS NOT NULL
+    """
+    )
+    fun getSeatPriceIfAvailable(sessionId: Long, seatId: Long): java.math.BigDecimal?
 
     /**
      * Atomically reserve a seat if it's available.

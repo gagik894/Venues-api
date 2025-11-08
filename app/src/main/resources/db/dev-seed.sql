@@ -22,19 +22,17 @@ FROM session_seat_configs;
 DELETE
 FROM session_level_configs;
 DELETE
-FROM seat_translations;
-DELETE
-FROM seat_seating_charts;
-DELETE
 FROM seats;
 DELETE
 FROM level_translations;
 DELETE
-FROM level_seating_charts;
-DELETE
 FROM levels;
 DELETE
 FROM seating_charts;
+DELETE
+FROM event_categories;
+DELETE
+FROM event_category_translations;
 DELETE
 FROM event_sessions;
 DELETE
@@ -128,10 +126,10 @@ SELECT setval('users_id_seq', 4, true);
 -- ================================================================
 INSERT INTO platforms (id, name, api_url, shared_secret, status, webhook_enabled, description, contact_email,
                        rate_limit, webhook_success_count, webhook_failure_count, created_at, last_modified_at)
-VALUES (1, 'Ticketmaster Armenia', 'https://ticketmaster.am/api',
+VALUES (1, 'Ticketmaster Armenia', 'https://test.local/api',
         'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6', 'ACTIVE', true,
         'Official Ticketmaster partner platform', 'tech@ticketmaster.am', 1000, 0, 0, NOW(), NOW()),
-       (2, 'TomsTickets', 'https://tomstickets.com/api', 'z6y5x4w3v2u1t0s9r8q7p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1',
+       (2, 'TomsTickets', 'https://test.local/api', 'z6y5x4w3v2u1t0s9r8q7p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1',
         'ACTIVE', true, 'Tom''s Tickets booking platform', 'api@tomstickets.com', 500, 0, 0, NOW(), NOW()),
        (3, 'TestPlatform', 'https://test.local/api', 'test-secret-for-development-only', 'ACTIVE', false,
         'Test platform for development', 'test@example.com', 100, 0, 0, NOW(), NOW());
@@ -291,27 +289,18 @@ SELECT setval('seating_charts_id_seq', 2, true);
 -- ================================================================
 -- 7. LEVELS (Sections)
 -- ================================================================
-INSERT INTO levels (id, parent_level_id, level_name, level_identifier, position_x, position_y, capacity,
-                    created_at, last_modified_at)
+INSERT INTO levels (id, seating_chart_id, parent_level_id, level_name, level_identifier, position_x, position_y,
+                    capacity, created_at, last_modified_at)
 VALUES
--- Opera House levels
-(1, NULL, 'Orchestra', 'ORCH', 50.0, 100.0, NULL, NOW(), NOW()),
-(2, NULL, 'Balcony', 'BALC', 50.0, 50.0, NULL, NOW(), NOW()),
-(3, NULL, 'Standing Area', 'STAND', 50.0, 150.0, 100, NOW(), NOW()), -- GA area
--- Drama Theatre levels
-(4, NULL, 'Parterre', 'PART', 50.0, 100.0, NULL, NOW(), NOW());
+-- Opera House levels (seating_chart_id = 1)
+(1, 1, NULL, 'Orchestra', 'ORCH', 50.0, 100.0, NULL, NOW(), NOW()),
+(2, 1, NULL, 'Balcony', 'BALC', 50.0, 50.0, NULL, NOW(), NOW()),
+(3, 1, NULL, 'Standing Area', 'STAND', 50.0, 150.0, 100, NOW(), NOW()), -- GA area
+-- Drama Theatre levels (seating_chart_id = 2)
+(4, 2, NULL, 'Parterre', 'PART', 50.0, 100.0, NULL, NOW(), NOW());
 
 SELECT setval('levels_id_seq', 4, true);
 
--- ================================================================
--- 8. LINK LEVELS TO SEATING CHARTS
--- ================================================================
-INSERT INTO level_seating_charts (level_id, seating_chart_id)
-VALUES (1, 1),
-       (2, 1),
-       (3, 1), -- Opera House
-       (4, 2);
--- Drama Theatre
 
 -- ================================================================
 -- 9. SEATS
@@ -362,34 +351,42 @@ FROM generate_series(1, 4) AS row_num,
      generate_series(1, 12) AS seat_num;
 
 -- ================================================================
--- 10. LINK SEATS TO SEATING CHARTS
+-- 8. EVENT PRICE TEMPLATES
 -- ================================================================
--- Opera House seats
-INSERT INTO seat_seating_charts (seat_id, seating_chart_id)
-SELECT id, 1
-FROM seats
-WHERE level_id IN (1, 2);
+-- Price templates for Event 1 (Swan Lake)
+INSERT INTO event_price_templates (id, event_id, template_name, price, color, display_order, created_at)
+VALUES (1, 1, 'VIP', 10000.00, '#FFD700', 1, NOW()),
+       (2, 1, 'Standard', 6000.00, '#4169E1', 2, NOW()),
+       (3, 1, 'Standing', 2500.00, '#90EE90', 3, NOW()),
+       (4, 1, 'Matinee VIP', 8000.00, '#FFA500', 4, NOW()),
+       (5, 1, 'Matinee Standard', 5000.00, '#87CEEB', 5, NOW()),
+       (6, 1, 'Matinee Standing', 2000.00, '#98FB98', 6, NOW());
 
--- Drama Theatre seats
-INSERT INTO seat_seating_charts (seat_id, seating_chart_id)
-SELECT id, 2
-FROM seats
-WHERE level_id = 4;
+-- Price templates for Event 2 (Hamlet)
+INSERT INTO event_price_templates (id, event_id, template_name, price, color, display_order, created_at)
+VALUES (7, 2, 'Standard', 3000.00, '#4169E1', 1, NOW());
+
+-- Price templates for Event 3 (Concert)
+INSERT INTO event_price_templates (id, event_id, template_name, price, color, display_order, created_at)
+VALUES (8, 3, 'Premium', 8000.00, '#FFD700', 1, NOW()),
+       (9, 3, 'General', 4000.00, '#4169E1', 2, NOW());
+
+SELECT setval('event_price_templates_id_seq', 9, true);
 
 -- ================================================================
--- 10.1 SESSION SEAT CONFIGS (Pricing & Availability per Session)
+-- 9. SESSION SEAT CONFIGS (Template Assignment & Availability per Session)
 -- ================================================================
--- Session 1: Swan Lake (matinee pricing)
-INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+-- Session 1: Swan Lake matinee (using matinee templates)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
 SELECT 1,       -- Session 1
        id,      -- Seat ID
        CASE
-           WHEN seat_type = 'vip' THEN 8000.00
-           ELSE 5000.00
-           END, -- Price based on seat type
+           WHEN seat_type = 'vip' THEN 4 -- Matinee VIP template
+           ELSE 5 -- Matinee Standard template
+           END,
        CASE
-           WHEN id <= (SELECT MIN(id) + 25 FROM seats WHERE level_id = 1) THEN 'SOLD'::config_status
-           ELSE 'AVAILABLE'::config_status
+           WHEN id <= (SELECT MIN(id) + 25 FROM seats WHERE level_id = 1) THEN 'SOLD'
+           ELSE 'AVAILABLE'
            END, -- First 25 seats sold
        NOW(),
        NOW()
@@ -397,28 +394,28 @@ FROM seats
 WHERE level_id IN (1, 2);
 -- Orchestra and Balcony only
 
--- Session 2: Swan Lake (evening pricing - higher)
-INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+-- Session 2: Swan Lake evening (using evening templates - higher prices)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
 SELECT 2,                          -- Session 2
        id,
        CASE
-           WHEN seat_type = 'vip' THEN 10000.00
-           ELSE 6000.00
+           WHEN seat_type = 'vip' THEN 1 -- VIP template
+           ELSE 2 -- Standard template
            END,
-       'AVAILABLE'::config_status, -- All available
+       'AVAILABLE',                -- All available
        NOW(),
        NOW()
 FROM seats
 WHERE level_id IN (1, 2);
 
--- Session 3: Hamlet
-INSERT INTO session_seat_configs (session_id, seat_id, price, status, created_at, last_modified_at)
+-- Session 3: Hamlet (flat pricing with standard template)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
 SELECT 3,       -- Session 3
        id,
-       3000.00, -- Flat pricing
+       7,       -- Standard template for Hamlet
        CASE
-           WHEN id <= (SELECT MIN(id) + 15 FROM seats WHERE level_id = 4) THEN 'SOLD'::config_status
-           ELSE 'AVAILABLE'::config_status
+           WHEN id <= (SELECT MIN(id) + 15 FROM seats WHERE level_id = 4) THEN 'SOLD'
+           ELSE 'AVAILABLE'
            END,
        NOW(),
        NOW()
@@ -427,14 +424,16 @@ WHERE level_id = 4;
 -- Parterre
 
 -- ================================================================
--- 10.2 SESSION LEVEL CONFIGS (GA Capacity & Pricing per Session)
+-- 10. SESSION LEVEL CONFIGS (GA Template Assignment & Capacity per Session)
 -- ================================================================
--- Session 1: Standing Area for Swan Lake
-INSERT INTO session_level_configs (session_id, level_id, price, capacity, sold_count, status, created_at,
+-- Session 1: Standing Area for Swan Lake matinee
+INSERT INTO session_level_configs (session_id, level_id, price_template_id, capacity, sold_count, status, created_at,
                                    last_modified_at)
-VALUES (1, 3, 2000.00, 100, 25, 'AVAILABLE'::config_status, NOW(), NOW()),
-       -- Session 2: Standing Area for Swan Lake (evening - higher capacity)
-       (2, 3, 2500.00, 120, 0, 'AVAILABLE'::config_status, NOW(), NOW());
+VALUES (1, 3, 6, 100, 25, 'AVAILABLE', NOW(), NOW()),
+       -- Matinee Standing template
+       -- Session 2: Standing Area for Swan Lake evening
+       (2, 3, 3, 120, 0, 'AVAILABLE', NOW(), NOW());
+-- Evening Standing template
 
 -- ================================================================
 -- 11. BOOKINGS

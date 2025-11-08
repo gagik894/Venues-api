@@ -1,10 +1,10 @@
 package app.venues.booking.repository
 
+import app.venues.booking.domain.Cart
 import app.venues.booking.domain.CartItem
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
-import java.time.Instant
 import java.util.*
 
 /**
@@ -14,31 +14,33 @@ import java.util.*
 interface CartItemRepository : JpaRepository<CartItem, Long> {
 
     /**
-     * Find cart items by reservation token
+     * Find all items in a cart
      */
-    fun findByReservationToken(token: UUID): List<CartItem>
+    fun findByCart(cart: Cart): List<CartItem>
 
     /**
-     * Find expired cart items
+     * Find all items in a cart by token
      */
-    fun findByExpiresAtBefore(now: Instant): List<CartItem>
+    @Query("SELECT ci FROM CartItem ci WHERE ci.cart.token = :token")
+    fun findByCartToken(token: UUID): List<CartItem>
 
     /**
-     * Count active GA tickets for session + level
+     * Count active GA tickets reserved for session/level
      */
     @Query(
         """
         SELECT COALESCE(SUM(ci.quantity), 0) FROM CartItem ci
+        JOIN ci.cart c
         WHERE ci.sessionId = :sessionId
         AND ci.levelId = :levelId
-        AND ci.expiresAt > :now
+        AND c.expiresAt > CURRENT_TIMESTAMP
     """
     )
-    fun countActiveGATicketsBySessionAndLevel(sessionId: Long, levelId: Long, now: Instant): Int
+    fun countActiveGATicketsBySessionAndLevel(sessionId: Long, levelId: Long): Int
 
     /**
-     * Delete by reservation token
+     * Delete all items in a cart
      */
-    fun deleteByReservationToken(token: UUID)
+    fun deleteByCart(cart: Cart): Int
 }
 

@@ -1,10 +1,10 @@
 package app.venues.booking.repository
 
+import app.venues.booking.domain.Cart
 import app.venues.booking.domain.CartSeat
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
-import java.time.Instant
 import java.util.*
 
 /**
@@ -14,22 +14,23 @@ import java.util.*
 interface CartSeatRepository : JpaRepository<CartSeat, Long> {
 
     /**
-     * Find cart seats by reservation token
+     * Find all seats in a cart
      */
-    fun findByReservationToken(token: UUID): List<CartSeat>
+    fun findByCart(cart: Cart): List<CartSeat>
 
     /**
-     * Find expired cart seats
+     * Find all seats in a cart by token
      */
-    fun findByExpiresAtBefore(now: Instant): List<CartSeat>
+    @Query("SELECT cs FROM CartSeat cs WHERE cs.cart.token = :token")
+    fun findByCartToken(token: UUID): List<CartSeat>
 
     /**
-     * Check if seat is in cart for session
+     * Check if seat already in cart for session
      */
     fun existsBySessionIdAndSeatId(sessionId: Long, seatId: Long): Boolean
 
     /**
-     * Get reserved seat IDs for session (including expired)
+     * Get reserved seat IDs for session
      */
     @Query(
         """
@@ -45,15 +46,16 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
     @Query(
         """
         SELECT cs.seatId FROM CartSeat cs
+        JOIN cs.cart c
         WHERE cs.sessionId = :sessionId
-        AND cs.expiresAt > :now
+        AND c.expiresAt > CURRENT_TIMESTAMP
     """
     )
-    fun findActiveReservedSeatIdsBySession(sessionId: Long, now: Instant): List<Long>
+    fun findActiveReservedSeatIdsBySession(sessionId: Long): List<Long>
 
     /**
-     * Delete by reservation token
+     * Delete all seats in a cart
      */
-    fun deleteByReservationToken(token: UUID)
+    fun deleteByCart(cart: Cart): Int
 }
 

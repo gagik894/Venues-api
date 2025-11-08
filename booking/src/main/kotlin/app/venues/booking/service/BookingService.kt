@@ -5,10 +5,7 @@ import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
-import app.venues.booking.repository.BookingItemRepository
-import app.venues.booking.repository.BookingRepository
-import app.venues.booking.repository.CartItemRepository
-import app.venues.booking.repository.CartSeatRepository
+import app.venues.booking.repository.*
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
@@ -37,6 +34,7 @@ import java.util.*
 class BookingService(
     private val bookingRepository: BookingRepository,
     private val bookingItemRepository: BookingItemRepository,
+    private val cartRepository: CartRepository,
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
@@ -73,15 +71,14 @@ class BookingService(
             cartData = cartData,
             userId = userId,
             guest = guest,
-            platformId = null,
-            reservationToken = request.token
+            platformId = null
         )
 
         // Save booking
         val savedBooking = bookingRepository.save(booking)
 
-        // Delete cart items
-        deleteCartItems(request.token)
+        // Delete cart (CASCADE deletes items)
+        deleteCart(request.token)
 
         logger.info { "Checkout completed: bookingId=${savedBooking.id}, total=${booking.totalPrice}" }
 
@@ -257,6 +254,7 @@ class BookingService(
      * Data class to hold validated cart data.
      */
     private data class CartData(
+        val cart: app.venues.booking.domain.Cart,
         val cartSeats: List<app.venues.booking.domain.CartSeat>,
         val cartItems: List<app.venues.booking.domain.CartItem>,
         val session: app.venues.event.domain.EventSession,
@@ -266,37 +264,37 @@ class BookingService(
     /**
      * Validate cart and get session data.
      *
-     * Centralizes cart validation logic to follow DRY principle.
-     *
-     * @param reservationToken Cart reservation token
+     * @param cartToken Cart token
      * @return CartData with validated cart items and session info
-     * @throws VenuesException.ResourceNotFound if cart is empty
+     * @throws VenuesException.ResourceNotFound if cart not found
      * @throws VenuesException.ValidationFailure if cart is expired
      */
-    private fun validateCartAndGetSession(reservationToken: UUID): CartData {
-        // Get cart items
-        val cartSeats = cartSeatRepository.findByReservationToken(reservationToken)
-        val cartItems = cartItemRepository.findByReservationToken(reservationToken)
+    private fun validateCartAndGetSession(cartToken: UUID): CartData {
+        // Get cart session
+        val cart = cartRepository.findByToken(cartToken)
+            ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        if (cartSeats.isEmpty() && cartItems.isEmpty()) {
-            throw VenuesException.ResourceNotFound("Cart not found or already checked out")
-        }
-
-        // Verify not expired
-        if (cartSeats.any { it.isExpired() } || cartItems.any { it.isExpired() }) {
+        // Check if cart expired
+        if (cart.isExpired()) {
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        // Get session ID (all items should be from same session)
-        val sessionId = cartSeats.firstOrNull()?.sessionId ?: cartItems.first().sessionId
+        // Get cart items
+        val cartSeats = cartSeatRepository.findByCart(cart)
+        val cartItems = cartItemRepository.findByCart(cart)
+
+        if (cartSeats.isEmpty() && cartItems.isEmpty()) {
+            throw VenuesException.ResourceNotFound("Cart is empty")
+        }
 
         // Fetch session from event module
-        val session = eventSessionRepository.findById(sessionId)
+        val session = eventSessionRepository.findById(cart.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
 
         val event = session.event
 
         return CartData(
+            cart = cart,
             cartSeats = cartSeats,
             cartItems = cartItems,
             session = session,
@@ -307,13 +305,10 @@ class BookingService(
     /**
      * Create booking entity from cart data.
      *
-     * Centralizes booking creation logic to follow DRY principle.
-     *
      * @param cartData Validated cart data
      * @param userId Optional user ID
      * @param guest Optional guest
      * @param platformId Optional platform ID
-     * @param reservationToken Reservation token
      * @param paymentReference Optional payment reference
      * @return Created booking entity (not saved yet)
      */
@@ -322,9 +317,9 @@ class BookingService(
         userId: Long?,
         guest: app.venues.booking.domain.Guest?,
         platformId: Long?,
-        reservationToken: UUID,
         paymentReference: String? = null
     ): Booking {
+        val cart = cartData.cart
         val session = cartData.session
         val event = cartData.event
         val venueId = event.venueId
@@ -343,7 +338,7 @@ class BookingService(
                     userId = userId,
                     guest = guest,
                     sessionId = session.id!!,
-                    reservationToken = reservationToken,
+                    reservationToken = cart.token,
                     platformId = platformId,
                     venueId = venueId,
                     totalPrice = BigDecimal.ZERO,
@@ -371,7 +366,7 @@ class BookingService(
                     userId = userId,
                     guest = guest,
                     sessionId = session.id!!,
-                    reservationToken = reservationToken,
+                    reservationToken = cart.token,
                     platformId = platformId,
                     venueId = venueId,
                     totalPrice = BigDecimal.ZERO,
@@ -392,7 +387,7 @@ class BookingService(
             userId = userId,
             guest = guest,
             sessionId = session.id!!,
-            reservationToken = reservationToken,
+            reservationToken = cart.token,
             platformId = platformId,
             venueId = venueId,
             totalPrice = totalPrice,
@@ -406,16 +401,19 @@ class BookingService(
         return booking
     }
 
+
     /**
-     * Delete cart items by reservation token.
+     * Delete cart by token.
+     * CASCADE deletes all cart items automatically.
      *
-     * Centralizes cart cleanup logic to follow DRY principle.
-     *
-     * @param reservationToken Cart reservation token
+     * @param cartToken Cart token
      */
-    private fun deleteCartItems(reservationToken: UUID) {
-        cartSeatRepository.deleteByReservationToken(reservationToken)
-        cartItemRepository.deleteByReservationToken(reservationToken)
+    private fun deleteCart(cartToken: UUID) {
+        val cart = cartRepository.findByToken(cartToken)
+        if (cart != null) {
+            cartRepository.delete(cart)
+            logger.debug { "Deleted cart after checkout: $cartToken" }
+        }
     }
 
     // ===========================================
@@ -426,7 +424,7 @@ class BookingService(
      * Create booking from cart for platform integration.
      * Used when external platforms complete payment and need to finalize booking.
      *
-     * @param reservationToken The cart reservation token
+     * @param cartToken The cart token
      * @param platformId Platform ID that initiated the booking
      * @param paymentMethod Payment method used
      * @param paymentReference External payment reference
@@ -436,7 +434,7 @@ class BookingService(
      * @return Completed booking
      */
     fun createBookingFromCart(
-        reservationToken: UUID,
+        cartToken: UUID,
         platformId: Long,
         paymentMethod: String,
         paymentReference: String,
@@ -444,10 +442,10 @@ class BookingService(
         guestName: String? = null,
         guestPhone: String? = null
     ): Booking {
-        logger.debug { "Creating booking from cart for platform $platformId: token=$reservationToken" }
+        logger.debug { "Creating booking from cart for platform $platformId: token=$cartToken" }
 
         // Validate cart and get session
-        val cartData = validateCartAndGetSession(reservationToken)
+        val cartData = validateCartAndGetSession(cartToken)
 
         // Create or find guest if email provided
         val guest = if (guestEmail != null && guestName != null) {
@@ -460,7 +458,6 @@ class BookingService(
             userId = null,
             guest = guest,
             platformId = platformId,
-            reservationToken = reservationToken,
             paymentReference = paymentReference
         )
 
@@ -470,8 +467,8 @@ class BookingService(
         // Save booking
         val savedBooking = bookingRepository.save(booking)
 
-        // Delete cart items
-        deleteCartItems(reservationToken)
+        // Delete cart (CASCADE deletes items)
+        deleteCart(cartToken)
 
         logger.info { "Booking created from platform $platformId: bookingId=${savedBooking.id}, total=${booking.totalPrice}, venueId=${cartData.event.venueId}" }
 

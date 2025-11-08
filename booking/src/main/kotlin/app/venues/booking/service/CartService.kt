@@ -5,12 +5,14 @@ import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.booking.api.dto.AddToCartResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.mapper.CartMapper
+import app.venues.booking.domain.Cart
 import app.venues.booking.domain.CartItem
 import app.venues.booking.domain.CartSeat
 import app.venues.booking.event.GAAvailabilityChangedEvent
 import app.venues.booking.event.SeatReleasedEvent
 import app.venues.booking.event.SeatReservedEvent
 import app.venues.booking.repository.CartItemRepository
+import app.venues.booking.repository.CartRepository
 import app.venues.booking.repository.CartSeatRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
@@ -26,14 +28,16 @@ import java.time.Instant
 import java.util.*
 
 /**
- * Cart management service implementing "Snapshot at Add to Cart" pattern.
+ * Cart management service with unified session expiration.
  *
- * Prices are captured from templates when items are added and remain fixed
- * even if live prices change later. This ensures price consistency for users.
+ * Cart acts as a shopping session - all items expire together when the cart expires.
+ * Prices are snapshotted at add-to-cart time and remain fixed even if templates change.
+ * Cart expiration extends on any activity (add, view, remove).
  */
 @Service
 @Transactional
 class CartService(
+    private val cartRepository: CartRepository,
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
@@ -50,10 +54,43 @@ class CartService(
     }
 
     /**
+     * Finds or creates cart session for the given token and event session.
+     * Extends expiration if cart already exists and is active.
+     */
+    private fun findOrCreateCart(token: UUID?, sessionId: Long, userId: Long? = null): Cart {
+        val existingCart = token?.let { cartRepository.findByToken(it) }
+
+        if (existingCart != null) {
+            if (existingCart.isExpired()) {
+                throw VenuesException.ValidationFailure("Cart has expired. Please start a new cart.")
+            }
+
+            if (existingCart.sessionId != sessionId) {
+                throw VenuesException.ValidationFailure(
+                    "Cannot add items from different event sessions to the same cart"
+                )
+            }
+
+            // Extend expiration on activity
+            existingCart.extendExpiration(CART_EXPIRATION_MINUTES.toLong())
+            return cartRepository.save(existingCart)
+        }
+
+        // Create new cart session
+        val newCart = Cart(
+            token = token ?: UUID.randomUUID(),
+            userId = userId,
+            sessionId = sessionId,
+            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L),
+            lastActivityAt = Instant.now()
+        )
+
+        return cartRepository.save(newCart)
+    }
+
+    /**
      * Adds a seat to cart with atomic reservation and price snapshotting.
-     *
-     * @throws app.venues.common.exception.VenuesException.ValidationFailure if seat not configured, not priced, or unavailable
-     * @throws app.venues.common.exception.VenuesException.ResourceConflict if seat taken by another user during reservation
+     * Creates cart session if first item, extends expiration if cart exists.
      */
     @Transactional
     fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse {
@@ -73,40 +110,39 @@ class CartService(
             throw VenuesException.ResourceConflict("Seat is not available for reservation")
         }
 
-        // Snapshot price from template
-        val reservationToken = token ?: UUID.randomUUID()
+        // Find or create cart session (extends expiration if exists)
+        val cart = findOrCreateCart(token, request.sessionId)
+
+        // Add seat to cart with snapshotted price
         val cartSeat = CartSeat(
+            cart = cart,
             sessionId = request.sessionId,
             seatId = seatInfo.id,
-            unitPrice = price,
-            reservationToken = reservationToken,
-            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
+            unitPrice = price
         )
 
         cartSeatRepository.save(cartSeat)
-        logger.info { "Seat reserved: ${request.seatIdentifier}, price=${cartSeat.unitPrice}" }
+        logger.info { "Seat added to cart: ${request.seatIdentifier}, price=$price, cart=${cart.token}" }
 
         eventPublisher.publishEvent(
             SeatReservedEvent(
                 sessionId = request.sessionId,
                 seatIdentifier = request.seatIdentifier,
-                reservationToken = reservationToken,
-                expiresAt = cartSeat.expiresAt.toString()
+                reservationToken = cart.token,
+                expiresAt = cart.expiresAt.toString()
             )
         )
 
         return AddToCartResponse(
-            token = reservationToken,
+            token = cart.token,
             message = "Seat added to cart successfully",
-            expiresAt = cartSeat.expiresAt.toString()
+            expiresAt = cart.expiresAt.toString()
         )
     }
 
     /**
      * Adds GA tickets to cart with capacity check and price snapshotting.
-     *
-     * @throws app.venues.common.exception.VenuesException.ValidationFailure if level not configured, not priced, or not GA
-     * @throws app.venues.common.exception.VenuesException.ResourceConflict if insufficient capacity available
+     * Creates cart session if first item, extends expiration if cart exists.
      */
     @Transactional
     fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse {
@@ -131,26 +167,25 @@ class CartService(
         )
 
         if (rowsAffected == 0) {
-            throw VenuesException.ResourceConflict(
-                "Not enough tickets available. Requested: ${request.quantity}"
-            )
+            throw VenuesException.ResourceConflict("Not enough tickets available. Requested: ${request.quantity}")
         }
 
-        // Snapshot price from template
-        val reservationToken = token ?: UUID.randomUUID()
+        // Find or create cart session (extends expiration if exists)
+        val cart = findOrCreateCart(token, request.sessionId)
+
+        // Add GA tickets to cart with snapshotted price
         val cartItem = CartItem(
+            cart = cart,
             sessionId = request.sessionId,
             levelId = levelInfo.id,
             unitPrice = price,
-            reservationToken = reservationToken,
-            quantity = request.quantity,
-            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
+            quantity = request.quantity
         )
 
         cartItemRepository.save(cartItem)
-        logger.info { "GA reserved: ${request.levelIdentifier}, qty=${request.quantity}, price=${cartItem.unitPrice}" }
+        logger.info { "GA added to cart: ${request.levelIdentifier}, qty=${request.quantity}, price=$price, cart=${cart.token}" }
 
-        // Fetch updated stats for event publishing (outside critical path)
+        // Fetch updated stats for event publishing
         val levelConfigUpdated = sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelInfo.id)
         val capacity = levelConfigUpdated?.capacity ?: 0
         val availableTickets = capacity - (levelConfigUpdated?.soldCount ?: 0)
@@ -166,36 +201,41 @@ class CartService(
         )
 
         return AddToCartResponse(
-            token = reservationToken,
+            token = cart.token,
             message = "GA tickets added to cart successfully",
-            expiresAt = cartItem.expiresAt.toString()
+            expiresAt = cart.expiresAt.toString()
         )
     }
 
     /**
-     * Retrieves cart summary using snapshotted prices, not current live prices.
+     * Retrieves cart summary. Touches cart session to track activity.
+     * Returns snapshotted prices, not current live prices.
      */
     @Transactional(readOnly = true)
     fun getCartSummary(token: UUID): CartSummaryResponse {
-        val seats = cartSeatRepository.findByReservationToken(token)
-        val gaItems = cartItemRepository.findByReservationToken(token)
+        val cart = cartRepository.findByToken(token)
+            ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        if (seats.isEmpty() && gaItems.isEmpty()) {
-            throw VenuesException.ResourceNotFound("Cart not found or expired")
-        }
-
-        val now = Instant.now()
-        val allExpired = seats.all { it.expiresAt.isBefore(now) } && gaItems.all { it.expiresAt.isBefore(now) }
-        if (allExpired) {
+        if (cart.isExpired()) {
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        val sessionId = seats.firstOrNull()?.sessionId ?: gaItems.first().sessionId
-        val session = eventSessionRepository.findById(sessionId)
+        // Touch cart to track activity (use separate transaction)
+        cart.touch()
+        cartRepository.save(cart)
+
+        val seats = cartSeatRepository.findByCart(cart)
+        val gaItems = cartItemRepository.findByCart(cart)
+
+        if (seats.isEmpty() && gaItems.isEmpty()) {
+            throw VenuesException.ResourceNotFound("Cart is empty")
+        }
+
+        val session = eventSessionRepository.findById(cart.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
         val seatResponses = seats.map { cartSeat ->
-            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
+            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(cart.sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
             val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
                 ?: throw VenuesException.ResourceNotFound("Seat not found")
@@ -215,7 +255,7 @@ class CartService(
         }
 
         val gaItemResponses = gaItems.map { cartItem ->
-            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
+            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(cart.sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
             val levelInfo = seatingApi.getLevelInfo(cartItem.levelId)
                 ?: throw VenuesException.ResourceNotFound("Level not found")
@@ -232,23 +272,31 @@ class CartService(
         val total = seatResponses.sumOf { BigDecimal(it.price) }
             .add(gaItemResponses.sumOf { BigDecimal(it.totalPrice) })
 
-        val latestExpiration = (seats.map { it.expiresAt } + gaItems.map { it.expiresAt }).maxOrNull()
-            ?: throw VenuesException.ValidationFailure("Cart has no valid expiration")
-
         return cartMapper.toCartSummary(
             token = token,
             seats = seatResponses,
             gaItems = gaItemResponses,
             totalPrice = total,
             currency = session.event.currency,
-            expiresAt = latestExpiration.toString(),
-            sessionId = sessionId,
+            expiresAt = cart.expiresAt.toString(),
+            sessionId = cart.sessionId,
             eventTitle = session.event.title
         )
     }
 
+    /**
+     * Removes a specific seat from cart and releases inventory.
+     */
+    @Transactional
     fun removeSeatFromCart(token: UUID, seatIdentifier: String) {
-        val cartSeats = cartSeatRepository.findByReservationToken(token)
+        val cart = cartRepository.findByToken(token)
+            ?: throw VenuesException.ResourceNotFound("Cart not found")
+
+        if (cart.isExpired()) {
+            throw VenuesException.ValidationFailure("Cart has expired")
+        }
+
+        val cartSeats = cartSeatRepository.findByCart(cart)
         val cartSeat = cartSeats.find {
             seatingApi.getSeatInfo(it.seatId)?.seatIdentifier == seatIdentifier
         } ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
@@ -258,68 +306,133 @@ class CartService(
         val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
             ?: throw VenuesException.ResourceNotFound("Level not found")
 
+        // Release inventory
+        sessionSeatConfigRepository.findBySessionIdAndSeatId(cart.sessionId, cartSeat.seatId)
+            ?.let { config ->
+                config.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+                sessionSeatConfigRepository.save(config)
+            }
+
         cartSeatRepository.delete(cartSeat)
-        logger.info { "Seat removed: $seatIdentifier" }
+        logger.info { "Seat removed from cart: $seatIdentifier, cart=${cart.token}" }
 
         eventPublisher.publishEvent(
             SeatReleasedEvent(
-                sessionId = cartSeat.sessionId,
+                sessionId = cart.sessionId,
                 seatIdentifier = seatIdentifier,
                 levelName = levelInfo.levelName
             )
         )
     }
 
+    /**
+     * Clears entire cart and releases all inventory.
+     */
+    @Transactional
     fun clearCart(token: UUID) {
-        cartSeatRepository.deleteByReservationToken(token)
-        cartItemRepository.deleteByReservationToken(token)
+        val cart = cartRepository.findByToken(token)
+            ?: throw VenuesException.ResourceNotFound("Cart not found")
+
+        val seats = cartSeatRepository.findByCart(cart)
+        val items = cartItemRepository.findByCart(cart)
+
+        // Store seat/level IDs before deleting cart items
+        val seatIdsToRelease = seats.map { Pair(cart.sessionId, it.seatId) }
+        val levelUpdates = items.map { Triple(cart.sessionId, it.levelId, it.quantity) }
+
+        // Delete cart items first (removes FK references)
+        cartSeatRepository.deleteAll(seats)
+        cartItemRepository.deleteAll(items)
+
+        // Flush to ensure cart items are deleted before we update configs
+        cartSeatRepository.flush()
+        cartItemRepository.flush()
+
+        // Now release inventory (no FK constraint issues)
+        seatIdsToRelease.forEach { (sessionId, seatId) ->
+            sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+                ?.let { config ->
+                    config.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+                    sessionSeatConfigRepository.save(config)
+                }
+        }
+
+        levelUpdates.forEach { (sessionId, levelId, quantity) ->
+            sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, levelId)
+                ?.let { config ->
+                    config.soldCount = maxOf(0, config.soldCount - quantity)
+                    sessionLevelConfigRepository.save(config)
+                }
+        }
+
+        // Finally delete cart
+        cartRepository.delete(cart)
         logger.info { "Cart cleared: $token" }
     }
 
     /**
-     * Deletes expired cart items and releases inventory.
+     * Deletes expired cart sessions and releases all inventory.
      * Called by scheduled cleanup job.
+     *
+     * All items in expired carts are released atomically.
      */
+    @Transactional
     fun deleteExpiredCarts(): Int {
         val now = Instant.now()
-        val expiredSeats = cartSeatRepository.findByExpiresAtBefore(now)
-        val expiredItems = cartItemRepository.findByExpiresAtBefore(now)
+        val expiredCarts = cartRepository.findByExpiresAtBefore(now)
 
-        // Release seat inventory (RESERVED → AVAILABLE)
-        expiredSeats.forEach { cartSeat ->
+        if (expiredCarts.isEmpty()) {
+            return 0
+        }
+
+        var totalItemsReleased = 0
+
+        expiredCarts.forEach { cart ->
             try {
-                sessionSeatConfigRepository.findBySessionIdAndSeatId(cartSeat.sessionId, cartSeat.seatId)
-                    ?.let { config ->
-                        config.status = app.venues.event.domain.ConfigStatus.AVAILABLE
-                        sessionSeatConfigRepository.save(config)
+                val seats = cartSeatRepository.findByCart(cart)
+                val items = cartItemRepository.findByCart(cart)
+
+                // Release seat inventory (RESERVED → AVAILABLE)
+                seats.forEach { cartSeat ->
+                    try {
+                        sessionSeatConfigRepository.findBySessionIdAndSeatId(cart.sessionId, cartSeat.seatId)
+                            ?.let { config ->
+                                config.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+                                sessionSeatConfigRepository.save(config)
+                            }
+                    } catch (e: Exception) {
+                        logger.warn { "Failed to release seat ${cartSeat.seatId} from cart ${cart.token}: ${e.message}" }
                     }
+                }
+
+                // Release GA capacity (decrement soldCount)
+                items.forEach { cartItem ->
+                    try {
+                        sessionLevelConfigRepository.findBySessionIdAndLevelId(cart.sessionId, cartItem.levelId)
+                            ?.let { config ->
+                                config.soldCount = maxOf(0, config.soldCount - cartItem.quantity)
+                                sessionLevelConfigRepository.save(config)
+                            }
+                    } catch (e: Exception) {
+                        logger.warn { "Failed to release GA capacity for level ${cartItem.levelId} from cart ${cart.token}: ${e.message}" }
+                    }
+                }
+
+                totalItemsReleased += seats.size + items.size
+
+                // Delete cart (CASCADE deletes items)
+                cartRepository.delete(cart)
+
+                logger.info { "Expired cart deleted: ${cart.token}, released ${seats.size} seats and ${items.size} GA items" }
             } catch (e: Exception) {
-                logger.warn { "Failed to release seat ${cartSeat.seatId}: ${e.message}" }
+                logger.error(e) { "Failed to process expired cart ${cart.token}: ${e.message}" }
             }
         }
 
-        // Release GA capacity (decrement soldCount)
-        expiredItems.forEach { cartItem ->
-            try {
-                sessionLevelConfigRepository.findBySessionIdAndLevelId(cartItem.sessionId, cartItem.levelId)
-                    ?.let { config ->
-                        config.soldCount = maxOf(0, config.soldCount - cartItem.quantity)
-                        sessionLevelConfigRepository.save(config)
-                    }
-            } catch (e: Exception) {
-                logger.warn { "Failed to release GA capacity for level ${cartItem.levelId}: ${e.message}" }
-            }
+        if (totalItemsReleased > 0) {
+            logger.info { "Cleanup complete: Deleted ${expiredCarts.size} carts, released $totalItemsReleased items" }
         }
 
-        // Delete cart records
-        cartSeatRepository.deleteAll(expiredSeats)
-        cartItemRepository.deleteAll(expiredItems)
-
-        val total = expiredSeats.size + expiredItems.size
-        if (total > 0) {
-            logger.info { "Deleted $total expired cart items and released inventory" }
-        }
-
-        return total
+        return expiredCarts.size
     }
 }

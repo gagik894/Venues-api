@@ -299,7 +299,7 @@ class PlatformService(
 
         // Create booking from cart
         val booking = bookingService.createBookingFromCart(
-            reservationToken = request.reservationToken,
+            cartToken = request.reservationToken,
             platformId = platformId,
             paymentMethod = request.paymentMethod,
             paymentReference = request.paymentReference,

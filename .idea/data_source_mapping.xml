@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourcePerFileMappings">
-    <file url="file://$PROJECT_DIR$/EMERGENCY_FIX_unit_price.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/dev-seed.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V3__create_venues_tables.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V6__create_booking_tables.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />

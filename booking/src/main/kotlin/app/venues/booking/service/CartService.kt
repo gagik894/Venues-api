@@ -13,7 +13,6 @@ import app.venues.booking.event.SeatReservedEvent
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartSeatRepository
 import app.venues.common.exception.VenuesException
-import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
@@ -27,11 +26,10 @@ import java.time.Instant
 import java.util.*
 
 /**
- * Service for cart management operations.
+ * Cart management service implementing "Snapshot at Add to Cart" pattern.
  *
- * Uses SeatingApi for cross-module communication (Hexagonal Architecture).
- *
- * This is the core of the booking system - handles all cart operations.
+ * Prices are captured from templates when items are added and remain fixed
+ * even if live prices change later. This ensures price consistency for users.
  */
 @Service
 @Transactional
@@ -51,156 +49,148 @@ class CartService(
         const val CART_EXPIRATION_MINUTES = 15
     }
 
-    // ===========================================
-    // ADD TO CART
-    // ===========================================
-
     /**
-     * Add seat to cart.
+     * Adds a seat to cart with atomic reservation and price snapshotting.
+     *
+     * @throws ValidationFailure if seat not configured, not priced, or unavailable
+     * @throws ResourceConflict if seat taken by another user during reservation
      */
+    @Transactional
     fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse {
-        logger.debug { "Adding seat to cart: sessionId=${request.sessionId}, seatIdentifier=${request.seatIdentifier}" }
-
-        // Validate session exists
         eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
         val seatInfo = seatingApi.getSeatInfoByIdentifier(request.seatIdentifier)
             ?: throw VenuesException.ValidationFailure("Seat not found with identifier: ${request.seatIdentifier}")
-        val seatId = seatInfo.id
 
-        val rowsAffected = sessionSeatConfigRepository.reserveSeatIfAvailable(request.sessionId, seatId)
+        val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(request.sessionId, seatInfo.id)
+            ?: throw VenuesException.ValidationFailure("Seat is not configured for this session")
 
+        if (!seatConfig.isPriced()) {
+            throw VenuesException.ValidationFailure("Seat does not have a price assigned")
+        }
+
+        if (!seatConfig.isAvailable()) {
+            throw VenuesException.ValidationFailure("Seat is not available (status: ${seatConfig.status})")
+        }
+
+        // Atomic reservation prevents double-booking
+        val rowsAffected = sessionSeatConfigRepository.reserveSeatIfAvailable(request.sessionId, seatInfo.id)
         if (rowsAffected == 0) {
             throw VenuesException.ResourceConflict("Seat is not available for reservation")
         }
 
+        // Snapshot price from template
         val reservationToken = token ?: UUID.randomUUID()
-        val expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
-
         val cartSeat = CartSeat(
             sessionId = request.sessionId,
-            seatId = seatId,
+            seatId = seatInfo.id,
+            unitPrice = seatConfig.priceTemplate!!.price,
             reservationToken = reservationToken,
-            expiresAt = expiresAt
+            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
         )
 
         cartSeatRepository.save(cartSeat)
-        logger.info { "Seat added to cart: token=$reservationToken, seatIdentifier=${request.seatIdentifier}" }
+        logger.info { "Seat reserved: ${request.seatIdentifier}, price=${cartSeat.unitPrice}" }
 
         eventPublisher.publishEvent(
             SeatReservedEvent(
                 sessionId = request.sessionId,
                 seatIdentifier = request.seatIdentifier,
                 reservationToken = reservationToken,
-                expiresAt = expiresAt.toString()
+                expiresAt = cartSeat.expiresAt.toString()
             )
         )
 
         return AddToCartResponse(
             token = reservationToken,
             message = "Seat added to cart successfully",
-            expiresAt = expiresAt.toString()
+            expiresAt = cartSeat.expiresAt.toString()
         )
     }
 
     /**
-     * Add GA tickets to cart.
+     * Adds GA tickets to cart with capacity check and price snapshotting.
      *
-     * Uses atomic UPDATE to prevent race conditions.
-     * Atomically decrements available capacity instead of changing status.
+     * @throws ValidationFailure if level not configured, not priced, or not GA
+     * @throws ResourceConflict if insufficient capacity available
      */
+    @Transactional
     fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse {
-        logger.debug { "Adding GA to cart: sessionId=${request.sessionId}, levelIdentifier=${request.levelIdentifier}, quantity=${request.quantity}" }
-
-        // Validate session exists
         eventSessionRepository.findById(request.sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
 
-        // Resolve level identifier to level ID
         val levelInfo = seatingApi.getLevelInfoByIdentifier(request.levelIdentifier)
             ?: throw VenuesException.ValidationFailure("Level not found with identifier: ${request.levelIdentifier}")
-        val levelId = levelInfo.id
 
-        // Verify it's a GA level
         if (!levelInfo.isGeneralAdmission) {
             throw VenuesException.ValidationFailure("Level is not general admission")
         }
 
+        val levelConfig = sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelInfo.id)
+            ?: throw VenuesException.ValidationFailure("GA level is not configured for this session")
+
+        if (!levelConfig.isPriced()) {
+            throw VenuesException.ValidationFailure("GA level does not have a price assigned")
+        }
+
+        if (!levelConfig.isAvailable()) {
+            throw VenuesException.ValidationFailure("GA level is not available (status: ${levelConfig.status})")
+        }
+
+        // Atomic capacity reservation
         val rowsAffected = sessionLevelConfigRepository.reserveGATicketsIfAvailable(
-            sessionId = request.sessionId,
-            levelId = levelId,
-            quantity = request.quantity
+            request.sessionId, levelInfo.id, request.quantity
         )
 
         if (rowsAffected == 0) {
-            // Either level not available, OR not enough tickets available
-            // Fetch current state to give user better error message
-            val levelConfig = sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelId)
-                ?: throw VenuesException.ValidationFailure("GA level is not configured for this session")
-
-            if (levelConfig.status != ConfigStatus.AVAILABLE) {
-                throw VenuesException.ResourceConflict("GA level is not available (status: ${levelConfig.status})")
-            }
-
             val capacity = levelConfig.capacity ?: throw VenuesException.ValidationFailure("Level capacity not set")
             val available = capacity - levelConfig.soldCount
-
             throw VenuesException.ResourceConflict(
                 "Not enough tickets available. Available: $available, Requested: ${request.quantity}"
             )
         }
 
-        // If we reach here, the atomic UPDATE succeeded - soldCount was incremented
+        // Snapshot price from template
         val reservationToken = token ?: UUID.randomUUID()
-        val expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
-
         val cartItem = CartItem(
             sessionId = request.sessionId,
-            levelId = levelId,
+            levelId = levelInfo.id,
+            unitPrice = levelConfig.priceTemplate!!.price,
             reservationToken = reservationToken,
             quantity = request.quantity,
-            expiresAt = expiresAt
+            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L)
         )
 
         cartItemRepository.save(cartItem)
-        logger.info { "GA tickets added to cart: token=$reservationToken, levelIdentifier=${request.levelIdentifier}, quantity=${request.quantity}" }
+        logger.info { "GA reserved: ${request.levelIdentifier}, qty=${request.quantity}, price=${cartItem.unitPrice}" }
 
-        // Get updated availability for event
-        val levelConfig = sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelId)
-            ?: throw VenuesException.ResourceNotFound("Level config not found after reservation")
-        val capacity = levelConfig.capacity ?: throw VenuesException.ValidationFailure("Level capacity not set")
-        val availableTickets = capacity - levelConfig.soldCount
+        val levelConfigUpdated =
+            sessionLevelConfigRepository.findBySessionIdAndLevelId(request.sessionId, levelInfo.id)!!
+        val availableTickets = levelConfigUpdated.capacity!! - levelConfigUpdated.soldCount
 
-        // Publish event for webhook notifications
         eventPublisher.publishEvent(
             GAAvailabilityChangedEvent(
                 sessionId = request.sessionId,
                 levelIdentifier = levelInfo.levelIdentifier ?: "",
                 levelName = levelInfo.levelName,
                 availableTickets = availableTickets,
-                totalCapacity = capacity
+                totalCapacity = levelConfigUpdated.capacity!!
             )
         )
 
         return AddToCartResponse(
             token = reservationToken,
             message = "GA tickets added to cart successfully",
-            expiresAt = expiresAt.toString()
+            expiresAt = cartItem.expiresAt.toString()
         )
     }
 
-    // ===========================================
-    // GET CART
-    // ===========================================
-
     /**
-     * Get cart summary with all items and pricing.
+     * Retrieves cart summary using snapshotted prices, not current live prices.
      */
     @Transactional(readOnly = true)
     fun getCartSummary(token: UUID): CartSummaryResponse {
-        logger.debug { "Fetching cart summary: token=$token" }
-
         val seats = cartSeatRepository.findByReservationToken(token)
         val gaItems = cartItemRepository.findByReservationToken(token)
 
@@ -208,27 +198,19 @@ class CartService(
             throw VenuesException.ResourceNotFound("Cart not found or expired")
         }
 
-        // Check if cart is expired
         val now = Instant.now()
         val allExpired = seats.all { it.expiresAt.isBefore(now) } && gaItems.all { it.expiresAt.isBefore(now) }
         if (allExpired) {
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        // Get session info (from first item)
         val sessionId = seats.firstOrNull()?.sessionId ?: gaItems.first().sessionId
         val session = eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
-        val event = session.event
-        val eventTitle = event.title
-        val currency = event.currency
 
-        // Map seats with pricing using SeatingApi (Hexagonal Architecture)
         val seatResponses = seats.map { cartSeat ->
             val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, cartSeat.seatId)
                 ?: throw VenuesException.ValidationFailure("Seat config not found")
-
-            // Fetch seat and level data from SeatingApi
             val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
                 ?: throw VenuesException.ResourceNotFound("Seat not found")
             val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
@@ -241,17 +223,14 @@ class CartService(
                 rowLabel = seatInfo.rowLabel,
                 levelName = levelInfo.levelName,
                 levelIdentifier = levelInfo.levelIdentifier,
-                price = config.price,
+                price = cartSeat.unitPrice,
                 priceTemplateName = config.priceTemplate?.templateName
             )
         }
 
-        // Map GA items with pricing using SeatingApi (Hexagonal Architecture)
         val gaItemResponses = gaItems.map { cartItem ->
             val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, cartItem.levelId)
                 ?: throw VenuesException.ValidationFailure("Level config not found")
-
-            // Fetch level data from SeatingApi
             val levelInfo = seatingApi.getLevelInfo(cartItem.levelId)
                 ?: throw VenuesException.ResourceNotFound("Level not found")
 
@@ -259,17 +238,14 @@ class CartService(
                 cartItem = cartItem,
                 levelIdentifier = levelInfo.levelIdentifier,
                 levelName = levelInfo.levelName,
-                unitPrice = config.price,
+                unitPrice = cartItem.unitPrice,
                 priceTemplateName = config.priceTemplate?.templateName
             )
         }
 
-        // Calculate total
-        val seatsTotal = seatResponses.sumOf { BigDecimal(it.price) }
-        val gaTotal = gaItemResponses.sumOf { BigDecimal(it.totalPrice) }
-        val total = seatsTotal.add(gaTotal)
+        val total = seatResponses.sumOf { BigDecimal(it.price) }
+            .add(gaItemResponses.sumOf { BigDecimal(it.totalPrice) })
 
-        // Get latest expiration
         val latestExpiration = (seats.map { it.expiresAt } + gaItems.map { it.expiresAt }).maxOrNull()
             ?: throw VenuesException.ValidationFailure("Cart has no valid expiration")
 
@@ -278,75 +254,45 @@ class CartService(
             seats = seatResponses,
             gaItems = gaItemResponses,
             totalPrice = total,
-            currency = currency,
+            currency = session.event.currency,
             expiresAt = latestExpiration.toString(),
             sessionId = sessionId,
-            eventTitle = eventTitle
+            eventTitle = session.event.title
         )
     }
 
-    // ===========================================
-    // REMOVE FROM CART
-    // ===========================================
-
-    /**
-     * Remove seat from cart.
-     */
     fun removeSeatFromCart(token: UUID, seatIdentifier: String) {
-        logger.debug { "Removing seat from cart: token=$token, seatIdentifier=$seatIdentifier" }
-
         val cartSeats = cartSeatRepository.findByReservationToken(token)
-
-        // Find cart seat by fetching seat and comparing identifiers using SeatingApi
-        val cartSeat = cartSeats.find { cartSeat ->
-            val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
-            seatInfo?.seatIdentifier == seatIdentifier
+        val cartSeat = cartSeats.find {
+            seatingApi.getSeatInfo(it.seatId)?.seatIdentifier == seatIdentifier
         } ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
-        val sessionId = cartSeat.sessionId
-
-        // Fetch seat and level info for event using SeatingApi (Hexagonal Architecture)
-        val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)
-            ?: throw VenuesException.ResourceNotFound("Seat not found")
-        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
-            ?: throw VenuesException.ResourceNotFound("Level not found")
-        val levelName = levelInfo.levelName
+        val seatInfo = seatingApi.getSeatInfo(cartSeat.seatId)!!
+        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)!!
 
         cartSeatRepository.delete(cartSeat)
-        logger.info { "Seat removed from cart: token=$token, seatIdentifier=$seatIdentifier" }
+        logger.info { "Seat removed: $seatIdentifier" }
 
-        // Publish event for webhook notifications
         eventPublisher.publishEvent(
             SeatReleasedEvent(
-                sessionId = sessionId,
+                sessionId = cartSeat.sessionId,
                 seatIdentifier = seatIdentifier,
-                levelName = levelName
+                levelName = levelInfo.levelName
             )
         )
     }
 
-    /**
-     * Clear entire cart.
-     */
     fun clearCart(token: UUID) {
-        logger.debug { "Clearing cart: token=$token" }
-
         cartSeatRepository.deleteByReservationToken(token)
         cartItemRepository.deleteByReservationToken(token)
-
-        logger.info { "Cart cleared: token=$token" }
+        logger.info { "Cart cleared: $token" }
     }
 
-    // ===========================================
-    // CLEANUP
-    // ===========================================
-
     /**
-     * Delete expired cart items (called by scheduled job).
+     * Deletes expired cart items. Called by scheduled cleanup job.
      */
     fun deleteExpiredCarts(): Int {
         val now = Instant.now()
-
         val expiredSeats = cartSeatRepository.findByExpiresAtBefore(now)
         val expiredItems = cartItemRepository.findByExpiresAtBefore(now)
 
@@ -355,10 +301,9 @@ class CartService(
 
         val total = expiredSeats.size + expiredItems.size
         if (total > 0) {
-            logger.info { "Deleted $total expired cart items (${expiredSeats.size} seats, ${expiredItems.size} GA)" }
+            logger.info { "Deleted $total expired cart items" }
         }
 
         return total
     }
 }
-

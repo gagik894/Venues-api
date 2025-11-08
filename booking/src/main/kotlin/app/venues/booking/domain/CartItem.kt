@@ -3,20 +3,15 @@ package app.venues.booking.domain
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
 
 /**
- * Cart item entity - temporary GA ticket hold.
+ * Temporary GA ticket reservation.
  *
- * Created when user selects GA tickets.
- * Auto-expires after 15 minutes if not converted to booking.
- *
- * Cross-module relationships:
- * - sessionId references event module
- * - levelId references seating module
- * - userId references user module
- * - guest references booking module (same module)
+ * Prices are snapshotted at add-to-cart time and remain fixed even if
+ * the template price changes later. Auto-expires after 15 minutes.
  */
 @Entity
 @Table(
@@ -33,31 +28,18 @@ data class CartItem(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    /**
-     * Session ID - references event module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "session_id", nullable = false)
     var sessionId: Long,
 
-    /**
-     * Level ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "level_id", nullable = false)
     var levelId: Long,
 
-    /**
-     * User ID - references user module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
+    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
+    var unitPrice: BigDecimal,
+
     @Column(name = "user_id")
     var userId: Long? = null,
 
-    /**
-     * Guest - references booking module (same module)
-     * Can be null for logged-in users
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "guest_id")
     var guest: Guest? = null,
@@ -76,5 +58,6 @@ data class CartItem(
     var createdAt: Instant = Instant.now()
 ) {
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
+    fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 }
 

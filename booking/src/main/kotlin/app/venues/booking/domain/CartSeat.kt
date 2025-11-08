@@ -3,20 +3,15 @@ package app.venues.booking.domain
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
 
 /**
- * Cart seat entity - temporary seat hold.
+ * Temporary seat reservation.
  *
- * Created immediately when user clicks a seat.
- * Auto-expires after 15 minutes if not converted to booking.
- *
- * Cross-module relationships:
- * - sessionId references event module
- * - seatId references seating module
- * - userId references user module
- * - guest references booking module (same module)
+ * Prices are snapshotted at add-to-cart time and remain fixed even if
+ * the template price changes later. Auto-expires after 15 minutes.
  */
 @Entity
 @Table(
@@ -36,31 +31,18 @@ data class CartSeat(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    /**
-     * Session ID - references event module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "session_id", nullable = false)
     var sessionId: Long,
 
-    /**
-     * Seat ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "seat_id", nullable = false)
     var seatId: Long,
 
-    /**
-     * User ID - references user module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
+    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
+    var unitPrice: BigDecimal,
+
     @Column(name = "user_id")
     var userId: Long? = null,
 
-    /**
-     * Guest - references booking module (same module)
-     * Can be null for logged-in users
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "guest_id")
     var guest: Guest? = null,

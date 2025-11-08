@@ -2,18 +2,12 @@ package app.venues.event.domain
 
 import jakarta.persistence.*
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.math.BigDecimal
 
 /**
- * Session level configuration entity.
+ * Session GA level configuration.
  *
- * Maps GA level pricing and availability per session.
- * Allows different GA prices for different showtimes.
- *
- * Cross-module relationships:
- * - session references event module (same module)
- * - levelId references seating module
- * - priceTemplate references event module (same module)
+ * Assigns price templates and tracks capacity per session.
+ * Prices are read from the template and snapshotted to the cart.
  */
 @Entity
 @Table(
@@ -37,10 +31,6 @@ data class SessionLevelConfig(
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    /**
-     * Level ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "level_id", nullable = false)
     var levelId: Long,
 
@@ -48,37 +38,19 @@ data class SessionLevelConfig(
     @JoinColumn(name = "price_template_id")
     var priceTemplate: EventPriceTemplate? = null,
 
-    @Column(nullable = false, precision = 10, scale = 2)
-    var price: BigDecimal,
-
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     var status: ConfigStatus = ConfigStatus.AVAILABLE,
 
-    /**
-     * Session-specific capacity for GA level.
-     * Different sessions can have different capacities for the same area.
-     * For example: One concert might allow 1000 standing, another only 500.
-     */
     @Column(name = "capacity")
     var capacity: Int? = null,
 
-    /**
-     * Denormalized count of sold GA tickets.
-     * Updated when bookings are confirmed/cancelled.
-     * Avoids expensive COUNT queries on bookings table.
-     */
     @Column(name = "sold_count", nullable = false)
     var soldCount: Int = 0,
 
     ) {
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
-
-    /**
-     * Get available capacity for GA level.
-     */
-    fun getAvailableCapacity(): Int? {
-        return capacity?.let { it - soldCount }
-    }
+    fun isPriced(): Boolean = priceTemplate != null
+    fun getAvailableCapacity(): Int? = capacity?.let { it - soldCount }
 }
 

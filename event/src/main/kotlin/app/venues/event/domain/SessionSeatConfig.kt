@@ -4,19 +4,13 @@ import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.math.BigDecimal
 import java.time.Instant
 
 /**
- * Session seat configuration entity.
+ * Session seat configuration.
  *
- * Maps seat pricing and availability per session.
- * Allows different prices for different showtimes (matinee vs evening).
- *
- * Cross-module relationships:
- * - session references event module (same module)
- * - seatId references seating module
- * - priceTemplate references event module (same module)
+ * Assigns price templates and tracks availability per session.
+ * Prices are read from the template and snapshotted to the cart.
  */
 @Entity
 @Table(
@@ -41,19 +35,12 @@ data class SessionSeatConfig(
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    /**
-     * Seat ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "seat_id", nullable = false)
     var seatId: Long,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")
     var priceTemplate: EventPriceTemplate? = null,
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    var price: BigDecimal,
 
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
@@ -68,5 +55,6 @@ data class SessionSeatConfig(
     var lastModifiedAt: Instant = Instant.now()
 ) {
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
+    fun isPriced(): Boolean = priceTemplate != null
 }
 

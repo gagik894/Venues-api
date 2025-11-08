@@ -99,9 +99,14 @@ class JwtService {
      *
      * @param token JWT token
      * @return Email/identifier from token subject claim
+     * @throws io.jsonwebtoken.JwtException if token is invalid or expired
      */
     fun getEmailFromToken(token: String): String {
-        return getClaimsFromToken(token).subject
+        return try {
+            getClaimsFromToken(token).subject
+        } catch (e: io.jsonwebtoken.ExpiredJwtException) {
+            throw e // Re-throw so calling code can handle token expiration specifically
+        }
     }
 
     /**
@@ -155,6 +160,9 @@ class JwtService {
             val email = getEmailFromToken(token)
             // UserDetails.username contains email for both users and venues
             email == userDetails.username && !isTokenExpired(token)
+        } catch (e: io.jsonwebtoken.ExpiredJwtException) {
+            logger.warn { "Token has expired: ${e.message}" }
+            false
         } catch (e: Exception) {
             logger.warn(e) { "Token validation failed" }
             false
@@ -164,12 +172,25 @@ class JwtService {
     /**
      * Checks if a token is expired.
      *
+     * Handles ExpiredJwtException gracefully - if the token is expired,
+     * the JWT library will throw an exception, which we catch and return true.
+     *
      * @param token JWT token
-     * @return true if token is expired
+     * @return true if token is expired, false otherwise
      */
     fun isTokenExpired(token: String): Boolean {
-        val expiration = getClaimsFromToken(token).expiration
-        return expiration.before(Date())
+        return try {
+            val expiration = getClaimsFromToken(token).expiration
+            expiration.before(Date())
+        } catch (e: io.jsonwebtoken.ExpiredJwtException) {
+            // Token is expired if parsing fails with ExpiredJwtException
+            logger.debug { "Token is expired: ${e.message}" }
+            true
+        } catch (e: Exception) {
+            // For other exceptions, consider token invalid
+            logger.warn(e) { "Error checking token expiration" }
+            true
+        }
     }
 
     /**

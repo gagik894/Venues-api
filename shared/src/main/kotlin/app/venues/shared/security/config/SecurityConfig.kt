@@ -1,5 +1,7 @@
 package app.venues.shared.security.config
 
+import app.venues.shared.security.jwt.JwtAccessDeniedHandler
+import app.venues.shared.security.jwt.JwtAuthenticationEntryPoint
 import app.venues.shared.security.jwt.JwtAuthenticationFilter
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.annotation.Bean
@@ -111,16 +113,10 @@ class SecurityConfig(
             // Exception handling
             .exceptionHandling { exceptions ->
                 exceptions
-                    // Custom entry point for authentication failures (401)
-                    .authenticationEntryPoint { _, response, authException ->
-                        logger.warn { "Authentication failed: ${authException.message}" }
-                        response.sendError(401, "Unauthorized: ${authException.message}")
-                    }
-                    // Custom handler for authorization failures (403)
-                    .accessDeniedHandler { _, response, accessDeniedException ->
-                        logger.warn { "Access denied: ${accessDeniedException.message}" }
-                        response.sendError(403, "Forbidden: ${accessDeniedException.message}")
-                    }
+                    // Delegate to custom entry point for consistent error responses
+                    .authenticationEntryPoint(JwtAuthenticationEntryPoint())
+                    // Delegate to custom handler for consistent error responses
+                    .accessDeniedHandler(JwtAccessDeniedHandler())
             }
 
         // Add JWT authentication filter before username/password authentication

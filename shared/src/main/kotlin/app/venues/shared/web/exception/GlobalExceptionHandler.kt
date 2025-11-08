@@ -3,11 +3,9 @@ package app.venues.shared.web.exception
 import app.venues.common.constants.AppConstants
 import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiErrorResponse
-import app.venues.common.model.ErrorDetail
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.ConstraintViolationException
-import kotlinx.datetime.Clock
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.NoHandlerFoundException
-import java.util.*
 
 /**
  * Global exception handler for all REST API controllers.
@@ -61,22 +58,15 @@ class GlobalExceptionHandler {
         ex: VenuesException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
-
-        logger.warn { "[$traceId] VenuesException occurred: ${ex.message}" }
+        logger.warn { "VenuesException occurred: ${ex.message}" }
 
         val details = if (ex is VenuesException.ValidationFailure) ex.violations else null
 
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = ex.errorCode,
-                message = ex.message,
-                details = details
-            ),
-            timestamp = Clock.System.now().toString(),
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = ex.errorCode,
+            message = ex.message,
             path = request.requestURI,
-            traceId = traceId
+            details = details
         )
 
         return ResponseEntity.status(ex.httpStatus).body(errorResponse)
@@ -97,9 +87,7 @@ class GlobalExceptionHandler {
         ex: MethodArgumentNotValidException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
-
-        logger.warn { "[$traceId] Validation failed: ${ex.bindingResult.errorCount} errors" }
+        logger.warn { "Validation failed: ${ex.bindingResult.errorCount} errors" }
 
         // Extract field errors into a structured map
         val violations = ex.bindingResult.allErrors
@@ -113,16 +101,11 @@ class GlobalExceptionHandler {
                 errors.mapNotNull { it.defaultMessage }
             }
 
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
-                message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
-                details = violations
-            ),
-            timestamp = Clock.System.now().toString(),
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
+            message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
             path = request.requestURI,
-            traceId = traceId
+            details = violations
         )
 
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(errorResponse)
@@ -140,24 +123,17 @@ class GlobalExceptionHandler {
         ex: ConstraintViolationException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
-
-        logger.warn { "[$traceId] Constraint violation: ${ex.message}" }
+        logger.warn { "Constraint violation: ${ex.message}" }
 
         val violations = ex.constraintViolations
             .groupBy { it.propertyPath.toString() }
             .mapValues { (_, violations) -> violations.map { it.message } }
 
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
-                message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
-                details = violations
-            ),
-            timestamp = Clock.System.now().toString(),
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.VALIDATION_FAILED.code,
+            message = AppConstants.ErrorCode.VALIDATION_FAILED.message,
             path = request.requestURI,
-            traceId = traceId
+            details = violations
         )
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse)
@@ -178,19 +154,12 @@ class GlobalExceptionHandler {
         ex: Exception,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "Authentication failed: ${ex.message}" }
 
-        logger.warn { "[$traceId] Authentication failed: ${ex.message}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.AUTHENTICATION_FAILED.code,
-                message = AppConstants.ErrorCode.AUTHENTICATION_FAILED.message
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.AUTHENTICATION_FAILED.code,
+            message = AppConstants.ErrorCode.AUTHENTICATION_FAILED.message,
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse)
@@ -210,19 +179,12 @@ class GlobalExceptionHandler {
         ex: AccessDeniedException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "Access denied: ${ex.message}" }
 
-        logger.warn { "[$traceId] Access denied: ${ex.message}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.AUTHORIZATION_FAILED.code,
-                message = AppConstants.ErrorCode.AUTHORIZATION_FAILED.message
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.AUTHORIZATION_FAILED.code,
+            message = AppConstants.ErrorCode.AUTHORIZATION_FAILED.message,
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse)
@@ -240,19 +202,12 @@ class GlobalExceptionHandler {
         ex: HttpMessageNotReadableException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "Malformed request body: ${ex.message}" }
 
-        logger.warn { "[$traceId] Malformed request body: ${ex.message}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.MALFORMED_REQUEST.code,
-                message = AppConstants.ErrorCode.MALFORMED_REQUEST.message
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.MALFORMED_REQUEST.code,
+            message = AppConstants.ErrorCode.MALFORMED_REQUEST.message,
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse)
@@ -270,19 +225,12 @@ class GlobalExceptionHandler {
         ex: MissingServletRequestParameterException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "Missing request parameter: ${ex.parameterName}" }
 
-        logger.warn { "[$traceId] Missing request parameter: ${ex.parameterName}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.MISSING_PARAMETERS.code,
-                message = AppConstants.ErrorCode.MISSING_PARAMETERS.formatMessage("parameterName" to ex.parameterName)
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.MISSING_PARAMETERS.code,
+            message = AppConstants.ErrorCode.MISSING_PARAMETERS.formatMessage("parameterName" to ex.parameterName),
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse)
@@ -300,22 +248,15 @@ class GlobalExceptionHandler {
         ex: MethodArgumentTypeMismatchException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "Type mismatch for parameter: ${ex.name}" }
 
-        logger.warn { "[$traceId] Type mismatch for parameter: ${ex.name}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.code,
-                message = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.formatMessage(
-                    "parameterName" to ex.name,
-                    "expectedType" to (ex.requiredType?.simpleName ?: "unknown")
-                )
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.code,
+            message = AppConstants.ErrorCode.INVALID_PARAMETER_TYPE.formatMessage(
+                "parameterName" to ex.name,
+                "expectedType" to (ex.requiredType?.simpleName ?: "unknown")
             ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse)
@@ -333,19 +274,12 @@ class GlobalExceptionHandler {
         ex: NoHandlerFoundException,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.warn { "No handler found for: ${ex.httpMethod} ${ex.requestURL}" }
 
-        logger.warn { "[$traceId] No handler found for: ${ex.httpMethod} ${ex.requestURL}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.code,
-                message = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.message
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.code,
+            message = AppConstants.ErrorCode.ENDPOINT_NOT_FOUND.message,
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse)
@@ -366,31 +300,14 @@ class GlobalExceptionHandler {
         ex: Exception,
         request: HttpServletRequest
     ): ResponseEntity<ApiErrorResponse> {
-        val traceId = generateTraceId()
+        logger.error(ex) { "Unexpected error occurred: ${ex.message}" }
 
-        logger.error(ex) { "[$traceId] Unexpected error occurred: ${ex.message}" }
-
-        val errorResponse = ApiErrorResponse(
-            success = false,
-            error = ErrorDetail(
-                code = AppConstants.ErrorCode.INTERNAL_ERROR.code,
-                message = AppConstants.ErrorCode.INTERNAL_ERROR.message
-            ),
-            timestamp = Clock.System.now().toString(),
-            path = request.requestURI,
-            traceId = traceId
+        val errorResponse = ApiErrorResponseBuilder.buildErrorResponse(
+            code = AppConstants.ErrorCode.INTERNAL_ERROR.code,
+            message = AppConstants.ErrorCode.INTERNAL_ERROR.message,
+            path = request.requestURI
         )
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
     }
-
-    /**
-     * Generates a unique trace ID for error tracking.
-     *
-     * This trace ID can be used to correlate logs, track errors through
-     * monitoring systems, and help with debugging in production.
-     *
-     * @return UUID-based trace identifier
-     */
-    private fun generateTraceId(): String = UUID.randomUUID().toString()
 }

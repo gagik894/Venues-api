@@ -19,6 +19,11 @@ interface CartItemRepository : JpaRepository<CartItem, Long> {
     fun findByCart(cart: Cart): List<CartItem>
 
     /**
+     * Find specific GA item in cart by level
+     */
+    fun findByCartAndLevelId(cart: Cart, levelId: Long): CartItem?
+
+    /**
      * Find all items in a cart by token
      */
     @Query("SELECT ci FROM CartItem ci WHERE ci.cart.token = :token")

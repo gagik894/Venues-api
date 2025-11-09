@@ -1,0 +1,174 @@
+package app.venues.booking.service
+
+import app.venues.booking.domain.Cart
+import app.venues.booking.domain.CartItem
+import app.venues.booking.domain.CartSeat
+import app.venues.booking.event.GAAvailabilityChangedEvent
+import app.venues.booking.event.SeatReleasedEvent
+import app.venues.booking.event.SeatReservedEvent
+import app.venues.booking.repository.CartItemRepository
+import app.venues.booking.repository.CartSeatRepository
+import app.venues.common.exception.VenuesException
+import app.venues.event.repository.SessionLevelConfigRepository
+import app.venues.seating.api.SeatingApi
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
+import org.springframework.stereotype.Component
+
+/**
+ * Handles cart item persistence and domain event publishing.
+ * Manages relationships between cart and cart items (seats/GA).
+ */
+@Component
+class CartItemPersistence(
+    private val cartSeatRepository: CartSeatRepository,
+    private val cartItemRepository: CartItemRepository,
+    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val seatingApi: SeatingApi,
+    private val eventPublisher: ApplicationEventPublisher
+) {
+    private val logger = KotlinLogging.logger {}
+
+    fun saveSeatToCart(
+        cart: Cart,
+        sessionId: Long,
+        seatId: Long,
+        seatIdentifier: String,
+        price: java.math.BigDecimal
+    ): CartSeat {
+        val cartSeat = CartSeat(
+            cart = cart,
+            sessionId = sessionId,
+            seatId = seatId,
+            unitPrice = price
+        )
+
+        val saved = cartSeatRepository.save(cartSeat)
+
+        logger.info { "Seat added to cart: $seatIdentifier, price=$price, cart=${cart.token}" }
+
+        eventPublisher.publishEvent(
+            SeatReservedEvent(
+                sessionId = sessionId,
+                seatIdentifier = seatIdentifier,
+                reservationToken = cart.token,
+                expiresAt = cart.expiresAt.toString()
+            )
+        )
+
+        return saved
+    }
+
+    fun saveOrUpdateGAItem(
+        cart: Cart,
+        sessionId: Long,
+        levelId: Long,
+        levelIdentifier: String,
+        levelName: String,
+        quantityToAdd: Int,
+        unitPrice: java.math.BigDecimal,
+        existingItem: CartItem? = null
+    ): Pair<CartItem, Boolean> {
+        val (savedItem, isUpdate) = if (existingItem != null) {
+            existingItem.quantity += quantityToAdd
+            cartItemRepository.save(existingItem) to true
+        } else {
+            val newItem = CartItem(
+                cart = cart,
+                sessionId = sessionId,
+                levelId = levelId,
+                unitPrice = unitPrice,
+                quantity = quantityToAdd
+            )
+            cartItemRepository.save(newItem) to false
+        }
+
+        if (isUpdate) {
+            logger.info {
+                "GA quantity updated: $levelIdentifier, total=${savedItem.quantity} " +
+                        "(+$quantityToAdd), price=$unitPrice, cart=${cart.token}"
+            }
+        } else {
+            logger.info {
+                "GA added to cart: $levelIdentifier, qty=${savedItem.quantity}, " +
+                        "price=$unitPrice, cart=${cart.token}"
+            }
+        }
+
+        publishGAAvailabilityEvent(sessionId, levelId, levelIdentifier, levelName)
+
+        return savedItem to isUpdate
+    }
+
+    fun checkSeatAlreadyInCart(cart: Cart, seatId: Long): Boolean {
+        val existingSeats = cartSeatRepository.findByCart(cart)
+        return existingSeats.any { it.seatId == seatId }
+    }
+
+    fun findExistingGAItem(cart: Cart, levelId: Long): CartItem? {
+        return cartItemRepository.findByCartAndLevelId(cart, levelId)
+    }
+
+    fun removeSeat(cart: Cart, seatId: Long, sessionId: Long): String {
+        val cartSeats = cartSeatRepository.findByCart(cart)
+        val cartSeat = cartSeats.find { it.seatId == seatId }
+            ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
+
+        val seatInfo = seatingApi.getSeatInfo(seatId)
+            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
+            ?: throw VenuesException.ResourceNotFound("Level not found")
+
+        cartSeatRepository.delete(cartSeat)
+
+        logger.info { "Seat removed from cart: ${seatInfo.seatIdentifier}, cart=${cart.token}" }
+
+        eventPublisher.publishEvent(
+            SeatReleasedEvent(
+                sessionId = sessionId,
+                seatIdentifier = seatInfo.seatIdentifier,
+                levelName = levelInfo.levelName
+            )
+        )
+
+        return seatInfo.seatIdentifier
+    }
+
+    fun getAllSeats(cart: Cart): List<CartSeat> = cartSeatRepository.findByCart(cart)
+
+    fun getAllGAItems(cart: Cart): List<CartItem> = cartItemRepository.findByCart(cart)
+
+    fun deleteAllItems(cart: Cart) {
+        val seats = cartSeatRepository.findByCart(cart)
+        val items = cartItemRepository.findByCart(cart)
+
+        cartSeatRepository.deleteAll(seats)
+        cartItemRepository.deleteAll(items)
+
+        // Ensure deletion is flushed before inventory release
+        cartSeatRepository.flush()
+        cartItemRepository.flush()
+    }
+
+    private fun publishGAAvailabilityEvent(
+        sessionId: Long,
+        levelId: Long,
+        levelIdentifier: String,
+        levelName: String
+    ) {
+        val levelConfig = sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, levelId)
+        val capacity = levelConfig?.capacity ?: 0
+        val availableTickets = capacity - (levelConfig?.soldCount ?: 0)
+
+        eventPublisher.publishEvent(
+            GAAvailabilityChangedEvent(
+                sessionId = sessionId,
+                levelIdentifier = levelIdentifier,
+                levelName = levelName,
+                availableTickets = availableTickets,
+                totalCapacity = capacity
+            )
+        )
+    }
+}
+

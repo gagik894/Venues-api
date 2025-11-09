@@ -1,5 +1,6 @@
-package app.venues.booking.service
+package app.venues.booking.job
 
+import app.venues.booking.service.CartService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -33,4 +34,3 @@ class CartCleanupJob(
         }
     }
 }
-

@@ -1,6 +1,7 @@
-package app.venues.booking.service
+package app.venues.booking.persistence
 
 import app.venues.common.exception.VenuesException
+import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import org.springframework.stereotype.Component
@@ -69,7 +70,7 @@ class InventoryReservationHandler(
     fun releaseSeat(sessionId: Long, seatId: Long) {
         sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
             ?.let { config ->
-                config.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+                config.status = ConfigStatus.AVAILABLE
                 sessionSeatConfigRepository.save(config)
             }
     }

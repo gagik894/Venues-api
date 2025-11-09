@@ -1,4 +1,4 @@
-package app.venues.booking.service
+package app.venues.booking.persistence
 
 import app.venues.booking.domain.Cart
 import app.venues.booking.domain.CartItem
@@ -14,6 +14,7 @@ import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
+import java.math.BigDecimal
 
 /**
  * Handles cart item persistence and domain event publishing.
@@ -34,7 +35,7 @@ class CartItemPersistence(
         sessionId: Long,
         seatId: Long,
         seatIdentifier: String,
-        price: java.math.BigDecimal
+        price: BigDecimal
     ): CartSeat {
         val cartSeat = CartSeat(
             cart = cart,
@@ -66,7 +67,7 @@ class CartItemPersistence(
         levelIdentifier: String,
         levelName: String,
         quantityToAdd: Int,
-        unitPrice: java.math.BigDecimal,
+        unitPrice: BigDecimal,
         existingItem: CartItem? = null
     ): Pair<CartItem, Boolean> {
         val (savedItem, isUpdate) = if (existingItem != null) {

@@ -1,4 +1,4 @@
-package app.venues.booking.service
+package app.venues.booking.validation
 
 import app.venues.booking.domain.Cart
 import app.venues.booking.repository.CartItemRepository

@@ -1,4 +1,4 @@
-package app.venues.booking.service
+package app.venues.booking.manager
 
 import app.venues.booking.domain.Cart
 import app.venues.booking.repository.CartRepository
@@ -75,4 +75,3 @@ class CartSessionManager(
         return cartRepository.save(newCart)
     }
 }
-

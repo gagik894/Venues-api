@@ -36,6 +36,7 @@ class CartService(
     private val cartLimitValidator: CartLimitValidator,
     private val inventoryReservation: InventoryReservationHandler,
     private val cartItemPersistence: CartItemPersistence,
+    private val cartCleanupHelper: CartCleanupHelper,
     private val eventSessionRepository: EventSessionRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
@@ -278,7 +279,6 @@ class CartService(
      * Deletes expired cart sessions and releases all inventory.
      * Called by scheduled cleanup job.
      */
-    @Transactional
     fun deleteExpiredCarts(): Int {
         val now = Instant.now()
         val expiredCarts = cartRepository.findByExpiresAtBefore(now)
@@ -288,45 +288,21 @@ class CartService(
         }
 
         var totalItemsReleased = 0
+        var successfulDeletions = 0
 
+        // Process each cart in its own transaction via helper component
         expiredCarts.forEach { cart ->
-            try {
-                val seats = cartItemPersistence.getAllSeats(cart)
-                val gaItems = cartItemPersistence.getAllGAItems(cart)
-
-                // Release seat inventory
-                seats.forEach { cartSeat ->
-                    try {
-                        inventoryReservation.releaseSeat(cart.sessionId, cartSeat.seatId)
-                    } catch (e: Exception) {
-                        logger.warn { "Failed to release seat ${cartSeat.seatId} from cart ${cart.token}: ${e.message}" }
-                    }
-                }
-
-                // Release GA capacity
-                gaItems.forEach { cartItem ->
-                    try {
-                        inventoryReservation.releaseGATickets(cart.sessionId, cartItem.levelId, cartItem.quantity)
-                    } catch (e: Exception) {
-                        logger.warn { "Failed to release GA for level ${cartItem.levelId} from cart ${cart.token}: ${e.message}" }
-                    }
-                }
-
-                totalItemsReleased += seats.size + gaItems.size
-
-                // Delete cart (CASCADE deletes items)
-                cartRepository.delete(cart)
-
-                logger.info { "Expired cart deleted: ${cart.token}, released ${seats.size} seats and ${gaItems.size} GA items" }
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to process expired cart ${cart.token}: ${e.message}" }
+            val result = cartCleanupHelper.deleteSingleCart(cart)
+            if (result != null) {
+                totalItemsReleased += result.itemsReleased
+                successfulDeletions++
             }
         }
 
         if (totalItemsReleased > 0) {
-            logger.info { "Cleanup complete: Deleted ${expiredCarts.size} carts, released $totalItemsReleased items" }
+            logger.info { "Cleanup complete: Deleted $successfulDeletions carts, released $totalItemsReleased items" }
         }
 
-        return expiredCarts.size
+        return successfulDeletions
     }
 }

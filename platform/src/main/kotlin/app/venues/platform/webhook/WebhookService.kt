@@ -49,7 +49,6 @@ class WebhookService(
         private const val TIMESTAMP_HEADER = "X-Venues-Timestamp"
         private const val NONCE_HEADER = "X-Venues-Nonce"
         private const val EVENT_TYPE_HEADER = "X-Venues-Event-Type"
-        private const val REQUEST_TIMEOUT_SECONDS = 10L
     }
 
     // ===========================================
@@ -219,11 +218,11 @@ class WebhookService(
             val url = "${platform.apiUrl}$WEBHOOK_ENDPOINT"
             val timestamp = Instant.now().toString()
             val nonce = java.util.UUID.randomUUID().toString()
-            val signature = generateSignature(platform.id!!, timestamp, nonce, platform.sharedSecret)
+            val signature = generateSignature(platform.id ?: 0L, timestamp, nonce, platform.sharedSecret)
 
             logger.debug { "Sending webhook to ${platform.name} at $url" }
 
-            webClient.post()
+            val response = webClient.post()
                 .uri(url)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .header(SIGNATURE_HEADER, signature)
@@ -235,11 +234,25 @@ class WebhookService(
                 .toBodilessEntity()
                 .block()
 
-            // ...existing code...
+            val statusCode = response?.statusCode?.value() ?: 200
+            webhookEvent.markAsDelivered(statusCode, "Success")
+            webhookEventRepository.save(webhookEvent)
+
+            logger.info { "Webhook delivered successfully to ${platform.name}: ${webhookEvent.id}" }
+
         } catch (e: WebClientResponseException) {
-            // ...existing code...
+            val errorMessage = "HTTP ${e.statusCode.value()}: ${e.responseBodyAsString}"
+            webhookEvent.markAsFailed(e.statusCode.value(), errorMessage)
+            webhookEventRepository.save(webhookEvent)
+
+            logger.warn { "Webhook delivery failed to ${platform.name}: $errorMessage" }
+
         } catch (e: Exception) {
-            // ...existing code...
+            val errorMessage = "Delivery error: ${e.message}"
+            webhookEvent.markAsFailed(null, errorMessage)
+            webhookEventRepository.save(webhookEvent)
+
+            logger.error(e) { "Webhook delivery failed to ${platform.name}" }
         }
     }
 

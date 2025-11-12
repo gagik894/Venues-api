@@ -1,20 +1,27 @@
 package app.venues.booking.persistence
 
+import app.venues.booking.event.GAAvailabilityChangedEvent
+import app.venues.booking.event.SeatReleasedEvent
 import app.venues.common.exception.VenuesException
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.seating.api.SeatingApi
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 
 /**
  * Performs atomic inventory reservation operations.
  * All operations are idempotent and thread-safe via database constraints.
+ * Publishes domain events for inventory changes.
  */
 @Component
 class InventoryReservationHandler(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository
+    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val seatingApi: SeatingApi,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
     data class SeatReservationResult(
         val seatId: Long,
@@ -72,6 +79,20 @@ class InventoryReservationHandler(
             ?.let { config ->
                 config.status = ConfigStatus.AVAILABLE
                 sessionSeatConfigRepository.save(config)
+
+                // Publish seat released event
+                val seatInfo = seatingApi.getSeatInfo(seatId)
+                val levelInfo = seatInfo?.let { seatingApi.getLevelInfo(it.levelId) }
+
+                if (seatInfo != null && levelInfo != null) {
+                    eventPublisher.publishEvent(
+                        SeatReleasedEvent(
+                            sessionId = sessionId,
+                            seatIdentifier = seatInfo.seatIdentifier,
+                            levelName = levelInfo.levelName
+                        )
+                    )
+                }
             }
     }
 
@@ -80,6 +101,23 @@ class InventoryReservationHandler(
             ?.let { config ->
                 config.soldCount = maxOf(0, config.soldCount - quantity)
                 sessionLevelConfigRepository.save(config)
+
+                // Publish GA availability changed event
+                val levelInfo = seatingApi.getLevelInfo(levelId)
+                if (levelInfo != null) {
+                    val capacity = config.capacity ?: 0
+                    val availableTickets = capacity - config.soldCount
+
+                    eventPublisher.publishEvent(
+                        GAAvailabilityChangedEvent(
+                            sessionId = sessionId,
+                            levelIdentifier = levelInfo.levelIdentifier ?: "",
+                            levelName = levelInfo.levelName,
+                            availableTickets = availableTickets,
+                            totalCapacity = capacity
+                        )
+                    )
+                }
             }
     }
 }

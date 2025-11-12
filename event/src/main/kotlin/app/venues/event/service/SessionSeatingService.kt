@@ -7,6 +7,7 @@ import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionLevelConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.LevelDto
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional
 class SessionSeatingService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
     private val seatingApi: SeatingApi
 ) {
@@ -65,6 +67,10 @@ class SessionSeatingService(
         val levelConfigs = sessionLevelConfigRepository.findBySessionId(sessionId)
         val levelConfigMap = levelConfigs.associateBy { it.levelId }
 
+        // 4b. Batch load all table configs for this session (1 query)
+        val tableConfigs = sessionTableConfigRepository.findBySessionId(sessionId)
+        val tableConfigMap = tableConfigs.associateBy { it.tableId }
+
         // 5. Get price templates
         val priceTemplates = getPriceTemplatesForSession(event)
 
@@ -74,22 +80,96 @@ class SessionSeatingService(
         // 7. Build flat seats array with level hierarchy embedded
         val seats = mutableListOf<SessionSeatResponse>()
         val gaAreas = mutableListOf<SessionGAAreaResponse>()
+        val tables = mutableListOf<SessionTableResponse>()
+
+        // Track which seats belong to tables to avoid duplicates
+        val tableSeatIds = mutableSetOf<Long>()
+
+        // First pass: identify all table level IDs for batch loading
+        val tableLevelIds = chartStructure.levels
+            .filter { level ->
+                tableConfigMap[level.id] != null && level.isTable == true
+            }
+            .map { it.id }
+
+        // Batch load all table seats in one query (avoid N+1)
+        val tableLevelToSeatsMap = if (tableLevelIds.isNotEmpty()) {
+            try {
+                seatingApi.getSeatsForLevelsBatch(tableLevelIds)
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to batch load table seats: ${e.message}" }
+                emptyMap()
+            }
+        } else {
+            emptyMap()
+        }
 
         // Process levels from chart structure DTOs
         for (levelDto in chartStructure.levels) {
             val levelId = levelDto.id
             val levelConfig = levelConfigMap[levelId]
+            val tableConfig = tableConfigMap[levelId]
 
-            // Check if this is a GA level (has capacity in session config)
-            val sessionCapacity = levelConfig?.capacity
-            if (sessionCapacity != null) {
+            // Check if this is a table level
+            if (tableConfig != null && levelDto.isTable == true) {
+                try {
+                    // Get seats from batch-loaded map
+                    val tableSeats = tableLevelToSeatsMap[levelId]
+
+                    // Validate table has seats
+                    if (tableSeats == null || tableSeats.isEmpty()) {
+                        logger.warn { "Table level $levelId has no seats, skipping" }
+                        continue
+                    }
+
+                    val seatIdentifiers = tableSeats.map { it.seatIdentifier }
+
+                    // Track table seat IDs to exclude from individual seat array
+                    tableSeatIds.addAll(tableSeats.map { it.id })
+
+                    tables.add(
+                        SessionTableResponse(
+                            tableId = levelId,
+                            tableName = levelDto.levelName,
+                            tableIdentifier = levelDto.levelIdentifier,
+                            levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
+                            positionX = levelDto.positionX,
+                            positionY = levelDto.positionY,
+                            bookingMode = levelDto.tableBookingMode ?: "FLEXIBLE",
+                            seatCount = tableSeats.size,
+                            seatIdentifiers = seatIdentifiers,
+                            status = tableConfig.status.name,
+                            price = tableConfig.priceTemplate?.price?.toString(),
+                            priceTemplateId = tableConfig.priceTemplate?.id,
+                            priceTemplateName = tableConfig.priceTemplate?.templateName,
+                            priceTemplateColor = tableConfig.priceTemplate?.color
+                        )
+                    )
+
+                    logger.debug { "Processed table: ${levelDto.levelName} with ${tableSeats.size} seats" }
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to process table level $levelId: ${e.message}" }
+                    // Continue processing other levels instead of failing completely
+                }
+            } else if (levelConfig != null && levelConfig.capacity != null) {
                 // GA area - use session-specific capacity and sold count
+                val sessionCapacity = levelConfig.capacity
+                if (sessionCapacity == null || sessionCapacity <= 0) {
+                    logger.warn { "GA level $levelId has invalid capacity, skipping" }
+                    continue
+                }
+
                 val available = levelConfig.getAvailableCapacity() ?: sessionCapacity
+                val levelIdentifier = levelDto.levelIdentifier
+
+                if (levelIdentifier == null) {
+                    logger.warn { "GA level $levelId missing identifier, skipping" }
+                    continue
+                }
 
                 gaAreas.add(
                     SessionGAAreaResponse(
-                        levelIdentifier = levelDto.levelIdentifier
-                            ?: throw VenuesException.ValidationFailure("GA level missing identifier"),
+                        levelIdentifier = levelIdentifier,
                         levelName = levelDto.levelName,
                         levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
                         capacity = sessionCapacity,
@@ -103,7 +183,16 @@ class SessionSeatingService(
                 // Seated level - get all seats from chart structure
                 val levelSeats = chartStructure.seats.filter { it.levelId == levelId }
                 for (seatDto in levelSeats) {
-                    val config = seatConfigMap[seatDto.id] ?: continue
+                    // Skip seats that belong to tables
+                    if (seatDto.id in tableSeatIds) {
+                        continue
+                    }
+
+                    val config = seatConfigMap[seatDto.id]
+                    if (config == null) {
+                        logger.warn { "Seat config missing for seat ${seatDto.seatIdentifier}, skipping" }
+                        continue
+                    }
 
                     seats.add(
                         SessionSeatResponse(
@@ -124,12 +213,19 @@ class SessionSeatingService(
             }
         }
 
-        // 8. Calculate totals
+        // 8. Calculate totals (including table seats)
         val totalSeats = seatConfigs.size
         val availableSeats = seatConfigs.count { it.status.name == "AVAILABLE" }
         val soldSeats = session.ticketsSold
+        val tableSeatsCount = tableSeatIds.size
 
-        val eventId = event.id ?: throw VenuesException.ValidationFailure("Event ID is null")
+        logger.info {
+            "Session seating loaded: $totalSeats seats ($availableSeats available), " +
+                    "${tables.size} tables ($tableSeatsCount table seats), ${gaAreas.size} GA areas"
+        }
+
+        val eventId = event.id
+            ?: throw VenuesException.ValidationFailure("Event ID is null")
 
         return SessionSeatingResponse(
             sessionId = sessionId,
@@ -140,6 +236,7 @@ class SessionSeatingService(
             priceTemplates = priceTemplates,
             seats = seats,
             gaAreas = gaAreas,
+            tables = tables,
             totalSeats = totalSeats,
             availableSeats = availableSeats,
             soldSeats = soldSeats
@@ -152,30 +249,51 @@ class SessionSeatingService(
      *
      * Example: levelId=5 -> ["Orchestra", "Main Floor", "Row A"]
      *
-     * This operates entirely on DTOs with no entity access.
+     * Uses memoization to prevent redundant computation for deep hierarchies.
      */
     private fun buildLevelHierarchyMap(allLevels: List<LevelDto>): Map<Long, List<String>> {
-        val levelMap = allLevels.associateBy { it.id }
-        val hierarchyMap = mutableMapOf<Long, List<String>>()
+        if (allLevels.isEmpty()) {
+            return emptyMap()
+        }
 
-        fun getHierarchy(level: LevelDto): List<String> {
-            return if (level.parentLevelId == null) {
+        val levelMap = allLevels.associateBy { it.id }
+        val hierarchyCache = mutableMapOf<Long, List<String>>()
+
+        fun getHierarchy(levelId: Long, visited: Set<Long> = emptySet()): List<String> {
+            // Check cache first
+            hierarchyCache[levelId]?.let { return it }
+
+            val level = levelMap[levelId] ?: return emptyList()
+
+            // Detect circular reference
+            if (levelId in visited) {
+                logger.warn { "Circular hierarchy detected for level $levelId" }
+                return listOf(level.levelName)
+            }
+
+            val hierarchy = if (level.parentLevelId == null) {
                 listOf(level.levelName)
             } else {
-                val parent = levelMap[level.parentLevelId]
-                if (parent != null) {
-                    getHierarchy(parent) + level.levelName
+                val parentHierarchy = getHierarchy(level.parentLevelId!!, visited + levelId)
+                if (parentHierarchy.isNotEmpty()) {
+                    parentHierarchy + level.levelName
                 } else {
                     listOf(level.levelName)
                 }
             }
+
+            hierarchyCache[levelId] = hierarchy
+            return hierarchy
         }
 
-        for (level in allLevels) {
-            hierarchyMap[level.id] = getHierarchy(level)
+        // Pre-compute hierarchy for all levels
+        allLevels.forEach { level ->
+            if (level.id !in hierarchyCache) {
+                getHierarchy(level.id)
+            }
         }
 
-        return hierarchyMap
+        return hierarchyCache.toMap()
     }
 
     /**

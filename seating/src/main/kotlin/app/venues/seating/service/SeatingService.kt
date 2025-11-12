@@ -128,6 +128,30 @@ class SeatingService(
         }
     }
 
+    override fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>> {
+        if (levelIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        // Single query to load all seats for all levels
+        val seats = seatRepository.findByLevelIdIn(levelIds)
+
+        // Group by level ID
+        return seats.groupBy { it.level.id!! }
+            .mapValues { (_, levelSeats) ->
+                levelSeats.map { seat ->
+                    SeatInfoDto(
+                        id = seat.id!!,
+                        seatIdentifier = seat.seatIdentifier,
+                        seatNumber = seat.seatNumber,
+                        rowLabel = seat.rowLabel,
+                        levelId = seat.level.id!!,
+                        levelName = seat.level.levelName
+                    )
+                }
+            }
+    }
+
     override fun getChartStructure(chartId: Long): SeatingChartStructureDto? {
         val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
 
@@ -141,7 +165,9 @@ class SeatingService(
                 parentLevelId = level.parentLevel?.id,
                 capacity = level.capacity,
                 positionX = level.positionX,
-                positionY = level.positionY
+                positionY = level.positionY,
+                isTable = level.isTable,
+                tableBookingMode = level.tableBookingMode?.name
             )
         }
 

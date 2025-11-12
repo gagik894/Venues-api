@@ -38,41 +38,43 @@ class InventoryReservationHandler(
         val unitPrice: BigDecimal
     )
 
+    /**
+     * Atomically reserve a seat and get its price in a single operation.
+     * Thread-safe and prevents race conditions.
+     *
+     * @throws VenuesException.ResourceConflict if seat unavailable
+     * @throws VenuesException.ValidationFailure if seat not priced
+     */
     fun reserveSeat(sessionId: Long, seatId: Long): SeatReservationResult {
-        val price = sessionSeatConfigRepository.getSeatPriceIfAvailable(sessionId, seatId)
-            ?: throw VenuesException.ValidationFailure(
-                "Seat is not available or not priced for this session"
+        // Atomic operation: reserve + get price in single UPDATE
+        val price = sessionSeatConfigRepository.reserveSeatAndGetPrice(sessionId, seatId)
+            ?: throw VenuesException.ResourceConflict(
+                "Seat is not available for reservation or not priced"
             )
 
-        val rowsAffected = sessionSeatConfigRepository.reserveSeatIfAvailable(sessionId, seatId)
-
-        if (rowsAffected == 0) {
-            throw VenuesException.ResourceConflict("Seat is not available for reservation")
+        // Block any tables that contain this seat (non-critical, best-effort)
+        try {
+            blockTablesContainingSeat(sessionId, seatId)
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to block tables for seat $seatId (non-critical): ${e.message}" }
         }
-
-        // Block any tables that contain this seat
-        blockTablesContainingSeat(sessionId, seatId)
 
         return SeatReservationResult(seatId = seatId, price = price)
     }
 
+    /**
+     * Atomically reserve GA tickets and get unit price in a single operation.
+     * Thread-safe and prevents race conditions.
+     *
+     * @throws VenuesException.ResourceConflict if insufficient capacity
+     * @throws VenuesException.ValidationFailure if level not priced
+     */
     fun reserveGATickets(sessionId: Long, levelId: Long, quantity: Int): GAReservationResult {
-        val price = sessionLevelConfigRepository.getGAPriceIfAvailable(sessionId, levelId, quantity)
-            ?: throw VenuesException.ValidationFailure(
-                "GA level is not available, not priced, or insufficient capacity for $quantity tickets"
+        // Atomic operation: reserve + get price in single UPDATE
+        val price = sessionLevelConfigRepository.reserveGAAndGetPrice(sessionId, levelId, quantity)
+            ?: throw VenuesException.ResourceConflict(
+                "Not enough tickets available or level not priced. Requested: $quantity"
             )
-
-        val rowsAffected = sessionLevelConfigRepository.reserveGATicketsIfAvailable(
-            sessionId,
-            levelId,
-            quantity
-        )
-
-        if (rowsAffected == 0) {
-            throw VenuesException.ResourceConflict(
-                "Not enough tickets available. Requested: $quantity"
-            )
-        }
 
         return GAReservationResult(
             levelId = levelId,

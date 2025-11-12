@@ -52,8 +52,10 @@ class CartService(
     /**
      * Adds a seat to cart with atomic reservation and price snapshotting.
      * Creates cart session if first item, extends expiration if cart exists.
+     *
+     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse {
         // Validate session exists
         eventSessionRepository.findById(request.sessionId)
@@ -109,8 +111,10 @@ class CartService(
      * If GA item for same level exists: Updates quantity (adds to existing)
      * If new level: Creates new cart item
      * Validates quantity limits and capacity.
+     *
+     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse {
         // Validate session exists
         eventSessionRepository.findById(request.sessionId)
@@ -172,8 +176,10 @@ class CartService(
     /**
      * Add a complete table to cart.
      * Validates table booking mode, atomically reserves table, blocks individual seats.
+     *
+     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun addTableToCart(sessionId: Long, tableId: Long, token: UUID? = null): AddToCartResponse {
         logger.debug { "Adding table to cart: session=$sessionId, table=$tableId" }
 

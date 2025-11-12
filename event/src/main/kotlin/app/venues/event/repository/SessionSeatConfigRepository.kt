@@ -71,22 +71,72 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun getSeatPriceIfAvailable(sessionId: Long, seatId: Long): java.math.BigDecimal?
 
     /**
-     * Atomically reserve a seat if it's available.
+     * Atomically reserve a seat if it's available AND return the price.
+     * This prevents race conditions by doing price fetch + reservation in one operation.
+     *
+     * Uses a custom query with RETURNING clause (PostgreSQL).
+     *
      * @param sessionId Event session ID
      * @param seatId Seat ID to reserve
-     * @return Number of rows updated (0 or 1)
+     * @return Price if reservation successful, null if seat unavailable/not priced
+     */
+    @Query(
+        nativeQuery = true,
+        value = """
+        WITH updated AS (
+            UPDATE session_seat_configs
+            SET status = 'RESERVED'
+            WHERE session_id = :sessionId
+            AND seat_id = :seatId
+            AND status = 'AVAILABLE'
+            RETURNING price_template_id
+        )
+        SELECT pt.price
+        FROM updated u
+        JOIN event_price_templates pt ON pt.id = u.price_template_id
+    """
+    )
+    fun reserveSeatAndGetPrice(sessionId: Long, seatId: Long): java.math.BigDecimal?
+
+    /**
+     * Atomically block multiple seats (set to BLOCKED status).
+     * Used when reserving a table to block all its seats in one operation.
+     *
+     * @param sessionId Event session ID
+     * @param seatIds List of seat IDs to block
+     * @return Number of rows updated
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         """
         UPDATE SessionSeatConfig sc
-        SET sc.status = app.venues.event.domain.ConfigStatus.RESERVED
+        SET sc.status = app.venues.event.domain.ConfigStatus.BLOCKED
         WHERE sc.session.id = :sessionId
-        AND sc.seatId = :seatId
+        AND sc.seatId IN :seatIds
         AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
     """
     )
-    fun reserveSeatIfAvailable(sessionId: Long, seatId: Long): Int
+    fun blockSeats(sessionId: Long, seatIds: List<Long>): Int
+
+    /**
+     * Atomically unblock multiple seats (set to AVAILABLE status).
+     * Used when releasing a table reservation.
+     *
+     * @param sessionId Event session ID
+     * @param seatIds List of seat IDs to unblock
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status = app.venues.event.domain.ConfigStatus.BLOCKED
+    """
+    )
+    fun unblockSeats(sessionId: Long, seatIds: List<Long>): Int
 
     /**
      * Get availability statistics for session (optimized - count only).

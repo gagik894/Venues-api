@@ -61,24 +61,34 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
     fun getGAPriceIfAvailable(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
 
     /**
-     * Atomically reserve GA level tickets if available capacity exists.
+     * Atomically reserve GA level tickets if available capacity exists AND return price.
+     * This prevents race conditions by doing price fetch + reservation in one operation.
+     *
+     * Uses native SQL with RETURNING clause (PostgreSQL).
      *
      * @param sessionId Event session ID
      * @param levelId Level ID to reserve from
      * @param quantity Number of tickets to reserve
-     * @return Number of rows updated (0 or 1)
+     * @return Price if reservation successful, null if failed
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
-        """
-        UPDATE SessionLevelConfig slc
-        SET slc.soldCount = slc.soldCount + :quantity
-        WHERE slc.session.id = :sessionId
-        AND slc.levelId = :levelId
-        AND slc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
-        AND (slc.capacity - slc.soldCount) >= :quantity
+        nativeQuery = true,
+        value = """
+        WITH updated AS (
+            UPDATE session_level_configs
+            SET sold_count = sold_count + :quantity
+            WHERE session_id = :sessionId
+            AND level_id = :levelId
+            AND status = 'AVAILABLE'
+            AND (capacity - sold_count) >= :quantity
+            RETURNING price_template_id
+        )
+        SELECT pt.price
+        FROM updated u
+        JOIN event_price_templates pt ON pt.id = u.price_template_id
     """
     )
-    fun reserveGATicketsIfAvailable(sessionId: Long, levelId: Long, quantity: Int): Int
+    fun reserveGAAndGetPrice(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
 }
 

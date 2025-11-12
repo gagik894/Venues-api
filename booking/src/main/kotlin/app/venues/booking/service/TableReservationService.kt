@@ -131,33 +131,43 @@ class TableReservationService(
     }
 
     /**
-     * Block all seats in a table (set to BLOCKED status).
+     * Block all seats in a table atomically (set to BLOCKED status).
+     * Uses bulk UPDATE operation for thread-safety under high load.
      */
     private fun blockAllSeatsInTable(sessionId: Long, tableId: Long) {
         val seats = seatingApi.getSeatsForLevel(tableId)
-        seats.forEach { seat ->
-            val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seat.id)
-            if (seatConfig != null && seatConfig.status == ConfigStatus.AVAILABLE) {
-                seatConfig.status = ConfigStatus.BLOCKED
-                sessionSeatConfigRepository.save(seatConfig)
-                logger.debug { "Blocked seat ${seat.seatIdentifier} in table $tableId" }
+        if (seats.isEmpty()) {
+            logger.warn { "Table $tableId has no seats to block" }
+            return
+        }
+
+        val seatIds = seats.map { it.id }
+        val blockedCount = sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+
+        logger.debug { "Blocked $blockedCount/${seatIds.size} seats in table $tableId" }
+
+        if (blockedCount < seatIds.size) {
+            logger.warn {
+                "Only blocked $blockedCount/${seatIds.size} seats in table $tableId " +
+                        "(some may have been already reserved/sold)"
             }
         }
     }
 
     /**
-     * Unblock all seats in a table (set to AVAILABLE status).
+     * Unblock all seats in a table atomically (set to AVAILABLE status).
+     * Uses bulk UPDATE operation for thread-safety under high load.
      */
     private fun unblockAllSeatsInTable(sessionId: Long, tableId: Long) {
         val seats = seatingApi.getSeatsForLevel(tableId)
-        seats.forEach { seat ->
-            val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seat.id)
-            if (seatConfig != null && seatConfig.status == ConfigStatus.BLOCKED) {
-                seatConfig.status = ConfigStatus.AVAILABLE
-                sessionSeatConfigRepository.save(seatConfig)
-                logger.debug { "Unblocked seat ${seat.seatIdentifier} in table $tableId" }
-            }
+        if (seats.isEmpty()) {
+            return
         }
+
+        val seatIds = seats.map { it.id }
+        val unblockedCount = sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+
+        logger.debug { "Unblocked $unblockedCount/${seatIds.size} seats in table $tableId" }
     }
 
     /**

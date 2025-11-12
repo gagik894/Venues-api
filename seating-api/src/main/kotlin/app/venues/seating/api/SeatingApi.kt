@@ -71,5 +71,14 @@ interface SeatingApi {
      * Used for table operations to check if all table seats are available.
      */
     fun getSeatsForLevel(levelId: Long): List<SeatInfoDto>
+
+    /**
+     * Get all seats for multiple levels at once (batch operation).
+     * Optimized to avoid N+1 queries when loading table seats.
+     *
+     * @param levelIds List of level IDs
+     * @return Map of levelId to list of seats for that level
+     */
+    fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>>
 }
 

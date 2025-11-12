@@ -24,6 +24,11 @@ interface SeatRepository : JpaRepository<Seat, Long> {
     fun findByLevelId(levelId: Long): List<Seat>
 
     /**
+     * Find all seats for multiple levels (batch query)
+     */
+    fun findByLevelIdIn(levelIds: List<Long>): List<Seat>
+
+    /**
      * Find seat by level and identifier
      */
     fun findByLevelIdAndSeatIdentifier(levelId: Long, seatIdentifier: String): Seat?

@@ -20,6 +20,9 @@ data class SessionSeatingResponse(
     // GA (General Admission) areas
     val gaAreas: List<SessionGAAreaResponse>,
 
+    // Tables (complete booking units)
+    val tables: List<SessionTableResponse>,
+
     // Statistics
     val totalSeats: Int,
     val availableSeats: Int,
@@ -62,6 +65,35 @@ data class SessionGAAreaResponse(
     val price: String?,
     val priceTemplateId: Long?,
     val priceTemplateName: String?
+)
+
+/**
+ * Table booking information.
+ * Represents a group of seats that can be booked as a complete unit.
+ */
+data class SessionTableResponse(
+    val tableId: Long,
+    val tableName: String,
+    val tableIdentifier: String?,
+
+    // Level hierarchy (e.g., ["VIP Lounge", "VIP Table 1"])
+    val levels: List<String>,
+
+    // Position for rendering
+    val positionX: Double?,
+    val positionY: Double?,
+
+    // Table booking configuration
+    val bookingMode: String,  // TABLE_ONLY, FLEXIBLE, SEATS_ONLY
+    val seatCount: Int,
+    val seatIdentifiers: List<String>,  // All seat IDs in this table
+
+    // Session-specific data
+    val status: String,  // AVAILABLE, RESERVED, SOLD, BLOCKED
+    val price: String?,
+    val priceTemplateId: Long?,
+    val priceTemplateName: String?,
+    val priceTemplateColor: String?
 )
 
 /**

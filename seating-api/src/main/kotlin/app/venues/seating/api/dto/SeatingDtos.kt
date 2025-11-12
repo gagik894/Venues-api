@@ -45,7 +45,9 @@ data class LevelDto(
     val parentLevelId: Long?,
     val capacity: Int?,
     val positionX: Double?,
-    val positionY: Double?
+    val positionY: Double?,
+    val isTable: Boolean? = null,
+    val tableBookingMode: String? = null
 )
 
 /**

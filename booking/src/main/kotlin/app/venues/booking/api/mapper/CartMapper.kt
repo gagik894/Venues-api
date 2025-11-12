@@ -3,8 +3,10 @@ package app.venues.booking.api.mapper
 import app.venues.booking.api.dto.CartGAItemResponse
 import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
+import app.venues.booking.api.dto.CartTableResponse
 import app.venues.booking.domain.CartItem
 import app.venues.booking.domain.CartSeat
+import app.venues.booking.domain.CartTable
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
@@ -79,12 +81,35 @@ class CartMapper {
     }
 
     /**
+     * Convert CartTable to response DTO
+     *
+     * @param cartTable The cart table entity
+     * @param tableName Table name (from seating module)
+     * @param seatCount Number of seats in the table
+     * @param price Total table price
+     */
+    fun toCartTableResponse(
+        cartTable: CartTable,
+        tableName: String,
+        seatCount: Int,
+        price: BigDecimal
+    ): CartTableResponse {
+        return CartTableResponse(
+            tableId = cartTable.tableId,
+            tableName = tableName,
+            seatCount = seatCount,
+            price = price
+        )
+    }
+
+    /**
      * Build complete cart summary
      */
     fun toCartSummary(
         token: UUID,
         seats: List<CartSeatResponse>,
         gaItems: List<CartGAItemResponse>,
+        tables: List<CartTableResponse> = emptyList(),
         totalPrice: BigDecimal,
         currency: String,
         expiresAt: String,
@@ -95,6 +120,7 @@ class CartMapper {
             token = token,
             seats = seats,
             gaItems = gaItems,
+            tables = tables,
             totalPrice = totalPrice.toString(),
             currency = currency,
             expiresAt = expiresAt,

@@ -82,7 +82,8 @@ class SeatingService(
                     levelName = level.levelName,
                     levelIdentifier = level.levelIdentifier,
                     capacity = level.capacity,
-                    isGeneralAdmission = level.isGeneralAdmission()
+                    isGeneralAdmission = level.isGeneralAdmission(),
+                    tableBookingMode = level.tableBookingMode?.name
                 )
             }
             .orElse(null)
@@ -95,7 +96,8 @@ class SeatingService(
             levelName = level.levelName,
             levelIdentifier = level.levelIdentifier,
             capacity = level.capacity,
-            isGeneralAdmission = level.isGeneralAdmission()
+            isGeneralAdmission = level.isGeneralAdmission(),
+            tableBookingMode = level.tableBookingMode?.name
         )
     }
 
@@ -111,6 +113,19 @@ class SeatingService(
 
     override fun levelExists(levelId: Long): Boolean {
         return levelRepository.existsById(levelId)
+    }
+
+    override fun getSeatsForLevel(levelId: Long): List<SeatInfoDto> {
+        return seatRepository.findByLevelId(levelId).map { seat ->
+            SeatInfoDto(
+                id = seat.id!!,
+                seatIdentifier = seat.seatIdentifier,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                levelId = seat.level.id ?: throw IllegalStateException("Level ID should not be null"),
+                levelName = seat.level.levelName
+            )
+        }
     }
 
     override fun getChartStructure(chartId: Long): SeatingChartStructureDto? {

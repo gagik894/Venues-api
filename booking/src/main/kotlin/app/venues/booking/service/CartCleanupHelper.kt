@@ -5,6 +5,7 @@ import app.venues.booking.persistence.InventoryReservationHandler
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.repository.CartSeatRepository
+import app.venues.booking.repository.CartTableRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -19,7 +20,9 @@ class CartCleanupHelper(
     private val cartRepository: CartRepository,
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
-    private val inventoryReservation: InventoryReservationHandler
+    private val cartTableRepository: CartTableRepository,
+    private val inventoryReservation: InventoryReservationHandler,
+    private val tableReservationService: TableReservationService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -32,6 +35,7 @@ class CartCleanupHelper(
         return try {
             val seats = cartSeatRepository.findByCart(cart)
             val gaItems = cartItemRepository.findByCart(cart)
+            val tables = cartTableRepository.findByCart(cart)
 
             // Release seat inventory
             seats.forEach { cartSeat ->
@@ -51,12 +55,21 @@ class CartCleanupHelper(
                 }
             }
 
-            val itemsReleased = seats.size + gaItems.size
+            // Release table inventory
+            tables.forEach { cartTable ->
+                try {
+                    tableReservationService.releaseTable(cart.sessionId, cartTable.tableId)
+                } catch (e: Exception) {
+                    logger.warn { "Failed to release table ${cartTable.tableId} from cart ${cart.token}: ${e.message}" }
+                }
+            }
+
+            val itemsReleased = seats.size + gaItems.size + tables.sumOf { it.seatCount }
 
             // Delete cart (CASCADE deletes items)
             cartRepository.delete(cart)
 
-            logger.info { "Expired cart deleted: ${cart.token}, released ${seats.size} seats and ${gaItems.size} GA items" }
+            logger.info { "Expired cart deleted: ${cart.token}, released ${seats.size} seats, ${gaItems.size} GA items, ${tables.size} tables" }
 
             DeletionResult(itemsReleased)
         } catch (e: Exception) {

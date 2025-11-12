@@ -36,3 +36,21 @@ data class GAAvailabilityChangedEvent(
     val totalCapacity: Int
 )
 
+/**
+ * Event fired when a table is reserved
+ */
+data class TableReservedEvent(
+    val sessionId: Long,
+    val tableId: Long,
+    val tableName: String
+)
+
+/**
+ * Event fired when a table is released
+ */
+data class TableReleasedEvent(
+    val sessionId: Long,
+    val tableId: Long,
+    val tableName: String
+)
+

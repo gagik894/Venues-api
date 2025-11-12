@@ -7,6 +7,7 @@ import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.mapper.CartMapper
 import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
+import app.venues.booking.persistence.CartTablePersistence
 import app.venues.booking.persistence.InventoryReservationHandler
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.validation.CartLimitValidator
@@ -36,6 +37,8 @@ class CartService(
     private val cartLimitValidator: CartLimitValidator,
     private val inventoryReservation: InventoryReservationHandler,
     private val cartItemPersistence: CartItemPersistence,
+    private val cartTablePersistence: CartTablePersistence,
+    private val tableReservationService: TableReservationService,
     private val cartCleanupHelper: CartCleanupHelper,
     private val eventSessionRepository: EventSessionRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
@@ -59,6 +62,14 @@ class CartService(
         // Fetch seat information
         val seatInfo = seatingApi.getSeatInfoByIdentifier(request.seatIdentifier)
             ?: throw VenuesException.ValidationFailure("Seat not found with identifier: ${request.seatIdentifier}")
+
+        // Check if seat belongs to a TABLE_ONLY table
+        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
+        if (levelInfo?.tableBookingMode == "TABLE_ONLY") {
+            throw VenuesException.ValidationFailure(
+                "This seat is part of table '${levelInfo.levelName}' which can only be booked as a complete unit"
+            )
+        }
 
         // Get or create cart session
         val cart = cartSessionManager.findOrCreateCart(token, request.sessionId)
@@ -159,6 +170,47 @@ class CartService(
     }
 
     /**
+     * Add a complete table to cart.
+     * Validates table booking mode, atomically reserves table, blocks individual seats.
+     */
+    @Transactional
+    fun addTableToCart(sessionId: Long, tableId: Long, token: UUID? = null): AddToCartResponse {
+        logger.debug { "Adding table to cart: session=$sessionId, table=$tableId" }
+
+        // Validate session exists
+        eventSessionRepository.findById(sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+
+        // Get or create cart
+        val cart = cartSessionManager.findOrCreateCart(token, sessionId)
+
+        // Validate table limit
+        cartLimitValidator.validateAddTableLimit(cart)
+
+        // Reserve table (atomic + block seats)
+        val reservation = tableReservationService.reserveTable(cart, sessionId, tableId)
+
+        // Save to cart
+        cartTablePersistence.saveTableToCart(
+            cart = cart,
+            sessionId = sessionId,
+            tableId = reservation.tableId,
+            tableName = reservation.tableName,
+            seatCount = reservation.seatCount,
+            unitPrice = reservation.price
+        )
+
+
+        logger.info { "Table added to cart: ${reservation.tableName}, token=${cart.token}" }
+
+        return AddToCartResponse(
+            token = cart.token,
+            message = "Table '${reservation.tableName}' (${reservation.seatCount} seats) added to cart successfully",
+            expiresAt = cart.expiresAt.toString()
+        )
+    }
+
+    /**
      * Retrieves cart summary. Touches cart session to track activity.
      * Returns snapshotted prices, not current live prices.
      */
@@ -170,9 +222,9 @@ class CartService(
 
         val seats = cartItemPersistence.getAllSeats(cart)
         val gaItems = cartItemPersistence.getAllGAItems(cart)
+        val tables = cartTablePersistence.getAllTables(cart)
 
-
-        if (seats.isEmpty() && gaItems.isEmpty()) {
+        if (seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()) {
             throw VenuesException.ResourceNotFound("Cart is empty")
         }
 
@@ -214,13 +266,27 @@ class CartService(
             )
         }
 
+        val tableResponses = tables.map { cartTable ->
+            val levelInfo = seatingApi.getLevelInfo(cartTable.tableId)
+                ?: throw VenuesException.ResourceNotFound("Table level not found")
+
+            cartMapper.toCartTableResponse(
+                cartTable = cartTable,
+                tableName = levelInfo.levelName,
+                seatCount = cartTable.seatCount,
+                price = cartTable.unitPrice
+            )
+        }
+
         val total = seatResponses.sumOf { BigDecimal(it.price) }
             .add(gaItemResponses.sumOf { BigDecimal(it.totalPrice) })
+            .add(tableResponses.sumOf { it.price })
 
         return cartMapper.toCartSummary(
             token = token,
             seats = seatResponses,
             gaItems = gaItemResponses,
+            tables = tableResponses,
             totalPrice = total,
             currency = session.event.currency,
             expiresAt = cart.expiresAt.toString(),
@@ -245,6 +311,22 @@ class CartService(
     }
 
     /**
+     * Remove a table from cart and release inventory.
+     */
+    @Transactional
+    fun removeTableFromCart(token: UUID, tableId: Long) {
+        val cart = cartSessionManager.getActiveCart(token)
+
+        // Release table (unblocks seats)
+        tableReservationService.releaseTable(cart.sessionId, tableId)
+
+        // Remove from cart
+        cartTablePersistence.removeTableFromCart(cart, tableId)
+
+        logger.info { "Table $tableId removed from cart $token" }
+    }
+
+    /**
      * Clears entire cart and releases all inventory.
      */
     @Transactional
@@ -253,13 +335,16 @@ class CartService(
 
         val seats = cartItemPersistence.getAllSeats(cart)
         val gaItems = cartItemPersistence.getAllGAItems(cart)
+        val tables = cartTablePersistence.getAllTables(cart)
 
         // Store IDs before deletion
         val seatIdsToRelease = seats.map { Pair(cart.sessionId, it.seatId) }
         val levelUpdates = gaItems.map { Triple(cart.sessionId, it.levelId, it.quantity) }
+        val tableIdsToRelease = tables.map { Pair(cart.sessionId, it.tableId) }
 
         // Delete all cart items (with flush to ensure FK cleanup)
         cartItemPersistence.deleteAllItems(cart)
+        cartTablePersistence.clearAllTables(cart)
 
         // Release inventory
         seatIdsToRelease.forEach { (sessionId, seatId) ->
@@ -268,6 +353,10 @@ class CartService(
 
         levelUpdates.forEach { (sessionId, levelId, quantity) ->
             inventoryReservation.releaseGATickets(sessionId, levelId, quantity)
+        }
+
+        tableIdsToRelease.forEach { (sessionId, tableId) ->
+            tableReservationService.releaseTable(sessionId, tableId)
         }
 
         // Delete cart

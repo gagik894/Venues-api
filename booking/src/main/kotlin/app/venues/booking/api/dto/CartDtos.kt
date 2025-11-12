@@ -3,6 +3,7 @@ package app.venues.booking.api.dto
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
+import java.math.BigDecimal
 import java.util.*
 
 // ===========================================
@@ -65,12 +66,23 @@ data class CartGAItemResponse(
 )
 
 /**
+ * Cart table response
+ */
+data class CartTableResponse(
+    val tableId: Long,
+    val tableName: String,
+    val seatCount: Int,
+    val price: BigDecimal
+)
+
+/**
  * Complete cart summary
  */
 data class CartSummaryResponse(
     val token: UUID,
     val seats: List<CartSeatResponse>,
     val gaItems: List<CartGAItemResponse>,
+    val tables: List<CartTableResponse> = emptyList(),
     val totalPrice: String,
     val currency: String,
     val expiresAt: String,

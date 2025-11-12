@@ -65,5 +65,11 @@ interface SeatingApi {
      * Check if level exists.
      */
     fun levelExists(levelId: Long): Boolean
+
+    /**
+     * Get all seats for a given level.
+     * Used for table operations to check if all table seats are available.
+     */
+    fun getSeatsForLevel(levelId: Long): List<SeatInfoDto>
 }
 

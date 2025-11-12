@@ -20,7 +20,8 @@ data class LevelInfoDto(
     val levelName: String,
     val levelIdentifier: String?,
     val capacity: Int?,
-    val isGeneralAdmission: Boolean
+    val isGeneralAdmission: Boolean,
+    val tableBookingMode: String? = null
 )
 
 /**

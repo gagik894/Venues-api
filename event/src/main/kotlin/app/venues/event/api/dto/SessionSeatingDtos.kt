@@ -54,6 +54,7 @@ data class SessionSeatResponse(
  * General Admission area with capacity.
  */
 data class SessionGAAreaResponse(
+    val levelIdentifier: String,
     val levelName: String,
     val levels: List<String>,  // Hierarchy (e.g., ["Balcony", "Standing Area"])
     val capacity: Int,

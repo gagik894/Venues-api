@@ -88,6 +88,8 @@ class SessionSeatingService(
 
                 gaAreas.add(
                     SessionGAAreaResponse(
+                        levelIdentifier = levelDto.levelIdentifier
+                            ?: throw VenuesException.ValidationFailure("GA level missing identifier"),
                         levelName = levelDto.levelName,
                         levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
                         capacity = sessionCapacity,

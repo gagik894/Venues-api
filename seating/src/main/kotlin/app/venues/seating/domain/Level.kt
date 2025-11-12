@@ -80,6 +80,27 @@ data class Level(
     @Column(name = "capacity")
     var capacity: Int? = null,
 
+    /**
+     * Indicates if this level represents a table (group of seats sold as a unit)
+     */
+    @Column(name = "is_table", nullable = false)
+    var isTable: Boolean = false,
+
+    /**
+     * Table booking mode (how the table can be booked)
+     * Only applicable if isTable = true
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "table_booking_mode", length = 20)
+    var tableBookingMode: TableBookingMode? = null,
+
+    /**
+     * Number of seats in the table (for validation and display)
+     * Only applicable if isTable = true
+     */
+    @Column(name = "table_capacity")
+    var tableCapacity: Int? = null,
+
 
     /**
      * Child levels (for nested hierarchy)
@@ -118,7 +139,30 @@ data class Level(
      * Check if this is a seated section
      */
     fun isSeatedSection(): Boolean {
-        return !isGeneralAdmission() && seats.isNotEmpty()
+        return !isGeneralAdmission() && !isTable && seats.isNotEmpty()
+    }
+
+    /**
+     * Check if this is a table level (has table configuration)
+     */
+    fun isTableLevel(): Boolean {
+        return isTable && tableBookingMode != null
+    }
+
+    /**
+     * Check if table allows individual seat booking
+     */
+    fun allowsSeatBooking(): Boolean {
+        return isTable && (tableBookingMode == TableBookingMode.SEATS_ONLY ||
+                tableBookingMode == TableBookingMode.FLEXIBLE)
+    }
+
+    /**
+     * Check if table allows whole table booking
+     */
+    fun allowsTableBooking(): Boolean {
+        return isTable && (tableBookingMode == TableBookingMode.TABLE_ONLY ||
+                tableBookingMode == TableBookingMode.FLEXIBLE)
     }
 
     /**

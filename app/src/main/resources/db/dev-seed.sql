@@ -14,9 +14,13 @@ FROM bookings;
 DELETE
 FROM guests;
 DELETE
+FROM cart_tables;
+DELETE
 FROM cart_seats;
 DELETE
 FROM cart_items;
+DELETE
+FROM session_table_configs;
 DELETE
 FROM session_seat_configs;
 DELETE
@@ -194,9 +198,9 @@ VALUES (1, 1, 'Swan Lake', 'Pyotr Ilyich Tchaikovsky''s timeless ballet masterpi
        (2, 2, 'Hamlet', 'William Shakespeare''s classic tragedy performed in Armenian', 'AMD', 'UPCOMING', 3, 2, NOW(),
         NOW()),
        (3, 3, 'Armenian National Philharmonic Orchestra',
-        'An evening of classical masterworks featuring Khachaturian and Komitas', 'AMD', 'UPCOMING', 4, NULL, NOW(),
+        'An evening of classical masterworks featuring Khachaturian and Komitas', 'AMD', 'UPCOMING', 4, 3, NOW(),
         NOW()),
-       (4, 3, 'Rock Night - Past Event', 'Past rock concert for testing purposes', 'AMD', 'PAST', 4, NULL,
+       (4, 3, 'Rock Night - Past Event', 'Past rock concert for testing purposes', 'AMD', 'PAST', 4, 3,
         NOW() - INTERVAL '10 days', NOW() - INTERVAL '5 days');
 
 SELECT setval('events_id_seq', 4, true);
@@ -282,9 +286,10 @@ SELECT setval('event_sessions_id_seq', 5, true);
 INSERT INTO seating_charts (id, venue_id, name, seat_indicator_size, level_indicator_size, background_url, created_at,
                             last_modified_at)
 VALUES (1, 1, 'Opera Main Hall', 1, 1, 'https://example.com/opera-bg.jpg', NOW(), NOW()),
-       (2, 2, 'Drama Theatre Hall', 1, 1, NULL, NOW(), NOW());
+       (2, 2, 'Drama Theatre Hall', 1, 1, NULL, NOW(), NOW()),
+       (3, 3, 'Concert Hall VIP Lounge', 1, 1, 'https://example.com/concert-vip-bg.jpg', NOW(), NOW());
 
-SELECT setval('seating_charts_id_seq', 2, true);
+SELECT setval('seating_charts_id_seq', 3, true);
 
 -- ================================================================
 -- 7. LEVELS (Sections)
@@ -297,9 +302,25 @@ VALUES
 (2, 1, NULL, 'Balcony', 'BALC', 50.0, 50.0, NULL, NOW(), NOW()),
 (3, 1, NULL, 'Standing Area', 'STAND', 50.0, 150.0, 100, NOW(), NOW()), -- GA area
 -- Drama Theatre levels (seating_chart_id = 2)
-(4, 2, NULL, 'Parterre', 'PART', 50.0, 100.0, NULL, NOW(), NOW());
+(4, 2, NULL, 'Parterre', 'PART', 50.0, 100.0, NULL, NOW(), NOW()),
+-- Concert Hall levels with tables (seating_chart_id = 3)
+(5, 3, NULL, 'VIP Lounge', 'VIP-LOUNGE', 30.0, 80.0, NULL, NOW(), NOW());
+-- Parent section for VIP tables
 
-SELECT setval('levels_id_seq', 4, true);
+-- VIP Tables (FLEXIBLE mode - can book individual seats or whole table)
+INSERT INTO levels (id, seating_chart_id, parent_level_id, level_name, level_identifier, position_x, position_y,
+                    capacity, is_table, table_booking_mode, table_capacity, created_at, last_modified_at)
+VALUES
+-- VIP Table 1 (4 seats, flexible booking)
+(6, 3, 5, 'VIP Table 1', 'VIP-T1', 20.0, 70.0, NULL, true, 'FLEXIBLE', 4, NOW(), NOW()),
+-- VIP Table 2 (4 seats, flexible booking)
+(7, 3, 5, 'VIP Table 2', 'VIP-T2', 40.0, 70.0, NULL, true, 'FLEXIBLE', 4, NOW(), NOW()),
+-- VIP Table 3 (6 seats, table only - must book complete table)
+(8, 3, 5, 'VIP Table 3', 'VIP-T3', 60.0, 70.0, NULL, true, 'TABLE_ONLY', 6, NOW(), NOW()),
+-- Premium Table (8 seats, seats only - individual booking)
+(9, 3, 5, 'Premium Table', 'PREM-T1', 80.0, 70.0, NULL, true, 'SEATS_ONLY', 8, NOW(), NOW());
+
+SELECT setval('levels_id_seq', 9, true);
 
 
 -- ================================================================
@@ -350,6 +371,45 @@ SELECT 4, -- Parterre level
 FROM generate_series(1, 4) AS row_num,
      generate_series(1, 12) AS seat_num;
 
+-- Concert Hall - VIP Table 1 (4 seats in 2x2 arrangement)
+INSERT INTO seats (level_id, seat_identifier, seat_number, row_label, position_x, position_y, seat_type, created_at,
+                   last_modified_at)
+VALUES (6, 'VIP-T1-S1', '1', NULL, 18.0, 68.0, 'vip', NOW(), NOW()),
+       (6, 'VIP-T1-S2', '2', NULL, 22.0, 68.0, 'vip', NOW(), NOW()),
+       (6, 'VIP-T1-S3', '3', NULL, 18.0, 72.0, 'vip', NOW(), NOW()),
+       (6, 'VIP-T1-S4', '4', NULL, 22.0, 72.0, 'vip', NOW(), NOW());
+
+-- Concert Hall - VIP Table 2 (4 seats in 2x2 arrangement)
+INSERT INTO seats (level_id, seat_identifier, seat_number, row_label, position_x, position_y, seat_type, created_at,
+                   last_modified_at)
+VALUES (7, 'VIP-T2-S1', '1', NULL, 38.0, 68.0, 'vip', NOW(), NOW()),
+       (7, 'VIP-T2-S2', '2', NULL, 42.0, 68.0, 'vip', NOW(), NOW()),
+       (7, 'VIP-T2-S3', '3', NULL, 38.0, 72.0, 'vip', NOW(), NOW()),
+       (7, 'VIP-T2-S4', '4', NULL, 42.0, 72.0, 'vip', NOW(), NOW());
+
+-- Concert Hall - VIP Table 3 (6 seats in 2x3 arrangement, TABLE_ONLY)
+INSERT INTO seats (level_id, seat_identifier, seat_number, row_label, position_x, position_y, seat_type, created_at,
+                   last_modified_at)
+VALUES (8, 'VIP-T3-S1', '1', NULL, 58.0, 66.0, 'vip', NOW(), NOW()),
+       (8, 'VIP-T3-S2', '2', NULL, 62.0, 66.0, 'vip', NOW(), NOW()),
+       (8, 'VIP-T3-S3', '3', NULL, 58.0, 70.0, 'vip', NOW(), NOW()),
+       (8, 'VIP-T3-S4', '4', NULL, 62.0, 70.0, 'vip', NOW(), NOW()),
+       (8, 'VIP-T3-S5', '5', NULL, 58.0, 74.0, 'vip', NOW(), NOW()),
+       (8, 'VIP-T3-S6', '6', NULL, 62.0, 74.0, 'vip', NOW(), NOW());
+
+-- Concert Hall - Premium Table (8 seats in 2x4 arrangement, SEATS_ONLY)
+INSERT INTO seats (level_id, seat_identifier, seat_number, row_label, position_x, position_y, seat_type, created_at,
+                   last_modified_at)
+VALUES (9, 'PREM-T1-S1', '1', NULL, 76.0, 64.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S2', '2', NULL, 80.0, 64.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S3', '3', NULL, 84.0, 64.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S4', '4', NULL, 88.0, 64.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S5', '5', NULL, 76.0, 76.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S6', '6', NULL, 80.0, 76.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S7', '7', NULL, 84.0, 76.0, 'premium', NOW(), NOW()),
+       (9, 'PREM-T1-S8', '8', NULL, 88.0, 76.0, 'premium', NOW(), NOW());
+
+
 -- ================================================================
 -- 8. EVENT PRICE TEMPLATES
 -- ================================================================
@@ -369,9 +429,12 @@ VALUES (7, 2, 'Standard', 3000.00, '#4169E1', 1, NOW());
 -- Price templates for Event 3 (Concert)
 INSERT INTO event_price_templates (id, event_id, template_name, price, color, display_order, created_at)
 VALUES (8, 3, 'Premium', 8000.00, '#FFD700', 1, NOW()),
-       (9, 3, 'General', 4000.00, '#4169E1', 2, NOW());
+       (9, 3, 'General', 4000.00, '#4169E1', 2, NOW()),
+       (10, 3, 'VIP Table (4 seats)', 30000.00, '#FF1493', 3, NOW()), -- Discounted vs 4×8000
+       (11, 3, 'VIP Table (6 seats)', 42000.00, '#FF1493', 4, NOW()), -- Discounted vs 6×8000
+       (12, 3, 'Premium Table (8 seats)', 56000.00, '#DA70D6', 5, NOW()); -- Discounted vs 8×8000
 
-SELECT setval('event_price_templates_id_seq', 9, true);
+SELECT setval('event_price_templates_id_seq', 12, true);
 
 -- ================================================================
 -- 9. SESSION SEAT CONFIGS (Template Assignment & Availability per Session)
@@ -436,7 +499,51 @@ VALUES (1, 3, 6, 100, 25, 'AVAILABLE', NOW(), NOW()),
 -- Evening Standing template
 
 -- ================================================================
--- 11. BOOKINGS
+-- 11. SESSION SEAT CONFIGS FOR TABLE SEATS (Event 3 - Concert, Session 4)
+-- ================================================================
+-- VIP Table 1 seats (template 8 - Premium, FLEXIBLE table - seats can be booked individually)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
+SELECT 4, id, 8, 'AVAILABLE', NOW(), NOW()
+FROM seats
+WHERE level_id = 6;
+
+-- VIP Table 2 seats (template 8 - Premium, FLEXIBLE table)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
+SELECT 4, id, 8, 'AVAILABLE', NOW(), NOW()
+FROM seats
+WHERE level_id = 7;
+
+-- VIP Table 3 seats (template 8 - Premium, TABLE_ONLY - seats automatically BLOCKED)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
+SELECT 4, id, 8, 'BLOCKED', NOW(), NOW() -- BLOCKED because TABLE_ONLY mode
+FROM seats
+WHERE level_id = 8;
+
+-- Premium Table seats (template 8 - Premium, SEATS_ONLY - individual booking only)
+INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
+SELECT 4, id, 8, 'AVAILABLE', NOW(), NOW()
+FROM seats
+WHERE level_id = 9;
+
+-- ================================================================
+-- 12. SESSION TABLE CONFIGS (Table Pricing & Availability)
+-- ================================================================
+-- Concert Hall tables for Session 4 (Event 3)
+INSERT INTO session_table_configs (session_id, table_id, price_template_id, status, created_at, last_modified_at)
+VALUES
+-- VIP Table 1 (4 seats, FLEXIBLE mode, discounted table price)
+(4, 6, 10, 'AVAILABLE', NOW(), NOW()),
+-- VIP Table 2 (4 seats, FLEXIBLE mode, discounted table price)
+(4, 7, 10, 'AVAILABLE', NOW(), NOW()),
+-- VIP Table 3 (6 seats, TABLE_ONLY mode, only table booking allowed)
+(4, 8, 11, 'AVAILABLE', NOW(), NOW()),
+-- Premium Table (8 seats, SEATS_ONLY mode, table cannot be booked as unit)
+(4, 9, 12, 'BLOCKED', NOW(), NOW());
+-- BLOCKED because SEATS_ONLY mode
+-- Evening Standing template
+
+-- ================================================================
+-- 13. BOOKINGS
 -- ================================================================
 INSERT INTO bookings (id, user_id, guest_id, session_id, reservation_token, platform_id, venue_id, total_price,
                       currency, status, confirmed_at, cancelled_at, cancellation_reason, payment_id, created_at,
@@ -492,6 +599,10 @@ UNION ALL
 SELECT 'Levels', COUNT(*)
 FROM levels
 UNION ALL
+SELECT 'Levels (Tables)', COUNT(*)
+FROM levels
+WHERE is_table = true
+UNION ALL
 SELECT 'Seats', COUNT(*)
 FROM seats
 UNION ALL
@@ -500,6 +611,9 @@ FROM session_seat_configs
 UNION ALL
 SELECT 'Session Level Configs', COUNT(*)
 FROM session_level_configs
+UNION ALL
+SELECT 'Session Table Configs', COUNT(*)
+FROM session_table_configs
 UNION ALL
 SELECT 'Bookings', COUNT(*)
 FROM bookings;
@@ -516,14 +630,17 @@ $$
         RAISE NOTICE '   - 3 Platforms';
         RAISE NOTICE '   - 6 Event Categories (with 3 language translations each)';
         RAISE NOTICE '   - 4 Events with 5 Sessions (with Armenian, Russian, French translations)';
-        RAISE NOTICE '   - 2 Seating Charts, 4 Levels, 74 Seats';
-        RAISE NOTICE '   - Session Configs: Seat pricing & GA capacity per session';
+        RAISE NOTICE '   - 3 Seating Charts, 9 Levels (4 Table Levels), 96 Seats';
+        RAISE NOTICE '   - Session Configs: Seat pricing, GA capacity, & Table pricing';
+        RAISE NOTICE '   - 4 VIP/Premium Tables (FLEXIBLE, TABLE_ONLY, SEATS_ONLY modes)';
         RAISE NOTICE '   - 4 Bookings (2 confirmed, 1 pending, 1 cancelled)';
         RAISE NOTICE '';
         RAISE NOTICE '🌍 Translations: Armenian (hy), Russian (ru), French (fr)';
         RAISE NOTICE '🎭 Ready to test all API endpoints with multilingual support!';
+        RAISE NOTICE '🍽️  Ready to test table booking with different modes!';
         RAISE NOTICE '';
         RAISE NOTICE '📝 Test session seating: GET /api/v1/sessions/1/seating';
+        RAISE NOTICE '📝 Test table seating: GET /api/v1/sessions/4/seating';
         RAISE NOTICE '📝 Test translations: GET /api/v1/events/1?lang=hy';
         RAISE NOTICE '📝 Test translations: GET /api/v1/venues/1?lang=ru';
     END

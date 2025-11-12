@@ -3,7 +3,6 @@ package app.venues.event.repository
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.SessionLevelConfig
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 
@@ -69,9 +68,8 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
      * @param sessionId Event session ID
      * @param levelId Level ID to reserve from
      * @param quantity Number of tickets to reserve
-     * @return Price if reservation successful, null if failed
+     * @return Price if reservation successful, null if no rows affected
      */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         nativeQuery = true,
         value = """

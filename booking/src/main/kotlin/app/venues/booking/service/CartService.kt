@@ -1,9 +1,6 @@
 package app.venues.booking.service
 
-import app.venues.booking.api.dto.AddGAToCartRequest
-import app.venues.booking.api.dto.AddSeatToCartRequest
-import app.venues.booking.api.dto.AddToCartResponse
-import app.venues.booking.api.dto.CartSummaryResponse
+import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.CartMapper
 import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
@@ -48,6 +45,32 @@ class CartService(
 ) {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * Validates that an event session exists.
+     * @throws VenuesException.ResourceNotFound if session doesn't exist
+     */
+    private fun validateSessionExists(sessionId: Long) {
+        eventSessionRepository.findById(sessionId)
+            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+    }
+
+    /**
+     * Gets or creates cart for the given session.
+     * Validates that cart belongs to the same session if it already exists.
+     */
+    private fun getOrCreateCartForSession(token: UUID?, sessionId: Long) =
+        cartSessionManager.findOrCreateCart(token, sessionId)
+
+    /**
+     * Builds standard success response for add-to-cart operations.
+     */
+    private fun buildSuccessResponse(cart: app.venues.booking.domain.Cart, message: String) =
+        AddToCartResponse(
+            token = cart.token,
+            message = message,
+            expiresAt = cart.expiresAt.toString()
+        )
+
 
     /**
      * Adds a seat to cart with atomic reservation and price snapshotting.
@@ -57,24 +80,17 @@ class CartService(
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse {
+        logger.debug { "Adding seat to cart: ${request.seatIdentifier}" }
+
         // Validate session exists
-        eventSessionRepository.findById(request.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        validateSessionExists(request.sessionId)
 
         // Fetch seat information
         val seatInfo = seatingApi.getSeatInfoByIdentifier(request.seatIdentifier)
             ?: throw VenuesException.ValidationFailure("Seat not found with identifier: ${request.seatIdentifier}")
 
-        // Check if seat belongs to a TABLE_ONLY table
-        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
-        if (levelInfo?.tableBookingMode == "TABLE_ONLY") {
-            throw VenuesException.ValidationFailure(
-                "This seat is part of table '${levelInfo.levelName}' which can only be booked as a complete unit"
-            )
-        }
-
         // Get or create cart session
-        val cart = cartSessionManager.findOrCreateCart(token, request.sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId)
 
         // Validate seat not already in cart
         if (cartItemPersistence.checkSeatAlreadyInCart(cart, seatInfo.id)) {
@@ -98,11 +114,9 @@ class CartService(
             price = reservation.price
         )
 
-        return AddToCartResponse(
-            token = cart.token,
-            message = "Seat added to cart successfully",
-            expiresAt = cart.expiresAt.toString()
-        )
+        logger.info { "Seat ${request.seatIdentifier} added to cart ${cart.token}" }
+
+        return buildSuccessResponse(cart, "Seat added to cart successfully")
     }
 
     /**
@@ -116,9 +130,10 @@ class CartService(
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse {
+        logger.debug { "Adding GA to cart: ${request.levelIdentifier}, quantity=${request.quantity}" }
+
         // Validate session exists
-        eventSessionRepository.findById(request.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        validateSessionExists(request.sessionId)
 
         // Fetch level information
         val levelInfo = seatingApi.getLevelInfoByIdentifier(request.levelIdentifier)
@@ -129,7 +144,7 @@ class CartService(
         }
 
         // Get or create cart session
-        val cart = cartSessionManager.findOrCreateCart(token, request.sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId)
 
         // Check for existing GA item for this level
         val existingItem = cartItemPersistence.findExistingGAItem(cart, levelInfo.id)
@@ -166,11 +181,9 @@ class CartService(
             "GA tickets added to cart successfully"
         }
 
-        return AddToCartResponse(
-            token = cart.token,
-            message = message,
-            expiresAt = cart.expiresAt.toString()
-        )
+        logger.info { "GA tickets added to cart: ${levelInfo.levelName}, quantity=${savedItem.quantity}, token=${cart.token}" }
+
+        return buildSuccessResponse(cart, message)
     }
 
     /**
@@ -180,39 +193,36 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun addTableToCart(sessionId: Long, tableId: Long, token: UUID? = null): AddToCartResponse {
-        logger.debug { "Adding table to cart: session=$sessionId, table=$tableId" }
+    fun addTableToCart(request: AddTableToCartRequest, token: UUID? = null): AddToCartResponse {
+        logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.tableIdentifier}" }
 
         // Validate session exists
-        eventSessionRepository.findById(sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        validateSessionExists(request.sessionId)
 
         // Get or create cart
-        val cart = cartSessionManager.findOrCreateCart(token, sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId)
 
         // Validate table limit
         cartLimitValidator.validateAddTableLimit(cart)
 
         // Reserve table (atomic + block seats)
-        val reservation = tableReservationService.reserveTable(cart, sessionId, tableId)
+        val reservation = tableReservationService.reserveTable(cart, request.sessionId, request.tableIdentifier)
 
         // Save to cart
         cartTablePersistence.saveTableToCart(
             cart = cart,
-            sessionId = sessionId,
+            sessionId = request.sessionId,
             tableId = reservation.tableId,
             tableName = reservation.tableName,
             seatCount = reservation.seatCount,
             unitPrice = reservation.price
         )
 
+        logger.info { "Table ${reservation.tableName} added to cart ${cart.token}" }
 
-        logger.info { "Table added to cart: ${reservation.tableName}, token=${cart.token}" }
-
-        return AddToCartResponse(
-            token = cart.token,
-            message = "Table '${reservation.tableName}' (${reservation.seatCount} seats) added to cart successfully",
-            expiresAt = cart.expiresAt.toString()
+        return buildSuccessResponse(
+            cart,
+            "Table '${reservation.tableName}' (${reservation.seatCount} seats) added to cart successfully"
         )
     }
 

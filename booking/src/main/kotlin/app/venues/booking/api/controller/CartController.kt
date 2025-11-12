@@ -1,9 +1,6 @@
 package app.venues.booking.api.controller
 
-import app.venues.booking.api.dto.AddGAToCartRequest
-import app.venues.booking.api.dto.AddSeatToCartRequest
-import app.venues.booking.api.dto.AddToCartResponse
-import app.venues.booking.api.dto.CartSummaryResponse
+import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartService
 import app.venues.common.model.ApiResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -70,6 +67,29 @@ class CartController(
             message = result.message
         )
     }
+
+    /**
+     * Add Tables tickets to cart.
+     */
+    @PostMapping("/table")
+    @Operation(
+        summary = "Add Table to cart",
+        description = "Add Table tickets to cart"
+    )
+    fun addTableToCart(
+        @Valid @RequestBody request: AddTableToCartRequest,
+        @RequestParam(required = false) token: UUID?
+    ): ApiResponse<AddToCartResponse> {
+        logger.debug { "Adding Table to cart: $request" }
+
+        val result = cartService.addTableToCart(request, token)
+
+        return ApiResponse.success(
+            data = result,
+            message = result.message
+        )
+    }
+
 
     /**
      * Get cart summary.

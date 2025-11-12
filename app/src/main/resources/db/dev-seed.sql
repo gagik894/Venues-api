@@ -130,11 +130,11 @@ SELECT setval('users_id_seq', 4, true);
 -- ================================================================
 INSERT INTO platforms (id, name, api_url, shared_secret, status, webhook_enabled, description, contact_email,
                        rate_limit, webhook_success_count, webhook_failure_count, created_at, last_modified_at)
-VALUES (1, 'Ticketmaster Armenia', 'https://test.local/api',
+VALUES (1, 'Ticketmaster Armenia', 'https://kind-mouse-84.webhook.cool',
         'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6', 'ACTIVE', true,
         'Official Ticketmaster partner platform', 'tech@ticketmaster.am', 1000, 0, 0, NOW(), NOW()),
        (2, 'TomsTickets', 'https://test.local/api', 'z6y5x4w3v2u1t0s9r8q7p6o5n4m3l2k1j0i9h8g7f6e5d4c3b2a1',
-        'ACTIVE', true, 'Tom''s Tickets booking platform', 'api@tomstickets.com', 500, 0, 0, NOW(), NOW()),
+        'ACTIVE', false, 'Tom''s Tickets booking platform', 'api@tomstickets.com', 500, 0, 0, NOW(), NOW()),
        (3, 'TestPlatform', 'https://test.local/api', 'test-secret-for-development-only', 'ACTIVE', false,
         'Test platform for development', 'test@example.com', 100, 0, 0, NOW(), NOW());
 

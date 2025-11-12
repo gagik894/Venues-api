@@ -36,6 +36,16 @@ data class AddGAToCartRequest(
     var quantity: Int
 )
 
+/**
+ * Request to add table to cart
+ */
+data class AddTableToCartRequest(
+    @field:NotNull(message = "Session ID is required")
+    var sessionId: Long,
+
+    @field:NotNull(message = "Table ID is required")
+    var tableIdentifier: String
+)
 // ===========================================
 // CART RESPONSE DTOs
 // ===========================================

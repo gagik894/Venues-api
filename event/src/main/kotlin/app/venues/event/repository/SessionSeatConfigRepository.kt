@@ -85,10 +85,10 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         value = """
         WITH updated AS (
             UPDATE session_seat_configs
-            SET status = 'RESERVED'
+            SET status = app.venues.event.domain.ConfigStatus.RESERVED
             WHERE session_id = :sessionId
             AND seat_id = :seatId
-            AND status = 'AVAILABLE'
+            AND status = app.venues.event.domain.ConfigStatus.AVAILABLE
             RETURNING price_template_id
         )
         SELECT pt.price

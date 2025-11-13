@@ -35,7 +35,7 @@ dependencies {
     // This enforces Hexagonal Architecture boundaries
     api(project(":user-api"))      // UserApi for user information
     api(project(":seating-api"))   // SeatingApi for seat/level information
-
+    api(project(":booking-api"))
     // Event module - we still need the implementation for event sessions
     // since booking module owns the relationship with events
     api(project(":event"))

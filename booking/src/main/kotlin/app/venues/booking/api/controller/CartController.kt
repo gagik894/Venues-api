@@ -152,7 +152,7 @@ class CartController(
     ): ApiResponse<Unit> {
         logger.debug { "Updating GA quantity: token=$token, level=$levelIdentifier, qty=${request.quantity}" }
 
-        cartService.updateGAQuantity(token, levelIdentifier, request.quantity)
+        cartService.updateGAQuantity(token, levelIdentifier, request)
 
         return ApiResponse.success(
             data = Unit,

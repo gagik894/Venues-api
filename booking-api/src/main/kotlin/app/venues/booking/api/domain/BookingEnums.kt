@@ -1,4 +1,4 @@
-package app.venues.booking.domain
+package app.venues.booking.api.domain
 
 /**
  * Booking status enum.

@@ -1,7 +1,7 @@
 package app.venues.booking.repository
 
+import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.domain.Booking
-import app.venues.booking.domain.BookingStatus
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository

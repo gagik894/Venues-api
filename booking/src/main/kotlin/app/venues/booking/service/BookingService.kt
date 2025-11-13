@@ -1,5 +1,6 @@
 package app.venues.booking.service
 
+import app.venues.booking.api.BookingApi
 import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
@@ -21,6 +22,12 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.util.*
 
+
+//TODO: validate requests
+//  val violations = validator.validate(request)
+//  if (violations.isNotEmpty()) {
+//      throw ConstraintViolationException(violations)
+//  }
 /**
  * Service for booking management operations.
  *
@@ -45,7 +52,7 @@ class BookingService(
     private val userApi: UserApi,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi
-) {
+) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
     // ===========================================
@@ -473,5 +480,31 @@ class BookingService(
         logger.info { "Booking created from platform $platformId: bookingId=${savedBooking.id}, total=${booking.totalPrice}, venueId=${cartData.event.venueId}" }
 
         return savedBooking
+    }
+
+    /**
+     * Creates a new booking from an existing cart token.
+     * This is the primary method for converting a cart into a sale.
+     *
+     * @param cartToken The UUID of the cart to convert.
+     * @param platformId The ID of the external platform (if any) making the sale.
+     * @param paymentMethod A string identifying the payment method (e.g., "platform_api").
+     * @param paymentReference A reference ID from the external payment system.
+     * @param guestEmail Email for the booking confirmation.
+     * @param guestName Name for the booking.
+     * @param guestPhone Phone for the booking (optional).
+     * @return The confirmed Booking entity.
+     * @see createBookingFromCart
+     */
+    override fun createBookingFromCart(
+        cartToken: UUID,
+        platformId: Long,
+        paymentMethod: String,
+        paymentReference: String?,
+        guestEmail: String,
+        guestName: String,
+        guestPhone: String?
+    ): BookingResponse {
+        TODO("Not yet implemented")
     }
 }

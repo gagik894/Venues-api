@@ -1,5 +1,6 @@
 package app.venues.booking.service
 
+import app.venues.booking.api.CartQueryApi
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.mapper.CartMapper
 import app.venues.booking.manager.CartSessionManager
@@ -35,7 +36,7 @@ class CartQueryService(
     private val sessionLevelConfigRepository: SessionLevelConfigRepository,
     private val cartMapper: CartMapper,
     private val seatingApi: SeatingApi
-) {
+) : CartQueryApi {
     private val logger = KotlinLogging.logger {}
 
     /**
@@ -44,7 +45,7 @@ class CartQueryService(
      *
      * This operation is optimized to use batch fetching to prevent N+1 queries.
      */
-    fun getCartSummary(token: UUID): CartSummaryResponse {
+    override fun getCartSummary(token: UUID): CartSummaryResponse {
         val cart = cartSessionManager.getActiveCart(token)
         cartSessionManager.touchCart(cart) // 'touch' is a write, but on the session, so OK
 

@@ -1,5 +1,6 @@
 package app.venues.booking.domain
 
+import app.venues.booking.api.domain.BookingStatus
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate

@@ -1,9 +1,7 @@
 package app.venues.booking.service
 
-import app.venues.booking.api.dto.AddGAToCartRequest
-import app.venues.booking.api.dto.AddSeatToCartRequest
-import app.venues.booking.api.dto.AddTableToCartRequest
-import app.venues.booking.api.dto.AddToCartResponse
+import app.venues.booking.api.CartApi
+import app.venues.booking.api.dto.*
 import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
@@ -14,6 +12,8 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.validation.ConstraintViolationException
+import jakarta.validation.Validator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -37,8 +37,9 @@ class CartService(
     private val cartTablePersistence: CartTablePersistence,
     private val tableReservationService: TableReservationService,
     private val eventSessionRepository: EventSessionRepository,
-    private val seatingApi: SeatingApi
-) {
+    private val seatingApi: SeatingApi,
+    private val validator: Validator
+) : CartApi {
     private val logger = KotlinLogging.logger {}
 
     /**
@@ -75,8 +76,13 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse {
+    override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding seat to cart: ${request.seatIdentifier}" }
+
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) {
+            throw ConstraintViolationException(violations)
+        }
 
         // Validate session exists
         validateSessionExists(request.sessionId)
@@ -125,8 +131,13 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse {
+    override fun addGAToCart(request: AddGAToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding GA to cart: ${request.levelIdentifier}, quantity=${request.quantity}" }
+
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) {
+            throw ConstraintViolationException(violations)
+        }
 
         // Validate session exists
         validateSessionExists(request.sessionId)
@@ -189,8 +200,13 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun addTableToCart(request: AddTableToCartRequest, token: UUID? = null): AddToCartResponse {
+    override fun addTableToCart(request: AddTableToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.tableIdentifier}" }
+
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) {
+            throw ConstraintViolationException(violations)
+        }
 
         // Validate session exists
         validateSessionExists(request.sessionId)
@@ -226,7 +242,7 @@ class CartService(
      * Removes a specific seat from cart and releases inventory.
      */
     @Transactional
-    fun removeSeatFromCart(token: UUID, seatIdentifier: String) {
+    override fun removeSeatFromCart(token: UUID, seatIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
         // 1. Get info from external API ONCE
@@ -254,7 +270,12 @@ class CartService(
      * If new quantity is 0, removes the GA item from cart.
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    fun updateGAQuantity(token: UUID, levelIdentifier: String, newQuantity: Int) {
+    override fun updateGAQuantity(token: UUID, levelIdentifier: String, request: UpdateGAQuantityRequest) {
+        val violations = validator.validate(request)
+        if (violations.isNotEmpty()) {
+            throw ConstraintViolationException(violations)
+        }
+        val newQuantity = request.quantity
         if (newQuantity <= 0) {
             // Treat setting quantity to 0 as a removal
             removeGAFromCart(token, levelIdentifier)
@@ -304,7 +325,7 @@ class CartService(
      * Removes all GA tickets for a level from cart and releases inventory.
      */
     @Transactional
-    fun removeGAFromCart(token: UUID, levelIdentifier: String) {
+    override fun removeGAFromCart(token: UUID, levelIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
         val levelInfo = seatingApi.getLevelInfoByIdentifier(levelIdentifier)
@@ -332,7 +353,7 @@ class CartService(
      * Remove a table from cart and release inventory.
      */
     @Transactional
-    fun removeTableFromCart(token: UUID, tableIdentifier: String) {
+    override fun removeTableFromCart(token: UUID, tableIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
         // 1. Get table info to find its ID
@@ -354,7 +375,7 @@ class CartService(
      * Clears entire cart and releases all inventory.
      */
     @Transactional
-    fun clearCart(token: UUID) {
+    override fun clearCart(token: UUID) {
         val cart = cartSessionManager.getActiveCart(token)
 
         val seats = cartItemPersistence.getAllSeats(cart)

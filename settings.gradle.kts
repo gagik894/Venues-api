@@ -42,3 +42,4 @@ include(":platform")
 
 
 rootProject.name = "Venues-api"
+include("booking-api")

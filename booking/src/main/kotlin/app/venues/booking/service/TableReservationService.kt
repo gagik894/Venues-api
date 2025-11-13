@@ -9,6 +9,7 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
+import app.venues.seating.api.dto.SeatInfoDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
@@ -52,6 +53,17 @@ class TableReservationService(
 
         val tableId = tableInfo.id
 
+        // Get the *actual* seats for this table
+        val seats = seatingApi.getSeatsForLevel(tableId)
+        val seatCount = seats.size
+
+        // Validate the seat count.
+        if (seatCount <= 0) {
+            throw VenuesException.ValidationFailure(
+                "Table '${tableInfo.levelName}' (ID: $tableId) has no seats assigned and cannot be booked."
+            )
+        }
+
         // Validate table booking mode
         if (!canBookAsTable(tableInfo.tableBookingMode)) {
             throw VenuesException.ValidationFailure(
@@ -77,8 +89,8 @@ class TableReservationService(
             )
         }
 
-        // Block all individual seats in the table
-        blockAllSeatsInTable(sessionId, tableId)
+        // Block all individual seats (pass the list to avoid a 2nd API call)
+        blockAllSeatsInTable(sessionId, tableId, seats)
 
         // Publish table reserved event
         eventPublisher.publishEvent(
@@ -91,10 +103,11 @@ class TableReservationService(
 
         logger.info { "Table reserved successfully: tableId=$tableId, sessionId=$sessionId" }
 
+        //Return the correct seatCount
         return TableReservationResult(
             tableId = tableId,
             tableName = tableInfo.levelName,
-            seatCount = tableInfo.capacity ?: 0,
+            seatCount = seatCount,
             price = price
         )
     }
@@ -108,6 +121,13 @@ class TableReservationService(
 
         val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
             ?: return
+
+        // Only release if it's RESERVED
+        // A SOLD table should not be released by this flow.
+        if (tableConfig.status != ConfigStatus.RESERVED) {
+            logger.warn { "Attempted to release table $tableId with status ${tableConfig.status}" }
+            if (tableConfig.status != ConfigStatus.AVAILABLE) return
+        }
 
         // Update table status to AVAILABLE
         tableConfig.status = ConfigStatus.AVAILABLE
@@ -135,8 +155,7 @@ class TableReservationService(
      * Block all seats in a table atomically (set to BLOCKED status).
      * Uses bulk UPDATE operation for thread-safety under high load.
      */
-    private fun blockAllSeatsInTable(sessionId: Long, tableId: Long) {
-        val seats = seatingApi.getSeatsForLevel(tableId)
+    private fun blockAllSeatsInTable(sessionId: Long, tableId: Long, seats: List<SeatInfoDto>) {
         if (seats.isEmpty()) {
             logger.warn { "Table $tableId has no seats to block" }
             return
@@ -177,7 +196,6 @@ class TableReservationService(
     private fun canBookAsTable(bookingMode: String?): Boolean {
         return bookingMode == "TABLE_ONLY" || bookingMode == "FLEXIBLE"
     }
-
     /**
      * Check if individual seats can be booked.
      */

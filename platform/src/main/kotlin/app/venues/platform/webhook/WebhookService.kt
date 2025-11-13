@@ -61,9 +61,7 @@ class WebhookService(
     @Async
     fun notifySeatReserved(
         sessionId: Long,
-        seatIdentifier: String,
-        reservationToken: String,
-        expiresAt: String
+        seatIdentifier: String
     ) {
         logger.debug { "Notifying platforms: seat reserved - $seatIdentifier" }
 
@@ -71,8 +69,6 @@ class WebhookService(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
-            reservationToken = java.util.UUID.fromString(reservationToken),
-            expiresAt = expiresAt
         )
 
         sendToAllPlatforms(
@@ -90,7 +86,6 @@ class WebhookService(
     fun notifySeatReleased(
         sessionId: Long,
         seatIdentifier: String,
-        levelName: String
     ) {
         logger.debug { "Notifying platforms: seat released - $seatIdentifier" }
 
@@ -98,7 +93,6 @@ class WebhookService(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
-            levelName = levelName
         )
 
         sendToAllPlatforms(

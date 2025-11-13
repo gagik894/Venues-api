@@ -20,6 +20,14 @@ interface SeatingApi {
     fun getSeatInfo(seatId: Long): SeatInfoDto?
 
     /**
+     * Get seat information for multiple seats at once (batch operation).
+     *
+     * @param seatIds List of seat IDs
+     * @return List of found SeatInfoDto objects
+     */
+    fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto>
+
+    /**
      * Get seat information by seat identifier string.
      * Used for API operations that reference seats by their human-readable identifier.
      */
@@ -29,6 +37,14 @@ interface SeatingApi {
      * Get level information by ID.
      */
     fun getLevelInfo(levelId: Long): LevelInfoDto?
+
+    /**
+     * Get level information for multiple levels at once (batch operation).
+     *
+     * @param levelIds List of level IDs
+     * @return List of found LevelInfoDto objects
+     */
+    fun getLevelInfoBatch(levelIds: List<Long>): List<LevelInfoDto>
 
     /**
      * Get level information by level identifier string.
@@ -80,5 +96,10 @@ interface SeatingApi {
      * @return Map of levelId to list of seats for that level
      */
     fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>>
-}
 
+    /**
+     * Get all tables that contain the given seat.
+     * Used for blocking/unblocking tables when individual seats are reserved/released.
+     */
+    fun getTablesForSeat(seatId: Long): List<LevelInfoDto>
+}

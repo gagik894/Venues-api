@@ -45,6 +45,7 @@ class SeatingService(
     // PUBLIC API IMPLEMENTATION (SeatingApi Port)
     // ===========================================
 
+    @Transactional(readOnly = true)
     override fun getSeatInfo(seatId: Long): SeatInfoDto? {
         return seatRepository.findById(seatId)
             .map { seat ->
@@ -61,6 +62,27 @@ class SeatingService(
             .orElse(null)
     }
 
+    // NEW: (Fix 4) Implementation for the batch method
+    @Transactional(readOnly = true)
+    override fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto> {
+        if (seatIds.isEmpty()) {
+            return emptyList()
+        }
+        // Assumes Seat entity has eager-loaded 'level' or that N+1 is acceptable
+        // This follows the existing pattern in getSeatInfo
+        return seatRepository.findAllById(seatIds).map { seat ->
+            SeatInfoDto(
+                id = seat.id!!,
+                seatIdentifier = seat.seatIdentifier,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                levelId = seat.level.id!!,
+                levelName = seat.level.levelName
+            )
+        }
+    }
+
+    @Transactional(readOnly = true)
     override fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto? {
         val seat = seatRepository.findBySeatIdentifier(seatIdentifier) ?: return null
         val level = seat.level
@@ -74,6 +96,7 @@ class SeatingService(
         )
     }
 
+    @Transactional(readOnly = true)
     override fun getLevelInfo(levelId: Long): LevelInfoDto? {
         return levelRepository.findById(levelId)
             .map { level ->
@@ -89,6 +112,25 @@ class SeatingService(
             .orElse(null)
     }
 
+    // NEW: (Fix 4) Implementation for the batch method
+    @Transactional(readOnly = true)
+    override fun getLevelInfoBatch(levelIds: List<Long>): List<LevelInfoDto> {
+        if (levelIds.isEmpty()) {
+            return emptyList()
+        }
+        return levelRepository.findAllById(levelIds).map { level ->
+            LevelInfoDto(
+                id = level.id!!,
+                levelName = level.levelName,
+                levelIdentifier = level.levelIdentifier,
+                capacity = level.capacity,
+                isGeneralAdmission = level.isGeneralAdmission(),
+                tableBookingMode = level.tableBookingMode?.name
+            )
+        }
+    }
+
+    @Transactional(readOnly = true)
     override fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto? {
         val level = levelRepository.findByLevelIdentifier(levelIdentifier) ?: return null
         return LevelInfoDto(
@@ -101,20 +143,24 @@ class SeatingService(
         )
     }
 
+    @Transactional(readOnly = true)
     override fun getSeatingChartName(chartId: Long): String? {
         return seatingChartRepository.findById(chartId)
             .map { it.name }
             .orElse(null)
     }
 
+    @Transactional(readOnly = true)
     override fun seatExists(seatId: Long): Boolean {
         return seatRepository.existsById(seatId)
     }
 
+    @Transactional(readOnly = true)
     override fun levelExists(levelId: Long): Boolean {
         return levelRepository.existsById(levelId)
     }
 
+    @Transactional(readOnly = true)
     override fun getSeatsForLevel(levelId: Long): List<SeatInfoDto> {
         return seatRepository.findByLevelId(levelId).map { seat ->
             SeatInfoDto(
@@ -128,6 +174,7 @@ class SeatingService(
         }
     }
 
+    @Transactional(readOnly = true)
     override fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>> {
         if (levelIds.isEmpty()) {
             return emptyMap()
@@ -152,6 +199,36 @@ class SeatingService(
             }
     }
 
+    @Transactional(readOnly = true)
+    override fun getTablesForSeat(seatId: Long): List<LevelInfoDto> {
+        val seat = seatRepository.findById(seatId).orElse(null) ?: return emptyList()
+
+        val tables = mutableListOf<LevelInfoDto>()
+        var currentLevel: Level? = seat.level
+
+        // Walk up the hierarchy (seat's level, parent level, grandparent, etc.)
+        while (currentLevel != null) {
+            if (currentLevel.isTable) {
+                // This level is a table, map it to the DTO
+                tables.add(
+                    LevelInfoDto(
+                        id = currentLevel.id!!,
+                        levelName = currentLevel.levelName,
+                        levelIdentifier = currentLevel.levelIdentifier,
+                        capacity = currentLevel.capacity,
+                        isGeneralAdmission = currentLevel.isGeneralAdmission(),
+                        tableBookingMode = currentLevel.tableBookingMode?.name
+                    )
+                )
+            }
+            // Move up to the parent
+            currentLevel = currentLevel.parentLevel
+        }
+        return tables
+    }
+
+
+    @Transactional(readOnly = true)
     override fun getChartStructure(chartId: Long): SeatingChartStructureDto? {
         val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
 
@@ -409,6 +486,9 @@ class SeatingService(
             val parentLevel = levelRepository.findById(request.parentLevelId)
                 .orElseThrow { VenuesException.ResourceNotFound("Parent level not found with ID: ${request.parentLevelId}") }
             level.parentLevel = parentLevel
+        } else {
+            // Allow setting parent to null
+            level.parentLevel = null
         }
 
         level.levelName = request.levelName

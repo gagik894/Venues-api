@@ -1,7 +1,5 @@
 package app.venues.booking.event
 
-import java.util.*
-
 /**
  * Events published by the booking module that other modules can listen to.
  */
@@ -11,9 +9,7 @@ import java.util.*
  */
 data class SeatReservedEvent(
     val sessionId: Long,
-    val seatIdentifier: String,
-    val reservationToken: UUID,
-    val expiresAt: String
+    val seatIdentifier: String
 )
 
 /**
@@ -22,7 +18,6 @@ data class SeatReservedEvent(
 data class SeatReleasedEvent(
     val sessionId: Long,
     val seatIdentifier: String,
-    val levelName: String
 )
 
 /**

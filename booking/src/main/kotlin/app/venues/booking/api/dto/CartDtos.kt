@@ -46,6 +46,17 @@ data class AddTableToCartRequest(
     @field:NotNull(message = "Table ID is required")
     var tableIdentifier: String
 )
+
+/**
+ * Request to update GA ticket quantity in cart
+ */
+data class UpdateGATicketRequest(
+    @field:Min(value = 0, message = "Quantity must be at least 0 (0 to remove)")
+    @field:Max(value = 10, message = "Maximum 10 tickets per transaction")
+    @field:NotNull(message = "Quantity is required")
+    var quantity: Int
+)
+
 // ===========================================
 // CART RESPONSE DTOs
 // ===========================================

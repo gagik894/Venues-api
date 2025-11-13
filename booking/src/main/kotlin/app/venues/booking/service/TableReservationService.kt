@@ -2,7 +2,9 @@ package app.venues.booking.service
 
 import app.venues.booking.domain.Cart
 import app.venues.booking.event.TableReleasedEvent
+import app.venues.booking.event.TableReservedEvent
 import app.venues.booking.repository.CartTableRepository
+import app.venues.common.exception.VenuesException
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
@@ -44,58 +46,57 @@ class TableReservationService(
     fun reserveTable(cart: Cart, sessionId: Long, tableIdentifier: String): TableReservationResult {
         logger.debug { "Reserving table $tableIdentifier for session $sessionId" }
 
-//        // Get table level info
-//        val tableInfo = seatingApi.getLevelInfo(tableId)
-//            ?: throw VenuesException.ResourceNotFound("Table not found: $tableId")
-//
-//        // Validate table booking mode
-//        if (!canBookAsTable(tableInfo.tableBookingMode)) {
-//            throw VenuesException.ValidationFailure(
-//                "Table '${tableInfo.levelName}' can only be booked by individual seats"
-//            )
-//        }
-//
-//        // Check if table already in cart
-//        if (cartTableRepository.existsByCartAndTableId(cart, tableId)) {
-//            throw VenuesException.ResourceConflict("Table '${tableInfo.levelName}' is already in your cart")
-//        }
-//
-//        // Get table price
-//        val price = sessionTableConfigRepository.getTablePriceIfAvailable(sessionId, tableId)
-//            ?: throw VenuesException.ValidationFailure(
-//                "Table '${tableInfo.levelName}' is not available or not priced"
-//            )
-//
-//        // Atomically reserve the table
-//        val rowsAffected = sessionTableConfigRepository.reserveTableIfAvailable(sessionId, tableId)
-//        if (rowsAffected == 0) {
-//            throw VenuesException.ResourceConflict(
-//                "Table '${tableInfo.levelName}' is not available for reservation"
-//            )
-//        }
-//
-//        // Block all individual seats in the table
-//        blockAllSeatsInTable(sessionId, tableId)
-//
-//        // Publish table reserved event
-//        eventPublisher.publishEvent(
-//            TableReservedEvent(
-//                sessionId = sessionId,
-//                tableId = tableId,
-//                tableName = tableInfo.levelName
-//            )
-//        )
-//
-//        logger.info { "Table reserved successfully: tableId=$tableId, sessionId=$sessionId" }
-//
-//        return TableReservationResult(
-//            tableId = tableId,
-//            tableName = tableInfo.levelName,
-//            seatCount = tableInfo.capacity ?: 0,
-//            price = price
-//        )
+        // Get table level info (Table is a type of level)
+        val tableInfo = seatingApi.getLevelInfoByIdentifier(tableIdentifier)
+            ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
-        return TODO("Implement table reservation logic")
+        val tableId = tableInfo.id
+
+        // Validate table booking mode
+        if (!canBookAsTable(tableInfo.tableBookingMode)) {
+            throw VenuesException.ValidationFailure(
+                "Table '${tableInfo.levelName}' can only be booked by individual seats"
+            )
+        }
+
+        // Check if table already in cart
+        if (cartTableRepository.existsByCartAndTableId(cart, tableId)) {
+            throw VenuesException.ResourceConflict("Table '${tableInfo.levelName}' is already in your cart")
+        }
+
+        // Get table price
+        val price = sessionTableConfigRepository.getTablePriceIfAvailable(sessionId, tableId)
+            ?: throw VenuesException.ValidationFailure(
+                "Table '${tableInfo.levelName}' is not available or not priced"
+            )
+
+        val rowsAffected = sessionTableConfigRepository.reserveTableIfAvailable(sessionId, tableId)
+        if (rowsAffected == 0) {
+            throw VenuesException.ResourceConflict(
+                "Table '${tableInfo.levelName}' is not available for reservation"
+            )
+        }
+
+        // Block all individual seats in the table
+        blockAllSeatsInTable(sessionId, tableId)
+
+        // Publish table reserved event
+        eventPublisher.publishEvent(
+            TableReservedEvent(
+                sessionId = sessionId,
+                tableId = tableId,
+                tableName = tableInfo.levelName
+            )
+        )
+
+        logger.info { "Table reserved successfully: tableId=$tableId, sessionId=$sessionId" }
+
+        return TableReservationResult(
+            tableId = tableId,
+            tableName = tableInfo.levelName,
+            seatCount = tableInfo.capacity ?: 0,
+            price = price
+        )
     }
 
     /**

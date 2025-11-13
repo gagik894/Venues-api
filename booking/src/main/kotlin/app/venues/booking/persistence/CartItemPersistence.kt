@@ -52,8 +52,8 @@ class CartItemPersistence(
             SeatReservedEvent(
                 sessionId = sessionId,
                 seatIdentifier = seatIdentifier,
-                reservationToken = cart.token,
-                expiresAt = cart.expiresAt.toString()
+//                reservationToken = cart.token,
+//                expiresAt = cart.expiresAt.toString()
             )
         )
 
@@ -101,6 +101,36 @@ class CartItemPersistence(
         return savedItem to isUpdate
     }
 
+    fun updateGAItemQuantity(
+        item: CartItem,
+        newQuantity: Int,
+        levelIdentifier: String,
+        levelName: String
+    ): CartItem {
+        item.quantity = newQuantity
+        val savedItem = cartItemRepository.save(item)
+
+        logger.info { "GA quantity set: $levelIdentifier, total=${savedItem.quantity}, cart=${item.cart.token}" }
+
+        publishGAAvailabilityEvent(item.sessionId, item.levelId, levelIdentifier, levelName)
+        return savedItem
+    }
+
+    fun removeGAItem(
+        item: CartItem,
+        levelIdentifier: String,
+        levelName: String
+    ) {
+        val sessionId = item.sessionId
+        val levelId = item.levelId
+
+        cartItemRepository.delete(item)
+
+        logger.info { "GA item removed: $levelIdentifier, cart=${item.cart.token}" }
+
+        publishGAAvailabilityEvent(sessionId, levelId, levelIdentifier, levelName)
+    }
+
     fun checkSeatAlreadyInCart(cart: Cart, seatId: Long): Boolean {
         val existingSeats = cartSeatRepository.findByCart(cart)
         return existingSeats.any { it.seatId == seatId }
@@ -110,29 +140,27 @@ class CartItemPersistence(
         return cartItemRepository.findByCartAndLevelId(cart, levelId)
     }
 
-    fun removeSeat(cart: Cart, seatId: Long, sessionId: Long): String {
+    fun removeSeat(
+        cart: Cart,
+        seatId: Long,
+        sessionId: Long,
+        seatIdentifier: String,
+        levelName: String
+    ) {
         val cartSeats = cartSeatRepository.findByCart(cart)
         val cartSeat = cartSeats.find { it.seatId == seatId }
             ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
-        val seatInfo = seatingApi.getSeatInfo(seatId)
-            ?: throw VenuesException.ResourceNotFound("Seat not found")
-        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
-            ?: throw VenuesException.ResourceNotFound("Level not found")
-
         cartSeatRepository.delete(cartSeat)
 
-        logger.info { "Seat removed from cart: ${seatInfo.seatIdentifier}, cart=${cart.token}" }
+        logger.info { "Seat removed from cart: $seatIdentifier, cart=${cart.token}" }
 
         eventPublisher.publishEvent(
             SeatReleasedEvent(
                 sessionId = sessionId,
-                seatIdentifier = seatInfo.seatIdentifier,
-                levelName = levelInfo.levelName
+                seatIdentifier = seatIdentifier
             )
         )
-
-        return seatInfo.seatIdentifier
     }
 
     fun getAllSeats(cart: Cart): List<CartSeat> = cartSeatRepository.findByCart(cart)

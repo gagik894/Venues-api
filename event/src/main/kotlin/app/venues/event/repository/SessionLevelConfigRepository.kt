@@ -3,6 +3,7 @@ package app.venues.event.repository
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.SessionLevelConfig
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 
@@ -25,6 +26,18 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
     )
     fun findBySessionIdAndLevelId(sessionId: Long, levelId: Long): SessionLevelConfig?
 
+    /**
+     * Find all level configs for a list of level IDs
+     */
+    @Query(
+        """
+        SELECT slc FROM SessionLevelConfig slc
+        LEFT JOIN FETCH slc.priceTemplate
+        WHERE slc.session.id = :sessionId
+        AND slc.levelId IN :levelIds
+    """
+    )
+    fun findBySessionIdAndLevelIdIn(sessionId: Long, levelIds: List<Long>): List<SessionLevelConfig>
 
     /**
      * Find all available level configs for session
@@ -88,5 +101,27 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
     """
     )
     fun reserveGAAndGetPrice(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
+
+    /**
+     * Atomically adjust the sold count for a GA level.
+     * This query will fail if the new total exceeds capacity or goes below zero.
+     *
+     * @param sessionId Event session ID
+     * @param levelId Level ID to adjust
+     * @param quantityDelta Positive number to add tickets, negative to release
+     * @return Number of rows affected (0 if adjustment failed capacity check, 1 if successful)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionLevelConfig slc
+        SET slc.soldCount = slc.soldCount + :quantityDelta
+        WHERE slc.session.id = :sessionId
+        AND slc.levelId = :levelId
+        AND (slc.soldCount + :quantityDelta) >= 0
+        AND (slc.soldCount + :quantityDelta) <= slc.capacity
+    """
+    )
+    fun adjustGATickets(sessionId: Long, levelId: Long, quantityDelta: Int): Int
 }
 

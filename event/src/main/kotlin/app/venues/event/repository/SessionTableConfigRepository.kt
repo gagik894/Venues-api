@@ -113,5 +113,37 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     """
     )
     fun findTablesBySeatId(sessionId: Long, seatId: Long): List<SessionTableConfig>
+
+    /**
+     * Atomically unblocks a table ONLY IF all its constituent seats are available.
+     * This prevents a TOCTOU race condition.
+     *
+     * @param sessionId The session ID
+     * @param tableId The table to unblock
+     * @param tableSeatIds The complete list of seat IDs that belong to this table
+     * @return Number of rows affected (0 if seats were not all available, 1 if unblocked)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = 'AVAILABLE'
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId = :tableId
+        AND stc.status = 'BLOCKED'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM SessionSeatConfig ssc
+            WHERE ssc.session.id = :sessionId
+            AND ssc.seatId IN :tableSeatIds
+            AND ssc.status != 'AVAILABLE'
+        )
+    """
+    )
+    fun unblockTableIfAllSeatsAreAvailable(
+        sessionId: Long,
+        tableId: Long,
+        tableSeatIds: List<Long>
+    ): Int
 }
 

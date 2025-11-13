@@ -132,6 +132,74 @@ class CartController(
         )
     }
 
+    // FIX: (Fix 6) Added new endpoint to update GA quantity
+    /**
+     * Update GA ticket quantity in cart.
+     */
+    @PutMapping("/{token}/ga/{levelIdentifier}")
+    @Operation(
+        summary = "Update GA ticket quantity in cart",
+        description = "Update the quantity of GA tickets for a specific level"
+    )
+    fun updateGAQuantity(
+        @PathVariable token: UUID,
+        @PathVariable levelIdentifier: String,
+        @Valid @RequestBody request: UpdateGATicketRequest
+    ): ApiResponse<Unit> {
+        logger.debug { "Updating GA quantity: token=$token, level=$levelIdentifier, qty=${request.quantity}" }
+
+        cartService.updateGAQuantity(token, levelIdentifier, request.quantity)
+
+        return ApiResponse.success(
+            data = Unit,
+            message = "GA ticket quantity updated"
+        )
+    }
+
+    /**
+     * Remove all GA tickets for a level from cart.
+     */
+    @DeleteMapping("/{token}/ga/{levelIdentifier}")
+    @Operation(
+        summary = "Remove GA item from cart",
+        description = "Remove all GA tickets for a specific level from cart"
+    )
+    fun removeGAFromCart(
+        @PathVariable token: UUID,
+        @PathVariable levelIdentifier: String
+    ): ApiResponse<Unit> {
+        logger.debug { "Removing GA item from cart: token=$token, level=$levelIdentifier" }
+
+        cartService.removeGAFromCart(token, levelIdentifier)
+
+        return ApiResponse.success(
+            data = Unit,
+            message = "GA item removed from cart"
+        )
+    }
+
+    /**
+     * Remove table from cart.
+     */
+    @DeleteMapping("/{token}/tables/{tableIdentifier}")
+    @Operation(
+        summary = "Remove table from cart",
+        description = "Remove a specific table from cart"
+    )
+    fun removeTableFromCart(
+        @PathVariable token: UUID,
+        @PathVariable tableIdentifier: String
+    ): ApiResponse<Unit> {
+        logger.debug { "Removing table from cart: token=$token, tableIdentifier=$tableIdentifier" }
+
+        cartService.removeTableFromCart(token, tableIdentifier)
+
+        return ApiResponse.success(
+            data = Unit,
+            message = "Table removed from cart"
+        )
+    }
+
     /**
      * Clear cart.
      */
@@ -151,4 +219,3 @@ class CartController(
         )
     }
 }
-

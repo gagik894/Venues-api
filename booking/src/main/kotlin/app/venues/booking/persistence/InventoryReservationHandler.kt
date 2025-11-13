@@ -42,6 +42,9 @@ class InventoryReservationHandler(
      * Atomically reserve a seat and get its price in a single operation.
      * Thread-safe and prevents race conditions.
      *
+     * Also blocks any tables containing this seat to maintain consistency.
+     * All operations happen atomically within the same transaction.
+     *
      * @throws VenuesException.ResourceConflict if seat unavailable
      * @throws VenuesException.ValidationFailure if seat not priced
      */
@@ -52,12 +55,9 @@ class InventoryReservationHandler(
                 "Seat is not available for reservation or not priced"
             )
 
-        // Block any tables that contain this seat (non-critical, best-effort)
-        try {
-            blockTablesContainingSeat(sessionId, seatId)
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to block tables for seat $seatId (non-critical): ${e.message}" }
-        }
+        // Block any tables containing this seat (same transaction for consistency)
+        // This prevents tables from being booked when individual seats are reserved
+        blockTablesContainingSeat(sessionId, seatId)
 
         return SeatReservationResult(seatId = seatId, price = price)
     }
@@ -136,49 +136,47 @@ class InventoryReservationHandler(
     /**
      * Block tables that contain the given seat (FLEXIBLE or TABLE_ONLY modes).
      * When any seat is reserved, the table cannot be booked as a unit.
+     *
+     * Runs in same transaction as seat reservation for consistency.
+     * If this fails, seat reservation will be rolled back.
      */
     private fun blockTablesContainingSeat(sessionId: Long, seatId: Long) {
-        try {
-            val tables = sessionTableConfigRepository.findTablesBySeatId(sessionId, seatId)
-            tables.forEach { tableConfig ->
-                val blockedRows = sessionTableConfigRepository.blockTable(sessionId, tableConfig.tableId)
-                if (blockedRows > 0) {
-                    logger.debug { "Blocked table ${tableConfig.tableId} due to seat $seatId reservation" }
-                }
+        val tables = sessionTableConfigRepository.findTablesBySeatId(sessionId, seatId)
+        tables.forEach { tableConfig ->
+            val blockedRows = sessionTableConfigRepository.blockTable(sessionId, tableConfig.tableId)
+            if (blockedRows > 0) {
+                logger.debug { "Blocked table ${tableConfig.tableId} due to seat $seatId reservation" }
             }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to block tables for seat $seatId: ${e.message}" }
         }
     }
 
     /**
      * Unblock tables if ALL their seats are now available.
      * Checks all seats in the table - only unblocks if every seat is AVAILABLE.
+     *
+     * Runs in same transaction as seat release for consistency.
+     * If this fails, seat release will be rolled back.
      */
     private fun unblockTablesIfAllSeatsAvailable(sessionId: Long, seatId: Long) {
-        try {
-            val tables = sessionTableConfigRepository.findTablesBySeatId(sessionId, seatId)
-            tables.forEach { tableConfig ->
-                // Get all seats for this table from seating API
-                val tableSeats = seatingApi.getSeatsForLevel(tableConfig.tableId)
+        val tables = sessionTableConfigRepository.findTablesBySeatId(sessionId, seatId)
+        tables.forEach { tableConfig ->
+            // Get all seats for this table from seating API
+            val tableSeats = seatingApi.getSeatsForLevel(tableConfig.tableId)
 
-                // Check if all seats are available
-                val allSeatsAvailable = tableSeats.all { seat ->
-                    val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(
-                        sessionId, seat.id ?: return@all false
-                    )
-                    seatConfig?.status == ConfigStatus.AVAILABLE
-                }
+            // Check if all seats are available
+            val allSeatsAvailable = tableSeats.all { seat ->
+                val seatConfig = sessionSeatConfigRepository.findBySessionIdAndSeatId(
+                    sessionId, seat.id
+                )
+                seatConfig?.status == ConfigStatus.AVAILABLE
+            }
 
-                if (allSeatsAvailable) {
-                    val unblockedRows = sessionTableConfigRepository.unblockTable(sessionId, tableConfig.tableId)
-                    if (unblockedRows > 0) {
-                        logger.debug { "Unblocked table ${tableConfig.tableId} - all seats available" }
-                    }
+            if (allSeatsAvailable) {
+                val unblockedRows = sessionTableConfigRepository.unblockTable(sessionId, tableConfig.tableId)
+                if (unblockedRows > 0) {
+                    logger.debug { "Unblocked table ${tableConfig.tableId} - all seats available" }
                 }
             }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to unblock tables for seat $seatId: ${e.message}" }
         }
     }
 }

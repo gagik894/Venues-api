@@ -3,6 +3,7 @@ package app.venues.platform.service
 import app.venues.booking.api.dto.AddGAToCartRequest
 import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.booking.service.BookingService
+import app.venues.booking.service.CartQueryService // NEW: Import CartQueryService
 import app.venues.booking.service.CartService
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
@@ -30,6 +31,7 @@ class PlatformService(
     private val platformRepository: PlatformRepository,
     private val webhookEventRepository: WebhookEventRepository,
     private val cartService: CartService,
+    private val cartQueryService: CartQueryService,
     private val bookingService: BookingService,
     private val seatingApi: SeatingApi
 ) {
@@ -203,9 +205,10 @@ class PlatformService(
         }
 
         // Get actual cart details after all reservations are made
-        val cartSummary = cartService.getCartSummary(reservationToken)
+        // FIX: Use the new CartQueryService
+        val cartSummary = cartQueryService.getCartSummary(reservationToken)
 
-        logger.info { "Platform ${platform.name} reserved ${cartSummary.seats.size} seats and ${cartSummary.gaItems.size} GA tickets" }
+        logger.info { "Platform ${platform.name} reserved ${cartSummary.seats.size} seats and ${cartSummary.gaItems.size} GA items" }
 
 
         // Map cart seats to response with actual details
@@ -255,7 +258,8 @@ class PlatformService(
 
         // Get cart summary before clearing to track counts
         val cartSummary = try {
-            cartService.getCartSummary(request.reservationToken)
+            // FIX: Use the new CartQueryService
+            cartQueryService.getCartSummary(request.reservationToken)
         } catch (e: VenuesException) {
             // Cart not found or already expired
             return PlatformReleaseResponse(
@@ -310,17 +314,13 @@ class PlatformService(
 
         logger.info { "Platform ${platform.name} completed sale: bookingId=${booking.id}, total=${booking.totalPrice}" }
 
-        // Batch fetch seat and level information via SeatingApi (Hexagonal Architecture)
-        val seatIds = booking.items.mapNotNull { it.seatId }.toSet()
-        val levelIds = booking.items.mapNotNull { it.levelId }.toSet()
+        // Batch fetch seat and level information
+        val seatIds = booking.items.mapNotNull { it.seatId }.toList()
+        val levelIds = booking.items.mapNotNull { it.levelId }.toList()
 
-        val seatInfoMap = seatIds.associateWith { seatId ->
-            seatingApi.getSeatInfo(seatId)
-        }
-
-        val levelInfoMap = levelIds.associateWith { levelId ->
-            seatingApi.getLevelInfo(levelId)
-        }
+        // FIX: Use batch methods to prevent N+1 performance bottleneck
+        val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
+        val levelInfoMap = seatingApi.getLevelInfoBatch(levelIds).associateBy { it.id }
 
         // Map booking items to response with fetched data
         val seats = booking.items
@@ -334,7 +334,10 @@ class PlatformService(
                         seatNumber = seatInfo.seatNumber,
                         rowLabel = seatInfo.rowLabel
                     )
-                } else null
+                } else {
+                    logger.warn { "Could not find seat info for seatId: ${item.seatId} in booking: ${booking.id}" }
+                    null
+                }
             }
 
         val gaTickets = booking.items
@@ -347,7 +350,10 @@ class PlatformService(
                         levelName = levelInfo.levelName,
                         quantity = item.quantity
                     )
-                } else null
+                } else {
+                    logger.warn { "Could not find level info for levelId: ${item.levelId} in booking: ${booking.id}" }
+                    null
+                }
             }
 
         return PlatformSellResponse(
@@ -415,4 +421,3 @@ class PlatformService(
         )
     }
 }
-

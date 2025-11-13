@@ -48,14 +48,17 @@ data class AddTableToCartRequest(
 )
 
 /**
- * Request to update GA ticket quantity in cart
+ * Request to update GA ticket quantity in cart.
+ * Contains only the fields that can be updated.
+ * Identifiers (token, level) are passed in the URL.
  */
-data class UpdateGATicketRequest(
+data class UpdateGAQuantityRequest(
     @field:Min(value = 0, message = "Quantity must be at least 0 (0 to remove)")
     @field:Max(value = 10, message = "Maximum 10 tickets per transaction")
     @field:NotNull(message = "Quantity is required")
     var quantity: Int
 )
+
 
 // ===========================================
 // CART RESPONSE DTOs

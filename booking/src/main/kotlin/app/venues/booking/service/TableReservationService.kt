@@ -53,7 +53,7 @@ class TableReservationService(
 
         val tableId = tableInfo.id
 
-        // Get the *actual* seats for this table
+        // Get the *actual* seats for this table (THIS IS THE SOURCE OF TRUTH)
         val seats = seatingApi.getSeatsForLevel(tableId)
         val seatCount = seats.size
 
@@ -64,10 +64,10 @@ class TableReservationService(
             )
         }
 
-        // Validate table booking mode
-        if (!canBookAsTable(tableInfo.tableBookingMode)) {
+        // Validate table booking mode using the "smart" DTO field
+        if (!tableInfo.allowsTableBooking) {
             throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' can only be booked by individual seats"
+                "Table '${tableInfo.levelName}' does not allow whole-table booking."
             )
         }
 
@@ -82,6 +82,7 @@ class TableReservationService(
                 "Table '${tableInfo.levelName}' is not available or not priced"
             )
 
+        // Atomically reserve the table
         val rowsAffected = sessionTableConfigRepository.reserveTableIfAvailable(sessionId, tableId)
         if (rowsAffected == 0) {
             throw VenuesException.ResourceConflict(
@@ -126,6 +127,7 @@ class TableReservationService(
         // A SOLD table should not be released by this flow.
         if (tableConfig.status != ConfigStatus.RESERVED) {
             logger.warn { "Attempted to release table $tableId with status ${tableConfig.status}" }
+            // If it's already AVAILABLE, still try to unblock seats
             if (tableConfig.status != ConfigStatus.AVAILABLE) return
         }
 
@@ -133,13 +135,12 @@ class TableReservationService(
         tableConfig.status = ConfigStatus.AVAILABLE
         sessionTableConfigRepository.save(tableConfig)
 
-        // Unblock individual seats if booking mode allows individual booking
         val tableInfo = seatingApi.getLevelInfo(tableId)
-        if (tableInfo != null && canBookIndividualSeats(tableInfo.tableBookingMode)) {
+
+        if (tableInfo != null && tableInfo.allowsSeatBooking) {
             unblockAllSeatsInTable(sessionId, tableId)
         }
 
-        // Publish table released event
         eventPublisher.publishEvent(
             TableReleasedEvent(
                 sessionId = sessionId,
@@ -153,7 +154,7 @@ class TableReservationService(
 
     /**
      * Block all seats in a table atomically (set to BLOCKED status).
-     * Uses bulk UPDATE operation for thread-safety under high load.
+     * Overloaded method that accepts the already-fetched list of seats.
      */
     private fun blockAllSeatsInTable(sessionId: Long, tableId: Long, seats: List<SeatInfoDto>) {
         if (seats.isEmpty()) {
@@ -176,7 +177,7 @@ class TableReservationService(
 
     /**
      * Unblock all seats in a table atomically (set to AVAILABLE status).
-     * Uses bulk UPDATE operation for thread-safety under high load.
+     * This version fetches the seats itself, as it's called from `releaseTable`.
      */
     private fun unblockAllSeatsInTable(sessionId: Long, tableId: Long) {
         val seats = seatingApi.getSeatsForLevel(tableId)
@@ -189,18 +190,4 @@ class TableReservationService(
 
         logger.debug { "Unblocked $unblockedCount/${seatIds.size} seats in table $tableId" }
     }
-
-    /**
-     * Check if table can be booked as a complete unit.
-     */
-    private fun canBookAsTable(bookingMode: String?): Boolean {
-        return bookingMode == "TABLE_ONLY" || bookingMode == "FLEXIBLE"
-    }
-    /**
-     * Check if individual seats can be booked.
-     */
-    private fun canBookIndividualSeats(bookingMode: String?): Boolean {
-        return bookingMode == "SEATS_ONLY" || bookingMode == "FLEXIBLE"
-    }
 }
-

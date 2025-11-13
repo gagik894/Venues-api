@@ -1,7 +1,9 @@
 package app.venues.booking.service
 
-import app.venues.booking.api.dto.*
-import app.venues.booking.api.mapper.CartMapper
+import app.venues.booking.api.dto.AddGAToCartRequest
+import app.venues.booking.api.dto.AddSeatToCartRequest
+import app.venues.booking.api.dto.AddTableToCartRequest
+import app.venues.booking.api.dto.AddToCartResponse
 import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
@@ -10,21 +12,19 @@ import app.venues.booking.repository.CartRepository
 import app.venues.booking.validation.CartLimitValidator
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionLevelConfigRepository
-import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
-import java.time.Instant
 import java.util.*
 
 /**
- * Cart management service orchestrating cart operations.
+ * Cart management service for **Command** operations.
  *
- * Delegates to specialized components for validation, session management,
- * inventory operations, and persistence. Maintains clean separation of concerns.
+ * This service is responsible for all mutations (changes) to a cart,
+ * such as adding, updating, or removing items.
+ *
+ * All read operations are handled by `CartQueryService`.
  */
 @Service
 @Transactional
@@ -36,11 +36,7 @@ class CartService(
     private val cartItemPersistence: CartItemPersistence,
     private val cartTablePersistence: CartTablePersistence,
     private val tableReservationService: TableReservationService,
-    private val cartCleanupHelper: CartCleanupHelper,
     private val eventSessionRepository: EventSessionRepository,
-    private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
-    private val cartMapper: CartMapper,
     private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
@@ -227,120 +223,6 @@ class CartService(
     }
 
     /**
-     * Retrieves cart summary. Touches cart session to track activity.
-     * Returns snapshotted prices, not current live prices.
-     */
-    @Transactional(readOnly = true)
-    fun getCartSummary(token: UUID): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCart(token)
-        cartSessionManager.touchCart(cart)
-
-        val session = eventSessionRepository.findById(cart.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
-
-        // 1. Get all cart items from local DB
-        val seats = cartItemPersistence.getAllSeats(cart)
-        val gaItems = cartItemPersistence.getAllGAItems(cart)
-        val tables = cartTablePersistence.getAllTables(cart)
-
-        if (seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()) {
-            throw VenuesException.ResourceNotFound("Cart is empty")
-        }
-
-        // 2. Collect all unique IDs needed for batch fetching
-        val seatIds = seats.map { it.seatId }.distinct()
-        val gaLevelIds = gaItems.map { it.levelId }.distinct()
-        val tableIds = tables.map { it.tableId }.distinct()
-
-        // 3. Make batch calls to repositories and APIs
-        // NOTE: Assumes these '...In' methods exist on the respective repositories
-        val seatConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(cart.sessionId, seatIds)
-            .associateBy { it.seatId }
-        val levelConfigs = sessionLevelConfigRepository.findBySessionIdAndLevelIdIn(cart.sessionId, gaLevelIds)
-            .associateBy { it.levelId }
-
-        // NOTE: Assumes SeatingApi supports batch operations
-        val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
-
-        val allLevelIds = (
-                seatInfoMap.values.map { it.levelId } + gaLevelIds + tableIds
-                ).distinct()
-        val levelInfoMap = seatingApi.getLevelInfoBatch(allLevelIds).associateBy { it.id }
-
-        // 4. Map results in memory (no more calls inside loops)
-        val seatResponses = seats.mapNotNull { cartSeat ->
-            val config = seatConfigs[cartSeat.seatId]
-            val seatInfo = seatInfoMap[cartSeat.seatId]
-            val levelInfo = seatInfo?.let { levelInfoMap[it.levelId] }
-
-            if (config == null || seatInfo == null || levelInfo == null) {
-                logger.warn { "Missing data for cart seat: ${cartSeat.seatId}" }
-                null // Skip item if data is inconsistent
-            } else {
-                cartMapper.toCartSeatResponse(
-                    cartSeat = cartSeat,
-                    seatIdentifier = seatInfo.seatIdentifier,
-                    seatNumber = seatInfo.seatNumber,
-                    rowLabel = seatInfo.rowLabel,
-                    levelName = levelInfo.levelName,
-                    levelIdentifier = levelInfo.levelIdentifier,
-                    price = cartSeat.unitPrice,
-                    priceTemplateName = config.priceTemplate?.templateName
-                )
-            }
-        }
-
-        val gaItemResponses = gaItems.mapNotNull { cartItem ->
-            val config = levelConfigs[cartItem.levelId]
-            val levelInfo = levelInfoMap[cartItem.levelId]
-
-            if (config == null || levelInfo == null) {
-                logger.warn { "Missing data for cart GA item: ${cartItem.levelId}" }
-                null
-            } else {
-                cartMapper.toCartGAItemResponse(
-                    cartItem = cartItem,
-                    levelIdentifier = levelInfo.levelIdentifier,
-                    levelName = levelInfo.levelName,
-                    unitPrice = cartItem.unitPrice,
-                    priceTemplateName = config.priceTemplate?.templateName
-                )
-            }
-        }
-
-        val tableResponses = tables.mapNotNull { cartTable ->
-            val levelInfo = levelInfoMap[cartTable.tableId] // Table is a level
-            if (levelInfo == null) {
-                logger.warn { "Missing data for cart table item: ${cartTable.tableId}" }
-                null
-            } else {
-                cartMapper.toCartTableResponse(
-                    cartTable = cartTable,
-                    tableName = levelInfo.levelName,
-                    seatCount = cartTable.seatCount,
-                    price = cartTable.unitPrice
-                )
-            }
-        }
-
-        val total = seatResponses.sumOf { BigDecimal(it.price) }
-            .add(gaItemResponses.sumOf { BigDecimal(it.totalPrice) })
-            .add(tableResponses.sumOf { it.price })
-
-        return cartMapper.toCartSummary(
-            token = token,
-            seats = seatResponses,
-            gaItems = gaItemResponses,
-            tables = tableResponses,
-            totalPrice = total,
-            currency = session.event.currency,
-            expiresAt = cart.expiresAt.toString(),
-            sessionId = cart.sessionId,
-            eventTitle = session.event.title
-        )
-    }
-
-    /**
      * Removes a specific seat from cart and releases inventory.
      */
     @Transactional
@@ -387,11 +269,11 @@ class CartService(
         val existingItem = cartItemPersistence.findExistingGAItem(cart, levelInfo.id)
             ?: throw VenuesException.ResourceNotFound("GA item not found in cart")
 
+        // Calculate the *change* in quantity
         val quantityDelta = newQuantity - existingItem.quantity
 
-        // Only validate limits if we are adding more tickets
+        // Only validate limits if we are *adding* more tickets
         if (quantityDelta > 0) {
-            // Validate cart limits
             cartLimitValidator.validateAddGALimit(
                 cart = cart,
                 requestedQuantity = quantityDelta,
@@ -504,36 +386,5 @@ class CartService(
         // Delete cart
         cartRepository.delete(cart)
         logger.info { "Cart cleared: $token" }
-    }
-
-    /**
-     * Deletes expired cart sessions and releases all inventory.
-     * Called by scheduled cleanup job.
-     */
-    fun deleteExpiredCarts(): Int {
-        val now = Instant.now()
-        val expiredCarts = cartRepository.findByExpiresAtBefore(now)
-
-        if (expiredCarts.isEmpty()) {
-            return 0
-        }
-
-        var totalItemsReleased = 0
-        var successfulDeletions = 0
-
-        // Process each cart in its own transaction via helper component
-        expiredCarts.forEach { cart ->
-            val result = cartCleanupHelper.deleteSingleCart(cart)
-            if (result != null) {
-                totalItemsReleased += result.itemsReleased
-                successfulDeletions++
-            }
-        }
-
-        if (totalItemsReleased > 0) {
-            logger.info { "Cleanup complete: Deleted $successfulDeletions carts, released $totalItemsReleased items" }
-        }
-
-        return successfulDeletions
     }
 }

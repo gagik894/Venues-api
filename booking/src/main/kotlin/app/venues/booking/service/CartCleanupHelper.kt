@@ -13,7 +13,11 @@ import org.springframework.transaction.annotation.Transactional
 
 /**
  * Helper component for cart cleanup operations.
- * Separated to ensure proper transaction boundary management.
+ *
+ * This class is separated from `CartCleanupService` to solve the
+ * Spring AOP self-invocation problem. By placing the @Transactional
+ * method in its own bean, we ensure that it is proxied correctly
+ * when called from another service.
  */
 @Component
 class CartCleanupHelper(
@@ -28,7 +32,11 @@ class CartCleanupHelper(
 
     /**
      * Deletes a single expired cart in its own independent transaction.
-     * Uses REQUIRES_NEW to ensure isolation from calling transaction.
+     * Uses REQUIRES_NEW to ensure isolation from the main cleanup loop.
+     * If one cart fails to delete, it will not roll back the others.
+     *
+     * This method MUST be in a separate class from the service that calls it
+     * for the @Transactional proxy to work.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun deleteSingleCart(cart: Cart): DeletionResult? {
@@ -80,4 +88,3 @@ class CartCleanupHelper(
 
     data class DeletionResult(val itemsReleased: Int)
 }
-

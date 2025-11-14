@@ -43,5 +43,38 @@ interface LevelRepository : JpaRepository<Level, Long> {
     """
     )
     fun findGeneralAdmissionLevels(): List<Level>
+
+    /**
+     * Finds all parent level IDs of a given seat that are marked as tables.
+     * Uses a native recursive CTE to walk up the level hierarchy.
+     *
+     * @param seatId The ID of the seat
+     * @return A list of level IDs
+     */
+    @Query(
+        nativeQuery = true,
+        value = """
+            WITH RECURSIVE LevelHierarchy AS (
+                SELECT 
+                    l.id, l.parent_level_id, l.is_table
+                FROM levels l
+                JOIN seats s ON s.level_id = l.id
+                WHERE s.id = :seatId
+    
+                UNION ALL
+    
+                -- Recursive step: Join with parent
+                SELECT 
+                    l.id, l.parent_level_id, l.is_table
+                FROM levels l
+                JOIN LevelHierarchy h ON l.id = h.parent_level_id
+            )
+            -- Select only the table IDs from the hierarchy
+            SELECT id
+            FROM LevelHierarchy
+            WHERE is_table = true
+        """
+    )
+    fun findParentTableIdsForSeat(seatId: Long): List<Long>
 }
 

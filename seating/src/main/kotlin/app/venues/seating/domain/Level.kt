@@ -95,14 +95,6 @@ data class Level(
     var tableBookingMode: TableBookingMode? = null,
 
     /**
-     * Number of seats in the table (for validation and display)
-     * Only applicable if isTable = true
-     */
-    @Column(name = "table_capacity")
-    var tableCapacity: Int? = null,
-
-
-    /**
      * Child levels (for nested hierarchy)
      */
     @OneToMany(mappedBy = "parentLevel", cascade = [CascadeType.ALL], orphanRemoval = true)

@@ -220,35 +220,33 @@ class SeatingService(
 
     @Transactional(readOnly = true)
     override fun getTablesForSeat(seatId: Long): List<LevelInfoDto> {
-        // This needs an optimized query, not a loop, to be "Google quality"
-        // A recursive CTE in the repository is the best way.
-        // For now, this implementation is functionally correct but not optimal.
-        val seat = seatRepository.findById(seatId).orElse(null) ?: return emptyList()
+        // This implementation is now optimized and avoids N+1 loops.
 
-        val tables = mutableListOf<LevelInfoDto>()
-        var currentLevel: Level? = seat.level
+        // STEP 1: Use a single recursive query to find the IDs of all parent tables.
+        val tableIds = levelRepository.findParentTableIdsForSeat(seatId)
 
-        // Walk up the hierarchy (seat's level, parent level, grandparent, etc.)
-        while (currentLevel != null) {
-            if (currentLevel.isTable) {
-                // This level is a table, map it to the DTO
-                tables.add(
-                    LevelInfoDto(
-                        id = currentLevel.id!!,
-                        levelName = currentLevel.levelName,
-                        levelIdentifier = currentLevel.levelIdentifier,
-                        capacity = currentLevel.capacity,
-                        isGeneralAdmission = currentLevel.isGeneralAdmission(),
-                        tableBookingMode = currentLevel.tableBookingMode?.name,
-                        allowsSeatBooking = currentLevel.allowsSeatBooking(), // CENTRALIZED LOGIC
-                        allowsTableBooking = currentLevel.allowsTableBooking() // CENTRALIZED LOGIC
-                    )
-                )
-            }
-            // Move up to the parent (this might be another DB call if LAZY)
-            currentLevel = currentLevel.parentLevel
+        if (tableIds.isEmpty()) {
+            return emptyList()
         }
-        return tables
+
+        // STEP 2: Use a single batch query to fetch the full Level entities for those IDs.
+        // This respects DDD and avoids N+1.
+        val tables = levelRepository.findAllById(tableIds)
+
+        // STEP 3: Map the entities to DTOs, using the centralized business logic
+        // from the Level entity itself.
+        return tables.map { currentLevel ->
+            LevelInfoDto(
+                id = currentLevel.id!!,
+                levelName = currentLevel.levelName,
+                levelIdentifier = currentLevel.levelIdentifier,
+                capacity = currentLevel.capacity,
+                isGeneralAdmission = currentLevel.isGeneralAdmission(), // CENTRALIZED LOGIC
+                tableBookingMode = currentLevel.tableBookingMode?.name,
+                allowsSeatBooking = currentLevel.allowsSeatBooking(), // CENTRALIZED LOGIC
+                allowsTableBooking = currentLevel.allowsTableBooking() // CENTRALIZED LOGIC
+            )
+        }
     }
 
 

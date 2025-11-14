@@ -224,12 +224,12 @@ class SessionSeatingService(
                     "${tables.size} tables ($tableSeatsCount table seats), ${gaAreas.size} GA areas"
         }
 
-        val eventId = event.id
+        event.id
             ?: throw VenuesException.ValidationFailure("Event ID is null")
 
         return SessionSeatingResponse(
             sessionId = sessionId,
-            eventId = eventId,
+            eventId = event.id!!,
             eventTitle = event.title,
             seatingChartId = seatingChartId,
             seatingChartName = chartStructure.chartName,
@@ -323,12 +323,15 @@ class SessionSeatingService(
 
         // Only include seat identifiers for small venues (< 1000 seats)
         val availableIdentifiers = if (totalSeats < 1000) {
-            // Get available seat IDs
             val availableSeatIds = sessionSeatConfigRepository.findAvailableSeatIdsBySession(sessionId)
-            // Resolve to seat identifiers via SeatingApi (Hexagonal Architecture)
-            availableSeatIds.mapNotNull { seatId ->
-                seatingApi.getSeatInfo(seatId)?.seatIdentifier
-            }.sorted()
+
+            if (availableSeatIds.isEmpty()) {
+                emptyList()
+            } else {
+                seatingApi.getSeatInfoBatch(availableSeatIds)
+                    .map { it.seatIdentifier }
+                    .sorted()
+            }
         } else {
             emptyList()
         }

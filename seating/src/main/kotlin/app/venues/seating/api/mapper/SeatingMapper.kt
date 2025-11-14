@@ -1,9 +1,6 @@
 package app.venues.seating.api.mapper
 
-import app.venues.seating.api.dto.LevelResponse
-import app.venues.seating.api.dto.SeatResponse
-import app.venues.seating.api.dto.SeatingChartDetailedResponse
-import app.venues.seating.api.dto.SeatingChartResponse
+import app.venues.seating.api.dto.*
 import app.venues.seating.domain.Level
 import app.venues.seating.domain.Seat
 import app.venues.seating.domain.SeatingChart
@@ -17,6 +14,39 @@ import org.springframework.stereotype.Component
  */
 @Component
 class SeatingMapper {
+    /**
+     * Convert Level entity to LevelInfoDto.
+     * This DTO is used for the public SeatingApi interface.
+     * It correctly uses the entity's business logic methods.
+     */
+    fun toLevelInfoDto(level: Level): LevelInfoDto {
+        return LevelInfoDto(
+            id = level.id!!,
+            levelName = level.levelName,
+            levelIdentifier = level.levelIdentifier,
+            capacity = level.capacity,
+            isGeneralAdmission = level.isGeneralAdmission(), // Centralized logic
+            tableBookingMode = level.tableBookingMode?.name,
+            allowsSeatBooking = level.allowsSeatBooking(), // Centralized logic
+            allowsTableBooking = level.allowsTableBooking() // Centralized logic
+        )
+    }
+
+    /**
+     * Convert Seat entity to SeatInfoDto.
+     * This DTO is used for the public SeatingApi interface.
+     * Assumes seat.level has been fetched by the service.
+     */
+    fun toSeatInfoDto(seat: Seat): SeatInfoDto {
+        return SeatInfoDto(
+            id = seat.id!!,
+            seatIdentifier = seat.seatIdentifier,
+            seatNumber = seat.seatNumber,
+            rowLabel = seat.rowLabel,
+            levelId = seat.level.id!!,
+            levelName = seat.level.levelName
+        )
+    }
 
     /**
      * Convert SeatingChart entity to SeatingChartResponse DTO.

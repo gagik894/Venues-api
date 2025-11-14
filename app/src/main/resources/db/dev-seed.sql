@@ -276,7 +276,7 @@ VALUES (1, 1, NOW() + INTERVAL '7 days' + INTERVAL '19 hours',
        (4, 3, NOW() + INTERVAL '14 days' + INTERVAL '20 hours', NOW() + INTERVAL '14 days' + INTERVAL '22 hours', 400,
         0, 'UPCOMING', NOW(), NOW()),
        (5, 4, NOW() - INTERVAL '5 days' + INTERVAL '20 hours', NOW() - INTERVAL '5 days' + INTERVAL '23 hours', 200,
-        180, 'COMPLETED', NOW() - INTERVAL '10 days', NOW() - INTERVAL '5 days');
+        180, 'PAST', NOW() - INTERVAL '10 days', NOW() - INTERVAL '5 days');
 
 SELECT setval('event_sessions_id_seq', 5, true);
 

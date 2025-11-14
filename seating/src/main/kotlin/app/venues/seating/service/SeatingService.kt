@@ -48,114 +48,46 @@ class SeatingService(
     @Transactional(readOnly = true)
     override fun getSeatInfo(seatId: Long): SeatInfoDto? {
         return seatRepository.findById(seatId)
-            .map { seat ->
-                val level = seat.level
-                SeatInfoDto(
-                    id = seat.id!!,
-                    seatIdentifier = seat.seatIdentifier,
-                    seatNumber = seat.seatNumber,
-                    rowLabel = seat.rowLabel,
-                    levelId = level.id!!,
-                    levelName = level.levelName
-                )
-            }
+            .map(seatingMapper::toSeatInfoDto)
             .orElse(null)
     }
 
-    // NEW: (Fix 4) Implementation for the batch method
     @Transactional(readOnly = true)
     override fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto> {
         if (seatIds.isEmpty()) {
             return emptyList()
         }
 
-        // Fetch seats with their levels in one go to avoid N+1
-        // Assumes 'findAllWithLevelByIdIn' is a custom query:
-        // "SELECT s FROM Seat s LEFT JOIN FETCH s.level WHERE s.id IN :seatIds"
-        // If not, findAllById is acceptable but less performant if level is LAZY
-        val seats = seatRepository.findAllById(seatIds) // Or custom batch fetch
-
-        return seats.map { seat ->
-            SeatInfoDto(
-                id = seat.id!!,
-                seatIdentifier = seat.seatIdentifier,
-                seatNumber = seat.seatNumber,
-                rowLabel = seat.rowLabel,
-                levelId = seat.level.id!!,
-                levelName = seat.level.levelName
-            )
-        }
+        val seats = seatRepository.findAllById(seatIds)
+        return seats.map(seatingMapper::toSeatInfoDto)
     }
 
     @Transactional(readOnly = true)
     override fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto? {
-        // Assumes 'findBySeatIdentifier' also fetches the level to avoid N+1
         val seat = seatRepository.findBySeatIdentifier(seatIdentifier) ?: return null
-        val level = seat.level
-        return SeatInfoDto(
-            id = seat.id!!,
-            seatIdentifier = seat.seatIdentifier,
-            seatNumber = seat.seatNumber,
-            rowLabel = seat.rowLabel,
-            levelId = level.id!!,
-            levelName = level.levelName
-        )
+        return seatingMapper.toSeatInfoDto(seat)
     }
 
     @Transactional(readOnly = true)
     override fun getLevelInfo(levelId: Long): LevelInfoDto? {
         return levelRepository.findById(levelId)
-            .map { level ->
-                // Use the entity's helper methods to populate the DTO
-                LevelInfoDto(
-                    id = level.id!!,
-                    levelName = level.levelName,
-                    levelIdentifier = level.levelIdentifier,
-                    capacity = level.capacity,
-                    isGeneralAdmission = level.isGeneralAdmission(),
-                    tableBookingMode = level.tableBookingMode?.name,
-                    allowsSeatBooking = level.allowsSeatBooking(), // CENTRALIZED LOGIC
-                    allowsTableBooking = level.allowsTableBooking() // CENTRALIZED LOGIC
-                )
-            }
+            .map(seatingMapper::toLevelInfoDto)
             .orElse(null)
     }
 
-    // NEW: (Fix 4) Implementation for the batch method
     @Transactional(readOnly = true)
     override fun getLevelInfoBatch(levelIds: List<Long>): List<LevelInfoDto> {
         if (levelIds.isEmpty()) {
             return emptyList()
         }
-        return levelRepository.findAllById(levelIds).map { level ->
-            // Use the entity's helper methods to populate the DTO
-            LevelInfoDto(
-                id = level.id!!,
-                levelName = level.levelName,
-                levelIdentifier = level.levelIdentifier,
-                capacity = level.capacity,
-                isGeneralAdmission = level.isGeneralAdmission(),
-                tableBookingMode = level.tableBookingMode?.name,
-                allowsSeatBooking = level.allowsSeatBooking(), // CENTRALIZED LOGIC
-                allowsTableBooking = level.allowsTableBooking() // CENTRALIZED LOGIC
-            )
-        }
+        return levelRepository.findAllById(levelIds)
+            .map(seatingMapper::toLevelInfoDto)
     }
 
     @Transactional(readOnly = true)
     override fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto? {
         val level = levelRepository.findByLevelIdentifier(levelIdentifier) ?: return null
-        // Use the entity's helper methods to populate the DTO
-        return LevelInfoDto(
-            id = level.id ?: throw IllegalStateException("Level ID should not be null"),
-            levelName = level.levelName,
-            levelIdentifier = level.levelIdentifier,
-            capacity = level.capacity,
-            isGeneralAdmission = level.isGeneralAdmission(),
-            tableBookingMode = level.tableBookingMode?.name,
-            allowsSeatBooking = level.allowsSeatBooking(), // CENTRALIZED LOGIC
-            allowsTableBooking = level.allowsTableBooking() // CENTRALIZED LOGIC
-        )
+        return seatingMapper.toLevelInfoDto(level)
     }
 
     @Transactional(readOnly = true)
@@ -177,18 +109,8 @@ class SeatingService(
 
     @Transactional(readOnly = true)
     override fun getSeatsForLevel(levelId: Long): List<SeatInfoDto> {
-        // This query should fetch the level as well to avoid N+1 in the loop
-        // e.g., "SELECT s FROM Seat s LEFT JOIN FETCH s.level WHERE s.level.id = :levelId"
-        return seatRepository.findByLevelId(levelId).map { seat ->
-            SeatInfoDto(
-                id = seat.id!!,
-                seatIdentifier = seat.seatIdentifier,
-                seatNumber = seat.seatNumber,
-                rowLabel = seat.rowLabel,
-                levelId = seat.level.id ?: throw IllegalStateException("Level ID should not be null"),
-                levelName = seat.level.levelName
-            )
-        }
+        return seatRepository.findByLevelId(levelId)
+            .map(seatingMapper::toSeatInfoDto)
     }
 
     @Transactional(readOnly = true)
@@ -196,57 +118,26 @@ class SeatingService(
         if (levelIds.isEmpty()) {
             return emptyMap()
         }
-
         // Single query to load all seats for all levels
-        // This should be an optimized query, e.g.:
-        // "SELECT s FROM Seat s LEFT JOIN FETCH s.level WHERE s.level.id IN :levelIds"
         val seats = seatRepository.findByLevelIdIn(levelIds)
 
         // Group by level ID
         return seats.groupBy { it.level.id!! }
             .mapValues { (_, levelSeats) ->
-                levelSeats.map { seat ->
-                    SeatInfoDto(
-                        id = seat.id!!,
-                        seatIdentifier = seat.seatIdentifier,
-                        seatNumber = seat.seatNumber,
-                        rowLabel = seat.rowLabel,
-                        levelId = seat.level.id!!,
-                        levelName = seat.level.levelName
-                    )
-                }
+                levelSeats.map(seatingMapper::toSeatInfoDto)
             }
     }
 
     @Transactional(readOnly = true)
     override fun getTablesForSeat(seatId: Long): List<LevelInfoDto> {
-        // This implementation is now optimized and avoids N+1 loops.
-
-        // STEP 1: Use a single recursive query to find the IDs of all parent tables.
         val tableIds = levelRepository.findParentTableIdsForSeat(seatId)
-
         if (tableIds.isEmpty()) {
             return emptyList()
         }
 
-        // STEP 2: Use a single batch query to fetch the full Level entities for those IDs.
-        // This respects DDD and avoids N+1.
         val tables = levelRepository.findAllById(tableIds)
 
-        // STEP 3: Map the entities to DTOs, using the centralized business logic
-        // from the Level entity itself.
-        return tables.map { currentLevel ->
-            LevelInfoDto(
-                id = currentLevel.id!!,
-                levelName = currentLevel.levelName,
-                levelIdentifier = currentLevel.levelIdentifier,
-                capacity = currentLevel.capacity,
-                isGeneralAdmission = currentLevel.isGeneralAdmission(), // CENTRALIZED LOGIC
-                tableBookingMode = currentLevel.tableBookingMode?.name,
-                allowsSeatBooking = currentLevel.allowsSeatBooking(), // CENTRALIZED LOGIC
-                allowsTableBooking = currentLevel.allowsTableBooking() // CENTRALIZED LOGIC
-            )
-        }
+        return tables.map(seatingMapper::toLevelInfoDto)
     }
 
 
@@ -295,12 +186,6 @@ class SeatingService(
         )
     }
 
-    // ===========================================
-    // SEATING CHART OPERATIONS
-    // (Omitted for brevity, assuming no changes)
-    // ===========================================
-
-    // ... [Rest of your SeatingService methods] ...
 
     // ===========================================
     // SEATING CHART OPERATIONS
@@ -659,4 +544,3 @@ class SeatingService(
         logger.info { "Seat deleted successfully: $seatId" }
     }
 }
-

@@ -2,7 +2,6 @@ package app.venues.seating.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 
 /**
  * Seat entity representing an individual bookable seat.
@@ -25,7 +24,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
         Index(name = "idx_seat_identifier", columnList = "seat_identifier"),
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class Seat(
     /**
      * The level (section) this seat belongs to

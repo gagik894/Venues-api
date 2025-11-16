@@ -38,11 +38,11 @@ import java.util.*
 )
 class UserFavoriteEvent(
     /**
-     * ID of the user who favorited the event.
-     * Foreign key reference to users table.
+     * The user who favorited the event.
      */
-    @Column(name = "user_id", nullable = false)
-    val userId: UUID,
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    var user: User,
 
     /**
      * ID of the favorited event.

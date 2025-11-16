@@ -1,8 +1,7 @@
 package app.venues.venue.domain
 
-import app.venues.common.domain.AbstractLongEntity
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -28,7 +27,6 @@ import java.time.Instant
         Index(name = "idx_venue_promo_code_expires", columnList = "expires_at")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class VenuePromoCode(
     /**
      * The venue offering this promo code
@@ -97,7 +95,7 @@ class VenuePromoCode(
      */
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
-) : AbstractLongEntity() {
+) : AbstractUuidEntity() {
     /**
      * Check if this promo code is currently valid for use
      */

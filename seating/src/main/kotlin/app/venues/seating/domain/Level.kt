@@ -2,8 +2,6 @@ package app.venues.seating.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.util.*
 
 /**
  * Level entity representing a section or area in a seating chart.
@@ -27,7 +25,6 @@ import java.util.*
         Index(name = "idx_level_identifier", columnList = "level_identifier")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class Level(
     /**
      * Parent level for hierarchical nesting (null for top-level)
@@ -37,11 +34,11 @@ class Level(
     var parentLevel: Level? = null,
 
     /**
-     * Seating chart ID this level belongs to.
-     * Stored as ID to maintain proper module boundaries.
+     * The seating chart this level belongs to
      */
-    @Column(name = "seating_chart_id", nullable = false)
-    var seatingChartId: UUID,
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seating_chart_id", nullable = false)
+    var seatingChart: SeatingChart,
 
     /**
      * Name of the level (default language)

@@ -36,7 +36,7 @@ class Booking(
      * Stored as ID to avoid cross-module entity dependencies
      */
     @Column(name = "user_id")
-    var userId: Long? = null,
+    var userId: UUID? = null,
 
     /**
      * Guest ID - references Guest entity in booking module
@@ -51,7 +51,7 @@ class Booking(
      * Stored as ID to avoid cross-module entity dependencies
      */
     @Column(name = "session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     /**
      * Reserved platform's order number for cross-referencing

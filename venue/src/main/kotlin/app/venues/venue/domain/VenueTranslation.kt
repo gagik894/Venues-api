@@ -2,7 +2,6 @@ package app.venues.venue.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 
 /**
  * Entity representing a translation of venue information in different languages.
@@ -24,7 +23,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
         Index(name = "idx_venue_translation_language", columnList = "language")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class VenueTranslation(
     /**
      * The venue this translation belongs to

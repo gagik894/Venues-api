@@ -2,7 +2,6 @@ package app.venues.seating.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 
 /**
  * Translation for Level labels.
@@ -23,7 +22,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
         Index(name = "idx_level_translation_language", columnList = "language")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class LevelTranslation(
     /**
      * The level this translation belongs to

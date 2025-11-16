@@ -43,7 +43,7 @@ class WebhookEvent(
      * Stored as ID to maintain consistency with architectural principles
      */
     @Column(name = "platform_id", nullable = false)
-    var platformId: Long,
+    var platformId: UUID,
 
     /**
      * Event type

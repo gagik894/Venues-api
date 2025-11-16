@@ -1,8 +1,10 @@
 package app.venues.booking.domain
 
-import app.venues.common.domain.AbstractLongEntity
-import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import app.venues.common.domain.AbstractUuidEntity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 import java.time.Instant
 import java.util.*
 
@@ -22,26 +24,25 @@ import java.util.*
         Index(name = "idx_cart_session", columnList = "event_session_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class Cart(
     @Column(nullable = false, unique = true)
     var token: UUID = UUID.randomUUID(),
 
     @Column(name = "user_id")
-    var userId: Long? = null,
+    var userId: UUID? = null,
 
     @Column(name = "guest_id")
-    var guestId: Long? = null,
+    var guestId: UUID? = null,
 
     @Column(name = "event_session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant,
 
     @Column(name = "last_activity_at", nullable = false)
     var lastActivityAt: Instant = Instant.now(),
-) : AbstractLongEntity() {
+) : AbstractUuidEntity() {
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
     fun extendExpiration(minutes: Long) {

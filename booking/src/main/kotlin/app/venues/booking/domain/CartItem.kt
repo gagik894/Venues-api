@@ -3,6 +3,7 @@ package app.venues.booking.domain
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * GA ticket in shopping cart.
@@ -24,7 +25,7 @@ class CartItem(
     var cart: Cart,
 
     @Column(name = "session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @Column(name = "level_id", nullable = false)
     var levelId: Long,

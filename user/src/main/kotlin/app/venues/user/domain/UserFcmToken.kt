@@ -1,12 +1,8 @@
 package app.venues.user.domain
 
 import app.venues.common.domain.AbstractLongEntity
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.Index
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.time.Instant
-import java.util.*
 
 /**
  * Entity representing a Firebase Cloud Messaging (FCM) token for push notifications.
@@ -33,13 +29,13 @@ import java.util.*
         Index(name = "idx_fcm_token", columnList = "token", unique = true)
     ]
 )
-data class UserFcmToken(
+class UserFcmToken(
     /**
-     * ID of the user who owns this FCM token.
-     * Foreign key reference to users table.
+     * The user this FCM token belongs to.
      */
-    @Column(name = "user_id", nullable = false)
-    val userId: UUID,
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    var user: User,
 
     /**
      * The FCM token string provided by Firebase SDK.

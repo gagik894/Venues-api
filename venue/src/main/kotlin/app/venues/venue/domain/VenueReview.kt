@@ -2,7 +2,7 @@ package app.venues.venue.domain
 
 import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.util.*
 
 /**
  * Entity representing a user review and rating for a venue.
@@ -26,7 +26,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
         Index(name = "idx_venue_review_moderated", columnList = "is_moderated")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class VenueReview(
     /**
      * The venue being reviewed
@@ -40,7 +39,7 @@ class VenueReview(
      * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
-    var userId: Long,
+    var userId: UUID,
 
     /**
      * Rating from 1 to 5 stars

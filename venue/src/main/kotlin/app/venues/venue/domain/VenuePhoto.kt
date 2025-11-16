@@ -2,7 +2,7 @@ package app.venues.venue.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.util.*
 
 /**
  * Entity representing a photo uploaded for a venue.
@@ -19,7 +19,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
         Index(name = "idx_venue_photo_display_order", columnList = "venue_id, display_order")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class VenuePhoto(
     /**
      * The venue this photo belongs to
@@ -33,7 +32,7 @@ class VenuePhoto(
      * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
-    var userId: Long,
+    var userId: UUID,
 
     /**
      * URL/path to the photo file

@@ -1,8 +1,10 @@
 package app.venues.seating.domain
 
 import app.venues.common.domain.AbstractUuidEntity
-import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 import java.util.*
 
 /**
@@ -28,8 +30,7 @@ import java.util.*
         Index(name = "idx_seating_chart_name", columnList = "name")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class SeatingChart(
+class SeatingChart(
     /**
      * Venue ID - references venue module
      * Stored as ID to avoid cross-module entity dependencies
@@ -60,40 +61,5 @@ data class SeatingChart(
      */
     @Column(name = "background_url", length = 500)
     var backgroundUrl: String? = null,
-
-    ) : AbstractUuidEntity() {
-    /**
-     * Get all levels for this seating chart.
-     * Levels are managed via repository queries, not bidirectional relationships.
-     * This maintains proper module boundaries.
-     */
-    fun getLevels(levelRepository: app.venues.seating.repository.LevelRepository): List<Level> {
-        return id.let { levelRepository.findBySeatingChartId(it) }
-    }
-
-    /**
-     * Get all seats for this seating chart.
-     * Seats are managed via repository queries, not bidirectional relationships.
-     * This maintains proper module boundaries.
-     */
-    fun getSeats(seatRepository: app.venues.seating.repository.SeatRepository): List<Seat> {
-        return id.let { seatRepository.findBySeatingChartId(it) }
-    }
-
-    /**
-     * Get total capacity including GA areas and individual seats.
-     * Requires repositories to be passed in - follows clean architecture.
-     */
-    fun getTotalCapacity(
-        levelRepository: app.venues.seating.repository.LevelRepository,
-        seatRepository: app.venues.seating.repository.SeatRepository
-    ): Int {
-        val levels = getLevels(levelRepository)
-        val seats = getSeats(seatRepository)
-
-        val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
-        val seatedCapacity = seats.size
-        return gaCapacity + seatedCapacity
-    }
-}
+) : AbstractUuidEntity()
 

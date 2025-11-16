@@ -4,7 +4,6 @@ import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.*
 
 /**
  * Entity representing a promotional code assigned to/used by a user.
@@ -42,14 +41,13 @@ import java.util.*
         )
     ]
 )
-data class UserPromoCode(
+class UserPromoCode(
     /**
-     * ID of the user who owns/used this promo code.
-     * Foreign key reference to users table.
+     * The user this promo code is assigned to.
      */
-    @Column(name = "user_id", nullable = false)
-    val userId: UUID,
-
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    var user: User,
     /**
      * The promo code string (e.g., "SUMMER2025", "WELCOME10").
      * Must match a valid promo code in the master promo codes table.
@@ -98,15 +96,7 @@ data class UserPromoCode(
      */
     @Column
     val expiresAt: Instant? = null,
-
-    /**
-     * ID of the booking/order where this promo code was first used.
-     * Null if not yet used.
-     */
-    @Column
-    var usedInBookingId: Long? = null,
-
-    ) : AbstractUuidEntity() {
+) : AbstractUuidEntity() {
     /**
      * Checks if this promo code is currently valid and can be used.
      *
@@ -138,20 +128,13 @@ data class UserPromoCode(
     }
 
     /**
-     * Marks this promo code as used.
-     * Increments usage count and updates status if limit reached.
-     *
-     * @param bookingId ID of the booking where code was used
+     * Increments the usage count of this promo code.
+     * Updates status to EXHAUSTED if limit is reached.
      */
-    fun markAsUsed(bookingId: Long) {
+    fun use() {
         timesUsed++
-        if (usedInBookingId == null) {
-            usedInBookingId = bookingId
-        }
         if (hasReachedLimit()) {
             status = PromoCodeStatus.EXHAUSTED
-        } else {
-            status = PromoCodeStatus.USED
         }
     }
 

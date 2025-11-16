@@ -2,7 +2,6 @@ package app.venues.venue.domain
 
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.util.*
 
 /**
@@ -27,8 +26,7 @@ import java.util.*
         Index(name = "idx_venue_follower_notifications", columnList = "notifications_enabled")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class VenueFollower(
+class VenueFollower(
     /**
      * The venue being followed
      */

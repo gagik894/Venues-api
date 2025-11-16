@@ -32,7 +32,7 @@ import java.time.Instant
         Index(name = "idx_platform_webhook_enabled", columnList = "webhook_enabled")
     ]
 )
-data class Platform(
+class Platform(
     /**
      * Platform name (must be unique)
      */

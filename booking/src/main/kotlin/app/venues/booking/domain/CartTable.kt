@@ -3,6 +3,7 @@ package app.venues.booking.domain
 import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * Table booking in shopping cart.
@@ -34,7 +35,7 @@ class CartTable(
     var cart: Cart,
 
     @Column(name = "session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     /**
      * Table ID - references Level entity with isTable = true

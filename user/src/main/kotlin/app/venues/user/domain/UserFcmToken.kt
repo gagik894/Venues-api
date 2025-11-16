@@ -1,10 +1,12 @@
 package app.venues.user.domain
 
-import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import app.venues.common.domain.AbstractLongEntity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 import java.time.Instant
+import java.util.*
 
 /**
  * Entity representing a Firebase Cloud Messaging (FCM) token for push notifications.
@@ -31,19 +33,13 @@ import java.time.Instant
         Index(name = "idx_fcm_token", columnList = "token", unique = true)
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 data class UserFcmToken(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
     /**
      * ID of the user who owns this FCM token.
      * Foreign key reference to users table.
      */
     @Column(name = "user_id", nullable = false)
-    val userId: Long,
+    val userId: UUID,
 
     /**
      * The FCM token string provided by Firebase SDK.
@@ -75,23 +71,7 @@ data class UserFcmToken(
     @Column
     var lastUsedAt: Instant? = null,
 
-    /**
-     * Timestamp when this token was registered.
-     * Automatically managed by JPA Auditing.
-     */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.now(),
-
-    /**
-     * Timestamp when this token was last modified.
-     * Automatically managed by JPA Auditing.
-     */
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-
-) {
+    ) : AbstractLongEntity() {
     /**
      * Checks if this token is stale and should be removed.
      * Tokens not used for 90+ days are considered stale.

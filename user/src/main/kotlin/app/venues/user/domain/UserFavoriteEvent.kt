@@ -1,9 +1,8 @@
 package app.venues.user.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Entity representing a user's favorite/bookmarked event.
@@ -37,26 +36,20 @@ import java.time.Instant
         )
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class UserFavoriteEvent(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
+class UserFavoriteEvent(
     /**
      * ID of the user who favorited the event.
      * Foreign key reference to users table.
      */
     @Column(name = "user_id", nullable = false)
-    val userId: Long,
+    val userId: UUID,
 
     /**
      * ID of the favorited event.
      * Foreign key reference to events table (in event module).
      */
     @Column(name = "event_id", nullable = false)
-    val eventId: Long,
+    val eventId: UUID,
 
     /**
      * Whether user wants to receive notifications about this event.
@@ -72,15 +65,7 @@ data class UserFavoriteEvent(
     @Column(length = 500)
     var userNote: String? = null,
 
-    /**
-     * Timestamp when this event was added to favorites.
-     * Automatically managed by JPA Auditing.
-     */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.now()
-
-) {
+    ) : AbstractLongEntity() {
     /**
      * Creates a copy with notifications toggled.
      *
@@ -88,7 +73,9 @@ data class UserFavoriteEvent(
      * @return Updated favorite event
      */
     fun withNotifications(enabled: Boolean): UserFavoriteEvent {
-        return copy(notificationsEnabled = enabled)
+        return this.apply {
+            this.notificationsEnabled = enabled
+        }
     }
 }
 

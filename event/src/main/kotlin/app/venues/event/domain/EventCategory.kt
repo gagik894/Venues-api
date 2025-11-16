@@ -1,9 +1,7 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Event Category entity for organizing and filtering events.
@@ -26,12 +24,7 @@ import java.time.Instant
         Index(name = "idx_event_category_active", columnList = "is_active")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventCategory(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class EventCategory(
     /**
      * Unique key for the category (e.g., "THEATER", "CONCERT")
      * Used for programmatic access and URL slugs
@@ -74,11 +67,7 @@ data class EventCategory(
      */
     @OneToMany(mappedBy = "category", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     var translations: MutableList<EventCategoryTranslation> = mutableListOf(),
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
+) : AbstractLongEntity() {
     /**
      * Get translated name for a specific language
      */

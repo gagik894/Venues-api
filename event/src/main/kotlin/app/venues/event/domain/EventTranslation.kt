@@ -1,10 +1,7 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Translation for event title and description.
@@ -25,12 +22,7 @@ import java.time.Instant
         Index(name = "idx_event_translation_language", columnList = "language")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventTranslation(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class EventTranslation(
     /**
      * The event this translation belongs to
      */
@@ -55,13 +47,5 @@ data class EventTranslation(
      */
     @Column(columnDefinition = "TEXT")
     var description: String? = null,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()
 

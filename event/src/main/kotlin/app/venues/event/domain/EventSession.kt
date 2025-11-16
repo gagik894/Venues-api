@@ -1,9 +1,7 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -18,15 +16,9 @@ import java.time.Instant
     name = "event_sessions",
     indexes = [
         Index(name = "idx_event_session_event_id", columnList = "event_id"),
-        Index(name = "idx_event_session_start_time", columnList = "start_time"),
-        Index(name = "idx_event_session_status", columnList = "status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventSession(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
+class EventSession(
 
     /**
      * The parent event
@@ -84,18 +76,7 @@ data class EventSession(
     @OneToMany(mappedBy = "session", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     var priceTemplateOverrides: MutableList<EventSessionPriceOverride> = mutableListOf(),
 
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    ) : AbstractUuidEntity() {
     /**
      * Get the effective price for this session
      */

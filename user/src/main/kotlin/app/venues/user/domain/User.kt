@@ -1,12 +1,11 @@
 package app.venues.user.domain
 
 import app.venues.common.constants.AppConstants
+import app.venues.common.domain.AbstractUuidEntity
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
+import java.util.*
 
 /**
  * User entity representing a registered user in the Venues API system.
@@ -30,16 +29,9 @@ import java.time.Instant
     indexes = [
         Index(name = "idx_user_email", columnList = "email", unique = true),
         Index(name = "idx_user_status", columnList = "status"),
-        Index(name = "idx_user_referral_code", columnList = "referral_code", unique = true)
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 class User(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
     /**
      * User's email address - used for login and notifications.
      * Must be unique across the system.
@@ -93,7 +85,7 @@ class User(
      * Nullable - not all users are referred by someone.
      */
     @Column
-    var referrerId: Long? = null,
+    var referrerId: UUID? = null,
 
     /**
      * User's role in the system.
@@ -136,24 +128,8 @@ class User(
      */
     @Column(nullable = false)
     var emailVerified: Boolean = false,
+) : AbstractUuidEntity() {
 
-    /**
-     * Timestamp when the user account was created.
-     * Automatically managed by JPA Auditing.
-     */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    /**
-     * Timestamp when the user account was last modified.
-     * Automatically managed by JPA Auditing.
-     */
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-
-) {
     companion object {
         private val logger = KotlinLogging.logger {}
     }
@@ -169,7 +145,7 @@ class User(
      * @return true if locked and lock period hasn't expired
      */
     fun isAccountLocked(): Boolean {
-        return lockedUntil?.let { it.isAfter(Instant.now()) } ?: false
+        return lockedUntil?.isAfter(Instant.now()) ?: false
     }
 
     /**
@@ -214,18 +190,6 @@ class User(
     fun unlockAccount() {
         failedLoginAttempts = 0
         lockedUntil = null
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is User) return false
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int = id?.hashCode() ?: 0
-
-    override fun toString(): String {
-        return "User(id=$id, email='$email', role=$role, status=$status)"
     }
 }
 

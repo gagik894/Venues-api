@@ -307,18 +307,18 @@ VALUES
 (5, 3, NULL, 'VIP Lounge', 'VIP-LOUNGE', 30.0, 80.0, NULL, NOW(), NOW());
 -- Parent section for VIP tables
 
--- VIP Tables (FLEXIBLE mode - can book individual seats or whole table)
+-- VIP Tables (will be configured per session in session_table_configs)
 INSERT INTO levels (id, seating_chart_id, parent_level_id, level_name, level_identifier, position_x, position_y,
-                    capacity, is_table, table_booking_mode, table_capacity, created_at, last_modified_at)
+                    capacity, is_table, created_at, last_modified_at)
 VALUES
--- VIP Table 1 (4 seats, flexible booking)
-(6, 3, 5, 'VIP Table 1', 'VIP-T1', 20.0, 70.0, NULL, true, 'FLEXIBLE', 4, NOW(), NOW()),
--- VIP Table 2 (4 seats, flexible booking)
-(7, 3, 5, 'VIP Table 2', 'VIP-T2', 40.0, 70.0, NULL, true, 'FLEXIBLE', 4, NOW(), NOW()),
--- VIP Table 3 (6 seats, table only - must book complete table)
-(8, 3, 5, 'VIP Table 3', 'VIP-T3', 60.0, 70.0, NULL, true, 'TABLE_ONLY', 6, NOW(), NOW()),
--- Premium Table (8 seats, seats only - individual booking)
-(9, 3, 5, 'Premium Table', 'PREM-T1', 80.0, 70.0, NULL, true, 'SEATS_ONLY', 8, NOW(), NOW());
+-- VIP Table 1 (4 seats, booking mode configured per session)
+(6, 3, 5, 'VIP Table 1', 'VIP-T1', 20.0, 70.0, NULL, true, NOW(), NOW()),
+-- VIP Table 2 (4 seats, booking mode configured per session)
+(7, 3, 5, 'VIP Table 2', 'VIP-T2', 40.0, 70.0, NULL, true, NOW(), NOW()),
+-- VIP Table 3 (6 seats, booking mode configured per session)
+(8, 3, 5, 'VIP Table 3', 'VIP-T3', 60.0, 70.0, NULL, true, NOW(), NOW()),
+-- Premium Table (8 seats, booking mode configured per session)
+(9, 3, 5, 'Premium Table', 'PREM-T1', 80.0, 70.0, NULL, true, NOW(), NOW());
 
 SELECT setval('levels_id_seq', 9, true);
 
@@ -529,16 +529,17 @@ WHERE level_id = 9;
 -- 12. SESSION TABLE CONFIGS (Table Pricing & Availability)
 -- ================================================================
 -- Concert Hall tables for Session 4 (Event 3)
-INSERT INTO session_table_configs (session_id, table_id, price_template_id, status, created_at, last_modified_at)
+INSERT INTO session_table_configs (session_id, table_id, price_template_id, booking_mode, status, created_at,
+                                   last_modified_at)
 VALUES
 -- VIP Table 1 (4 seats, FLEXIBLE mode, discounted table price)
-(4, 6, 10, 'AVAILABLE', NOW(), NOW()),
+(4, 6, 10, 'FLEXIBLE', 'AVAILABLE', NOW(), NOW()),
 -- VIP Table 2 (4 seats, FLEXIBLE mode, discounted table price)
-(4, 7, 10, 'AVAILABLE', NOW(), NOW()),
+(4, 7, 10, 'FLEXIBLE', 'AVAILABLE', NOW(), NOW()),
 -- VIP Table 3 (6 seats, TABLE_ONLY mode, only table booking allowed)
-(4, 8, 11, 'AVAILABLE', NOW(), NOW()),
+(4, 8, 11, 'TABLE_ONLY', 'AVAILABLE', NOW(), NOW()),
 -- Premium Table (8 seats, SEATS_ONLY mode, table cannot be booked as unit)
-(4, 9, 12, 'BLOCKED', NOW(), NOW());
+(4, 9, 12, 'SEATS_ONLY', 'BLOCKED', NOW(), NOW());
 -- BLOCKED because SEATS_ONLY mode
 -- Evening Standing template
 

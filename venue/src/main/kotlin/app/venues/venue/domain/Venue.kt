@@ -1,11 +1,7 @@
 package app.venues.venue.domain
 
-import app.venues.common.constants.AppConstants
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Venue Entity
@@ -34,19 +30,13 @@ import java.time.Instant
 @Table(
     name = "venues",
     indexes = [
-        Index(name = "idx_venue_email", columnList = "email"),
         Index(name = "idx_venue_city", columnList = "city"),
         Index(name = "idx_venue_category", columnList = "category"),
         Index(name = "idx_venue_verified", columnList = "verified"),
         Index(name = "idx_venue_status", columnList = "status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Venue(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
+class Venue(
 
     // ===========================================
     // Basic Information (with translations)
@@ -187,23 +177,17 @@ data class Venue(
     // ===========================================
 
     /**
-     * Hashed password for venue owner authentication
+     * SMTP email for sending notifications (if different from primary email)
      */
-    @Column(nullable = false, length = 255)
-    var passwordHash: String,
+    @Column(length = 255)
+    var smtpEmail: String? = null,
 
     /**
      * Email password for SMTP (if sending emails from venue's email)
      * NOTE: Should be encrypted at rest using database-level encryption
      */
     @Column(length = 255)
-    var emailPassword: String? = null,
-
-    /**
-     * Secret email for internal communications
-     */
-    @Column(length = 255)
-    var secretEmail: String? = null,
+    var smtpPassword: String? = null,
 
     // ===========================================
     // Payment Integration Credentials
@@ -235,16 +219,6 @@ data class Venue(
     var converseSecretKey: String? = null,
 
     // ===========================================
-    // Notifications
-    // ===========================================
-
-    /**
-     * Firebase Cloud Messaging token for push notifications
-     */
-    @Column(length = 500)
-    var fcmToken: String? = null,
-
-    // ===========================================
     // Social Features
     // ===========================================
 
@@ -267,92 +241,7 @@ data class Venue(
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
     var translations: MutableList<VenueTranslation> = mutableListOf(),
 
-    // ===========================================
-    // Security & Auditing
-    // ===========================================
-
-    /**
-     * Number of consecutive failed login attempts
-     */
-    @Column(nullable = false)
-    var failedLoginAttempts: Int = 0,
-
-    /**
-     * Timestamp when account was locked due to failed attempts
-     */
-    @Column
-    var accountLockedUntil: Instant? = null,
-
-    /**
-     * Last successful login timestamp
-     */
-    @Column
-    var lastLoginAt: Instant? = null,
-
-    /**
-     * Email verification status
-     */
-    @Column(nullable = false)
-    var emailVerified: Boolean = false,
-
-    /**
-     * Email verification token
-     */
-    @Column(length = 255)
-    var emailVerificationToken: String? = null,
-
-    /**
-     * Token expiration time
-     */
-    @Column
-    var emailVerificationTokenExpiresAt: Instant? = null,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
-    /**
-     * Computed property for full name (for consistency with potential future name changes)
-     */
-    val fullName: String
-        get() = name
-
-    /**
-     * Check if the account is currently locked
-     */
-    fun isAccountLocked(): Boolean {
-        return accountLockedUntil?.let { it.isAfter(Instant.now()) } ?: false
-    }
-
-    /**
-     * Increment failed login attempts and lock account if threshold is reached.
-     * Uses AppConstants.Security.MAX_LOGIN_ATTEMPTS and LOCKOUT_DURATION_MINUTES.
-     */
-    fun incrementFailedLoginAttempts() {
-        failedLoginAttempts++
-
-        // Auto-lock if threshold reached
-        if (failedLoginAttempts >= AppConstants.Security.MAX_LOGIN_ATTEMPTS) {
-            accountLockedUntil = Instant.now().plusSeconds(AppConstants.Security.LOCKOUT_DURATION_MINUTES * 60)
-        }
-    }
-
-    /**
-     * Reset failed login attempts on successful login
-     */
-    fun resetFailedLoginAttempts() {
-        failedLoginAttempts = 0
-        accountLockedUntil = null
-    }
-
+    ) : AbstractUuidEntity() {
     /**
      * Get translation for specific language or fall back to default
      */
@@ -365,23 +254,6 @@ data class Venue(
      */
     fun getDescriptionInLanguage(language: String): String? {
         return translations.find { it.language == language }?.description ?: description
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as Venue
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "Venue(id=$id, name='$name', email='$email', city=$city, status=$status)"
     }
 }
 

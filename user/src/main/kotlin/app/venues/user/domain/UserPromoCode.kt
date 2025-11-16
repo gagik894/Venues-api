@@ -1,11 +1,10 @@
 package app.venues.user.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.Instant
+import java.util.*
 
 /**
  * Entity representing a promotional code assigned to/used by a user.
@@ -43,19 +42,13 @@ import java.time.Instant
         )
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 data class UserPromoCode(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
     /**
      * ID of the user who owns/used this promo code.
      * Foreign key reference to users table.
      */
     @Column(name = "user_id", nullable = false)
-    val userId: Long,
+    val userId: UUID,
 
     /**
      * The promo code string (e.g., "SUMMER2025", "WELCOME10").
@@ -113,23 +106,7 @@ data class UserPromoCode(
     @Column
     var usedInBookingId: Long? = null,
 
-    /**
-     * Timestamp when this promo code was assigned to the user.
-     * Automatically managed by JPA Auditing.
-     */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.now(),
-
-    /**
-     * Timestamp when this record was last modified.
-     * Automatically managed by JPA Auditing.
-     */
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-
-) {
+    ) : AbstractUuidEntity() {
     /**
      * Checks if this promo code is currently valid and can be used.
      *

@@ -1,7 +1,7 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 
 /**
  * Session GA level configuration.
@@ -18,15 +18,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener
     indexes = [
         Index(name = "idx_session_level_config_session", columnList = "session_id"),
         Index(name = "idx_session_level_config_level", columnList = "level_id"),
-        Index(name = "idx_session_level_config_template", columnList = "price_template_id"),
+        Index(name = "idx_session_level_config_status", columnList = "status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class SessionLevelConfig(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class SessionLevelConfig(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
@@ -47,10 +42,8 @@ data class SessionLevelConfig(
 
     @Column(name = "sold_count", nullable = false)
     var soldCount: Int = 0,
-
-    ) {
+) : AbstractLongEntity() {
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
     fun isPriced(): Boolean = priceTemplate != null
     fun getAvailableCapacity(): Int? = capacity?.let { it - soldCount }
 }
-

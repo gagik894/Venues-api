@@ -1,10 +1,8 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
  * Price template override for a specific event session.
@@ -19,12 +17,7 @@ import java.time.Instant
         Index(name = "idx_session_price_override_session_id", columnList = "session_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventSessionPriceOverride(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class EventSessionPriceOverride(
     /**
      * The session this override applies to
      */
@@ -43,9 +36,5 @@ data class EventSessionPriceOverride(
      */
     @Column(nullable = false, precision = 10, scale = 2)
     var price: BigDecimal,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()
 

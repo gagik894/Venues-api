@@ -1,9 +1,8 @@
 package app.venues.user.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Entity representing a user blocking another user.
@@ -37,26 +36,20 @@ import java.time.Instant
         )
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class UserBlockedUser(
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
+class UserBlockedUser(
     /**
      * ID of the user who initiated the block.
      * Foreign key reference to users table.
      */
     @Column(name = "blocking_user_id", nullable = false)
-    val blockingUserId: Long,
+    val blockingUserId: UUID,
 
     /**
      * ID of the user who is being blocked.
      * Foreign key reference to users table.
      */
     @Column(name = "blocked_user_id", nullable = false)
-    val blockedUserId: Long,
+    val blockedUserId: UUID,
 
     /**
      * Optional reason for blocking.
@@ -72,18 +65,8 @@ data class UserBlockedUser(
      */
     @Column(length = 500)
     var blockReasonDetails: String? = null,
-
-    /**
-     * Timestamp when the block was created.
-     * Automatically managed by JPA Auditing.
-     */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.now()
-
-) {
+) : AbstractLongEntity() {
     init {
-        // Prevent users from blocking themselves
         require(blockingUserId != blockedUserId) {
             "A user cannot block themselves"
         }

@@ -1,10 +1,8 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Main Event entity representing a cultural event.
@@ -26,12 +24,7 @@ import java.time.Instant
         Index(name = "idx_event_created_at", columnList = "created_at")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Event(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class Event(
     // ===========================================
     // Basic Information
     // ===========================================
@@ -71,7 +64,7 @@ data class Event(
      * Stored as ID to avoid cross-module entity dependencies
      */
     @Column(name = "venue_id", nullable = false)
-    var venueId: Long,
+    var venueId: UUID,
 
     /**
      * Specific location/address if different from venue's main address
@@ -132,7 +125,7 @@ data class Event(
      * Optional - for seated events only
      */
     @Column(name = "seating_chart_id")
-    var seatingChartId: Long? = null,
+    var seatingChartId: UUID? = null,
 
     // ===========================================
     // Status & State
@@ -166,19 +159,7 @@ data class Event(
      */
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     var translations: MutableList<EventTranslation> = mutableListOf(),
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+) : AbstractUuidEntity() {
     /**
      * Helper method to add a session
      */

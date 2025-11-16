@@ -1,10 +1,8 @@
 package app.venues.event.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
  * Price template for an event defining different ticket types/tiers.
@@ -19,12 +17,7 @@ import java.time.Instant
         Index(name = "idx_price_template_event_id", columnList = "event_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventPriceTemplate(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class EventPriceTemplate(
     /**
      * The event this price template belongs to
      */
@@ -55,9 +48,5 @@ data class EventPriceTemplate(
      */
     @Column(name = "display_order", nullable = false)
     var displayOrder: Int = 0,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractUuidEntity()
 

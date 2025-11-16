@@ -1,10 +1,8 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Entity representing a venue schedule for a specific day of the week.
@@ -23,11 +21,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class VenueSchedule(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class VenueSchedule(
     /**
      * The venue this schedule belongs to
      */
@@ -59,19 +53,7 @@ data class VenueSchedule(
      */
     @Column(name = "is_closed", nullable = false)
     var isClosed: Boolean = false,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()
 
 /**
  * Days of the week enum for venue schedules

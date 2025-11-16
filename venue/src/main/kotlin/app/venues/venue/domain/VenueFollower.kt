@@ -1,9 +1,9 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Entity representing a user following a venue.
@@ -29,10 +29,6 @@ import java.time.Instant
 )
 @EntityListeners(AuditingEntityListener::class)
 data class VenueFollower(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
     /**
      * The venue being followed
      */
@@ -45,19 +41,11 @@ data class VenueFollower(
      * References the user from the user module
      */
     @Column(name = "user_id", nullable = false)
-    var userId: Long,
+    var userId: UUID,
 
     /**
      * Whether the user wants to receive notifications from this venue
      */
     @Column(name = "notifications_enabled", nullable = false)
     var notificationsEnabled: Boolean = true,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()

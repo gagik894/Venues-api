@@ -1,10 +1,9 @@
 package app.venues.seating.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Level entity representing a section or area in a seating chart.
@@ -29,11 +28,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class Level(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class Level(
     /**
      * Parent level for hierarchical nesting (null for top-level)
      */
@@ -46,7 +41,7 @@ data class Level(
      * Stored as ID to maintain proper module boundaries.
      */
     @Column(name = "seating_chart_id", nullable = false)
-    var seatingChartId: Long,
+    var seatingChartId: UUID,
 
     /**
      * Name of the level (default language)
@@ -60,7 +55,6 @@ data class Level(
      */
     @Column(name = "level_identifier", length = 50)
     var levelIdentifier: String? = null,
-
 
     /**
      * X coordinate for rendering (for GA sections and visual positioning)
@@ -103,15 +97,7 @@ data class Level(
      */
     @OneToMany(mappedBy = "level", cascade = [CascadeType.ALL], orphanRemoval = true)
     var translations: MutableList<LevelTranslation> = mutableListOf(),
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+) : AbstractLongEntity() {
     /**
      * Check if this is a General Admission area
      */

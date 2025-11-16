@@ -1,10 +1,8 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Entity representing a user review and rating for a venue.
@@ -29,11 +27,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class VenueReview(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class VenueReview(
     /**
      * The venue being reviewed
      */
@@ -67,18 +61,7 @@ data class VenueReview(
     @Column(name = "is_moderated", nullable = false)
     var isModerated: Boolean = false,
 
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    ) : AbstractUuidEntity() {
     init {
         // Validate rating is between 1 and 5
         require(rating in 1..5) { "Rating must be between 1 and 5" }

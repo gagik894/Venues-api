@@ -1,9 +1,7 @@
 package app.venues.platform.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
@@ -34,12 +32,7 @@ import java.time.Instant
         Index(name = "idx_platform_webhook_enabled", columnList = "webhook_enabled")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
 data class Platform(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
     /**
      * Platform name (must be unique)
      */
@@ -113,15 +106,7 @@ data class Platform(
      */
     @Column(name = "webhook_failure_count", nullable = false)
     var webhookFailureCount: Long = 0,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+) : AbstractUuidEntity() {
     /**
      * Check if platform is active and can make reservations
      */
@@ -132,24 +117,3 @@ data class Platform(
      */
     fun shouldReceiveWebhooks(): Boolean = webhookEnabled && isActive()
 }
-
-/**
- * Platform integration status
- */
-enum class PlatformStatus {
-    /**
-     * Platform is active and can make reservations
-     */
-    ACTIVE,
-
-    /**
-     * Platform is temporarily suspended (can't make new reservations)
-     */
-    SUSPENDED,
-
-    /**
-     * Platform is inactive (disabled by admin)
-     */
-    INACTIVE
-}
-

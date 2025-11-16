@@ -1,10 +1,8 @@
 package app.venues.booking.domain
 
 import app.venues.booking.api.domain.BookingStatus
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
@@ -27,18 +25,12 @@ import java.util.*
         Index(name = "idx_booking_user_id", columnList = "user_id"),
         Index(name = "idx_booking_guest_id", columnList = "guest_id"),
         Index(name = "idx_booking_session_id", columnList = "session_id"),
-        Index(name = "idx_booking_status", columnList = "status"),
         Index(name = "idx_booking_reservation_token", columnList = "reservation_token"),
         Index(name = "idx_booking_platform_id", columnList = "platform_id"),
         Index(name = "idx_booking_venue_id", columnList = "venue_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Booking(
-    @Id
-    @Column(columnDefinition = "UUID")
-    var id: UUID = UUID.randomUUID(),
-
+class Booking(
     /**
      * User ID - references user module
      * Stored as ID to avoid cross-module entity dependencies
@@ -61,21 +53,24 @@ data class Booking(
     @Column(name = "session_id", nullable = false)
     var sessionId: Long,
 
-    @Column(name = "reservation_token", unique = true, nullable = false, columnDefinition = "UUID")
-    var reservationToken: UUID,
+    /**
+     * Reserved platform's order number for cross-referencing
+     */
+    @Column(name = "external_order_number", length = 100, unique = true)
+    var externalOrderNumber: String? = null,
 
     /**
      * Platform ID if booking was made through external platform integration
      */
     @Column(name = "platform_id")
-    var platformId: Long? = null,
+    var platformId: UUID? = null,
 
     /**
      * Venue ID - the venue where the event is held
      * Denormalized for reporting and analytics
      */
     @Column(name = "venue_id")
-    var venueId: Long? = null,
+    var venueId: UUID? = null,
 
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     var totalPrice: BigDecimal,
@@ -97,22 +92,15 @@ data class Booking(
     var cancellationReason: String? = null,
 
     @Column(name = "payment_id", length = 100)
-    var paymentId: String? = null,
+    var paymentId: UUID? = null,
 
     @OneToMany(mappedBy = "booking", cascade = [CascadeType.ALL], orphanRemoval = true)
     var items: MutableList<BookingItem> = mutableListOf(),
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+) : AbstractUuidEntity() {
     fun isCancellable(): Boolean = status in setOf(BookingStatus.PENDING, BookingStatus.CONFIRMED)
 
-    fun confirm(paymentId: String? = null) {
+    //TODO introduce separate Payment entity to track payment details and status
+    fun confirm(paymentId: UUID? = null) {
         status = BookingStatus.CONFIRMED
         confirmedAt = Instant.now()
         this.paymentId = paymentId

@@ -4,6 +4,7 @@ import app.venues.seating.domain.Level
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for Level entity operations.
@@ -30,7 +31,7 @@ interface LevelRepository : JpaRepository<Level, Long> {
      * Find levels in a specific seating chart.
      * Uses direct column reference for clean architecture.
      */
-    fun findBySeatingChartId(chartId: Long): List<Level>
+    fun findBySeatingChartId(chartId: UUID): List<Level>
 
     /**
      * Find GA (General Admission) levels

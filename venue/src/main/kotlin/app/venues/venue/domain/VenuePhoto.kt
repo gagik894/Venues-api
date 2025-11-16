@@ -1,9 +1,8 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Entity representing a photo uploaded for a venue.
@@ -21,11 +20,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class VenuePhoto(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class VenuePhoto(
     /**
      * The venue this photo belongs to
      */
@@ -57,12 +52,4 @@ data class VenuePhoto(
      */
     @Column(name = "display_order", nullable = false)
     var displayOrder: Int = 0,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()

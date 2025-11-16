@@ -1,10 +1,8 @@
 package app.venues.booking.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
  * Booking item entity - items within a booking.
@@ -27,15 +25,9 @@ import java.time.Instant
         Index(name = "idx_booking_item_booking_id", columnList = "booking_id"),
         Index(name = "idx_booking_item_seat_id", columnList = "seat_id"),
         Index(name = "idx_booking_item_level_id", columnList = "level_id"),
-        Index(name = "idx_booking_item_config_id", columnList = "session_seat_config_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class BookingItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class BookingItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "booking_id", nullable = false, columnDefinition = "UUID")
     var booking: Booking,
@@ -54,13 +46,6 @@ data class BookingItem(
     @Column(name = "level_id")
     var levelId: Long? = null,
 
-    /**
-     * Session seat config ID - references event module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "session_seat_config_id")
-    var sessionSeatConfigId: Long? = null,
-
     @Column(nullable = false)
     var quantity: Int = 1,
 
@@ -69,11 +54,7 @@ data class BookingItem(
 
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
+) : AbstractLongEntity() {
     fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 
     fun isSeat(): Boolean = seatId != null

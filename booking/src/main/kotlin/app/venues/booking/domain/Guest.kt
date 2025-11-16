@@ -1,10 +1,10 @@
 package app.venues.booking.domain
 
-import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import app.venues.common.domain.AbstractUuidEntity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 
 /**
  * Guest entity for unauthenticated bookings.
@@ -19,12 +19,7 @@ import java.time.Instant
         Index(name = "idx_guest_email", columnList = "email")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Guest(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class Guest(
     /**
      * Guest email (unique identifier)
      */
@@ -42,13 +37,5 @@ data class Guest(
      */
     @Column(length = 20)
     var phone: String? = null,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
+) : AbstractUuidEntity()
 

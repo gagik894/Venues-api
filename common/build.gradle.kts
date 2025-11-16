@@ -43,9 +43,12 @@ dependencies {
     // Validation annotations (JSR 380)
     api("jakarta.validation:jakarta.validation-api:3.1.0")
 
-    // Spring Data Commons - provides Pageable, Sort, PageRequest
-    // Using spring-data-commons instead of full JPA starter since common is pure Kotlin
+    api("jakarta.persistence:jakarta.persistence-api:3.1.0")
+    api("org.springframework.boot:spring-boot-starter-data-jpa")
+
     api("org.springframework.data:spring-data-commons")
+
+    implementation("com.github.f4b6a3:uuid-creator:5.3.3")
 
     // Testing
     testImplementation(kotlin("test"))

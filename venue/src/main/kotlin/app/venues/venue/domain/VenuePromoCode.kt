@@ -1,7 +1,7 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.time.Instant
@@ -29,11 +29,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class VenuePromoCode(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class VenuePromoCode(
     /**
      * The venue offering this promo code
      */
@@ -101,15 +97,7 @@ data class VenuePromoCode(
      */
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
+) : AbstractLongEntity() {
     /**
      * Check if this promo code is currently valid for use
      */

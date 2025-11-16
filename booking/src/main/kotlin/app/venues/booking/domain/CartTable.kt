@@ -1,10 +1,8 @@
 package app.venues.booking.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
  * Table booking in shopping cart.
@@ -30,14 +28,9 @@ import java.time.Instant
         Index(name = "idx_cart_table_table_id", columnList = "table_id")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class CartTable(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class CartTable(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "cart_id", nullable = false)
+    @JoinColumn(name = "cart_id", nullable = false, columnDefinition = "UUID")
     var cart: Cart,
 
     @Column(name = "session_id", nullable = false)
@@ -60,9 +53,5 @@ data class CartTable(
      */
     @Column(name = "seat_count", nullable = false)
     var seatCount: Int,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()
 

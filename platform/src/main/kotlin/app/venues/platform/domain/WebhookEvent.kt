@@ -1,8 +1,7 @@
 package app.venues.platform.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 import java.util.*
 
@@ -35,18 +34,10 @@ import java.util.*
     indexes = [
         Index(name = "idx_webhook_platform_id", columnList = "platform_id"),
         Index(name = "idx_webhook_status", columnList = "status"),
-        Index(name = "idx_webhook_event_type", columnList = "event_type"),
-        Index(name = "idx_webhook_session_id", columnList = "session_id"),
-        Index(name = "idx_webhook_next_retry", columnList = "next_retry_at"),
-        Index(name = "idx_webhook_created_at", columnList = "created_at")
+        Index(name = "idx_webhook_next_retry", columnList = "next_retry_at")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class WebhookEvent(
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    var id: UUID? = null,
-
+class WebhookEvent(
     /**
      * Platform ID receiving the webhook
      * Stored as ID to maintain consistency with architectural principles
@@ -65,7 +56,7 @@ data class WebhookEvent(
      * Event session ID
      */
     @Column(name = "session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     /**
      * Seat identifier (for seat-specific events)
@@ -128,10 +119,7 @@ data class WebhookEvent(
     @Column(name = "last_attempt_at")
     var lastAttemptAt: Instant? = null,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
+    ) : AbstractUuidEntity() {
     companion object {
         const val MAX_RETRY_ATTEMPTS = 5
 
@@ -161,7 +149,6 @@ data class WebhookEvent(
         this.status = WebhookStatus.DELIVERED
         this.responseCode = responseCode
         this.responseBody = responseBody
-        this.lastAttemptAt = Instant.now()
     }
 
     /**
@@ -176,7 +163,6 @@ data class WebhookEvent(
         }
         this.responseCode = responseCode
         this.errorMessage = errorMessage
-        this.lastAttemptAt = Instant.now()
 
         // Schedule retry if not max attempts
         if (attemptCount < MAX_RETRY_ATTEMPTS) {
@@ -194,59 +180,3 @@ data class WebhookEvent(
                 && (nextRetryAt == null || Instant.now().isAfter(nextRetryAt))
     }
 }
-
-/**
- * Webhook event types
- */
-enum class WebhookEventType {
-    /**
-     * Seat was reserved (added to cart)
-     */
-    SEAT_RESERVED,
-
-    /**
-     * Seat reservation was released (removed from cart or expired)
-     */
-    SEAT_RELEASED,
-
-    /**
-     * Seat was booked (payment confirmed)
-     */
-    SEAT_BOOKED,
-
-    /**
-     * Booking was cancelled (seat becomes available again)
-     */
-    BOOKING_CANCELLED,
-
-    /**
-     * GA tickets availability changed
-     */
-    GA_AVAILABILITY_CHANGED,
-
-    /**
-     * Session seat configuration updated
-     */
-    SESSION_CONFIG_UPDATED
-}
-
-/**
- * Webhook delivery status
- */
-enum class WebhookStatus {
-    /**
-     * Webhook is pending delivery or retry
-     */
-    PENDING,
-
-    /**
-     * Webhook was successfully delivered
-     */
-    DELIVERED,
-
-    /**
-     * Webhook delivery failed after max retries
-     */
-    FAILED
-}
-

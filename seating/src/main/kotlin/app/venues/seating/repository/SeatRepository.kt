@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for Seat entity operations.
@@ -49,7 +50,7 @@ interface SeatRepository : JpaRepository<Seat, Long> {
         ORDER BY s.level.levelName, s.seatIdentifier
     """
     )
-    fun findBySeatingChartId(chartId: Long): List<Seat>
+    fun findBySeatingChartId(chartId: UUID): List<Seat>
 
     /**
      * Find seats by type

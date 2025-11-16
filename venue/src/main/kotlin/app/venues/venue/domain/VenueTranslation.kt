@@ -1,10 +1,8 @@
 package app.venues.venue.domain
 
+import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
  * Entity representing a translation of venue information in different languages.
@@ -27,11 +25,7 @@ import java.time.Instant
     ]
 )
 @EntityListeners(AuditingEntityListener::class)
-data class VenueTranslation(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class VenueTranslation(
     /**
      * The venue this translation belongs to
      */
@@ -56,16 +50,4 @@ data class VenueTranslation(
      */
     @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()

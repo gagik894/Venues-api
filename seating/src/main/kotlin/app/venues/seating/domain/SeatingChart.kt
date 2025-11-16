@@ -1,10 +1,9 @@
 package app.venues.seating.domain
 
+import app.venues.common.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
  * Seating Chart entity representing a venue's seating layout template.
@@ -31,16 +30,12 @@ import java.time.Instant
 )
 @EntityListeners(AuditingEntityListener::class)
 data class SeatingChart(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
     /**
      * Venue ID - references venue module
      * Stored as ID to avoid cross-module entity dependencies
      */
     @Column(name = "venue_id", nullable = false)
-    var venueId: Long,
+    var venueId: UUID,
 
     /**
      * Name of the seating chart (e.g., "Main Hall", "Balcony Layout")
@@ -66,21 +61,14 @@ data class SeatingChart(
     @Column(name = "background_url", length = 500)
     var backgroundUrl: String? = null,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    ) : AbstractUuidEntity() {
     /**
      * Get all levels for this seating chart.
      * Levels are managed via repository queries, not bidirectional relationships.
      * This maintains proper module boundaries.
      */
     fun getLevels(levelRepository: app.venues.seating.repository.LevelRepository): List<Level> {
-        return id?.let { levelRepository.findBySeatingChartId(it) } ?: emptyList()
+        return id.let { levelRepository.findBySeatingChartId(it) }
     }
 
     /**
@@ -89,7 +77,7 @@ data class SeatingChart(
      * This maintains proper module boundaries.
      */
     fun getSeats(seatRepository: app.venues.seating.repository.SeatRepository): List<Seat> {
-        return id?.let { seatRepository.findBySeatingChartId(it) } ?: emptyList()
+        return id.let { seatRepository.findBySeatingChartId(it) }
     }
 
     /**

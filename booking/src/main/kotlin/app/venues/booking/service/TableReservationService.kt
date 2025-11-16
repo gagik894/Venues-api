@@ -9,6 +9,7 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
+import app.venues.seating.api.TableBookingMode
 import app.venues.seating.api.dto.SeatInfoDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
@@ -52,6 +53,10 @@ class TableReservationService(
             ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
         val tableId = tableInfo.id
+        val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
+            ?: throw VenuesException.ValidationFailure(
+                "Table '${tableInfo.levelName}' is not configured for this session."
+            )
 
         // Get the *actual* seats for this table (THIS IS THE SOURCE OF TRUTH)
         val seats = seatingApi.getSeatsForLevel(tableId)
@@ -65,9 +70,9 @@ class TableReservationService(
         }
 
         // Validate table booking mode using the "smart" DTO field
-        if (!tableInfo.allowsTableBooking) {
+        if (tableConfig.bookingMode == TableBookingMode.SEATS_ONLY) {
             throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' does not allow whole-table booking."
+                "Table '${tableInfo.levelName}' is configured for SEATS_ONLY booking in this session."
             )
         }
 
@@ -137,7 +142,7 @@ class TableReservationService(
 
         val tableInfo = seatingApi.getLevelInfo(tableId)
 
-        if (tableInfo != null && tableInfo.allowsSeatBooking) {
+        if (tableConfig.bookingMode != TableBookingMode.TABLE_ONLY) {
             unblockAllSeatsInTable(sessionId, tableId)
         }
 

@@ -135,7 +135,7 @@ class SessionSeatingService(
                             levels = levelHierarchyMap[levelId] ?: listOf(levelDto.levelName),
                             positionX = levelDto.positionX,
                             positionY = levelDto.positionY,
-                            bookingMode = levelDto.tableBookingMode ?: "FLEXIBLE",
+                            bookingMode = tableConfig.bookingMode.name,
                             seatCount = tableSeats.size,
                             seatIdentifiers = seatIdentifiers,
                             status = tableConfig.status.name,

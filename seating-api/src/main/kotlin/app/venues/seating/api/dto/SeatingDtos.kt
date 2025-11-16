@@ -23,18 +23,7 @@ data class LevelInfoDto(
     val levelName: String,
     val levelIdentifier: String?,
     val capacity: Int?, // For GA levels
-    val isGeneralAdmission: Boolean,
-    val tableBookingMode: String? = null,
-
-    /**
-     * True if this level (e.g., a table) allows booking of its individual seats.
-     */
-    val allowsSeatBooking: Boolean,
-
-    /**
-     * True if this level (e.g., a table) can be booked as a single unit.
-     */
-    val allowsTableBooking: Boolean
+    val isGeneralAdmission: Boolean
 )
 
 /**
@@ -63,17 +52,6 @@ data class LevelDto(
     val positionX: Double?,
     val positionY: Double?,
     val isTable: Boolean? = null,
-    val tableBookingMode: String? = null,
-
-    /**
-     * True if this level (e.g., a table) allows booking of its individual seats.
-     */
-    val allowsSeatBooking: Boolean,
-
-    /**
-     * True if this level (e.g., a table) can be booked as a single unit.
-     */
-    val allowsTableBooking: Boolean
 )
 
 /**

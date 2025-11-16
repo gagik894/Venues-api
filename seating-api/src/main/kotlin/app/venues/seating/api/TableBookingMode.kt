@@ -1,4 +1,4 @@
-package app.venues.seating.domain
+package app.venues.seating.api
 
 /**
  * Defines how a table can be booked.
@@ -26,4 +26,3 @@ enum class TableBookingMode {
      */
     FLEXIBLE
 }
-

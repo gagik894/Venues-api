@@ -156,10 +156,7 @@ class SeatingService(
                 capacity = level.capacity,
                 positionX = level.positionX,
                 positionY = level.positionY,
-                isTable = level.isTable,
-                tableBookingMode = level.tableBookingMode?.name,
-                allowsSeatBooking = level.allowsSeatBooking(), // CENTRALIZED LOGIC
-                allowsTableBooking = level.allowsTableBooking() // CENTRALIZED LOGIC
+                isTable = level.isTable
             )
         }
 

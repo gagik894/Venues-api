@@ -87,14 +87,6 @@ data class Level(
     var isTable: Boolean = false,
 
     /**
-     * Table booking mode (how the table can be booked)
-     * Only applicable if isTable = true
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "table_booking_mode", length = 20)
-    var tableBookingMode: TableBookingMode? = null,
-
-    /**
      * Child levels (for nested hierarchy)
      */
     @OneToMany(mappedBy = "parentLevel", cascade = [CascadeType.ALL], orphanRemoval = true)
@@ -138,23 +130,7 @@ data class Level(
      * Check if this is a table level (has table configuration)
      */
     fun isTableLevel(): Boolean {
-        return isTable && tableBookingMode != null
-    }
-
-    /**
-     * Check if table allows individual seat booking
-     */
-    fun allowsSeatBooking(): Boolean {
-        return isTable && (tableBookingMode == TableBookingMode.SEATS_ONLY ||
-                tableBookingMode == TableBookingMode.FLEXIBLE)
-    }
-
-    /**
-     * Check if table allows whole table booking
-     */
-    fun allowsTableBooking(): Boolean {
-        return isTable && (tableBookingMode == TableBookingMode.TABLE_ONLY ||
-                tableBookingMode == TableBookingMode.FLEXIBLE)
+        return isTable
     }
 
     /**

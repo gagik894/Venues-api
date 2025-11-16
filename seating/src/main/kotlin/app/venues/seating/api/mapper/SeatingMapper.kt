@@ -25,10 +25,7 @@ class SeatingMapper {
             levelName = level.levelName,
             levelIdentifier = level.levelIdentifier,
             capacity = level.capacity,
-            isGeneralAdmission = level.isGeneralAdmission(), // Centralized logic
-            tableBookingMode = level.tableBookingMode?.name,
-            allowsSeatBooking = level.allowsSeatBooking(), // Centralized logic
-            allowsTableBooking = level.allowsTableBooking() // Centralized logic
+            isGeneralAdmission = level.isGeneralAdmission()
         )
     }
 

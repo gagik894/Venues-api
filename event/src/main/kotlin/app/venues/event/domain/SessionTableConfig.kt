@@ -1,5 +1,6 @@
 package app.venues.event.domain
 
+import app.venues.seating.api.TableBookingMode
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
@@ -57,6 +58,14 @@ data class SessionTableConfig(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")
     var priceTemplate: EventPriceTemplate? = null,
+
+    /**
+     * Session-specific rule for table booking.
+     * This is the single source of truth for this rule.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_mode", length = 20, nullable = false)
+    var bookingMode: TableBookingMode = TableBookingMode.FLEXIBLE,
 
     /**
      * Table status

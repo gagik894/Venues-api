@@ -27,13 +27,13 @@ class EventTranslation(
     @JoinColumn(name = "event_id", nullable = false)
     var event: Event,
 
-    @Column(nullable = false, length = 10)
+    @Column(name = "language", nullable = false, length = 10)
     var language: String,
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "title", nullable = false, length = 255)
     var title: String,
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
     ) : AbstractLongEntity()

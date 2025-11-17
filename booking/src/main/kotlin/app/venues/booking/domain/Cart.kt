@@ -29,7 +29,7 @@ class Cart(
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant,
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "token", nullable = false, unique = true)
     var token: UUID = UUID.randomUUID(),
 
     @Column(name = "user_id")

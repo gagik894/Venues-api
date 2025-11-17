@@ -28,7 +28,7 @@ class SeatingChart(
     @Column(name = "venue_id", nullable = false)
     var venueId: UUID,
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "name", nullable = false, length = 255)
     var name: String,
 
     @Column(name = "seat_indicator_size", nullable = false)

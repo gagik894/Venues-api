@@ -49,6 +49,7 @@ class EventSession(
         get() = _ticketsSold
 
     @Column(name = "status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
     private var _status: EventStatus = EventStatus.UPCOMING
 

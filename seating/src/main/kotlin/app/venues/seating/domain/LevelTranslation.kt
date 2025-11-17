@@ -26,7 +26,7 @@ class LevelTranslation(
     @JoinColumn(name = "level_id", nullable = false)
     var level: Level,
 
-    @Column(nullable = false, length = 10)
+    @Column(name = "language", nullable = false, length = 10)
     var language: String,
 
     @Column(name = "level_label", nullable = false, length = 255)

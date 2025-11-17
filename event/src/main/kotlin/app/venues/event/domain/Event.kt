@@ -32,7 +32,7 @@ import java.util.*
     ]
 )
 class Event(
-    @Column(nullable = false, length = 255)
+    @Column(name = "title", nullable = false, length = 255)
     var title: String,
 
     /**
@@ -58,10 +58,10 @@ class Event(
     @Column(name = "image_url", length = 500)
     var secondaryImgUrls: MutableList<String> = mutableListOf(),
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    @Column(length = 500)
+    @Column(name = "location", length = 500)
     var location: String? = null,
 
     @Column(name = "latitude")
@@ -78,7 +78,7 @@ class Event(
     @Column(name = "price_range", length = 100)
     var priceRange: String? = null,
 
-    @Column(length = 3)
+    @Column(name = "currency", length = 3)
     var currency: String = "AMD",
 
     /**

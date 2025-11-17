@@ -23,9 +23,9 @@ class EventPriceTemplate(
     @Column(name = "template_name", nullable = false, length = 100)
     var templateName: String,
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "price", nullable = false, precision = 10, scale = 2)
     var price: BigDecimal,
 
-    @Column(length = 7)
+    @Column(name = "color", length = 7)
     var color: String? = null,
 ) : AbstractUuidEntity()

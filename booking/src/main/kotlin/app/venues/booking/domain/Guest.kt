@@ -19,13 +19,13 @@ import jakarta.persistence.Table
     indexes = [Index(name = "idx_guest_email", columnList = "email", unique = true)]
 )
 class Guest(
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(name = "email", nullable = false, unique = true, length = 255)
     var email: String,
 
-    @Column(nullable = false, length = 200)
+    @Column(name = "name", nullable = false, length = 200)
     var name: String,
 
-    @Column(length = 20)
+    @Column(name = "phone", length = 20)
     var phone: String? = null,
 
     ) : AbstractUuidEntity()

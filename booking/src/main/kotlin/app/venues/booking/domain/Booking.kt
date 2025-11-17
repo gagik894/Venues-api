@@ -47,7 +47,7 @@ class Booking(
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     var totalPrice: BigDecimal,
 
-    @Column(nullable = false, length = 3)
+    @Column(name = "currency", nullable = false, length = 3)
     var currency: String = "AMD",
 
     @Column(name = "platform_id")
@@ -62,7 +62,7 @@ class Booking(
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
     private var _status: BookingStatus = BookingStatus.PENDING

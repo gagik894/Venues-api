@@ -22,7 +22,7 @@ class BookingItem(
     @JoinColumn(name = "booking_id", nullable = false)
     var booking: Booking,
 
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)
     var quantity: Int = 1,
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)

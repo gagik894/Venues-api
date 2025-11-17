@@ -25,13 +25,13 @@ class EventCategory(
     @Column(name = "category_key", nullable = false, unique = true, length = 50)
     var categoryKey: String,
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 100)
     var name: String,
 
-    @Column(length = 7)
+    @Column(name = "color", length = 7)
     var color: String? = null,
 
-    @Column(length = 100)
+    @Column(name = "icon", length = 100)
     var icon: String? = null,
 
     @Column(name = "display_order", nullable = false)

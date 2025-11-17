@@ -36,7 +36,7 @@ class SessionLevelConfig(
 
 ) : AbstractLongEntity() {
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
     private var _status: ConfigStatus = ConfigStatus.AVAILABLE

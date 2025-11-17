@@ -30,7 +30,7 @@ class CartItem(
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,
 
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)
     var quantity: Int,
 
     ) : AbstractLongEntity()

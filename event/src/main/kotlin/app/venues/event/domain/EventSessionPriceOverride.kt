@@ -22,7 +22,7 @@ class EventSessionPriceOverride(
     @Column(name = "template_name", nullable = false, length = 100)
     var templateName: String,
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "price", nullable = false, precision = 10, scale = 2)
     var price: BigDecimal,
 
     ) : AbstractLongEntity()

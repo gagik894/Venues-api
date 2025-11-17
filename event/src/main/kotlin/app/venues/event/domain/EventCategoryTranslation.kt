@@ -26,10 +26,10 @@ class EventCategoryTranslation(
     @JoinColumn(name = "category_id", nullable = false)
     var category: EventCategory,
 
-    @Column(nullable = false, length = 10)
+    @Column(name = "language", nullable = false, length = 10)
     var language: String,
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 100)
     var name: String,
 
     ) : AbstractLongEntity()

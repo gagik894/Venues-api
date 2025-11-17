@@ -15,11 +15,6 @@ import java.util.*
 interface BookingRepository : JpaRepository<Booking, UUID> {
 
     /**
-     * Find booking by reservation token
-     */
-    fun findByReservationToken(reservationToken: UUID): Booking?
-
-    /**
      * Find bookings by user
      */
     fun findByUserId(userId: UUID, pageable: Pageable): Page<Booking>

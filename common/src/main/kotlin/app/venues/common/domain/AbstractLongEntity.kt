@@ -8,19 +8,19 @@ import java.time.Instant
 
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
-abstract class AbstractLongEntity {
+open class AbstractLongEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null
+    open var id: Long? = null
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
+    open var createdAt: Instant = Instant.now()
 
     @LastModifiedDate
     @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
+    open var lastModifiedAt: Instant = Instant.now()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

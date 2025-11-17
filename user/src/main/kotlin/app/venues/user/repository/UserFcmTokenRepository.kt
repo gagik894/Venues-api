@@ -23,7 +23,7 @@ interface UserFcmTokenRepository : JpaRepository<UserFcmToken, Long> {
      * @param userId ID of the user
      * @return List of FCM tokens belonging to the user
      */
-    fun findByUserId(UUID: Long): List<UserFcmToken>
+    fun findByUserId(userId: UUID): List<UserFcmToken>
 
     /**
      * Finds all FCM tokens for a specific user and platform.

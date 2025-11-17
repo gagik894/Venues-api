@@ -13,17 +13,17 @@ import java.util.*
 
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
-abstract class AbstractUuidEntity {
+open class AbstractUuidEntity {
     @Id
-    val id: UUID = IdGenerator.uuidv7()
+    open val id: UUID = IdGenerator.uuidv7()
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
+    open var createdAt: Instant = Instant.now()
 
     @LastModifiedDate
     @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
+    open var lastModifiedAt: Instant = Instant.now()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

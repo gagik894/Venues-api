@@ -119,43 +119,6 @@ class VenueService(
     // ===========================================
 
     /**
-     * Register a new venue.
-     *
-     * @param request Registration request
-     * @return Created venue response
-     * @throws VenuesException.ResourceConflict if email already exists
-     */
-    fun registerVenue(request: VenueRegistrationRequest): VenueResponse {
-        logger.debug("Registering new venue: {}", request.email)
-
-        // Check if email already exists
-        if (venueRepository.existsByEmail(request.email.lowercase())) {
-            logger.warn("Venue registration failed: email already exists: {}", request.email)
-            throw VenuesException.ResourceConflict("A venue with this email already exists")
-        }
-
-        // Create venue entity
-        val venue = Venue(
-            name = request.name,
-            description = request.description,
-            address = request.address,
-            city = request.city,
-            latitude = request.latitude,
-            longitude = request.longitude,
-            phoneNumber = request.phoneNumber,
-            website = request.website,
-            category = request.category,
-        )
-
-        val savedVenue = venueRepository.save(venue)
-        logger.info("Venue registered successfully: (ID: {})", savedVenue.id)
-
-        // TODO: Send verification email
-
-        return venueMapper.toResponse(savedVenue)
-    }
-
-    /**
      * Get venue by ID.
      *
      * @param id Venue ID

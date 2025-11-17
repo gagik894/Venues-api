@@ -85,7 +85,7 @@ class CartTablePersistence(
     /**
      * Get cart table by session and table ID (for cleanup).
      */
-    fun findBySessionAndTable(sessionId: Long, tableId: Long): CartTable? {
+    fun findBySessionAndTable(sessionId: UUID, tableId: Long): CartTable? {
         return cartTableRepository.findBySessionIdAndTableId(sessionId, tableId)
     }
 }

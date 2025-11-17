@@ -17,17 +17,6 @@ import java.util.*
  */
 @Repository
 interface VenueRepository : JpaRepository<Venue, UUID> {
-
-    /**
-     * Find venue by email (for authentication)
-     */
-    fun findByEmail(email: String): Optional<Venue>
-
-    /**
-     * Check if email already exists
-     */
-    fun existsByEmail(email: String): Boolean
-
     /**
      * Find active venues (for public listing)
      */

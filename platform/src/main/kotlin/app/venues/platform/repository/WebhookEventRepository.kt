@@ -20,7 +20,7 @@ interface WebhookEventRepository : JpaRepository<WebhookEvent, UUID> {
     /**
      * Find webhook events by platform
      */
-    fun findByPlatformId(platformId: Long, pageable: Pageable): Page<WebhookEvent>
+    fun findByPlatformId(platformId: UUID, pageable: Pageable): Page<WebhookEvent>
 
     /**
      * Find webhook events by status
@@ -50,7 +50,7 @@ interface WebhookEventRepository : JpaRepository<WebhookEvent, UUID> {
      * Find failed webhooks for a platform
      */
     fun findByPlatformIdAndStatus(
-        platformId: Long,
+        platformId: UUID,
         status: WebhookStatus,
         pageable: Pageable
     ): Page<WebhookEvent>
@@ -58,13 +58,13 @@ interface WebhookEventRepository : JpaRepository<WebhookEvent, UUID> {
     /**
      * Count webhooks by platform and status
      */
-    fun countByPlatformIdAndStatus(platformId: Long, status: WebhookStatus): Long
+    fun countByPlatformIdAndStatus(platformId: UUID, status: WebhookStatus): Long
 
     /**
      * Find recent webhook events for session
      */
     fun findBySessionIdOrderByCreatedAtDesc(
-        sessionId: Long,
+        sessionId: UUID,
         pageable: Pageable
     ): Page<WebhookEvent>
 

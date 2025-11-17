@@ -110,7 +110,7 @@ interface UserRepository : JpaRepository<User, UUID> {
      * @param referrerId ID of the referring user
      * @return List of referred users
      */
-    fun findByReferrerId(referrerId: Long): List<User>
+    fun findByReferrerId(referrerId: UUID): List<User>
 
     /**
      * Counts how many users were referred by a specific user.
@@ -119,6 +119,6 @@ interface UserRepository : JpaRepository<User, UUID> {
      * @param referrerId ID of the referring user
      * @return Number of referred users
      */
-    fun countByReferrerId(referrerId: Long): Long
+    fun countByReferrerId(referrerId: UUID): Long
 }
 

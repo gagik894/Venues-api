@@ -46,16 +46,11 @@ interface SeatRepository : JpaRepository<Seat, Long> {
     @Query(
         """
         SELECT s FROM Seat s
-        WHERE s.level.seatingChartId = :chartId
+        WHERE s.level.seatingChart.id = :chartId
         ORDER BY s.level.levelName, s.seatIdentifier
     """
     )
     fun findBySeatingChartId(chartId: UUID): List<Seat>
-
-    /**
-     * Find seats by type
-     */
-    fun findBySeatType(seatType: String, pageable: Pageable): Page<Seat>
 
     /**
      * Count seats in a level

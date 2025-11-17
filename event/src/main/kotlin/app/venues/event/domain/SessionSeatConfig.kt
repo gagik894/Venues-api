@@ -4,21 +4,18 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Session seat configuration.
+ * Configures a single Seat for a specific EventSession.
+ * High-volume child entity (uses AbstractLongEntity).
  *
- * Assigns price templates and tracks availability per session.
- * Prices are read from the template and snapshotted to the cart.
+ * @param session The session this config applies to.
+ * @param seatId The `Seat.id` (a Long) this config is for.
+ * @param priceTemplate The `EventPriceTemplate` (a UUID-based entity) for this seat.
  */
 @Entity
 @Table(
     name = "session_seat_configs",
     uniqueConstraints = [
         UniqueConstraint(name = "uk_session_seat_config", columnNames = ["session_id", "seat_id"])
-    ],
-    indexes = [
-        Index(name = "idx_session_seat_config_session", columnList = "session_id"),
-        Index(name = "idx_session_seat_config_seat", columnList = "seat_id"),
-        Index(name = "idx_session_seat_config_status", columnList = "status")
     ]
 )
 class SessionSeatConfig(
@@ -33,11 +30,47 @@ class SessionSeatConfig(
     @JoinColumn(name = "price_template_id")
     var priceTemplate: EventPriceTemplate? = null,
 
+    ) : AbstractLongEntity() {
+
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    var status: ConfigStatus = ConfigStatus.AVAILABLE,
-) : AbstractLongEntity() {
-    fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
-    fun isPriced(): Boolean = priceTemplate != null
-}
+    @Access(AccessType.FIELD)
+    private var _status: ConfigStatus = ConfigStatus.AVAILABLE
 
+    val status: ConfigStatus
+        get() = _status
+
+    // --- Public Behaviors ---
+    fun isAvailable(): Boolean = _status == ConfigStatus.AVAILABLE
+
+    /**
+     * Reserves an available seat.
+     * @throws IllegalStateException if the seat is not available.
+     */
+    fun reserve() {
+        if (_status != ConfigStatus.AVAILABLE) {
+            throw IllegalStateException("Seat $seatId is not available to be reserved (status is $_status).")
+        }
+        this._status = ConfigStatus.RESERVED
+    }
+
+    /**
+     * Sells a reserved or available seat.
+     * @throws IllegalStateException if the seat cannot be sold.
+     */
+    fun sell() {
+        if (_status != ConfigStatus.AVAILABLE && _status != ConfigStatus.RESERVED) {
+            throw IllegalStateException("Seat $seatId cannot be sold (status is $_status).")
+        }
+        this._status = ConfigStatus.SOLD
+    }
+
+    /**
+     * Releases a reserved seat back to available.
+     */
+    fun release() {
+        if (_status == ConfigStatus.RESERVED) {
+            this._status = ConfigStatus.AVAILABLE
+        }
+    }
+}

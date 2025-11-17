@@ -7,12 +7,11 @@ import java.util.*
 
 /**
  * Represents a Staff account, an "admin" user who can log in to manage a specific venue.
+ * This entity is separate from the customer-facing `User` entity.
  *
- * This entity is separate from the customer-facing `User` entity, allowing a single
- * person (email) to be both a customer and a staff member without conflict.
- *
- * This entity handles all authentication, permissions, and security (lockout) logic
- * for the admin and white-label panels.
+ * @param email The login email for the staff member. Unique within the 'staff' table.
+ * @param passwordHash The BCrypt-hashed password.
+ * @param venue The Venue this staff account has permissions for.
  */
 @Entity
 @Table(
@@ -23,132 +22,144 @@ import java.util.*
     ]
 )
 class Staff(
-    /**
-     * The login email for the staff member. Unique within the 'staff' table.
-     */
     @Column(unique = true, nullable = false, length = 255)
     var email: String,
 
-    /**
-     * The BCrypt-hashed password.
-     */
     @Column(nullable = false, length = 255)
     var passwordHash: String,
 
-    /**
-     * The Venue this staff account has permissions for.
-     * This is a direct, coupled link as both entities live in the same module.
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
+
 ) : AbstractUuidEntity() {
 
-    /**
-     * Defines the permission level for this account.
-     */
+    // ===========================================
+    // Internal State (Encapsulated)
+    // ===========================================
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    var role: StaffRole = StaffRole.STAFF
+    @Access(AccessType.FIELD)
+    private var _role: StaffRole = StaffRole.STAFF
 
-    /**
-     * If role is EVENT_MANAGER, this must be set.
-     * Restricts all actions for this user to this single Event UUID.
-     */
+    val role: StaffRole
+        get() = _role
+
     @Column(name = "restricted_to_event_id")
-    var restrictedToEventId: UUID? = null
+    @Access(AccessType.FIELD)
+    private var _restrictedToEventId: UUID? = null
 
-    /**
-     * If set, this account is temporary and will be locked after this time.
-     */
+    val restrictedToEventId: UUID?
+        get() = _restrictedToEventId
+
     @Column
-    var expiresAt: Instant? = null
+    @Access(AccessType.FIELD)
+    private var _expiresAt: Instant? = null
 
-    // ===========================================
-    // Account Security & State
-    // ===========================================
+    val expiresAt: Instant?
+        get() = _expiresAt
 
-    /**
-     * Number of consecutive failed login attempts.
-     */
     @Column(nullable = false)
-    var failedLoginAttempts: Int = 0
+    @Access(AccessType.FIELD)
+    private var _failedLoginAttempts: Int = 0
 
-    /**
-     * Timestamp when the account was locked due to failed attempts.
-     */
     @Column
-    var accountLockedUntil: Instant? = null
+    @Access(AccessType.FIELD)
+    private var _accountLockedUntil: Instant? = null
 
-    /**
-     * Timestamp of the last successful login.
-     */
     @Column
-    var lastLoginAt: Instant? = null
+    @Access(AccessType.FIELD)
+    private var _lastLoginAt: Instant? = null
 
-    /**
-     * Whether this staff member has verified their email address.
-     */
+    val lastLoginAt: Instant?
+        get() = _lastLoginAt
+
     @Column(nullable = false)
-    var emailVerified: Boolean = false
+    @Access(AccessType.FIELD)
+    private var _emailVerified: Boolean = false
 
-    /**
-     * Secure token used for email verification or password reset.
-     */
+    val emailVerified: Boolean
+        get() = _emailVerified
+
     @Column(length = 255)
-    var verificationToken: String? = null
+    @Access(AccessType.FIELD)
+    private var _verificationToken: String? = null
 
-    /**
-     * Expiration time for the verificationToken.
-     */
     @Column
-    var verificationTokenExpiresAt: Instant? = null
+    @Access(AccessType.FIELD)
+    private var _verificationTokenExpiresAt: Instant? = null
 
     // ===========================================
-    // Business Logic
+    // Public Behaviors
     // ===========================================
 
-    /**
-     * Checks if the account is currently locked (and the lock period is still active).
-     */
-    fun isAccountLocked(): Boolean {
-        return accountLockedUntil?.isAfter(Instant.now()) ?: false
+    private fun isAccountLocked(): Boolean {
+        return _accountLockedUntil?.let { it.isAfter(Instant.now()) } ?: false
+    }
+
+    private fun isTemporaryAccessExpired(): Boolean {
+        return _expiresAt?.let { it.isBefore(Instant.now()) } ?: false
     }
 
     /**
-     * Checks if this is a temporary account and its access has expired.
-     */
-    fun isTemporaryAccessExpired(): Boolean {
-        return expiresAt?.isBefore(Instant.now()) ?: false
-    }
-
-    /**
-     * Checks if the account is active, not locked, and not expired.
-     * This is the main check for authentication.
+     * Public, read-only check to see if this user can log in.
      */
     fun canAuthenticate(): Boolean {
-        return !isAccountLocked() && !isTemporaryAccessExpired()
+        return _emailVerified && !isAccountLocked() && !isTemporaryAccessExpired()
     }
 
     /**
-     * Resets failed login attempts on a successful login.
+     * Call on a successful login. Resets lockout state.
      */
-    fun resetFailedLoginAttempts() {
-        this.failedLoginAttempts = 0
-        this.accountLockedUntil = null
-        this.lastLoginAt = Instant.now()
+    fun recordSuccessfulLogin() {
+        this._failedLoginAttempts = 0
+        this._accountLockedUntil = null
+        this._lastLoginAt = Instant.now()
     }
 
     /**
-     * Increments failed login attempts and locks the account if the threshold is met.
+     * Call on a failed login. Increments counter and locks if needed.
      *
-     * @param maxAttempts The configurable maximum number of attempts (e.g., from AppConstants).
-     * @param lockoutMinutes The configurable duration of the lockout (e.g., from AppConstants).
+     * @param maxAttempts The configurable maximum number of attempts.
+     * @param lockoutMinutes The configurable duration for the lockout.
      */
-    fun incrementFailedLoginAttempts(maxAttempts: Int, lockoutMinutes: Long) {
-        this.failedLoginAttempts++
-        if (this.failedLoginAttempts >= maxAttempts) {
-            this.accountLockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
+    fun recordFailedLoginAttempt(maxAttempts: Int, lockoutMinutes: Long) {
+        this._failedLoginAttempts++
+        if (this._failedLoginAttempts >= maxAttempts) {
+            this._accountLockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
         }
+    }
+
+    /**
+     * Grants temporary access for a single event.
+     *
+     * @param eventId The UUID of the event to restrict access to.
+     * @param expires The exact time the access expires.
+     */
+    fun grantTemporaryEventAccess(eventId: UUID, expires: Instant) {
+        this._role = StaffRole.EVENT_MANAGER
+        this._restrictedToEventId = eventId
+        this._expiresAt = expires
+    }
+
+    /**
+     * Marks the account's email as verified and clears tokens.
+     */
+    fun verifyEmail() {
+        this._emailVerified = true
+        this._verificationToken = null
+        this._verificationTokenExpiresAt = null
+    }
+
+    /**
+     * Generates and sets a new verification token.
+     *
+     * @param token The secure token string.
+     * @param expires The exact time the token expires.
+     */
+    fun setVerificationToken(token: String, expires: Instant) {
+        this._verificationToken = token
+        this._verificationTokenExpiresAt = expires
     }
 }

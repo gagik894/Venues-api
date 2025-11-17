@@ -5,115 +5,106 @@ import jakarta.persistence.*
 import java.time.Instant
 
 /**
- * Platform entity representing external systems that can integrate with our booking API.
+ * A "root" entity representing an external API platform (e.g., "Ticketmaster").
  *
- * Platforms can:
- * - Reserve seats through our API using API authentication
- * - Receive webhook callbacks when seat availability changes
- * - Optionally provide guest details or book anonymously
- *
- * @property id Platform unique identifier
- * @property name Platform name (e.g., "Ticketmaster", "StubHub", "PartnerApp")
- * @property apiUrl Base URL for platform's webhook endpoints
- * @property sharedSecret Secret key for HMAC signature validation of callbacks
- * @property status Current status of the platform integration
- * @property webhookEnabled Whether to send webhooks to this platform
- * @property description Optional description of the platform
- * @property contactEmail Technical contact email for the platform
- * @property rateLimit Maximum API requests per minute (null = no limit)
- * @property createdAt Platform creation timestamp
- * @property lastModifiedAt Last update timestamp
+ * @param name A unique name for the platform.
+ * @param apiUrl The base URL for sending webhooks to the platform.
+ * @param sharedSecret A secret used to sign webhook payloads.
+ * @param description An optional description of the platform.
+ * @param contactEmail An optional contact email for platform-related issues.
+ * @param rateLimit An optional rate limit (requests per minute) for API calls.
  */
 @Entity
-@Table(
-    name = "platforms",
-    indexes = [
-        Index(name = "idx_platform_status", columnList = "status"),
-        Index(name = "idx_platform_webhook_enabled", columnList = "webhook_enabled")
-    ]
-)
+@Table(name = "platforms")
 class Platform(
-    /**
-     * Platform name (must be unique)
-     */
     @Column(name = "name", nullable = false, unique = true, length = 100)
     var name: String,
 
-    /**
-     * Base URL for platform's API/webhooks (e.g., "https://partner.example.com/api")
-     */
     @Column(name = "api_url", nullable = false, length = 500)
     var apiUrl: String,
 
-    /**
-     * Shared secret for HMAC signature validation
-     * Used to sign webhook payloads
-     */
     @Column(name = "shared_secret", nullable = false, length = 255)
     var sharedSecret: String,
 
-    /**
-     * Platform status
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    var status: PlatformStatus = PlatformStatus.ACTIVE,
-
-    /**
-     * Whether to send webhook callbacks to this platform
-     */
-    @Column(name = "webhook_enabled", nullable = false)
-    var webhookEnabled: Boolean = true,
-
-    /**
-     * Platform description
-     */
     @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    /**
-     * Technical contact email
-     */
     @Column(name = "contact_email", length = 255)
     var contactEmail: String? = null,
 
-    /**
-     * Rate limit (requests per minute, null = unlimited)
-     */
     @Column(name = "rate_limit")
     var rateLimit: Int? = null,
 
-    /**
-     * Last successful webhook delivery timestamp
-     */
+    ) : AbstractUuidEntity() {
+
+    // --- Internal State (Encapsulated) ---
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Access(AccessType.FIELD)
+    private var _status: PlatformStatus = PlatformStatus.ACTIVE
+
+    val status: PlatformStatus
+        get() = _status
+
+    @Column(name = "webhook_enabled", nullable = false)
+    @Access(AccessType.FIELD)
+    private var _webhookEnabled: Boolean = true
+
+    val webhookEnabled: Boolean
+        get() = _webhookEnabled
+
     @Column(name = "last_webhook_success")
-    var lastWebhookSuccess: Instant? = null,
+    @Access(AccessType.FIELD)
+    private var _lastWebhookSuccess: Instant? = null
 
-    /**
-     * Last failed webhook delivery timestamp
-     */
+    val lastWebhookSuccess: Instant?
+        get() = _lastWebhookSuccess
+
     @Column(name = "last_webhook_failure")
-    var lastWebhookFailure: Instant? = null,
+    @Access(AccessType.FIELD)
+    private var _lastWebhookFailure: Instant? = null
 
-    /**
-     * Total successful webhooks sent
-     */
+    val lastWebhookFailure: Instant?
+        get() = _lastWebhookFailure
+
     @Column(name = "webhook_success_count", nullable = false)
-    var webhookSuccessCount: Long = 0,
+    @Access(AccessType.FIELD)
+    private var _webhookSuccessCount: Long = 0
 
-    /**
-     * Total failed webhooks
-     */
+    val webhookSuccessCount: Long
+        get() = _webhookSuccessCount
+
     @Column(name = "webhook_failure_count", nullable = false)
-    var webhookFailureCount: Long = 0,
-) : AbstractUuidEntity() {
-    /**
-     * Check if platform is active and can make reservations
-     */
-    fun isActive(): Boolean = status == PlatformStatus.ACTIVE
+    @Access(AccessType.FIELD)
+    private var _webhookFailureCount: Long = 0
 
-    /**
-     * Check if webhooks should be sent to this platform
-     */
-    fun shouldReceiveWebhooks(): Boolean = webhookEnabled && isActive()
+    val webhookFailureCount: Long
+        get() = _webhookFailureCount
+
+    // --- Public Behaviors ---
+    fun isActive(): Boolean = _status == PlatformStatus.ACTIVE
+
+    fun shouldReceiveWebhooks(): Boolean = _webhookEnabled && isActive()
+
+    fun deactivate() {
+        this._status = PlatformStatus.INACTIVE
+    }
+
+    fun enableWebhooks() {
+        this._webhookEnabled = true
+    }
+
+    fun disableWebhooks() {
+        this._webhookEnabled = false
+    }
+
+    fun recordWebhookSuccess() {
+        this._lastWebhookSuccess = Instant.now()
+        this._webhookSuccessCount++
+    }
+
+    fun recordWebhookFailure() {
+        this._lastWebhookFailure = Instant.now()
+        this._webhookFailureCount++
+    }
 }

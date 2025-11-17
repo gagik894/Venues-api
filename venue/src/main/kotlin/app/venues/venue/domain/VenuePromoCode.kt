@@ -6,10 +6,18 @@ import java.math.BigDecimal
 import java.time.Instant
 
 /**
- * Entity representing a promotional discount code offered by a venue.
+ * A "root" definition for a promotional code created by a Venue.
+ * This is referenced by `UserPromoCode`, so it uses a UUID.
  *
- * Venues can create promotional codes to offer discounts to customers.
- * Supports both percentage and fixed amount discounts with usage limits.
+ * @param venue The venue that owns this promo code.
+ * @param code The unique code string (e.g., "SUMMER20").
+ * @param discountType The type of discount.
+ * @param discountValue The value of the discount.
+ * @param description A description of the promo code.
+ * @param minOrderAmount Minimum order amount to apply the promo code.
+ * @param maxDiscountAmount Maximum discount amount that can be applied.
+ * @param maxUsageCount Maximum number of times this code can be used.
+ * @param expiresAt The expiration date/time of the promo code.
  */
 @Entity
 @Table(
@@ -19,111 +27,74 @@ import java.time.Instant
             name = "uk_venue_promo_code_venue_code",
             columnNames = ["venue_id", "code"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_venue_promo_code_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_promo_code_code", columnList = "code"),
-        Index(name = "idx_venue_promo_code_active", columnList = "is_active"),
-        Index(name = "idx_venue_promo_code_expires", columnList = "expires_at")
     ]
 )
 class VenuePromoCode(
-    /**
-     * The venue offering this promo code
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
-    /**
-     * The promotional code (e.g., "SUMMER2024", "WELCOME10")
-     */
     @Column(name = "code", nullable = false, length = 50)
     var code: String,
 
-    /**
-     * Description of what this promo code offers
-     */
-    @Column(name = "description", length = 255)
-    var description: String? = null,
-
-    /**
-     * Type of discount (PERCENTAGE or FIXED_AMOUNT)
-     */
-    @Column(name = "discount_type", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type", nullable = false, length = 20)
     var discountType: DiscountType,
 
-    /**
-     * Discount value (percentage or fixed amount)
-     */
     @Column(name = "discount_value", nullable = false, precision = 10, scale = 2)
     var discountValue: BigDecimal,
 
-    /**
-     * Minimum order amount required to use this code
-     */
+    @Column(name = "description", length = 255)
+    var description: String? = null,
+
     @Column(name = "min_order_amount", precision = 10, scale = 2)
     var minOrderAmount: BigDecimal? = null,
 
-    /**
-     * Maximum discount amount (useful for percentage discounts)
-     */
     @Column(name = "max_discount_amount", precision = 10, scale = 2)
     var maxDiscountAmount: BigDecimal? = null,
 
-    /**
-     * Maximum number of times this code can be used (null = unlimited)
-     */
     @Column(name = "max_usage_count")
     var maxUsageCount: Int? = null,
 
-    /**
-     * Current number of times this code has been used
-     */
-    @Column(name = "current_usage_count", nullable = false)
-    var currentUsageCount: Int = 0,
-
-    /**
-     * When this promo code expires (null = no expiration)
-     */
     @Column(name = "expires_at")
     var expiresAt: Instant? = null,
 
-    /**
-     * Whether this promo code is currently active
-     */
+    ) : AbstractUuidEntity() {
+
+    @Column(name = "current_usage_count", nullable = false)
+    @Access(AccessType.FIELD)
+    private var _currentUsageCount: Int = 0
+
+    val currentUsageCount: Int
+        get() = _currentUsageCount
+
     @Column(name = "is_active", nullable = false)
-    var isActive: Boolean = true,
-) : AbstractUuidEntity() {
-    /**
-     * Check if this promo code is currently valid for use
-     */
+    @Access(AccessType.FIELD)
+    private var _isActive: Boolean = true
+
+    val isActive: Boolean
+        get() = _isActive
+
     fun isValidForUse(): Boolean {
-        if (!isActive) return false
+        if (!_isActive) return false
         if (expiresAt?.isBefore(Instant.now()) == true) return false
-        if (maxUsageCount != null && currentUsageCount >= maxUsageCount!!) return false
-        return true
+        return maxUsageCount == null || _currentUsageCount < maxUsageCount!!
     }
 
     /**
-     * Calculate discount amount for a given order total
+     * Increments the usage counter for this promo code.
+     * @return true if successful, false if limit was already reached.
      */
-    fun calculateDiscount(orderAmount: BigDecimal): BigDecimal {
-        if (!isValidForUse()) return BigDecimal.ZERO
-        if (minOrderAmount != null && orderAmount < minOrderAmount!!) return BigDecimal.ZERO
-
-        val discount = when (discountType) {
-            DiscountType.PERCENTAGE -> orderAmount * (discountValue / BigDecimal(100))
-            DiscountType.FIXED_AMOUNT -> discountValue
+    fun redeem(): Boolean {
+        if (!isValidForUse()) {
+            return false
         }
+        this._currentUsageCount++
+        return true
+    }
 
-        // Apply maximum discount limit if set
-        return if (maxDiscountAmount != null && discount > maxDiscountAmount!!) {
-            maxDiscountAmount!!
-        } else {
-            discount
-        }
+    fun deactivate() {
+        this._isActive = false
     }
 }
 

@@ -4,9 +4,12 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Translation for Level labels.
+ * A translation for a Level's text fields.
+ * This is a child entity of Level.
  *
- * Supports multi-language labels for sections/areas.
+ * @param level The level this translation belongs to.
+ * @param language The language code.
+ * @param levelLabel The translated label.
  */
 @Entity
 @Table(
@@ -16,29 +19,17 @@ import jakarta.persistence.*
             name = "uk_level_translation_level_language",
             columnNames = ["level_id", "language"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_level_translation_level_id", columnList = "level_id"),
-        Index(name = "idx_level_translation_language", columnList = "language")
     ]
 )
 class LevelTranslation(
-    /**
-     * The level this translation belongs to
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "level_id", nullable = false)
     var level: Level,
 
-    /**
-     * Language code (ISO 639-1: en, hy, ru, etc.)
-     */
     @Column(nullable = false, length = 10)
     var language: String,
 
-    /**
-     * Translated level label
-     */
     @Column(name = "level_label", nullable = false, length = 255)
     var levelLabel: String,
-) : AbstractLongEntity()
+
+    ) : AbstractLongEntity()

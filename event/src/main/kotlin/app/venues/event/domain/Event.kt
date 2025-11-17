@@ -5,14 +5,22 @@ import jakarta.persistence.*
 import java.util.*
 
 /**
- * Main Event entity representing a cultural event.
+ * Represents a top-level Event.
+ * This is a "root" entity.
  *
- * An event is hosted by a venue and can have multiple sessions (time slots).
- * Events support translations for international audiences.
- *
- * Cross-module relationships:
- * - venueId references venue module
- * - seatingChartId references seating module
+ * @param title The default title of the event.
+ * @param venueId The UUID of the Venue hosting this event.
+ * @param category The EventCategory this event belongs to.
+ * @param imgUrl The main image URL for the event.
+ * @param secondaryImgUrls Additional image URLs for the event.
+ * @param description The detailed description of the event.
+ * @param location The physical location/address of the event.
+ * @param latitude The latitude coordinate of the event location.
+ * @param longitude The longitude coordinate of the event location.
+ * @param tags A set of tags associated with the event.
+ * @param priceRange The price range description for the event.
+ * @param currency The currency code for the event pricing (default is "AMD").
+ * @param seatingChartId The UUID of the SeatingChart for this event.
  */
 @Entity
 @Table(
@@ -20,182 +28,98 @@ import java.util.*
     indexes = [
         Index(name = "idx_event_venue_id", columnList = "venue_id"),
         Index(name = "idx_event_status", columnList = "status"),
-        Index(name = "idx_event_category_id", columnList = "category_id"),
-        Index(name = "idx_event_created_at", columnList = "created_at")
+        Index(name = "idx_event_category_id", columnList = "category_id")
     ]
 )
 class Event(
-    // ===========================================
-    // Basic Information
-    // ===========================================
-
-    /**
-     * Event title (default language)
-     */
     @Column(nullable = false, length = 255)
     var title: String,
 
     /**
-     * Primary image URL for the event
-     */
-    @Column(name = "img_url", length = 500)
-    var imgUrl: String? = null,
-
-    /**
-     * Secondary/additional images (stored as JSON array or separate table)
-     */
-    @ElementCollection
-    @CollectionTable(name = "event_secondary_images", joinColumns = [JoinColumn(name = "event_id")])
-    @Column(name = "image_url", length = 500)
-    var secondaryImgUrls: MutableList<String> = mutableListOf(),
-
-    /**
-     * Event description (default language)
-     */
-    @Column(columnDefinition = "TEXT")
-    var description: String? = null,
-
-    // ===========================================
-    // Venue & Location
-    // ===========================================
-
-    /**
-     * Venue ID - references venue module
-     * Stored as ID to avoid cross-module entity dependencies
+     * The `Venue.id` (a UUID) of the venue hosting this event.
+     * This is a cross-module link, so we store the ID.
      */
     @Column(name = "venue_id", nullable = false)
     var venueId: UUID,
 
     /**
-     * Specific location/address if different from venue's main address
-     */
-    @Column(length = 500)
-    var location: String? = null,
-
-    /**
-     * Latitude for event-specific location
-     */
-    @Column(name = "latitude")
-    var latitude: Double? = null,
-
-    /**
-     * Longitude for event-specific location
-     */
-    @Column(name = "longitude")
-    var longitude: Double? = null,
-
-    // ===========================================
-    // Categorization & Tags
-    // ===========================================
-
-    /**
-     * Event category (references EventCategory table within same module)
+     * The category this event belongs to.
+     * This is an intra-module link.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     var category: EventCategory? = null,
 
-    /**
-     * Tags for searchability and filtering
-     */
+    @Column(name = "img_url", length = 500)
+    var imgUrl: String? = null,
+
+    @ElementCollection
+    @CollectionTable(name = "event_secondary_images", joinColumns = [JoinColumn(name = "event_id")])
+    @Column(name = "image_url", length = 500)
+    var secondaryImgUrls: MutableList<String> = mutableListOf(),
+
+    @Column(columnDefinition = "TEXT")
+    var description: String? = null,
+
+    @Column(length = 500)
+    var location: String? = null,
+
+    @Column(name = "latitude")
+    var latitude: Double? = null,
+
+    @Column(name = "longitude")
+    var longitude: Double? = null,
+
     @ElementCollection
     @CollectionTable(name = "event_tags", joinColumns = [JoinColumn(name = "event_id")])
     @Column(name = "tag", length = 50)
     var tags: MutableSet<String> = mutableSetOf(),
 
-    // ===========================================
-    // Pricing
-    // ===========================================
-
-    /**
-     * Price range display (e.g., "$20 - $100", "Free", "From $50")
-     */
     @Column(name = "price_range", length = 100)
     var priceRange: String? = null,
 
-    /**
-     * Currency code (ISO 4217: USD, EUR, AMD, etc.)
-     */
     @Column(length = 3)
     var currency: String = "AMD",
 
     /**
-     * Seating chart ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     * Optional - for seated events only
+     * The `SeatingChart.id` (a UUID) for this event.
+     * This is a cross-module link, so we store the ID.
      */
     @Column(name = "seating_chart_id")
     var seatingChartId: UUID? = null,
+) : AbstractUuidEntity() {
 
-    // ===========================================
-    // Status & State
-    // ===========================================
-
-    /**
-     * Current status of the event
-     */
+    // --- Internal State (Encapsulated) ---
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    var status: EventStatus = EventStatus.DRAFT,
+    @Access(AccessType.FIELD)
+    private var _status: EventStatus = EventStatus.DRAFT
 
-    // ===========================================
-    // Relationships
-    // ===========================================
+    val status: EventStatus
+        get() = _status
 
-    /**
-     * Event sessions (time slots)
-     */
+    // --- Relationships ---
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    var sessions: MutableList<EventSession> = mutableListOf(),
+    val sessions: MutableList<EventSession> = mutableListOf()
 
-    /**
-     * Price templates for different ticket types
-     */
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    var priceTemplates: MutableList<EventPriceTemplate> = mutableListOf(),
+    val priceTemplates: MutableList<EventPriceTemplate> = mutableListOf()
 
-    /**
-     * Translations for title and description
-     */
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    var translations: MutableList<EventTranslation> = mutableListOf(),
-) : AbstractUuidEntity() {
-    /**
-     * Helper method to add a session
-     */
-    fun addSession(session: EventSession) {
-        sessions.add(session)
-        session.event = this
+    val translations: MutableList<EventTranslation> = mutableListOf()
+
+    // --- Public Behaviors ---
+    fun publish() {
+        if (this._status == EventStatus.DRAFT) {
+            this._status = EventStatus.UPCOMING
+        }
     }
 
-    /**
-     * Helper method to add a price template
-     */
-    fun addPriceTemplate(template: EventPriceTemplate) {
-        priceTemplates.add(template)
-        template.event = this
+    fun cancel() {
+        this._status = EventStatus.CANCELLED
     }
 
-    /**
-     * Helper method to add a translation
-     */
-    fun addTranslation(translation: EventTranslation) {
-        translations.add(translation)
-        translation.event = this
-    }
-
-    /**
-     * Check if event is editable (only draft/upcoming can be edited)
-     */
     fun isEditable(): Boolean {
-        return status == EventStatus.DRAFT || status == EventStatus.UPCOMING
-    }
-
-    /**
-     * Check if event is visible to public
-     */
-    fun isPubliclyVisible(): Boolean {
-        return status == EventStatus.UPCOMING || status == EventStatus.PAST
+        return _status == EventStatus.DRAFT || _status == EventStatus.UPCOMING
     }
 }
-

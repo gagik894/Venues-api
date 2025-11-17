@@ -8,19 +8,13 @@ import jakarta.persistence.Table
 import java.util.*
 
 /**
- * Seating Chart entity representing a venue's seating layout template.
+ * A "root" definition for a reusable seating chart template.
  *
- * A seating chart is a reusable template that defines the structure of seats and sections
- * in a venue. Multiple events can use the same seating chart.
- *
- * Features:
- * - Visual rendering configuration (indicator sizes, background)
- * - Hierarchical sections (levels)
- * - Individual seats or GA (General Admission) areas
- * - Multi-language support via translations
- *
- * Cross-module relationships:
- * - venueId references venue module
+ * @param venueId The `Venue.id` (a UUID) this chart belongs to.
+ * @param name The name of the chart (e.g., "Main Hall").
+ * @param seatIndicatorSize The size of seat indicators on the chart.
+ * @param levelIndicatorSize The size of level indicators on the chart.
+ * @param backgroundUrl An optional background image URL for the chart.
  */
 @Entity
 @Table(
@@ -31,35 +25,19 @@ import java.util.*
     ]
 )
 class SeatingChart(
-    /**
-     * Venue ID - references venue module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "venue_id", nullable = false)
     var venueId: UUID,
 
-    /**
-     * Name of the seating chart (e.g., "Main Hall", "Balcony Layout")
-     */
     @Column(nullable = false, length = 255)
     var name: String,
 
-    /**
-     * Size multiplier for seat indicators in the visual renderer
-     */
     @Column(name = "seat_indicator_size", nullable = false)
     var seatIndicatorSize: Int = 1,
 
-    /**
-     * Size multiplier for level/section indicators in the visual renderer
-     */
     @Column(name = "level_indicator_size", nullable = false)
     var levelIndicatorSize: Int = 1,
 
-    /**
-     * Background image URL for the seating chart visualization
-     */
     @Column(name = "background_url", length = 500)
     var backgroundUrl: String? = null,
-) : AbstractUuidEntity()
 
+    ) : AbstractUuidEntity()

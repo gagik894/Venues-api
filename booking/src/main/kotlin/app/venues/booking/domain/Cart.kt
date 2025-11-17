@@ -1,57 +1,63 @@
 package app.venues.booking.domain
 
 import app.venues.common.domain.AbstractUuidEntity
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.Index
-import jakarta.persistence.Table
+import jakarta.persistence.*
 import java.time.Instant
 import java.util.*
 
 /**
- * Shopping cart session.
+ * A "root" entity representing a temporary shopping cart.
  *
- * Acts as a container for cart items with unified expiration.
- * All items in the cart expire together when the cart session expires.
+ * @param sessionId The `EventSession.id` this cart is for.
+ * @param expiresAt The time this cart's reservations expire.
+ * @param token A unique token to identify the cart.
+ * @param userId The `User.id` (customer) who owns this cart (if logged in).
  */
 @Entity
 @Table(
     name = "carts",
     indexes = [
         Index(name = "idx_cart_token", columnList = "token"),
-        Index(name = "idx_cart_user", columnList = "user_id"),
-        Index(name = "idx_cart_expires", columnList = "expires_at"),
-        Index(name = "idx_cart_session", columnList = "event_session_id")
+        Index(name = "idx_cart_user_id", columnList = "user_id"),
+        Index(name = "idx_cart_expires_at", columnList = "expires_at")
     ]
 )
 class Cart(
-    @Column(nullable = false, unique = true)
-    var token: UUID = UUID.randomUUID(),
-
-    @Column(name = "user_id")
-    var userId: UUID? = null,
-
-    @Column(name = "guest_id")
-    var guestId: UUID? = null,
-
     @Column(name = "event_session_id", nullable = false)
     var sessionId: UUID,
 
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant,
 
-    @Column(name = "last_activity_at", nullable = false)
-    var lastActivityAt: Instant = Instant.now(),
+    @Column(nullable = false, unique = true)
+    var token: UUID = UUID.randomUUID(),
+
+    @Column(name = "user_id")
+    var userId: UUID? = null,
+
 ) : AbstractUuidEntity() {
+
+    @Column(name = "last_activity_at", nullable = false)
+    @Access(AccessType.FIELD)
+    private var _lastActivityAt: Instant = Instant.now()
+
+    val lastActivityAt: Instant
+        get() = _lastActivityAt
+
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
+    /**
+     * Extends the cart's expiration time and updates its activity.
+     */
     fun extendExpiration(minutes: Long) {
-        expiresAt = Instant.now().plusSeconds(minutes * 60)
-        lastActivityAt = Instant.now()
+        this.expiresAt = Instant.now().plusSeconds(minutes * 60)
+        this._lastActivityAt = Instant.now()
     }
 
+    /**
+     * Updates the last activity time without extending expiration.
+     */
     fun touch() {
-        lastActivityAt = Instant.now()
+        this._lastActivityAt = Instant.now()
     }
 }
-

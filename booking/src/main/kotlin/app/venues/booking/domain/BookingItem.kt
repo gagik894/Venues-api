@@ -5,46 +5,22 @@ import jakarta.persistence.*
 import java.math.BigDecimal
 
 /**
- * Booking item entity - items within a booking.
+ * A line item in a Booking (e.g., "Seat A1" or "2x GA tickets").
+ * This is a high-volume child entity.
  *
- * Can be either:
- * - A seat (quantity = 1)
- * - GA tickets for a level (quantity > 0)
- *
- * One booking can have multiple seats AND multiple GA levels.
- *
- * Cross-module relationships:
- * - seatId references seating module
- * - levelId references seating module
- * - sessionSeatConfigId references event module
+ * @param booking The parent booking.
+ * @param quantity The number of tickets (e.g., 1 for a seat, >1 for GA).
+ * @param unitPrice The snapshotted price per unit.
+ * @param seatId The `Seat.id` (a Long), if this is a seat.
+ * @param levelId The `Level.id` (a Long), if this is GA.
+ * @param priceTemplateName The name of the price template used (e.g., "VIP").
  */
 @Entity
-@Table(
-    name = "booking_items",
-    indexes = [
-        Index(name = "idx_booking_item_booking_id", columnList = "booking_id"),
-        Index(name = "idx_booking_item_seat_id", columnList = "seat_id"),
-        Index(name = "idx_booking_item_level_id", columnList = "level_id"),
-    ]
-)
+@Table(name = "booking_items")
 class BookingItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "booking_id", nullable = false, columnDefinition = "UUID")
+    @JoinColumn(name = "booking_id", nullable = false)
     var booking: Booking,
-
-    /**
-     * Seat ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "seat_id")
-    var seatId: Long? = null,
-
-    /**
-     * Level ID - references seating module (for GA tickets)
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "level_id")
-    var levelId: Long? = null,
 
     @Column(nullable = false)
     var quantity: Int = 1,
@@ -52,13 +28,26 @@ class BookingItem(
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,
 
+    /**
+     * The `Seat.id` (a Long), if this is a seat.
+     */
+    @Column(name = "seat_id")
+    var seatId: Long? = null,
+
+    /**
+     * The `Level.id` (a Long), if this is GA.
+     */
+    @Column(name = "level_id")
+    var levelId: Long? = null,
+
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null,
-) : AbstractLongEntity() {
+
+    ) : AbstractLongEntity() {
+
     fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 
     fun isSeat(): Boolean = seatId != null
 
     fun isGA(): Boolean = levelId != null
 }
-

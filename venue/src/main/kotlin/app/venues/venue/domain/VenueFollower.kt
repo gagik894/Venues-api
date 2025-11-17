@@ -5,11 +5,12 @@ import jakarta.persistence.*
 import java.util.*
 
 /**
- * Entity representing a user following a venue.
+ * Join entity linking a `User` (customer) to a `Venue` they follow.
+ * This is a cross-module relationship.
  *
- * When users follow venues, they can receive notifications about new events,
- * updates, promotions, etc. This creates engagement and helps venues build
- * an audience.
+ * @param venue The venue being followed.
+ * @param userId The ID of the user who is following.
+ * @param notificationsEnabled Whether the user has enabled notifications for this venue.
  */
 @Entity
 @Table(
@@ -19,31 +20,20 @@ import java.util.*
             name = "uk_venue_follower_user_venue",
             columnNames = ["venue_id", "user_id"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_venue_follower_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_follower_user_id", columnList = "user_id"),
-        Index(name = "idx_venue_follower_notifications", columnList = "notifications_enabled")
     ]
 )
 class VenueFollower(
-    /**
-     * The venue being followed
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
     /**
-     * ID of the user following this venue
-     * References the user from the user module
+     * The `User.id` (customer) who is following.
      */
     @Column(name = "user_id", nullable = false)
     var userId: UUID,
 
-    /**
-     * Whether the user wants to receive notifications from this venue
-     */
     @Column(name = "notifications_enabled", nullable = false)
     var notificationsEnabled: Boolean = true,
-) : AbstractLongEntity()
+
+    ) : AbstractLongEntity()

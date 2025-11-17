@@ -4,97 +4,66 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Level entity representing a section or area in a seating chart.
+ * A Level (section, area, or table) within a SeatingChart.
+ * This is a high-volume child entity (uses AbstractLongEntity).
  *
- * Levels can be:
- * 1. **General Admission (GA)**: Has capacity and position, no individual seats
- * 2. **Seated Section**: Contains individual Seat entities
- * 3. **Parent Section**: Can contain child levels (nested hierarchy)
- *
- * Examples:
- * - Orchestra (seated section with seats A1, A2, etc.)
- * - Standing Area (GA with capacity = 100)
- * - Balcony (parent) → Balcony Left (child), Balcony Right (child)
+ * @param seatingChart The parent SeatingChart.
+ * @param levelName The display name of the level (e.g., "Orchestra").
+ * @param parentLevel The parent Level if this is a sub-level.
+ * @param levelIdentifier An optional identifier for the level (e.g., "A", "B").
+ * @param positionX The X coordinate for level placement on the chart.
+ * @param positionY The Y coordinate for level placement on the chart.
+ * @param capacity The capacity for General Admission levels (null if seated).
+ * @param isTable Whether this level uses table configuration.
  */
 @Entity
 @Table(
     name = "levels",
     indexes = [
         Index(name = "idx_level_seating_chart_id", columnList = "seating_chart_id"),
-        Index(name = "idx_level_parent_id", columnList = "parent_level_id"),
-        Index(name = "idx_level_identifier", columnList = "level_identifier")
+        Index(name = "idx_level_parent_id", columnList = "parent_level_id")
     ]
 )
 class Level(
-    /**
-     * Parent level for hierarchical nesting (null for top-level)
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_level_id")
-    var parentLevel: Level? = null,
-
-    /**
-     * The seating chart this level belongs to
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "seating_chart_id", nullable = false)
     var seatingChart: SeatingChart,
 
-    /**
-     * Name of the level (default language)
-     */
     @Column(name = "level_name", nullable = false, length = 255)
     var levelName: String,
 
-    /**
-     * Unique identifier for this level (e.g., "ORCH", "BALC", "VIP")
-     * Used for API communication and references
-     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_level_id")
+    var parentLevel: Level? = null,
+
     @Column(name = "level_identifier", length = 50)
     var levelIdentifier: String? = null,
 
-    /**
-     * X coordinate for rendering (for GA sections and visual positioning)
-     */
     @Column(name = "position_x")
     var positionX: Double? = null,
 
-    /**
-     * Y coordinate for rendering (for GA sections and visual positioning)
-     */
     @Column(name = "position_y")
     var positionY: Double? = null,
 
-    /**
-     * Capacity for General Admission areas (null for seated sections)
-     */
     @Column(name = "capacity")
     var capacity: Int? = null,
 
-    /**
-     * Indicates if this level represents a table (group of seats sold as a unit)
-     */
     @Column(name = "is_table", nullable = false)
     var isTable: Boolean = false,
 
-    /**
-     * Child levels (for nested hierarchy)
-     */
+    ) : AbstractLongEntity() {
+
     @OneToMany(mappedBy = "parentLevel", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var childLevels: MutableList<Level> = mutableListOf(),
+    val childLevels: MutableList<Level> = mutableListOf()
 
-    /**
-     * Seats in this level (for seated sections only)
-     */
     @OneToMany(mappedBy = "level", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var seats: MutableList<Seat> = mutableListOf(),
+    val seats: MutableList<Seat> = mutableListOf()
 
-    /**
-     * Translations for level label
-     */
     @OneToMany(mappedBy = "level", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var translations: MutableList<LevelTranslation> = mutableListOf(),
-) : AbstractLongEntity() {
+    val translations: MutableList<LevelTranslation> = mutableListOf()
+
+    // --- Public Behaviors ---
+
     /**
      * Check if this is a General Admission area
      */
@@ -146,4 +115,3 @@ class Level(
         child.parentLevel = this
     }
 }
-

@@ -6,27 +6,14 @@ import java.time.Instant
 import java.util.*
 
 /**
- * WebhookEvent entity for tracking webhook delivery attempts.
+ * A "root" entity logging a single webhook delivery attempt.
  *
- * Records all webhook callbacks sent to platforms when seat availability changes.
- *
- * Cross-module relationships:
- * - platformId references platform module (same module via ID for consistency)
- *
- * @property id Webhook event unique identifier
- * @property platformId The platform ID receiving the webhook
- * @property eventType Type of event (e.g., SEAT_RESERVED, SEAT_RELEASED)
- * @property sessionId Event session ID
- * @property seatIdentifier Seat identifier (if applicable)
- * @property levelIdentifier Level identifier for GA tickets (if applicable)
- * @property payload JSON payload sent to platform
- * @property status Delivery status
- * @property responseCode HTTP response code from platform
- * @property responseBody Response body from platform
- * @property errorMessage Error message if delivery failed
- * @property attemptCount Number of delivery attempts
- * @property nextRetryAt Next scheduled retry time (for failed deliveries)
- * @property createdAt Event creation timestamp
+ * @param platformId The `Platform.id` (a UUID) this event is for.
+ * @param eventType The type of event (e.g., "SEAT_RESERVED").
+ * @param sessionId The `EventSession.id` (a UUID) this event pertains to.
+ * @param payload The JSON payload sent.
+ * @param seatIdentifier An optional seat identifier related to the event.
+ * @param levelIdentifier An optional level identifier related to the event.
  */
 @Entity
 @Table(
@@ -38,99 +25,30 @@ import java.util.*
     ]
 )
 class WebhookEvent(
-    /**
-     * Platform ID receiving the webhook
-     * Stored as ID to maintain consistency with architectural principles
-     */
     @Column(name = "platform_id", nullable = false)
     var platformId: UUID,
 
-    /**
-     * Event type
-     */
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, length = 50)
     var eventType: WebhookEventType,
 
-    /**
-     * Event session ID
-     */
     @Column(name = "session_id", nullable = false)
     var sessionId: UUID,
 
-    /**
-     * Seat identifier (for seat-specific events)
-     */
-    @Column(name = "seat_identifier", length = 50)
-    var seatIdentifier: String? = null,
-
-    /**
-     * Level identifier (for GA events)
-     */
-    @Column(name = "level_identifier", length = 50)
-    var levelIdentifier: String? = null,
-
-    /**
-     * JSON payload sent to platform
-     */
     @Column(name = "payload", columnDefinition = "TEXT", nullable = false)
     var payload: String,
 
-    /**
-     * Delivery status
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    var status: WebhookStatus = WebhookStatus.PENDING,
+    @Column(name = "seat_identifier", length = 50)
+    var seatIdentifier: String? = null,
 
-    /**
-     * HTTP response code from platform
-     */
-    @Column(name = "response_code")
-    var responseCode: Int? = null,
-
-    /**
-     * Response body from platform
-     */
-    @Column(name = "response_body", columnDefinition = "TEXT")
-    var responseBody: String? = null,
-
-    /**
-     * Error message if delivery failed
-     */
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    var errorMessage: String? = null,
-
-    /**
-     * Number of delivery attempts
-     */
-    @Column(name = "attempt_count", nullable = false)
-    var attemptCount: Int = 0,
-
-    /**
-     * Next scheduled retry time (for failed deliveries)
-     */
-    @Column(name = "next_retry_at")
-    var nextRetryAt: Instant? = null,
-
-    /**
-     * Last attempt timestamp
-     */
-    @Column(name = "last_attempt_at")
-    var lastAttemptAt: Instant? = null,
+    @Column(name = "level_identifier", length = 50)
+    var levelIdentifier: String? = null,
 
     ) : AbstractUuidEntity() {
+
     companion object {
         const val MAX_RETRY_ATTEMPTS = 5
 
-        /**
-         * Calculate next retry delay using exponential backoff
-         * 1st retry: 1 minute
-         * 2nd retry: 5 minutes
-         * 3rd retry: 15 minutes
-         * 4th retry: 1 hour
-         * 5th retry: 4 hours
-         */
         fun calculateRetryDelay(attemptCount: Int): Long {
             return when (attemptCount) {
                 1 -> 60L        // 1 minute
@@ -142,41 +60,92 @@ class WebhookEvent(
         }
     }
 
+    // --- Internal State (Encapsulated) ---
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Access(AccessType.FIELD)
+    private var _status: WebhookStatus = WebhookStatus.PENDING
+
+    val status: WebhookStatus
+        get() = _status
+
+    @Column(name = "response_code")
+    @Access(AccessType.FIELD)
+    private var _responseCode: Int? = null
+
+    val responseCode: Int?
+        get() = _responseCode
+
+    @Column(name = "response_body", columnDefinition = "TEXT")
+    @Access(AccessType.FIELD)
+    private var _responseBody: String? = null
+
+    val responseBody: String?
+        get() = _responseBody
+
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    @Access(AccessType.FIELD)
+    private var _errorMessage: String? = null
+
+    val errorMessage: String?
+        get() = _errorMessage
+
+    @Column(name = "attempt_count", nullable = false)
+    @Access(AccessType.FIELD)
+    private var _attemptCount: Int = 0
+
+    val attemptCount: Int
+        get() = _attemptCount
+
+    @Column(name = "next_retry_at")
+    @Access(AccessType.FIELD)
+    private var _nextRetryAt: Instant? = null
+
+    val nextRetryAt: Instant?
+        get() = _nextRetryAt
+
+    @Column(name = "last_attempt_at")
+    @Access(AccessType.FIELD)
+    private var _lastAttemptAt: Instant? = null
+
+    val lastAttemptAt: Instant?
+        get() = _lastAttemptAt
+
+    // --- Public Behaviors ---
+
     /**
-     * Mark webhook as delivered successfully
+     * Marks the webhook as successfully delivered.
      */
     fun markAsDelivered(responseCode: Int, responseBody: String?) {
-        this.status = WebhookStatus.DELIVERED
-        this.responseCode = responseCode
-        this.responseBody = responseBody
+        this._status = WebhookStatus.DELIVERED
+        this._responseCode = responseCode
+        this._responseBody = responseBody
+        this._lastAttemptAt = Instant.now()
+        this._nextRetryAt = null
     }
 
     /**
-     * Mark webhook as failed
+     * Marks the webhook as failed and schedules a retry if applicable.
      */
-    fun markAsFailed(responseCode: Int?, errorMessage: String) {
-        this.attemptCount++
-        this.status = if (attemptCount >= MAX_RETRY_ATTEMPTS) {
-            WebhookStatus.FAILED
+    fun markAsFailed(responseCode: Int?, errorMessage: String?) {
+        this._attemptCount++
+        this._responseCode = responseCode
+        this._errorMessage = errorMessage
+        this._lastAttemptAt = Instant.now()
+
+        if (_attemptCount >= MAX_RETRY_ATTEMPTS) {
+            this._status = WebhookStatus.FAILED
+            this._nextRetryAt = null
         } else {
-            WebhookStatus.PENDING
-        }
-        this.responseCode = responseCode
-        this.errorMessage = errorMessage
-
-        // Schedule retry if not max attempts
-        if (attemptCount < MAX_RETRY_ATTEMPTS) {
-            val delaySeconds = calculateRetryDelay(attemptCount)
-            this.nextRetryAt = Instant.now().plusSeconds(delaySeconds)
+            this._status = WebhookStatus.PENDING
+            val delaySeconds = calculateRetryDelay(_attemptCount)
+            this._nextRetryAt = Instant.now().plusSeconds(delaySeconds)
         }
     }
 
-    /**
-     * Check if webhook should be retried
-     */
     fun shouldRetry(): Boolean {
-        return status == WebhookStatus.PENDING
-                && attemptCount < MAX_RETRY_ATTEMPTS
-                && (nextRetryAt == null || Instant.now().isAfter(nextRetryAt))
+        return _status == WebhookStatus.PENDING
+                && _attemptCount < MAX_RETRY_ATTEMPTS
+                && (_nextRetryAt == null || Instant.now().isAfter(_nextRetryAt))
     }
 }

@@ -8,15 +8,16 @@ import java.time.Instant
 import java.util.*
 
 /**
- * Booking entity representing a finalized booking after checkout.
+ * A "root" entity representing a finalized booking.
  *
- * Created in Phase 2 after cart is converted to booking.
- * Contains all booking details and payment information.
- *
- * Cross-module relationships:
- * - userId references user module
- * - guestId references booking module (same module)
- * - sessionId references event module
+ * @param userId The `User.id` (customer) who made this booking.
+ * @param guest The `Guest` who made this booking (if not a User).
+ * @param sessionId The `EventSession.id` this booking is for.
+ * @param totalPrice The total price paid.
+ * @param currency The currency code (e.g., "USD", "EUR").
+ * @param platformId The `Platform.id` where the booking was made (if applicable).
+ * @param venueId The `Venue.id` where the event is held.
+ * @param externalOrderNumber An optional external order number from third-party systems.
  */
 @Entity
 @Table(
@@ -25,52 +26,20 @@ import java.util.*
         Index(name = "idx_booking_user_id", columnList = "user_id"),
         Index(name = "idx_booking_guest_id", columnList = "guest_id"),
         Index(name = "idx_booking_session_id", columnList = "session_id"),
-        Index(name = "idx_booking_reservation_token", columnList = "reservation_token"),
         Index(name = "idx_booking_platform_id", columnList = "platform_id"),
         Index(name = "idx_booking_venue_id", columnList = "venue_id")
     ]
 )
 class Booking(
-    /**
-     * User ID - references user module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "user_id")
-    var userId: UUID? = null,
+    var userId: UUID?,
 
-    /**
-     * Guest ID - references Guest entity in booking module
-     * Can be null for logged-in users
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "guest_id")
-    var guest: Guest? = null,
+    var guest: Guest?,
 
-    /**
-     * Session ID - references event module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
     @Column(name = "session_id", nullable = false)
     var sessionId: UUID,
-
-    /**
-     * Reserved platform's order number for cross-referencing
-     */
-    @Column(name = "external_order_number", length = 100, unique = true)
-    var externalOrderNumber: String? = null,
-
-    /**
-     * Platform ID if booking was made through external platform integration
-     */
-    @Column(name = "platform_id")
-    var platformId: UUID? = null,
-
-    /**
-     * Venue ID - the venue where the event is held
-     * Denormalized for reporting and analytics
-     */
-    @Column(name = "venue_id")
-    var venueId: UUID? = null,
 
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     var totalPrice: BigDecimal,
@@ -78,38 +47,91 @@ class Booking(
     @Column(nullable = false, length = 3)
     var currency: String = "AMD",
 
+    @Column(name = "platform_id")
+    var platformId: UUID?,
+
+    @Column(name = "venue_id")
+    var venueId: UUID?,
+
+    @Column(name = "external_order_number", length = 100, unique = true)
+    var externalOrderNumber: String? = null
+
+) : AbstractUuidEntity() {
+
+    // --- Internal State (Encapsulated) ---
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    var status: BookingStatus = BookingStatus.PENDING,
+    @Access(AccessType.FIELD)
+    private var _status: BookingStatus = BookingStatus.PENDING
+
+    val status: BookingStatus
+        get() = _status
 
     @Column(name = "confirmed_at")
-    var confirmedAt: Instant? = null,
+    @Access(AccessType.FIELD)
+    private var _confirmedAt: Instant? = null
+
+    val confirmedAt: Instant?
+        get() = _confirmedAt
 
     @Column(name = "cancelled_at")
-    var cancelledAt: Instant? = null,
+    @Access(AccessType.FIELD)
+    private var _cancelledAt: Instant? = null
+
+    val cancelledAt: Instant?
+        get() = _cancelledAt
 
     @Column(name = "cancellation_reason", length = 500)
-    var cancellationReason: String? = null,
+    @Access(AccessType.FIELD)
+    private var _cancellationReason: String? = null
 
-    @Column(name = "payment_id", length = 100)
-    var paymentId: UUID? = null,
+    val cancellationReason: String?
+        get() = _cancellationReason
 
+    @Column(name = "payment_id")
+    @Access(AccessType.FIELD)
+    private var _paymentId: UUID? = null
+
+    val paymentId: UUID?
+        get() = _paymentId
+
+    // --- Relationships ---
     @OneToMany(mappedBy = "booking", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var items: MutableList<BookingItem> = mutableListOf(),
-) : AbstractUuidEntity() {
-    fun isCancellable(): Boolean = status in setOf(BookingStatus.PENDING, BookingStatus.CONFIRMED)
+    val items: MutableList<BookingItem> = mutableListOf()
 
-    //TODO introduce separate Payment entity to track payment details and status
-    fun confirm(paymentId: UUID? = null) {
-        status = BookingStatus.CONFIRMED
-        confirmedAt = Instant.now()
-        this.paymentId = paymentId
+    // --- Public Behaviors ---
+    fun isCancellable(): Boolean {
+        return _status == BookingStatus.PENDING || _status == BookingStatus.CONFIRMED
     }
 
-    fun cancel(reason: String? = null) {
-        status = BookingStatus.CANCELLED
-        cancelledAt = Instant.now()
-        cancellationReason = reason
+    /**
+     * Confirms the booking, moving it to a confirmed state
+     * and recording the payment.
+     *
+     * @param paymentId The unique identifier for the payment transaction.
+     * @throws IllegalStateException if the booking is not in a PENDING state.
+     */
+    fun confirm(paymentId: UUID) {
+        if (this._status != BookingStatus.PENDING) {
+            throw IllegalStateException("Booking $id cannot be confirmed (status is $_status).")
+        }
+        this._status = BookingStatus.CONFIRMED
+        this._confirmedAt = Instant.now()
+        this._paymentId = paymentId
+    }
+
+    /**
+     * Cancels the booking and records a reason.
+     *
+     * @param reason A reason for the cancellation (e.g., "User request", "Payment failed").
+     */
+    fun cancel(reason: String?) {
+        if (this._status == BookingStatus.CANCELLED) {
+            return // Already cancelled
+        }
+        this._status = BookingStatus.CANCELLED
+        this._cancelledAt = Instant.now()
+        this._cancellationReason = reason
     }
 
     fun addItem(item: BookingItem) {
@@ -117,4 +139,3 @@ class Booking(
         item.booking = this
     }
 }
-

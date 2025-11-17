@@ -4,9 +4,13 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Translation for event title and description.
+ * A translation for an Event's text fields.
+ * This is a child entity of Event.
  *
- * Supports multi-language event information for international audiences.
+ * @param event The event this translation belongs to.
+ * @param language The language code.
+ * @param title The translated title.
+ * @param description The translated description.
  */
 @Entity
 @Table(
@@ -16,36 +20,20 @@ import jakarta.persistence.*
             name = "uk_event_translation_event_language",
             columnNames = ["event_id", "language"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_event_translation_event_id", columnList = "event_id"),
-        Index(name = "idx_event_translation_language", columnList = "language")
     ]
 )
 class EventTranslation(
-    /**
-     * The event this translation belongs to
-     */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "event_id", nullable = false)
     var event: Event,
 
-    /**
-     * Language code (ISO 639-1: en, fr, es, hy, ru, etc.)
-     */
     @Column(nullable = false, length = 10)
     var language: String,
 
-    /**
-     * Translated title
-     */
     @Column(nullable = false, length = 255)
     var title: String,
 
-    /**
-     * Translated description
-     */
     @Column(columnDefinition = "TEXT")
     var description: String? = null,
-) : AbstractLongEntity()
 
+    ) : AbstractLongEntity()

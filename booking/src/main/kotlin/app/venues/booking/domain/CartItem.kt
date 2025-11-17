@@ -6,19 +6,17 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * GA ticket in shopping cart.
+ * A GA ticket item in a shopping cart.
+ * This is a high-volume child entity.
  *
- * Prices are snapshotted at add-to-cart time.
- * Expires when the parent Cart session expires.
+ * @param cart The parent cart.
+ * @param sessionId The `EventSession.id`.
+ * @param levelId The `Level.id` (a Long).
+ * @param unitPrice The snapshotted price.
+ * @param quantity The number of tickets.
  */
 @Entity
-@Table(
-    name = "cart_items",
-    indexes = [
-        Index(name = "idx_cart_item_session_id", columnList = "session_id"),
-        Index(name = "idx_cart_item_cart", columnList = "cart_id")
-    ]
-)
+@Table(name = "cart_gas")
 class CartItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cart_id", nullable = false)
@@ -35,9 +33,5 @@ class CartItem(
 
     @Column(nullable = false)
     var quantity: Int,
-) : AbstractLongEntity() {
-    fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
-}
 
-
-
+    ) : AbstractLongEntity()

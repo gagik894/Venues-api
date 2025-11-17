@@ -6,20 +6,19 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * Seat in shopping cart.
+ * A single seat item in a shopping cart.
+ * This is a high-volume child entity.
  *
- * Prices are snapshotted at add-to-cart time.
- * Expires when the parent Cart session expires.
+ * @param cart The parent cart.
+ * @param sessionId The `EventSession.id`.
+ * @param seatId The `Seat.id` (a Long).
+ * @param unitPrice The snapshotted price.
  */
 @Entity
 @Table(
     name = "cart_seats",
     uniqueConstraints = [
         UniqueConstraint(name = "uk_cart_seat_session_seat", columnNames = ["session_id", "seat_id"])
-    ],
-    indexes = [
-        Index(name = "idx_cart_seat_session_id", columnList = "session_id"),
-        Index(name = "idx_cart_seat_cart", columnList = "cart_id")
     ]
 )
 class CartSeat(
@@ -35,5 +34,5 @@ class CartSeat(
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,
-) : AbstractLongEntity()
 
+    ) : AbstractLongEntity()

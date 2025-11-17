@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import kotlinx.serialization.Serializable
 import java.time.Instant
+import java.util.*
 
 /**
  * Request DTO for adding venue photo.
@@ -42,6 +43,6 @@ data class VenuePhotoResponse(
     val url: String,
     val caption: String?,
     val displayOrder: Int,
-    val userId: Long,
+    val userId: UUID,
     val createdAt: Instant
 )

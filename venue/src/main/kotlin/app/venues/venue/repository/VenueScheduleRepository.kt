@@ -21,7 +21,7 @@ interface VenueScheduleRepository : JpaRepository<VenueSchedule, Long> {
      * @param venueId The venue ID
      * @return List of schedules for the venue
      */
-    fun findByVenueId(venueId: Long): List<VenueSchedule>
+    fun findByVenueId(venueId: UUID): List<VenueSchedule>
 
     /**
      * Find schedule for a specific venue and day of week.
@@ -30,7 +30,7 @@ interface VenueScheduleRepository : JpaRepository<VenueSchedule, Long> {
      * @param dayOfWeek The day of the week
      * @return Optional schedule for the venue and day
      */
-    fun findByVenueIdAndDayOfWeek(venueId: Long, dayOfWeek: DayOfWeek): Optional<VenueSchedule>
+    fun findByVenueIdAndDayOfWeek(venueId: UUID, dayOfWeek: DayOfWeek): Optional<VenueSchedule>
 
     /**
      * Delete all schedules for a venue.
@@ -38,5 +38,5 @@ interface VenueScheduleRepository : JpaRepository<VenueSchedule, Long> {
      *
      * @param venueId The venue ID
      */
-    fun deleteByVenueId(venueId: Long)
+    fun deleteByVenueId(venueId: UUID)
 }

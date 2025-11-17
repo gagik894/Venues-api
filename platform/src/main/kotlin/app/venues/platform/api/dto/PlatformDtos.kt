@@ -72,7 +72,7 @@ data class RegenerateSecretRequest(
  */
 data class PlatformReservationRequest(
     @field:NotNull(message = "Session ID is required")
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @field:Size(min = 1, message = "At least one seat or GA ticket must be specified")
     var seatIdentifiers: List<String>? = null,
@@ -137,7 +137,7 @@ data class PlatformSellRequest(
  * Platform details response
  */
 data class PlatformResponse(
-    val id: Long,
+    val id: UUID,
     val name: String,
     val apiUrl: String,
     val status: PlatformStatus,
@@ -157,7 +157,7 @@ data class PlatformResponse(
  * Platform with shared secret (only shown once after creation or regeneration)
  */
 data class PlatformWithSecretResponse(
-    val id: Long,
+    val id: UUID,
     val name: String,
     val apiUrl: String,
     val sharedSecret: String,  // Only included in this response
@@ -250,7 +250,7 @@ data class WebhookEventResponse(
 interface WebhookPayload {
     val eventType: WebhookEventType
     val timestamp: String
-    val sessionId: Long
+    val sessionId: UUID
 }
 
 /**
@@ -259,7 +259,7 @@ interface WebhookPayload {
 data class SeatReservedPayload(
     override val eventType: WebhookEventType = WebhookEventType.SEAT_RESERVED,
     override val timestamp: String,
-    override val sessionId: Long,
+    override val sessionId: UUID,
     val seatIdentifier: String,
 ) : WebhookPayload
 
@@ -269,7 +269,7 @@ data class SeatReservedPayload(
 data class SeatReleasedPayload(
     override val eventType: WebhookEventType = WebhookEventType.SEAT_RELEASED,
     override val timestamp: String,
-    override val sessionId: Long,
+    override val sessionId: UUID,
     val seatIdentifier: String,
 ) : WebhookPayload
 
@@ -279,7 +279,7 @@ data class SeatReleasedPayload(
 data class GAAvailabilityChangedPayload(
     override val eventType: WebhookEventType = WebhookEventType.GA_AVAILABILITY_CHANGED,
     override val timestamp: String,
-    override val sessionId: Long,
+    override val sessionId: UUID,
     val levelIdentifier: String,
     val levelName: String,
     val availableTickets: Int,

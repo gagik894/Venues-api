@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.util.*
 
 /**
  * Controller for session seating operations.
@@ -62,7 +63,7 @@ class SessionSeatingController(
         """
     )
     fun getSessionSeating(
-        @PathVariable sessionId: Long
+        @PathVariable sessionId: UUID
     ): ApiResponse<SessionSeatingResponse> {
         logger.debug { "Fetching session seating for session: $sessionId" }
 
@@ -105,7 +106,7 @@ class SessionSeatingController(
         """
     )
     fun getSessionAvailability(
-        @PathVariable sessionId: Long
+        @PathVariable sessionId: UUID
     ): ApiResponse<SeatAvailabilityResponse> {
         logger.debug { "Fetching availability for session: $sessionId" }
 

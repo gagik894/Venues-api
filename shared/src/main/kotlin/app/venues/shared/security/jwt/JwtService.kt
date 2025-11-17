@@ -71,7 +71,7 @@ class JwtService {
      * @param role Principal's role (USER, VENUE, ADMIN, etc.) - determines authorization level
      * @return Generated JWT token
      */
-    fun generateToken(email: String, id: Long, role: String): String {
+    fun generateToken(email: String, id: UUID, role: String): String {
         val now = Date()
         val expiryDate = Date(now.time + jwtExpirationMs)
 
@@ -120,10 +120,9 @@ class JwtService {
      * @param token JWT token
      * @return Principal ID from custom claim
      */
-    fun getIdFromToken(token: String): Long {
+    fun getIdFromToken(token: String): UUID {
         val claims = getClaimsFromToken(token)
-        return claims["id"] as? Long
-            ?: (claims["id"] as? Int)?.toLong()
+        return claims["id"] as? UUID
             ?: throw IllegalArgumentException("Principal ID not found in token")
     }
 

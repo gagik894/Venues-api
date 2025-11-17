@@ -13,6 +13,7 @@ import app.venues.seating.api.dto.LevelDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Service for retrieving session-specific seating charts.
@@ -46,7 +47,7 @@ class SessionSeatingService(
      * @return Complete seating structure with pricing and status
      */
     @Transactional(readOnly = true)
-    fun getSessionSeating(sessionId: Long): SessionSeatingResponse {
+    fun getSessionSeating(sessionId: UUID): SessionSeatingResponse {
         logger.debug { "Fetching session seating for session: $sessionId" }
 
         // 1. Get session and validate
@@ -140,7 +141,6 @@ class SessionSeatingService(
                             seatIdentifiers = seatIdentifiers,
                             status = tableConfig.status.name,
                             price = tableConfig.priceTemplate?.price?.toString(),
-                            priceTemplateId = tableConfig.priceTemplate?.id,
                             priceTemplateName = tableConfig.priceTemplate?.templateName,
                             priceTemplateColor = tableConfig.priceTemplate?.color
                         )
@@ -175,7 +175,6 @@ class SessionSeatingService(
                         capacity = sessionCapacity,
                         available = available,
                         price = levelConfig.priceTemplate?.price?.toString() ?: "0.00",
-                        priceTemplateId = levelConfig.priceTemplate?.id,
                         priceTemplateName = levelConfig.priceTemplate?.templateName
                     )
                 )
@@ -204,7 +203,6 @@ class SessionSeatingService(
                             positionY = seatDto.positionY,
                             status = config.status.name,
                             price = config.priceTemplate?.price?.toString() ?: "0.00",
-                            priceTemplateId = config.priceTemplate?.id,
                             priceTemplateName = config.priceTemplate?.templateName,
                             priceTemplateColor = config.priceTemplate?.color
                         )
@@ -229,7 +227,7 @@ class SessionSeatingService(
 
         return SessionSeatingResponse(
             sessionId = sessionId,
-            eventId = event.id!!,
+            eventId = event.id,
             eventTitle = event.title,
             seatingChartId = seatingChartId,
             seatingChartName = chartStructure.chartName,
@@ -301,7 +299,7 @@ class SessionSeatingService(
      * Much faster for large venues.
      */
     @Transactional(readOnly = true)
-    fun getSessionAvailability(sessionId: Long): SeatAvailabilityResponse {
+    fun getSessionAvailability(sessionId: UUID): SeatAvailabilityResponse {
         logger.debug { "Fetching seat availability for session: $sessionId" }
 
         val session = getSessionOrThrow(sessionId)
@@ -355,27 +353,26 @@ class SessionSeatingService(
 
         // Get event price templates
         val eventTemplates = event.priceTemplates.map { template ->
-            val templateId = template.id ?: return@map null
+            val templateId = template.id
             SessionPriceTemplateResponse(
                 id = templateId,
                 templateName = template.templateName,
                 color = template.color,
                 price = template.price.toString(),
-                displayOrder = template.displayOrder,
                 isOverride = false
             )
-        }.filterNotNull()
+        }
 
         // TODO: Add session-specific overrides when implemented
         // For now, just return event templates
 
-        return eventTemplates.sortedBy { it.displayOrder }
+        return eventTemplates.sortedBy { it.price }
     }
 
     /**
      * Get session or throw exception.
      */
-    private fun getSessionOrThrow(sessionId: Long): EventSession {
+    private fun getSessionOrThrow(sessionId: UUID): EventSession {
         return eventSessionRepository.findById(sessionId)
             .orElseThrow {
                 VenuesException.ResourceNotFound("Event session not found with ID: $sessionId")

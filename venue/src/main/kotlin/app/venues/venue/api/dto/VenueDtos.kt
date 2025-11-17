@@ -3,7 +3,7 @@ package app.venues.venue.api.dto
 import app.venues.common.constants.AppConstants
 import app.venues.venue.domain.VenueStatus
 import jakarta.validation.constraints.*
-import java.time.Instant
+import java.util.*
 
 // ===========================================
 // VENUE REGISTRATION & AUTHENTICATION
@@ -143,7 +143,7 @@ data class VenueUpdateRequest(
  * Response DTO for venue information.
  */
 data class VenueResponse(
-    val id: Long,
+    val id: UUID,
     val name: String,
     val description: String?,
     val imageUrl: String?,
@@ -151,7 +151,7 @@ data class VenueResponse(
     val city: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val email: String,
+    val email: String?,
     val phoneNumber: String?,
     val website: String?,
     val customDomain: String?,
@@ -160,10 +160,6 @@ data class VenueResponse(
     val verified: Boolean,
     val official: Boolean,
     val status: VenueStatus,
-    val emailVerified: Boolean,
-    val lastLoginAt: Instant?,
-    val createdAt: Instant,
-    val lastModifiedAt: Instant,
     val followerCount: Long? = null,
     val averageRating: Double? = null,
     val reviewCount: Long? = null

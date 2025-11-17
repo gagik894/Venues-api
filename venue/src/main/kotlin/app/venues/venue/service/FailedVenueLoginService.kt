@@ -1,6 +1,5 @@
 package app.venues.venue.service
 
-import app.venues.common.exception.VenuesException
 import app.venues.venue.repository.VenueRepository
 import jakarta.persistence.EntityManager
 import org.slf4j.LoggerFactory
@@ -53,33 +52,34 @@ class FailedVenueLoginService(
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun recordFailedLoginAttempt(venueId: Long) {
-        logger.debug("Recording failed login attempt for venue {} in NEW transaction", venueId)
-
-        // Load venue from database
-        val venue = venueRepository.findById(venueId).orElseThrow {
-            logger.error("Venue not found when recording failed login: venueId={}", venueId)
-            VenuesException.InternalError("Venue not found when recording failed login")
-        }
-
-        val previousAttempts = venue.failedLoginAttempts
-
-        // Increment failed login attempts (may also lock account)
-        venue.incrementFailedLoginAttempts()
-
-        // Save changes
-        venueRepository.save(venue)
-
-        // Force immediate flush to database
-        entityManager.flush()
-
-        logger.info(
-            "Failed login attempt recorded for venue {} (email: {}). Attempts: {} -> {}{}",
-            venueId,
-            venue.email,
-            previousAttempts,
-            venue.failedLoginAttempts,
-            if (venue.isAccountLocked()) " | Account LOCKED until ${venue.accountLockedUntil}" else ""
-        )
+        //TODO: Implement failed login attempt recording logic
+//        logger.debug("Recording failed login attempt for venue {} in NEW transaction", venueId)
+//
+//        // Load venue from database
+//        val venue = venueRepository.findById(venueId).orElseThrow {
+//            logger.error("Venue not found when recording failed login: venueId={}", venueId)
+//            VenuesException.InternalError("Venue not found when recording failed login")
+//        }
+//
+//        val previousAttempts = venue.failedLoginAttempts
+//
+//        // Increment failed login attempts (may also lock account)
+//        venue.incrementFailedLoginAttempts()
+//
+//        // Save changes
+//        venueRepository.save(venue)
+//
+//        // Force immediate flush to database
+//        entityManager.flush()
+//
+//        logger.info(
+//            "Failed login attempt recorded for venue {} (email: {}). Attempts: {} -> {}{}",
+//            venueId,
+//            venue.email,
+//            previousAttempts,
+//            venue.failedLoginAttempts,
+//            if (venue.isAccountLocked()) " | Account LOCKED until ${venue.accountLockedUntil}" else ""
+//        )
     }
 }
 

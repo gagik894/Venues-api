@@ -46,7 +46,7 @@ class CartService(
      * Validates that an event session exists.
      * @throws VenuesException.ResourceNotFound if session doesn't exist
      */
-    private fun validateSessionExists(sessionId: Long) {
+    private fun validateSessionExists(sessionId: UUID) {
         eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
     }
@@ -55,7 +55,7 @@ class CartService(
      * Gets or creates cart for the given session.
      * Validates that cart belongs to the same session if it already exists.
      */
-    private fun getOrCreateCartForSession(token: UUID?, sessionId: Long) =
+    private fun getOrCreateCartForSession(token: UUID?, sessionId: UUID) =
         cartSessionManager.findOrCreateCart(token, sessionId)
 
     /**
@@ -226,7 +226,6 @@ class CartService(
             sessionId = request.sessionId,
             tableId = reservation.tableId,
             tableName = reservation.tableName,
-            seatCount = reservation.seatCount,
             unitPrice = reservation.price
         )
 

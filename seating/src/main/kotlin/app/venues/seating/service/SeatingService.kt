@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Service for seating chart management operations.
@@ -91,7 +92,7 @@ class SeatingService(
     }
 
     @Transactional(readOnly = true)
-    override fun getSeatingChartName(chartId: Long): String? {
+    override fun getSeatingChartName(chartId: UUID): String? {
         return seatingChartRepository.findById(chartId)
             .map { it.name }
             .orElse(null)
@@ -142,7 +143,7 @@ class SeatingService(
 
 
     @Transactional(readOnly = true)
-    override fun getChartStructure(chartId: Long): SeatingChartStructureDto? {
+    override fun getChartStructure(chartId: UUID): SeatingChartStructureDto? {
         val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
 
         // Load all levels for this chart
@@ -171,12 +172,11 @@ class SeatingService(
                 levelId = seat.level.id!!,
                 positionX = seat.positionX,
                 positionY = seat.positionY,
-                seatType = seat.seatType
             )
         }
 
         return SeatingChartStructureDto(
-            chartId = chart.id!!,
+            chartId = chart.id,
             chartName = chart.name,
             levels = levelDtos,
             seats = seatDtos
@@ -191,7 +191,7 @@ class SeatingService(
     /**
      * Create a new seating chart for a venue.
      */
-    fun createSeatingChart(venueId: Long, request: SeatingChartRequest): SeatingChartResponse {
+    fun createSeatingChart(venueId: UUID, request: SeatingChartRequest): SeatingChartResponse {
         logger.debug { "Creating seating chart for venue: $venueId" }
 
         // Verify venue exists using VenueApi
@@ -229,7 +229,7 @@ class SeatingService(
      * Get seating chart by ID.
      */
     @Transactional(readOnly = true)
-    fun getSeatingChartById(id: Long): SeatingChartResponse {
+    fun getSeatingChartById(id: UUID): SeatingChartResponse {
         logger.debug { "Fetching seating chart: $id" }
 
         val chart = seatingChartRepository.findById(id)
@@ -248,7 +248,7 @@ class SeatingService(
      * Get detailed seating chart with levels and seats.
      */
     @Transactional(readOnly = true)
-    fun getSeatingChartDetailed(id: Long): SeatingChartDetailedResponse {
+    fun getSeatingChartDetailed(id: UUID): SeatingChartDetailedResponse {
         logger.debug { "Fetching detailed seating chart: $id" }
 
         val chart = seatingChartRepository.findById(id)
@@ -266,7 +266,7 @@ class SeatingService(
      * Get seating charts by venue.
      */
     @Transactional(readOnly = true)
-    fun getSeatingChartsByVenue(venueId: Long, pageable: Pageable): Page<SeatingChartResponse> {
+    fun getSeatingChartsByVenue(venueId: UUID, pageable: Pageable): Page<SeatingChartResponse> {
         logger.debug { "Fetching seating charts for venue: $venueId" }
 
         val venueName = venueApi.getVenueName(venueId)
@@ -274,8 +274,8 @@ class SeatingService(
         return seatingChartRepository.findByVenueId(venueId, pageable)
             .map { chart ->
                 // Service layer fetches children for each chart
-                val levels = levelRepository.findBySeatingChartId(chart.id!!)
-                val seats = seatRepository.findBySeatingChartId(chart.id!!)
+                val levels = levelRepository.findBySeatingChartId(chart.id)
+                val seats = seatRepository.findBySeatingChartId(chart.id)
                 seatingMapper.toResponse(chart, levels, seats, venueName = venueName)
             }
     }
@@ -283,7 +283,7 @@ class SeatingService(
     /**
      * Update seating chart.
      */
-    fun updateSeatingChart(chartId: Long, venueId: Long, request: SeatingChartRequest): SeatingChartResponse {
+    fun updateSeatingChart(chartId: UUID, venueId: UUID, request: SeatingChartRequest): SeatingChartResponse {
         logger.debug { "Updating seating chart: $chartId" }
 
         val chart = seatingChartRepository.findById(chartId)
@@ -321,7 +321,7 @@ class SeatingService(
     /**
      * Delete seating chart.
      */
-    fun deleteSeatingChart(chartId: Long, venueId: Long) {
+    fun deleteSeatingChart(chartId: UUID, venueId: UUID) {
         logger.debug { "Deleting seating chart: $chartId" }
 
         val chart = seatingChartRepository.findById(chartId)
@@ -343,10 +343,10 @@ class SeatingService(
     /**
      * Add level to seating chart.
      */
-    fun addLevel(chartId: Long, request: LevelRequest): LevelResponse {
+    fun addLevel(chartId: UUID, request: LevelRequest): LevelResponse {
         logger.debug { "Adding level to chart: $chartId" }
 
-        seatingChartRepository.findById(chartId)
+        val seatingChart = seatingChartRepository.findById(chartId)
             .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
 
         // Get parent level if specified
@@ -356,7 +356,7 @@ class SeatingService(
         }
 
         val level = Level(
-            seatingChartId = chartId,
+            seatingChart = seatingChart,
             parentLevel = parentLevel,
             levelName = request.levelName,
             levelIdentifier = request.levelIdentifier,
@@ -436,7 +436,7 @@ class SeatingService(
     /**
      * Add seat to level.
      */
-    fun addSeat(chartId: Long, request: SeatRequest): SeatResponse {
+    fun addSeat(chartId: UUID, request: SeatRequest): SeatResponse {
         logger.debug { "Adding seat to level: ${request.levelId}" }
 
         // Verify chart exists
@@ -457,8 +457,7 @@ class SeatingService(
             seatNumber = request.seatNumber,
             rowLabel = request.rowLabel,
             positionX = request.positionX,
-            positionY = request.positionY,
-            seatType = request.seatType
+            positionY = request.positionY
         )
 
         val savedSeat = seatRepository.save(seat)
@@ -471,7 +470,7 @@ class SeatingService(
     /**
      * Batch add seats to level.
      */
-    fun addSeats(chartId: Long, request: BatchSeatRequest): List<SeatResponse> {
+    fun addSeats(chartId: UUID, request: BatchSeatRequest): List<SeatResponse> {
         logger.debug { "Batch adding ${request.seats.size} seats to level: ${request.levelId}" }
 
         // Verify chart exists
@@ -493,8 +492,7 @@ class SeatingService(
                 seatNumber = item.seatNumber,
                 rowLabel = item.rowLabel,
                 positionX = item.positionX,
-                positionY = item.positionY,
-                seatType = item.seatType
+                positionY = item.positionY
             )
 
             seatRepository.save(seat)

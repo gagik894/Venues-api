@@ -35,7 +35,7 @@ data class CheckoutRequest(
  */
 data class ConfirmBookingRequest(
     @field:Size(max = 100, message = "Payment ID must not exceed 100 characters")
-    val paymentId: String? = null
+    val paymentId: UUID? = null
 )
 
 /**
@@ -70,7 +70,7 @@ data class BookingItemResponse(
  */
 data class BookingResponse(
     val id: String,  // UUID as string
-    val sessionId: Long,
+    val sessionId: UUID,
     val eventTitle: String,
     val eventDescription: String?,
     val venueName: String,

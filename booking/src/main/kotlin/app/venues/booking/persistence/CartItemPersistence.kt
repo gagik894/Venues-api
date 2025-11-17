@@ -15,6 +15,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * Handles cart item persistence and domain event publishing.
@@ -32,7 +33,7 @@ class CartItemPersistence(
 
     fun saveSeatToCart(
         cart: Cart,
-        sessionId: Long,
+        sessionId: UUID,
         seatId: Long,
         seatIdentifier: String,
         price: BigDecimal
@@ -62,7 +63,7 @@ class CartItemPersistence(
 
     fun saveOrUpdateGAItem(
         cart: Cart,
-        sessionId: Long,
+        sessionId: UUID,
         levelId: Long,
         levelIdentifier: String,
         levelName: String,
@@ -143,7 +144,7 @@ class CartItemPersistence(
     fun removeSeat(
         cart: Cart,
         seatId: Long,
-        sessionId: Long,
+        sessionId: UUID,
         seatIdentifier: String,
         levelName: String
     ) {
@@ -180,7 +181,7 @@ class CartItemPersistence(
     }
 
     private fun publishGAAvailabilityEvent(
-        sessionId: Long,
+        sessionId: UUID,
         levelId: Long,
         levelIdentifier: String,
         levelName: String

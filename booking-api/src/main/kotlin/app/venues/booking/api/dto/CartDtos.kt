@@ -15,7 +15,7 @@ import java.util.*
  */
 data class AddSeatToCartRequest(
     @field:NotNull(message = "Session ID is required")
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @field:NotNull(message = "Seat identifier is required")
     var seatIdentifier: String
@@ -26,7 +26,7 @@ data class AddSeatToCartRequest(
  */
 data class AddGAToCartRequest(
     @field:NotNull(message = "Session ID is required")
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @field:NotNull(message = "Level identifier is required")
     var levelIdentifier: String,
@@ -41,7 +41,7 @@ data class AddGAToCartRequest(
  */
 data class AddTableToCartRequest(
     @field:NotNull(message = "Session ID is required")
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @field:NotNull(message = "Table ID is required")
     var tableIdentifier: String
@@ -95,7 +95,6 @@ data class CartGAItemResponse(
 data class CartTableResponse(
     val tableId: Long,
     val tableName: String,
-    val seatCount: Int,
     val price: BigDecimal
 )
 
@@ -110,7 +109,7 @@ data class CartSummaryResponse(
     val totalPrice: String,
     val currency: String,
     val expiresAt: String,
-    val sessionId: Long,
+    val sessionId: UUID,
     val eventTitle: String
 )
 

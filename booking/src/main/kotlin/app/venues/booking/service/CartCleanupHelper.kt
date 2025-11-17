@@ -72,7 +72,7 @@ class CartCleanupHelper(
                 }
             }
 
-            val itemsReleased = seats.size + gaItems.size + tables.sumOf { it.seatCount }
+            val itemsReleased = seats.size + gaItems.size + tables.size
 
             // Delete cart (CASCADE deletes items)
             cartRepository.delete(cart)

@@ -23,7 +23,7 @@ import java.util.*
  * - JPQL (Java Persistence Query Language) for database-agnostic queries
  */
 @Repository
-interface UserRepository : JpaRepository<User, Long> {
+interface UserRepository : JpaRepository<User, UUID> {
 
     /**
      * Finds a user by email address.

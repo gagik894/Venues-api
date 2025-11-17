@@ -129,7 +129,6 @@ class CartQueryService(
                 cartMapper.toCartTableResponse(
                     cartTable = cartTable,
                     tableName = levelInfo.levelName,
-                    seatCount = cartTable.seatCount,
                     price = cartTable.unitPrice
                 )
             }

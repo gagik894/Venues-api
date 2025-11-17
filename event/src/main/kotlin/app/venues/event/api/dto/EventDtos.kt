@@ -4,6 +4,7 @@ import app.venues.event.domain.EventStatus
 import jakarta.validation.constraints.*
 import java.math.BigDecimal
 import java.time.Instant
+import java.util.*
 
 // ===========================================
 // EVENT DTOs
@@ -41,7 +42,7 @@ data class EventRequest(
     @field:Size(min = 3, max = 3, message = "Currency must be 3 characters (ISO 4217)")
     val currency: String = "AMD",
 
-    val seatingChartId: Long? = null,
+    val seatingChartId: UUID? = null,
 
     val status: EventStatus = EventStatus.DRAFT
 )
@@ -50,12 +51,12 @@ data class EventRequest(
  * Response DTO for event details.
  */
 data class EventResponse(
-    val id: Long,
+    val id: UUID,
     val title: String,
     val description: String?,
     val imgUrl: String?,
     val secondaryImgUrls: List<String>,
-    val venueId: Long,
+    val venueId: UUID,
     val venueName: String,
     val location: String?,
     val latitude: Double?,
@@ -93,8 +94,6 @@ data class EventSessionRequest(
     @field:Min(value = 0, message = "Tickets count must be non-negative")
     val ticketsCount: Int? = null,
 
-    val status: EventStatus = EventStatus.UPCOMING,
-
     val priceOverride: BigDecimal? = null,
 
     @field:Size(max = 100, message = "Price range override must not exceed 100 characters")
@@ -107,8 +106,8 @@ data class EventSessionRequest(
  * Response DTO for event session.
  */
 data class EventSessionResponse(
-    val id: Long,
-    val eventId: Long,
+    val id: UUID,
+    val eventId: UUID,
     val startTime: String,
     val endTime: String,
     val ticketsCount: Int?,
@@ -117,7 +116,6 @@ data class EventSessionResponse(
     val status: EventStatus,
     val priceOverride: String?,
     val priceRangeOverride: String?,
-    val effectivePrice: String?,
     val effectivePriceRange: String?,
     val isBookable: Boolean,
     val createdAt: String
@@ -150,11 +148,10 @@ data class PriceTemplateRequest(
  * Response DTO for price template.
  */
 data class PriceTemplateResponse(
-    val id: Long,
+    val id: UUID,
     val templateName: String,
     val color: String?,
-    val price: String,
-    val displayOrder: Int
+    val price: String
 )
 
 /**

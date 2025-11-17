@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
+import java.util.*
 
 /**
  * Utility class for extracting authenticated user information from Spring Security Context.
@@ -52,7 +53,7 @@ class SecurityUtil {
      * @throws VenuesException.AuthenticationFailure if user is not authenticated
      * @throws VenuesException.InternalError if user ID cannot be extracted
      */
-    fun getCurrentUserId(): Long {
+    fun getCurrentUserId(): UUID {
         val authentication = getAuthentication()
             ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
 
@@ -69,7 +70,7 @@ class SecurityUtil {
                 // If Map (from JWT), id should be directly available
                 @Suppress("UNCHECKED_CAST")
                 val principalMap = principal as? Map<String, Any>
-                val id = principalMap?.get("id")?.toString()?.toLongOrNull()
+                val id = principalMap?.get("id")?.toString()?.let { UUID.fromString(it) }
 
                 if (id == null) {
                     logger.error { "ID not found in principal Map. Map contents: $principalMap" }
@@ -167,7 +168,7 @@ class SecurityUtil {
      * @param venueId The venue ID to verify ownership for
      * @throws VenuesException.AuthorizationFailure if user doesn't own the venue
      */
-    fun requireVenueOwnership(venueId: Long) {
+    fun requireVenueOwnership(venueId: UUID) {
         val currentUserId = getCurrentUserId()
         val currentRole = getCurrentUserRole()
 
@@ -197,7 +198,7 @@ class SecurityUtil {
      * @param userId The user ID to verify ownership for
      * @throws VenuesException.AuthorizationFailure if user doesn't own the account
      */
-    fun requireUserOwnership(userId: Long) {
+    fun requireUserOwnership(userId: UUID) {
         // Admins can access any user
         if (isAdmin()) {
             return
@@ -245,29 +246,57 @@ class SecurityUtil {
      * @return User ID
      * @throws VenuesException.InternalError if user ID cannot be extracted
      */
-    private fun extractUserIdFromAuthentication(authentication: Authentication): Long {
-        // Try to get from details
+    private fun extractUserIdFromAuthentication(authentication: Authentication): UUID {
+        // Try to get from details map (accept UUID or String)
         (authentication.details as? Map<*, *>)?.let { details ->
             @Suppress("UNCHECKED_CAST")
-            (details as? Map<String, Any>)?.get("userId")?.toString()?.toLongOrNull()?.let {
-                return it
+            val map = details as? Map<String, Any>
+            listOf("userId", "id").forEach { key ->
+                map?.get(key)?.let { raw ->
+                    when (raw) {
+                        is UUID -> return raw
+                        is String -> {
+                            try {
+                                return UUID.fromString(raw)
+                            } catch (e: IllegalArgumentException) {
+                                logger.debug { "Unable to parse UUID from details[$key]: $raw" }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        // Try to get from name (if it's numeric)
-        authentication.name?.toLongOrNull()?.let {
-            return it
+        // Try to get from authentication name (if it's a UUID string)
+        authentication.name?.let { name ->
+            try {
+                return UUID.fromString(name)
+            } catch (e: IllegalArgumentException) {
+                logger.debug { "Unable to parse UUID from authentication.name: $name" }
+            }
         }
 
-        // Try to get from credentials
+        // Try to get from credentials map
         (authentication.credentials as? Map<*, *>)?.let { creds ->
             @Suppress("UNCHECKED_CAST")
-            (creds as? Map<String, Any>)?.get("userId")?.toString()?.toLongOrNull()?.let {
-                return it
+            val map = creds as? Map<String, Any>
+            listOf("userId", "id").forEach { key ->
+                map?.get(key)?.let { raw ->
+                    when (raw) {
+                        is UUID -> return raw
+                        is String -> {
+                            try {
+                                return UUID.fromString(raw)
+                            } catch (e: IllegalArgumentException) {
+                                logger.debug { "Unable to parse UUID from credentials[$key]: $raw" }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        throw VenuesException.InternalError("Unable to extract user ID from authentication context")
+        throw VenuesException.InternalError("Unable to extract user ID (UUID) from authentication context")
     }
 }
 

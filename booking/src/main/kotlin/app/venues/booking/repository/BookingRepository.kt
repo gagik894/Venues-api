@@ -22,21 +22,21 @@ interface BookingRepository : JpaRepository<Booking, UUID> {
     /**
      * Find bookings by user
      */
-    fun findByUserId(userId: Long, pageable: Pageable): Page<Booking>
+    fun findByUserId(userId: UUID, pageable: Pageable): Page<Booking>
 
     /**
      * Find bookings by guest
      */
-    fun findByGuestId(guestId: Long, pageable: Pageable): Page<Booking>
+    fun findByGuestId(guestId: UUID, pageable: Pageable): Page<Booking>
 
     /**
      * Find bookings by user and status
      */
-    fun findByUserIdAndStatus(userId: Long, status: BookingStatus, pageable: Pageable): Page<Booking>
+    fun findByUserIdAndStatus(userId: UUID, status: BookingStatus, pageable: Pageable): Page<Booking>
 
     /**
      * Find bookings by session
      */
-    fun findBySessionId(sessionId: Long, pageable: Pageable): Page<Booking>
+    fun findBySessionId(sessionId: UUID, pageable: Pageable): Page<Booking>
 }
 

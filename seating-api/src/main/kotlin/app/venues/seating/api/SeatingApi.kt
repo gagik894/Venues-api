@@ -3,6 +3,7 @@ package app.venues.seating.api
 import app.venues.seating.api.dto.LevelInfoDto
 import app.venues.seating.api.dto.SeatInfoDto
 import app.venues.seating.api.dto.SeatingChartStructureDto
+import java.util.*
 
 /**
  * Public API contract for Seating module.
@@ -55,7 +56,7 @@ interface SeatingApi {
     /**
      * Get seating chart name by ID.
      */
-    fun getSeatingChartName(chartId: Long): String?
+    fun getSeatingChartName(chartId: UUID): String?
 
     /**
      * Get complete seating chart structure.
@@ -70,7 +71,7 @@ interface SeatingApi {
      * @param chartId Seating chart ID
      * @return Complete chart structure or null if not found
      */
-    fun getChartStructure(chartId: Long): SeatingChartStructureDto?
+    fun getChartStructure(chartId: UUID): SeatingChartStructureDto?
 
     /**
      * Check if seat exists.

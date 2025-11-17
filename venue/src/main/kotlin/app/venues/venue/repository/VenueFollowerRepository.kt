@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository interface for VenueFollower entity operations.
@@ -21,7 +22,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param venueId The venue ID
      * @return List of followers for the venue
      */
-    fun findByVenueId(venueId: Long): List<VenueFollower>
+    fun findByVenueId(venueId: UUID): List<VenueFollower>
 
     /**
      * Find all venues followed by a specific user.
@@ -29,7 +30,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param userId The user ID
      * @return List of venues followed by the user
      */
-    fun findByUserId(userId: Long): List<VenueFollower>
+    fun findByUserId(userId: UUID): List<VenueFollower>
 
     /**
      * Find followers of a venue who have notifications enabled.
@@ -38,7 +39,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param venueId The venue ID
      * @return List of followers with notifications enabled
      */
-    fun findByVenueIdAndNotificationsEnabledTrue(venueId: Long): List<VenueFollower>
+    fun findByVenueIdAndNotificationsEnabledTrue(venueId: UUID): List<VenueFollower>
 
     /**
      * Check if a user is following a venue.
@@ -47,7 +48,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param userId The user ID
      * @return True if user is following the venue
      */
-    fun existsByVenueIdAndUserId(venueId: Long, userId: Long): Boolean
+    fun existsByVenueIdAndUserId(venueId: UUID, userId: UUID): Boolean
 
     /**
      * Count total followers for a venue.
@@ -55,7 +56,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param venueId The venue ID
      * @return Number of followers for the venue
      */
-    fun countByVenueId(venueId: Long): Long
+    fun countByVenueId(venueId: UUID): Long
 
     /**
      * Count venues followed by a user.
@@ -63,7 +64,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      * @param userId The user ID
      * @return Number of venues followed by the user
      */
-    fun countByUserId(userId: Long): Long
+    fun countByUserId(userId: UUID): Long
 
     /**
      * Delete a follow relationship.
@@ -73,7 +74,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      */
     @Modifying
     @Query("DELETE FROM VenueFollower vf WHERE vf.venue.id = :venueId AND vf.userId = :userId")
-    fun deleteByVenueIdAndUserId(venueId: Long, userId: Long)
+    fun deleteByVenueIdAndUserId(venueId: UUID, userId: UUID)
 
     /**
      * Delete all followers for a venue.
@@ -81,7 +82,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      *
      * @param venueId The venue ID
      */
-    fun deleteByVenueId(venueId: Long)
+    fun deleteByVenueId(venueId: UUID)
 
     /**
      * Delete all follows by a user.
@@ -89,7 +90,7 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      *
      * @param userId The user ID
      */
-    fun deleteByUserId(userId: Long)
+    fun deleteByUserId(userId: UUID)
 
     /**
      * Update notification preferences for a follow relationship.
@@ -100,5 +101,5 @@ interface VenueFollowerRepository : JpaRepository<VenueFollower, Long> {
      */
     @Modifying
     @Query("UPDATE VenueFollower vf SET vf.notificationsEnabled = :notificationsEnabled WHERE vf.venue.id = :venueId AND vf.userId = :userId")
-    fun updateNotificationPreferences(venueId: Long, userId: Long, notificationsEnabled: Boolean)
+    fun updateNotificationPreferences(venueId: UUID, userId: UUID, notificationsEnabled: Boolean)
 }

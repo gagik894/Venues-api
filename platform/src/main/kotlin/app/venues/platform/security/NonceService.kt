@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
+import java.util.*
 
 /**
  * Service for managing nonce uniqueness using Redis.
@@ -37,7 +38,7 @@ class NonceService(
      * @return true if nonce was already used (replay attack), false if nonce is new
      * @throws Exception if Redis is unavailable
      */
-    fun isNonceUsed(nonce: String, platformId: Long): Boolean {
+    fun isNonceUsed(nonce: String, platformId: UUID): Boolean {
         val key = buildNonceKey(platformId, nonce)
         val timestamp = System.currentTimeMillis().toString()
 
@@ -68,7 +69,7 @@ class NonceService(
     /**
      * Build Redis key for nonce storage.
      */
-    private fun buildNonceKey(platformId: Long, nonce: String): String {
+    private fun buildNonceKey(platformId: UUID, nonce: String): String {
         return "$NONCE_KEY_PREFIX:$platformId:$nonce"
     }
 

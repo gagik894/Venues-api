@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * REST Controller for venue management operations.
@@ -170,7 +171,7 @@ class VenueController(
         description = "Get detailed venue information by ID. Use 'lang' parameter for translations"
     )
     fun getVenueById(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) lang: String?
     ): ApiResponse<VenueDetailedResponse> {
         logger.debug("Fetching venue by ID: {}, language: {}", id, lang)
@@ -233,29 +234,6 @@ class VenueController(
         )
     }
 
-    /**
-     * Change venue password.
-     */
-    @PostMapping("/me/password")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Change venue password",
-        description = "Change authenticated venue's password"
-    )
-    fun changePassword(
-        @Valid @RequestBody request: VenuePasswordChangeRequest
-    ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Changing password for venue: {}", venueId)
-
-        venueAuthService.changePassword(venueId, request.currentPassword, request.newPassword)
-
-        return ApiResponse.success(
-            message = "Password changed successfully"
-        )
-    }
-
     // ===========================================
     // SCHEDULE MANAGEMENT
     // ===========================================
@@ -269,7 +247,7 @@ class VenueController(
         description = "Get operating hours for all days of the week"
     )
     fun getSchedules(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<List<VenueScheduleResponse>> {
         logger.debug("Fetching schedules for venue: {}", id)
 
@@ -318,7 +296,7 @@ class VenueController(
         description = "Get all translations for a venue"
     )
     fun getTranslations(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<List<VenueTranslationResponse>> {
         logger.debug("Fetching translations for venue: {}", id)
 
@@ -390,7 +368,7 @@ class VenueController(
         description = "Get all photos for a venue"
     )
     fun getPhotos(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<List<VenuePhotoResponse>> {
         logger.debug("Fetching photos for venue: {}", id)
 
@@ -465,7 +443,7 @@ class VenueController(
         description = "Get all reviews for a venue"
     )
     fun getReviews(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueReviewResponse>> {
@@ -499,7 +477,7 @@ class VenueController(
         description = "Add or update your review for a venue"
     )
     fun addOrUpdateReview(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @Valid @RequestBody request: VenueReviewRequest
     ): ApiResponse<VenueReviewResponse> {
         val userId = securityUtil.getCurrentUserId()
@@ -524,7 +502,7 @@ class VenueController(
         description = "Delete your review for a venue"
     )
     fun deleteReview(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<Unit> {
         val userId = securityUtil.getCurrentUserId()
         logger.info("Deleting review for venue {} by user {}", id, userId)
@@ -598,7 +576,7 @@ class VenueController(
         description = "Deactivate a promo code"
     )
     fun deactivatePromoCode(
-        @PathVariable codeId: Long
+        @PathVariable codeId: UUID
     ): ApiResponse<Unit> {
         val venueId = securityUtil.getCurrentUserId()
         logger.info("Deactivating promo code {} for venue {}", codeId, venueId)
@@ -625,7 +603,7 @@ class VenueController(
         description = "Follow a venue to receive updates"
     )
     fun followVenue(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<Unit> {
         val userId = securityUtil.getCurrentUserId()
         logger.info("User {} following venue {}", userId, id)
@@ -648,7 +626,7 @@ class VenueController(
         description = "Unfollow a venue"
     )
     fun unfollowVenue(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<Unit> {
         val userId = securityUtil.getCurrentUserId()
         logger.info("User {} unfollowing venue {}", userId, id)
@@ -671,7 +649,7 @@ class VenueController(
         description = "Check if you are following this venue"
     )
     fun isFollowing(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<Map<String, Boolean>> {
         val userId = securityUtil.getCurrentUserId()
         val isFollowing = venueService.isFollowing(id, userId)

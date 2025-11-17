@@ -85,19 +85,16 @@ class CartMapper {
      *
      * @param cartTable The cart table entity
      * @param tableName Table name (from seating module)
-     * @param seatCount Number of seats in the table
      * @param price Total table price
      */
     fun toCartTableResponse(
         cartTable: CartTable,
         tableName: String,
-        seatCount: Int,
         price: BigDecimal
     ): CartTableResponse {
         return CartTableResponse(
             tableId = cartTable.tableId,
             tableName = tableName,
-            seatCount = seatCount,
             price = price
         )
     }
@@ -113,7 +110,7 @@ class CartMapper {
         totalPrice: BigDecimal,
         currency: String,
         expiresAt: String,
-        sessionId: Long,
+        sessionId: UUID,
         eventTitle: String
     ): CartSummaryResponse {
         return CartSummaryResponse(

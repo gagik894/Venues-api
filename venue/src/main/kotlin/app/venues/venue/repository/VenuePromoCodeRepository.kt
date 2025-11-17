@@ -14,7 +14,7 @@ import java.util.*
  * Supports validation and usage tracking.
  */
 @Repository
-interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
+interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, UUID> {
 
     /**
      * Find all active promo codes for a specific venue.
@@ -22,7 +22,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      * @param venueId The venue ID
      * @return List of active promo codes for the venue
      */
-    fun findByVenueIdAndIsActiveTrue(venueId: Long): List<VenuePromoCode>
+    fun findByVenueIdAndIsActiveTrue(venueId: UUID): List<VenuePromoCode>
 
     /**
      * Find all promo codes for a specific venue (including inactive).
@@ -30,7 +30,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      * @param venueId The venue ID
      * @return List of all promo codes for the venue
      */
-    fun findByVenueId(venueId: Long): List<VenuePromoCode>
+    fun findByVenueId(venueId: UUID): List<VenuePromoCode>
 
     /**
      * Find promo code by venue and code.
@@ -39,7 +39,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      * @param code The promo code
      * @return Optional promo code
      */
-    fun findByVenueIdAndCode(venueId: Long, code: String): Optional<VenuePromoCode>
+    fun findByVenueIdAndCode(venueId: UUID, code: String): Optional<VenuePromoCode>
 
     /**
      * Find promo code by code (across all venues).
@@ -57,7 +57,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      * @param code The promo code
      * @return True if code exists for the venue
      */
-    fun existsByVenueIdAndCode(venueId: Long, code: String): Boolean
+    fun existsByVenueIdAndCode(venueId: UUID, code: String): Boolean
 
     /**
      * Find all valid (active, not expired, under usage limit) promo codes for a venue.
@@ -75,7 +75,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
         AND (p.maxUsageCount IS NULL OR p.currentUsageCount < p.maxUsageCount)
     """
     )
-    fun findValidPromoCodesByVenueId(venueId: Long, currentTime: Instant): List<VenuePromoCode>
+    fun findValidPromoCodesByVenueId(venueId: UUID, currentTime: Instant): List<VenuePromoCode>
 
     /**
      * Find a valid promo code by venue and code.
@@ -95,7 +95,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
         AND (p.maxUsageCount IS NULL OR p.currentUsageCount < p.maxUsageCount)
     """
     )
-    fun findValidPromoCodeByVenueIdAndCode(venueId: Long, code: String, currentTime: Instant): Optional<VenuePromoCode>
+    fun findValidPromoCodeByVenueIdAndCode(venueId: UUID, code: String, currentTime: Instant): Optional<VenuePromoCode>
 
     /**
      * Find expired promo codes.
@@ -113,7 +113,7 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      * @param venueId The venue ID
      * @return Number of active promo codes for the venue
      */
-    fun countByVenueIdAndIsActiveTrue(venueId: Long): Long
+    fun countByVenueIdAndIsActiveTrue(venueId: UUID): Long
 
     /**
      * Delete all promo codes for a venue.
@@ -121,5 +121,5 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, Long> {
      *
      * @param venueId The venue ID
      */
-    fun deleteByVenueId(venueId: Long)
+    fun deleteByVenueId(venueId: UUID)
 }

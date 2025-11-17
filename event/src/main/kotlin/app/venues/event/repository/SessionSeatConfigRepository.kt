@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for SessionSeatConfig entity operations.
@@ -25,17 +26,17 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.seatId = :seatId
     """
     )
-    fun findBySessionIdAndSeatId(sessionId: Long, seatId: Long): SessionSeatConfig?
+    fun findBySessionIdAndSeatId(sessionId: UUID, seatId: Long): SessionSeatConfig?
 
     /**
      * Find all available seat configs for session
      */
-    fun findBySessionIdAndStatus(sessionId: Long, status: ConfigStatus): List<SessionSeatConfig>
+    fun findBySessionIdAndStatus(sessionId: UUID, status: ConfigStatus): List<SessionSeatConfig>
 
     /**
      * Find all seat configs for session
      */
-    fun findBySessionId(sessionId: Long): List<SessionSeatConfig>
+    fun findBySessionId(sessionId: UUID): List<SessionSeatConfig>
 
     /**
      * Find all seat configs for a list of seat IDs
@@ -48,7 +49,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.seatId IN :seatIds
     """
     )
-    fun findBySessionIdAndSeatIdIn(sessionId: Long, seatIds: List<Long>): List<SessionSeatConfig>
+    fun findBySessionIdAndSeatIdIn(sessionId: UUID, seatIds: List<Long>): List<SessionSeatConfig>
 
     /**
      * Get seat IDs that are available for session
@@ -60,7 +61,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
     """
     )
-    fun findAvailableSeatIdsBySession(sessionId: Long): List<Long>
+    fun findAvailableSeatIdsBySession(sessionId: UUID): List<Long>
 
     /**
      * Get the price for a seat if it's available for reservation.
@@ -81,7 +82,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.priceTemplate IS NOT NULL
     """
     )
-    fun getSeatPriceIfAvailable(sessionId: Long, seatId: Long): java.math.BigDecimal?
+    fun getSeatPriceIfAvailable(sessionId: UUID, seatId: Long): java.math.BigDecimal?
 
     /**
      * Atomically reserve a seat if it's available AND return the price.
@@ -109,7 +110,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         JOIN event_price_templates pt ON pt.id = u.price_template_id
     """
     )
-    fun reserveSeatAndGetPrice(sessionId: Long, seatId: Long): java.math.BigDecimal?
+    fun reserveSeatAndGetPrice(sessionId: UUID, seatId: Long): java.math.BigDecimal?
 
     /**
      * Atomically block multiple seats (set to BLOCKED status).
@@ -129,7 +130,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
     """
     )
-    fun blockSeats(sessionId: Long, seatIds: List<Long>): Int
+    fun blockSeats(sessionId: UUID, seatIds: List<Long>): Int
 
     /**
      * Atomically unblock multiple seats (set to AVAILABLE status).
@@ -149,7 +150,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         AND sc.status = app.venues.event.domain.ConfigStatus.BLOCKED
     """
     )
-    fun unblockSeats(sessionId: Long, seatIds: List<Long>): Int
+    fun unblockSeats(sessionId: UUID, seatIds: List<Long>): Int
 
     /**
      * Get availability statistics for session (optimized - count only).
@@ -166,5 +167,5 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         WHERE sc.session.id = :sessionId
     """
     )
-    fun getAvailabilityStatsRaw(sessionId: Long): AvailabilityStatsDto?
+    fun getAvailabilityStatsRaw(sessionId: UUID): AvailabilityStatsDto?
 }

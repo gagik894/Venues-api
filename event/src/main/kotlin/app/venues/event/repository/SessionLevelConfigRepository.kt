@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for SessionLevelConfig entity operations.
@@ -24,7 +25,7 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
         AND slc.levelId = :levelId
     """
     )
-    fun findBySessionIdAndLevelId(sessionId: Long, levelId: Long): SessionLevelConfig?
+    fun findBySessionIdAndLevelId(sessionId: UUID, levelId: Long): SessionLevelConfig?
 
     /**
      * Find all level configs for a list of level IDs
@@ -37,17 +38,17 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
         AND slc.levelId IN :levelIds
     """
     )
-    fun findBySessionIdAndLevelIdIn(sessionId: Long, levelIds: List<Long>): List<SessionLevelConfig>
+    fun findBySessionIdAndLevelIdIn(sessionId: UUID, levelIds: List<Long>): List<SessionLevelConfig>
 
     /**
      * Find all available level configs for session
      */
-    fun findBySessionIdAndStatus(sessionId: Long, status: ConfigStatus): List<SessionLevelConfig>
+    fun findBySessionIdAndStatus(sessionId: UUID, status: ConfigStatus): List<SessionLevelConfig>
 
     /**
      * Find all level configs for session
      */
-    fun findBySessionId(sessionId: Long): List<SessionLevelConfig>
+    fun findBySessionId(sessionId: UUID): List<SessionLevelConfig>
 
     /**
      * Atomically reserve GA level tickets if available capacity exists.
@@ -70,7 +71,7 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
         AND slc.priceTemplate IS NOT NULL
     """
     )
-    fun getGAPriceIfAvailable(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
+    fun getGAPriceIfAvailable(sessionId: UUID, levelId: Long, quantity: Int): java.math.BigDecimal?
 
     /**
      * Atomically reserve GA level tickets if available capacity exists AND return price.
@@ -100,7 +101,7 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
         JOIN event_price_templates pt ON pt.id = u.price_template_id
     """
     )
-    fun reserveGAAndGetPrice(sessionId: Long, levelId: Long, quantity: Int): java.math.BigDecimal?
+    fun reserveGAAndGetPrice(sessionId: UUID, levelId: Long, quantity: Int): java.math.BigDecimal?
 
     /**
      * Atomically adjust the sold count for a GA level.
@@ -122,6 +123,6 @@ interface SessionLevelConfigRepository : JpaRepository<SessionLevelConfig, Long>
         AND (slc.soldCount + :quantityDelta) <= slc.capacity
     """
     )
-    fun adjustGATickets(sessionId: Long, levelId: Long, quantityDelta: Int): Int
+    fun adjustGATickets(sessionId: UUID, levelId: Long, quantityDelta: Int): Int
 }
 

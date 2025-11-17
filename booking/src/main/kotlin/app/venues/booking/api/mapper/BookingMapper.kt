@@ -54,7 +54,7 @@ class BookingMapper {
             confirmedAt = booking.confirmedAt?.toString(),
             cancelledAt = booking.cancelledAt?.toString(),
             cancellationReason = booking.cancellationReason,
-            paymentId = booking.paymentId,
+            paymentId = booking.paymentId.toString(),
             createdAt = booking.createdAt.toString()
         )
     }

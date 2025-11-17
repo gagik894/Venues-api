@@ -31,7 +31,7 @@ object UserMapper {
      */
     fun toResponse(user: User): UserResponse {
         return UserResponse(
-            id = user.id ?: throw IllegalStateException("User ID cannot be null"),
+            id = user.id,
             email = user.email,
             firstName = user.firstName,
             lastName = user.lastName,

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DiffGenerationConfig">
+    <option name="snapshotDb" value="false" />
+    <option name="snapshotModelValue" value="Venues-api.booking.main:entityManagerFactory" />
     <option name="sourceModelValue" value="Venues-api.seating.main:entityManagerFactory" />
     <option name="targetDbValue" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
   </component>

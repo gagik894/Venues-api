@@ -1,5 +1,7 @@
 package app.venues.seating.api.dto
 
+import java.util.*
+
 /**
  * Seat information DTO for cross-module communication.
  */
@@ -31,7 +33,7 @@ data class LevelInfoDto(
  * Contains all information needed to render and process a seating chart.
  */
 data class SeatingChartStructureDto(
-    val chartId: Long,
+    val chartId: UUID,
     val chartName: String,
     val levels: List<LevelDto>,
     val seats: List<SeatDto>
@@ -64,7 +66,6 @@ data class SeatDto(
     val rowLabel: String?,
     val levelId: Long,
     val positionX: Double?,
-    val positionY: Double?,
-    val seatType: String?
+    val positionY: Double?
 )
 

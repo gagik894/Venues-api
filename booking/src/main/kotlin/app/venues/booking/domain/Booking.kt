@@ -114,7 +114,7 @@ class Booking(
      * @param paymentId The unique identifier for the payment transaction.
      * @throws IllegalStateException if the booking is not in a PENDING state.
      */
-    fun confirm(paymentId: UUID) {
+    fun confirm(paymentId: UUID?) {
         if (this._status != BookingStatus.PENDING) {
             throw IllegalStateException("Booking $id cannot be confirmed (status is $_status).")
         }

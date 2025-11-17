@@ -48,7 +48,7 @@ class EventSession(
     val ticketsSold: Int
         get() = _ticketsSold
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
     private var _status: EventStatus = EventStatus.UPCOMING
 
@@ -60,6 +60,14 @@ class EventSession(
     val priceTemplateOverrides: MutableList<EventSessionPriceOverride> = mutableListOf()
 
     // --- Public Behaviors ---
+
+    fun getRemainingTickets(): Int? {
+        return if (ticketsCount != null) {
+            ticketsCount!! - _ticketsSold
+        } else {
+            null
+        }
+    }
 
     fun getEffectivePriceRange(): String? {
         return priceRangeOverride ?: event.priceRange

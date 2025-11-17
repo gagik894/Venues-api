@@ -1,6 +1,7 @@
 package app.venues.seating.api.dto
 
 import jakarta.validation.constraints.*
+import java.util.*
 
 // ===========================================
 // SEATING CHART DTOs
@@ -28,8 +29,8 @@ data class SeatingChartRequest(
  * Response DTO for seating chart.
  */
 data class SeatingChartResponse(
-    val id: Long,
-    val venueId: Long,
+    val id: UUID,
+    val venueId: UUID,
     val venueName: String,
     val name: String,
     val seatIndicatorSize: Int,
@@ -46,8 +47,8 @@ data class SeatingChartResponse(
  * Detailed seating chart response with levels and seats.
  */
 data class SeatingChartDetailedResponse(
-    val id: Long,
-    val venueId: Long,
+    val id: UUID,
+    val venueId: UUID,
     val venueName: String,
     val name: String,
     val seatIndicatorSize: Int,
@@ -125,10 +126,7 @@ data class SeatRequest(
 
     val positionX: Double? = null,
 
-    val positionY: Double? = null,
-
-    @field:Size(max = 50, message = "Seat type must not exceed 50 characters")
-    val seatType: String? = null
+    val positionY: Double? = null
 )
 
 /**
@@ -143,7 +141,6 @@ data class SeatResponse(
     val rowLabel: String?,
     val positionX: Double?,
     val positionY: Double?,
-    val seatType: String?,
     val fullDisplayName: String,
     val createdAt: String
 )
@@ -170,7 +167,6 @@ data class SeatBatchItem(
     val rowLabel: String? = null,
     val positionX: Double? = null,
     val positionY: Double? = null,
-    val seatType: String? = null
 )
 
 // ===========================================

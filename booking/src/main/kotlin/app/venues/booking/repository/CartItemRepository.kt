@@ -11,7 +11,7 @@ import java.util.*
  * Repository for CartItem entity operations.
  */
 @Repository
-interface CartItemRepository : JpaRepository<CartItem, Long> {
+interface CartItemRepository : JpaRepository<CartItem, UUID> {
 
     /**
      * Find all items in a cart

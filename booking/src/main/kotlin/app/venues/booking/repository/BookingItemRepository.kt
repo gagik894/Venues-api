@@ -9,7 +9,7 @@ import java.util.*
  * Repository for BookingItem entity operations.
  */
 @Repository
-interface BookingItemRepository : JpaRepository<BookingItem, Long> {
+interface BookingItemRepository : JpaRepository<BookingItem, UUID> {
 
     /**
      * Find items by booking ID

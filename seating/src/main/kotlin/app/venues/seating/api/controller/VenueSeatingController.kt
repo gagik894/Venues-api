@@ -12,6 +12,7 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Controller for venue owner seating chart management.
@@ -45,7 +46,7 @@ class VenueSeatingController(
         description = "Create a new seating chart template for the venue (Venue owners only)"
     )
     fun createSeatingChart(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
         logger.debug { "Creating seating chart for venue: $venueId" }
@@ -70,7 +71,7 @@ class VenueSeatingController(
         description = "Get all seating charts for the venue (Venue owners only)"
     )
     fun getSeatingCharts(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<SeatingChartResponse>> {
@@ -97,8 +98,8 @@ class VenueSeatingController(
         description = "Get detailed seating chart with levels and seats (Venue owners only)"
     )
     fun getSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID
     ): ApiResponse<SeatingChartDetailedResponse> {
         logger.debug { "Fetching seating chart: $chartId" }
 
@@ -122,8 +123,8 @@ class VenueSeatingController(
         description = "Update seating chart details (Venue owners only)"
     )
     fun updateSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
         logger.debug { "Updating seating chart: $chartId" }
@@ -148,8 +149,8 @@ class VenueSeatingController(
         description = "Delete a seating chart (Venue owners only)"
     )
     fun deleteSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID
     ): ApiResponse<Unit> {
         logger.debug { "Deleting seating chart: $chartId" }
 
@@ -177,8 +178,8 @@ class VenueSeatingController(
         description = "Add a section/area to the seating chart (Venue owners only)"
     )
     fun addLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: LevelRequest
     ): ApiResponse<LevelResponse> {
         logger.debug { "Adding level to chart: $chartId" }
@@ -203,7 +204,7 @@ class VenueSeatingController(
         description = "Update level details (Venue owners only)"
     )
     fun updateLevel(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @PathVariable chartId: Long,
         @PathVariable levelId: Long,
         @Valid @RequestBody request: LevelRequest
@@ -230,7 +231,7 @@ class VenueSeatingController(
         description = "Delete a level (Venue owners only)"
     )
     fun deleteLevel(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @PathVariable chartId: Long,
         @PathVariable levelId: Long
     ): ApiResponse<Unit> {
@@ -260,8 +261,8 @@ class VenueSeatingController(
         description = "Add a single seat to the chart (Venue owners only)"
     )
     fun addSeat(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: SeatRequest
     ): ApiResponse<SeatResponse> {
         logger.debug { "Adding seat to chart: $chartId" }
@@ -286,8 +287,8 @@ class VenueSeatingController(
         description = "Add multiple seats at once (Venue owners only)"
     )
     fun addSeats(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: BatchSeatRequest
     ): ApiResponse<List<SeatResponse>> {
         logger.debug { "Batch adding ${request.seats.size} seats to chart: $chartId" }
@@ -312,8 +313,8 @@ class VenueSeatingController(
         description = "Get all seats in a level (Venue owners only)"
     )
     fun getSeatsByLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @PathVariable levelId: Long,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
@@ -341,7 +342,7 @@ class VenueSeatingController(
         description = "Delete a seat (Venue owners only)"
     )
     fun deleteSeat(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @PathVariable chartId: Long,
         @PathVariable seatId: Long
     ): ApiResponse<Unit> {

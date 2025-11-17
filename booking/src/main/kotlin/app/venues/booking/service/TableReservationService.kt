@@ -16,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * Service for table booking operations.
@@ -45,7 +46,7 @@ class TableReservationService(
      * Reserve a complete table atomically.
      * Blocks all individual seats in the table.
      */
-    fun reserveTable(cart: Cart, sessionId: Long, tableIdentifier: String): TableReservationResult {
+    fun reserveTable(cart: Cart, sessionId: UUID, tableIdentifier: String): TableReservationResult {
         logger.debug { "Reserving table $tableIdentifier for session $sessionId" }
 
         // Get table level info (Table is a type of level)
@@ -122,7 +123,7 @@ class TableReservationService(
      * Release a table reservation.
      * Unblocks all individual seats if table booking mode allows it.
      */
-    fun releaseTable(sessionId: Long, tableId: Long) {
+    fun releaseTable(sessionId: UUID, tableId: Long) {
         logger.debug { "Releasing table $tableId for session $sessionId" }
 
         val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
@@ -137,7 +138,7 @@ class TableReservationService(
         }
 
         // Update table status to AVAILABLE
-        tableConfig.status = ConfigStatus.AVAILABLE
+        tableConfig.release()
         sessionTableConfigRepository.save(tableConfig)
 
         val tableInfo = seatingApi.getLevelInfo(tableId)
@@ -161,7 +162,7 @@ class TableReservationService(
      * Block all seats in a table atomically (set to BLOCKED status).
      * Overloaded method that accepts the already-fetched list of seats.
      */
-    private fun blockAllSeatsInTable(sessionId: Long, tableId: Long, seats: List<SeatInfoDto>) {
+    private fun blockAllSeatsInTable(sessionId: UUID, tableId: Long, seats: List<SeatInfoDto>) {
         if (seats.isEmpty()) {
             logger.warn { "Table $tableId has no seats to block" }
             return
@@ -184,7 +185,7 @@ class TableReservationService(
      * Unblock all seats in a table atomically (set to AVAILABLE status).
      * This version fetches the seats itself, as it's called from `releaseTable`.
      */
-    private fun unblockAllSeatsInTable(sessionId: Long, tableId: Long) {
+    private fun unblockAllSeatsInTable(sessionId: UUID, tableId: Long) {
         val seats = seatingApi.getSeatsForLevel(tableId)
         if (seats.isEmpty()) {
             return

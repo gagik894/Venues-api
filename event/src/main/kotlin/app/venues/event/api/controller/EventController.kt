@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Public controller for event operations.
@@ -65,7 +66,7 @@ class EventController(
         description = "Get detailed information about a specific event. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
     )
     fun getEventById(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) lang: String?
     ): ApiResponse<EventResponse> {
         logger.debug { "Fetching event: $id, language: $lang" }
@@ -112,7 +113,7 @@ class EventController(
         description = "Get all events for a specific venue. Use 'lang' parameter for translations"
     )
     fun getEventsByVenue(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
@@ -187,7 +188,7 @@ class EventController(
         description = "Get all sessions (time slots) for an event"
     )
     fun getEventSessions(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<EventSessionResponse>> {
@@ -210,7 +211,7 @@ class EventController(
         summary = "Get bookable sessions",
         description = "Get all bookable sessions for an event (upcoming with available tickets)"
     )
-    fun getBookableSessions(@PathVariable id: Long): ApiResponse<List<EventSessionResponse>> {
+    fun getBookableSessions(@PathVariable id: UUID): ApiResponse<List<EventSessionResponse>> {
         logger.debug { "Fetching bookable sessions for event: $id" }
 
         val sessions = eventService.getBookableSessions(id)

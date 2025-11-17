@@ -11,9 +11,9 @@ import app.venues.venue.repository.*
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
-import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Service for venue management operations.
@@ -41,7 +41,6 @@ class VenueService(
     private val venueReviewRepository: VenueReviewRepository,
     private val venuePromoCodeRepository: VenuePromoCodeRepository,
     private val venueFollowerRepository: VenueFollowerRepository,
-    private val passwordEncoder: PasswordEncoder,
     private val venueMapper: VenueMapper
 ) : VenueApi {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -50,11 +49,11 @@ class VenueService(
     // PUBLIC API IMPLEMENTATION (VenueApi Port)
     // ===========================================
 
-    override fun getVenueBasicInfo(venueId: Long): VenueBasicInfoDto? {
+    override fun getVenueBasicInfo(venueId: UUID): VenueBasicInfoDto? {
         return venueRepository.findById(venueId)
             .map { venue ->
                 VenueBasicInfoDto(
-                    id = venue.id!!,
+                    id = venue.id,
                     name = venue.name,
                     address = venue.address,
                     latitude = venue.latitude,
@@ -64,13 +63,13 @@ class VenueService(
             .orElse(null)
     }
 
-    override fun getVenueName(venueId: Long): String? {
+    override fun getVenueName(venueId: UUID): String? {
         return venueRepository.findById(venueId)
             .map { it.name }
             .orElse(null)
     }
 
-    override fun getVenueNameTranslated(venueId: Long, language: String?): String? {
+    override fun getVenueNameTranslated(venueId: UUID, language: String?): String? {
         val venue = venueRepository.findById(venueId).orElse(null) ?: return null
 
         if (language != null) {
@@ -84,11 +83,11 @@ class VenueService(
         return venue.name
     }
 
-    override fun venueExists(venueId: Long): Boolean {
+    override fun venueExists(venueId: UUID): Boolean {
         return venueRepository.existsById(venueId)
     }
 
-    override fun getVenueOwnerId(venueId: Long): Long? {
+    override fun getVenueOwnerId(venueId: UUID): UUID? {
         // NOTE: Venue entity doesn't have an ownerId field yet
         // This would need to be added to the Venue entity for proper owner tracking
         // For now, returning null as venues authenticate via email/password
@@ -96,7 +95,8 @@ class VenueService(
         return null
     }
 
-    override fun getVenueNamesBatch(venueIds: Set<Long>, language: String?): Map<Long, String> {
+
+    override fun getVenueNamesBatch(venueIds: Set<UUID>, language: String?): Map<UUID, String> {
         if (venueIds.isEmpty()) return emptyMap()
 
         val venues = venueRepository.findAllById(venueIds)
@@ -110,7 +110,7 @@ class VenueService(
             } else {
                 venue.name
             }
-            venue.id!! to venueName
+            venue.id to venueName
         }
     }
 
@@ -142,16 +142,13 @@ class VenueService(
             city = request.city,
             latitude = request.latitude,
             longitude = request.longitude,
-            email = request.email.lowercase(),
             phoneNumber = request.phoneNumber,
             website = request.website,
             category = request.category,
-            passwordHash = passwordEncoder.encode(request.password),
-            status = VenueStatus.PENDING_APPROVAL
         )
 
         val savedVenue = venueRepository.save(venue)
-        logger.info("Venue registered successfully: {} (ID: {})", savedVenue.email, savedVenue.id)
+        logger.info("Venue registered successfully: (ID: {})", savedVenue.id)
 
         // TODO: Send verification email
 
@@ -167,7 +164,7 @@ class VenueService(
      * @throws VenuesException.ResourceNotFound if venue not found
      */
     @Transactional(readOnly = true)
-    fun getVenueById(id: Long, includeStats: Boolean = false, language: String? = null): VenueResponse {
+    fun getVenueById(id: UUID, includeStats: Boolean = false, language: String? = null): VenueResponse {
         logger.debug("Fetching venue by ID: {}, language: {}", id, language)
 
         val venue = venueRepository.findById(id)
@@ -183,7 +180,7 @@ class VenueService(
      * Get detailed venue information including schedules and translations.
      */
     @Transactional(readOnly = true)
-    fun getVenueDetailed(id: Long): VenueDetailedResponse {
+    fun getVenueDetailed(id: UUID): VenueDetailedResponse {
         logger.debug("Fetching detailed venue by ID: {}", id)
 
         val venue = venueRepository.findById(id)
@@ -202,7 +199,7 @@ class VenueService(
      * @param request Update request
      * @return Updated venue response
      */
-    fun updateVenue(venueId: Long, request: VenueUpdateRequest): VenueResponse {
+    fun updateVenue(venueId: UUID, request: VenueUpdateRequest): VenueResponse {
         logger.debug("Updating venue: {}", venueId)
 
         val venue = findVenueById(venueId)
@@ -272,7 +269,7 @@ class VenueService(
     /**
      * Set or update schedule for a specific day.
      */
-    fun setSchedule(venueId: Long, request: VenueScheduleRequest): VenueScheduleResponse {
+    fun setSchedule(venueId: UUID, request: VenueScheduleRequest): VenueScheduleResponse {
         logger.debug("Setting schedule for venue {} on {}", venueId, request.dayOfWeek)
 
         val venue = findVenueById(venueId)
@@ -296,7 +293,7 @@ class VenueService(
      * Get all schedules for a venue.
      */
     @Transactional(readOnly = true)
-    fun getSchedules(venueId: Long): List<VenueScheduleResponse> {
+    fun getSchedules(venueId: UUID): List<VenueScheduleResponse> {
         logger.debug("Fetching schedules for venue: {}", venueId)
         return venueScheduleRepository.findByVenueId(venueId)
             .map { venueMapper.toScheduleResponse(it) }
@@ -309,7 +306,7 @@ class VenueService(
     /**
      * Add or update translation for a venue.
      */
-    fun setTranslation(venueId: Long, request: VenueTranslationRequest): VenueTranslationResponse {
+    fun setTranslation(venueId: UUID, request: VenueTranslationRequest): VenueTranslationResponse {
         logger.debug("Setting translation for venue {} in language {}", venueId, request.language)
 
         val venue = findVenueById(venueId)
@@ -333,7 +330,7 @@ class VenueService(
      * Get all translations for a venue.
      */
     @Transactional(readOnly = true)
-    fun getTranslations(venueId: Long): List<VenueTranslationResponse> {
+    fun getTranslations(venueId: UUID): List<VenueTranslationResponse> {
         logger.debug("Fetching translations for venue: {}", venueId)
         return venueTranslationRepository.findByVenueId(venueId)
             .map { venueMapper.toTranslationResponse(it) }
@@ -342,7 +339,7 @@ class VenueService(
     /**
      * Delete translation.
      */
-    fun deleteTranslation(venueId: Long, language: String) {
+    fun deleteTranslation(venueId: UUID, language: String) {
         logger.debug("Deleting translation for venue {} in language {}", venueId, language)
 
         val translation = venueTranslationRepository.findByVenueIdAndLanguage(venueId, language.lowercase())
@@ -361,7 +358,7 @@ class VenueService(
     /**
      * Add photo to venue.
      */
-    fun addPhoto(venueId: Long, userId: Long, request: VenuePhotoRequest): VenuePhotoResponse {
+    fun addPhoto(venueId: UUID, userId: UUID, request: VenuePhotoRequest): VenuePhotoResponse {
         logger.debug("Adding photo to venue: {}", venueId)
 
         val venue = findVenueById(venueId)
@@ -377,7 +374,7 @@ class VenueService(
      * Get all photos for a venue.
      */
     @Transactional(readOnly = true)
-    fun getPhotos(venueId: Long): List<VenuePhotoResponse> {
+    fun getPhotos(venueId: UUID): List<VenuePhotoResponse> {
         logger.debug("Fetching photos for venue: {}", venueId)
         return venuePhotoRepository.findByVenueIdOrderByDisplayOrderAsc(venueId)
             .map { venueMapper.toPhotoResponse(it) }
@@ -386,7 +383,7 @@ class VenueService(
     /**
      * Delete photo.
      */
-    fun deletePhoto(venueId: Long, photoId: Long, userId: Long) {
+    fun deletePhoto(venueId: UUID, photoId: Long, userId: UUID) {
         logger.debug("Deleting photo {} from venue {}", photoId, venueId)
 
         val photo = venuePhotoRepository.findById(photoId)
@@ -418,7 +415,7 @@ class VenueService(
     /**
      * Add or update review for a venue.
      */
-    fun addOrUpdateReview(venueId: Long, userId: Long, request: VenueReviewRequest): VenueReviewResponse {
+    fun addOrUpdateReview(venueId: UUID, userId: UUID, request: VenueReviewRequest): VenueReviewResponse {
         logger.debug("Adding/updating review for venue {} by user {}", venueId, userId)
 
         val venue = findVenueById(venueId)
@@ -441,7 +438,7 @@ class VenueService(
      * Get all reviews for a venue.
      */
     @Transactional(readOnly = true)
-    fun getReviews(venueId: Long, pageable: Pageable): Page<VenueReviewResponse> {
+    fun getReviews(venueId: UUID, pageable: Pageable): Page<VenueReviewResponse> {
         logger.debug("Fetching reviews for venue: {}", venueId)
         return venueReviewRepository.findByVenueIdAndIsModeratedFalse(venueId, pageable)
             .map { venueMapper.toReviewResponse(it) }
@@ -450,7 +447,7 @@ class VenueService(
     /**
      * Delete review.
      */
-    fun deleteReview(venueId: Long, userId: Long) {
+    fun deleteReview(venueId: UUID, userId: UUID) {
         logger.debug("Deleting review for venue {} by user {}", venueId, userId)
 
         val review = venueReviewRepository.findByVenueIdAndUserId(venueId, userId)
@@ -469,7 +466,7 @@ class VenueService(
     /**
      * Create promo code for venue.
      */
-    fun createPromoCode(venueId: Long, request: VenuePromoCodeRequest): VenuePromoCodeResponse {
+    fun createPromoCode(venueId: UUID, request: VenuePromoCodeRequest): VenuePromoCodeResponse {
         logger.debug("Creating promo code for venue: {}", venueId)
 
         val venue = findVenueById(venueId)
@@ -490,7 +487,7 @@ class VenueService(
      * Get all promo codes for a venue.
      */
     @Transactional(readOnly = true)
-    fun getPromoCodes(venueId: Long): List<VenuePromoCodeResponse> {
+    fun getPromoCodes(venueId: UUID): List<VenuePromoCodeResponse> {
         logger.debug("Fetching promo codes for venue: {}", venueId)
         return venuePromoCodeRepository.findByVenueIdAndIsActiveTrue(venueId)
             .map { venueMapper.toPromoCodeResponse(it) }
@@ -499,7 +496,7 @@ class VenueService(
     /**
      * Deactivate promo code.
      */
-    fun deactivatePromoCode(venueId: Long, codeId: Long) {
+    fun deactivatePromoCode(venueId: UUID, codeId: UUID) {
         logger.debug("Deactivating promo code {} for venue {}", codeId, venueId)
 
         val promoCode = venuePromoCodeRepository.findById(codeId)
@@ -512,7 +509,7 @@ class VenueService(
             throw VenuesException.AuthorizationFailure("Promo code does not belong to this venue")
         }
 
-        promoCode.isActive = false
+        promoCode.deactivate()
         venuePromoCodeRepository.save(promoCode)
 
         logger.info("Promo code {} deactivated for venue {}", codeId, venueId)
@@ -525,7 +522,7 @@ class VenueService(
     /**
      * Follow a venue.
      */
-    fun followVenue(venueId: Long, userId: Long) {
+    fun followVenue(venueId: UUID, userId: UUID) {
         logger.debug("User {} following venue {}", userId, venueId)
 
         val venue = findVenueById(venueId)
@@ -548,7 +545,7 @@ class VenueService(
     /**
      * Unfollow a venue.
      */
-    fun unfollowVenue(venueId: Long, userId: Long) {
+    fun unfollowVenue(venueId: UUID, userId: UUID) {
         logger.debug("User {} unfollowing venue {}", userId, venueId)
 
         if (!venueFollowerRepository.existsByVenueIdAndUserId(venueId, userId)) {
@@ -563,7 +560,7 @@ class VenueService(
      * Check if user is following venue.
      */
     @Transactional(readOnly = true)
-    fun isFollowing(venueId: Long, userId: Long): Boolean {
+    fun isFollowing(venueId: UUID, userId: UUID): Boolean {
         return venueFollowerRepository.existsByVenueIdAndUserId(venueId, userId)
     }
 
@@ -574,7 +571,7 @@ class VenueService(
     /**
      * Find venue by ID or throw exception.
      */
-    private fun findVenueById(id: Long): Venue {
+    private fun findVenueById(id: UUID): Venue {
         return venueRepository.findById(id)
             .orElseThrow {
                 logger.warn("Venue not found with ID: {}", id)

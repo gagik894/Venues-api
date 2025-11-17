@@ -16,7 +16,7 @@ import java.util.*
  * Provides data access methods for venue management.
  */
 @Repository
-interface VenueRepository : JpaRepository<Venue, Long> {
+interface VenueRepository : JpaRepository<Venue, UUID> {
 
     /**
      * Find venue by email (for authentication)

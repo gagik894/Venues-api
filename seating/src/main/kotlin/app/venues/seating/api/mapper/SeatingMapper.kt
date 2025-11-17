@@ -159,7 +159,6 @@ class SeatingMapper {
             rowLabel = seat.rowLabel,
             positionX = seat.positionX,
             positionY = seat.positionY,
-            seatType = seat.seatType,
             fullDisplayName = seat.getFullDisplayName(),
             createdAt = seat.createdAt.toString()
         )

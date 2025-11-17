@@ -1,6 +1,7 @@
 package app.venues.user.api
 
 import app.venues.user.api.dto.UserBasicInfoDto
+import java.util.*
 
 /**
  * Public API contract for User module.
@@ -18,7 +19,7 @@ interface UserApi {
      * @param userId User ID
      * @return User basic info or null if not found
      */
-    fun getUserBasicInfo(userId: Long): UserBasicInfoDto?
+    fun getUserBasicInfo(userId: UUID): UserBasicInfoDto?
 
     /**
      * Get user email by ID.
@@ -26,7 +27,7 @@ interface UserApi {
      * @param userId User ID
      * @return User email or null if not found
      */
-    fun getUserEmail(userId: Long): String?
+    fun getUserEmail(userId: UUID): String?
 
     /**
      * Get user full name by ID.
@@ -34,7 +35,7 @@ interface UserApi {
      * @param userId User ID
      * @return Full name (firstName + lastName) or null if not found
      */
-    fun getUserFullName(userId: Long): String?
+    fun getUserFullName(userId: UUID): String?
 
     /**
      * Check if user exists.
@@ -42,6 +43,6 @@ interface UserApi {
      * @param userId User ID
      * @return true if user exists, false otherwise
      */
-    fun userExists(userId: Long): Boolean
+    fun userExists(userId: UUID): Boolean
 }
 

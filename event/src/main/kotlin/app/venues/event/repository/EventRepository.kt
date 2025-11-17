@@ -7,22 +7,23 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for Event entity operations.
  */
 @Repository
-interface EventRepository : JpaRepository<Event, Long> {
+interface EventRepository : JpaRepository<Event, UUID> {
 
     /**
      * Find events by venue ID
      */
-    fun findByVenueId(venueId: Long, pageable: Pageable): Page<Event>
+    fun findByVenueId(venueId: UUID, pageable: Pageable): Page<Event>
 
     /**
      * Find events by venue ID and status
      */
-    fun findByVenueIdAndStatus(venueId: Long, status: EventStatus, pageable: Pageable): Page<Event>
+    fun findByVenueIdAndStatus(venueId: UUID, status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
      * Find events by status
@@ -67,11 +68,11 @@ interface EventRepository : JpaRepository<Event, Long> {
     /**
      * Count events by venue ID
      */
-    fun countByVenueId(venueId: Long): Long
+    fun countByVenueId(venueId: UUID): Long
 
     /**
      * Count events by venue ID and status
      */
-    fun countByVenueIdAndStatus(venueId: Long, status: EventStatus): Long
+    fun countByVenueIdAndStatus(venueId: UUID, status: EventStatus): Long
 }
 

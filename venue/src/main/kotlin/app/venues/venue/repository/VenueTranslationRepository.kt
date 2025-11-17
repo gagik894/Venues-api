@@ -20,7 +20,7 @@ interface VenueTranslationRepository : JpaRepository<VenueTranslation, Long> {
      * @param venueId The venue ID
      * @return List of translations for the venue
      */
-    fun findByVenueId(venueId: Long): List<VenueTranslation>
+    fun findByVenueId(venueId: UUID): List<VenueTranslation>
 
     /**
      * Find translation for a specific venue and language.
@@ -29,7 +29,7 @@ interface VenueTranslationRepository : JpaRepository<VenueTranslation, Long> {
      * @param language The language code (e.g., "en", "fr", "hy")
      * @return Optional translation for the venue and language
      */
-    fun findByVenueIdAndLanguage(venueId: Long, language: String): Optional<VenueTranslation>
+    fun findByVenueIdAndLanguage(venueId: UUID, language: String): Optional<VenueTranslation>
 
     /**
      * Check if a translation exists for a venue and language.
@@ -38,7 +38,7 @@ interface VenueTranslationRepository : JpaRepository<VenueTranslation, Long> {
      * @param language The language code
      * @return True if translation exists
      */
-    fun existsByVenueIdAndLanguage(venueId: Long, language: String): Boolean
+    fun existsByVenueIdAndLanguage(venueId: UUID, language: String): Boolean
 
     /**
      * Find all translations for a specific language across all venues.
@@ -55,5 +55,5 @@ interface VenueTranslationRepository : JpaRepository<VenueTranslation, Long> {
      *
      * @param venueId The venue ID
      */
-    fun deleteByVenueId(venueId: Long)
+    fun deleteByVenueId(venueId: UUID)
 }

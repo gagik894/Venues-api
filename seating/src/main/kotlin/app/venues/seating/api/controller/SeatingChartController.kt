@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.util.*
 
 /**
  * Public controller for viewing seating charts.
@@ -36,7 +37,7 @@ class SeatingChartController(
         summary = "Get seating chart",
         description = "Get complete seating chart layout with all levels and seats"
     )
-    fun getSeatingChart(@PathVariable chartId: Long): ApiResponse<SeatingChartDetailedResponse> {
+    fun getSeatingChart(@PathVariable chartId: UUID): ApiResponse<SeatingChartDetailedResponse> {
         logger.debug { "Public: Fetching seating chart: $chartId" }
 
         val chart = seatingService.getSeatingChartDetailed(chartId)

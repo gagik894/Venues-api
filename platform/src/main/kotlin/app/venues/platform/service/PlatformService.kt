@@ -8,7 +8,6 @@ import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
 import app.venues.platform.domain.Platform
-import app.venues.platform.domain.PlatformStatus
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
 import app.venues.seating.api.SeatingApi
@@ -65,8 +64,6 @@ class PlatformService(
             name = request.name,
             apiUrl = request.apiUrl,
             sharedSecret = sharedSecret,
-            status = PlatformStatus.ACTIVE,
-            webhookEnabled = request.webhookEnabled,
             description = request.description,
             contactEmail = request.contactEmail,
             rateLimit = request.rateLimit
@@ -81,7 +78,7 @@ class PlatformService(
     /**
      * Update platform
      */
-    fun updatePlatform(id: Long, request: UpdatePlatformRequest): PlatformResponse {
+    fun updatePlatform(id: UUID, request: UpdatePlatformRequest): PlatformResponse {
         logger.debug { "Updating platform: $id" }
 
         val platform = platformRepository.findById(id)
@@ -89,8 +86,6 @@ class PlatformService(
 
         // Update fields
         request.apiUrl?.let { platform.apiUrl = it }
-        request.status?.let { platform.status = it }
-        request.webhookEnabled?.let { platform.webhookEnabled = it }
         request.description?.let { platform.description = it }
         request.contactEmail?.let { platform.contactEmail = it }
         request.rateLimit?.let { platform.rateLimit = it }
@@ -104,7 +99,7 @@ class PlatformService(
     /**
      * Regenerate platform shared secret
      */
-    fun regenerateSharedSecret(id: Long, request: RegenerateSecretRequest): PlatformWithSecretResponse {
+    fun regenerateSharedSecret(id: UUID, request: RegenerateSecretRequest): PlatformWithSecretResponse {
         logger.debug { "Regenerating shared secret for platform: $id" }
 
         if (!request.confirm) {
@@ -127,7 +122,7 @@ class PlatformService(
      * Get platform by ID
      */
     @Transactional(readOnly = true)
-    fun getPlatformById(id: Long): PlatformResponse {
+    fun getPlatformById(id: UUID): PlatformResponse {
         val platform = platformRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
         return toPlatformResponse(platform)
@@ -144,7 +139,7 @@ class PlatformService(
     /**
      * Delete platform
      */
-    fun deletePlatform(id: Long) {
+    fun deletePlatform(id: UUID) {
         logger.debug { "Deleting platform: $id" }
         val platform = platformRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
@@ -160,7 +155,7 @@ class PlatformService(
      * Reserve seats for external platform
      */
     fun reserveSeats(
-        platformId: Long,
+        platformId: UUID,
         request: PlatformReservationRequest
     ): PlatformReservationResponse {
         logger.debug { "Platform $platformId reserving seats for session ${request.sessionId}" }
@@ -236,7 +231,7 @@ class PlatformService(
      * Release seats for external platform
      */
     fun releaseSeats(
-        platformId: Long,
+        platformId: UUID,
         request: PlatformReleaseRequest
     ): PlatformReleaseResponse {
         logger.debug { "Platform $platformId releasing reservation ${request.reservationToken}" }
@@ -347,7 +342,7 @@ class PlatformService(
      */
     private fun toPlatformResponse(platform: Platform): PlatformResponse {
         return PlatformResponse(
-            id = platform.id!!,
+            id = platform.id,
             name = platform.name,
             apiUrl = platform.apiUrl,
             status = platform.status,

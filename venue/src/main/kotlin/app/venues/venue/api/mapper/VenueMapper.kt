@@ -5,6 +5,7 @@ import app.venues.venue.domain.*
 import org.springframework.stereotype.Component
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.*
 
 /**
  * Mapper for converting between Venue entities and DTOs.
@@ -35,7 +36,7 @@ class VenueMapper {
         }
 
         return VenueResponse(
-            id = venue.id!!,
+            id = venue.id,
             name = translation?.name ?: venue.name,
             description = translation?.description ?: venue.description,
             imageUrl = venue.imageUrl,
@@ -43,7 +44,7 @@ class VenueMapper {
             city = venue.city,
             latitude = venue.latitude,
             longitude = venue.longitude,
-            email = venue.email,
+            email = null, //TODO: add email in model
             phoneNumber = venue.phoneNumber,
             website = venue.website,
             customDomain = venue.customDomain,
@@ -52,10 +53,6 @@ class VenueMapper {
             verified = venue.verified,
             official = venue.official,
             status = venue.status,
-            emailVerified = venue.emailVerified,
-            lastLoginAt = venue.lastLoginAt,
-            createdAt = venue.createdAt,
-            lastModifiedAt = venue.lastModifiedAt,
             followerCount = if (includeStats) venue.followers.size.toLong() else null,
             reviewCount = if (includeStats) venue.reviews.filter { !it.isModerated }.size.toLong() else null,
             averageRating = if (includeStats && venue.reviews.isNotEmpty()) {
@@ -157,7 +154,7 @@ class VenueMapper {
     /**
      * Convert photo request DTO to entity
      */
-    fun toPhotoEntity(request: VenuePhotoRequest, venue: Venue, userId: Long): VenuePhoto {
+    fun toPhotoEntity(request: VenuePhotoRequest, venue: Venue, userId: UUID): VenuePhoto {
         return VenuePhoto(
             venue = venue,
             userId = userId,
@@ -189,7 +186,7 @@ class VenueMapper {
     /**
      * Convert review request DTO to entity
      */
-    fun toReviewEntity(request: VenueReviewRequest, venue: Venue, userId: Long): VenueReview {
+    fun toReviewEntity(request: VenueReviewRequest, venue: Venue, userId: UUID): VenueReview {
         return VenueReview(
             venue = venue,
             userId = userId,
@@ -207,7 +204,7 @@ class VenueMapper {
      */
     fun toPromoCodeResponse(promoCode: VenuePromoCode): VenuePromoCodeResponse {
         return VenuePromoCodeResponse(
-            id = promoCode.id!!,
+            id = promoCode.id,
             code = promoCode.code,
             description = promoCode.description,
             discountType = promoCode.discountType,

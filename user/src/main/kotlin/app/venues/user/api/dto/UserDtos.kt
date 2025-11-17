@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import java.time.Instant
+import java.util.*
 
 /**
  * Request DTO for user registration.
@@ -134,7 +135,7 @@ data class PasswordChangeRequest(
  * Never includes password hash or security-related fields.
  */
 data class UserResponse(
-    val id: Long,
+    val id: UUID,
     val email: String,
     val firstName: String,
     val lastName: String,

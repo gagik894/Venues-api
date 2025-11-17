@@ -8,22 +8,23 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.util.*
 
 /**
  * Repository for EventSession entity operations.
  */
 @Repository
-interface EventSessionRepository : JpaRepository<EventSession, Long> {
+interface EventSessionRepository : JpaRepository<EventSession, UUID> {
 
     /**
      * Find sessions by event ID
      */
-    fun findByEventId(eventId: Long, pageable: Pageable): Page<EventSession>
+    fun findByEventId(eventId: UUID, pageable: Pageable): Page<EventSession>
 
     /**
      * Find sessions by event ID ordered by start time
      */
-    fun findByEventIdOrderByStartTimeAsc(eventId: Long): List<EventSession>
+    fun findByEventIdOrderByStartTimeAsc(eventId: UUID): List<EventSession>
 
     /**
      * Find upcoming sessions for an event
@@ -37,7 +38,7 @@ interface EventSessionRepository : JpaRepository<EventSession, Long> {
         ORDER BY s.startTime ASC
     """
     )
-    fun findUpcomingSessions(eventId: Long, status: EventStatus, now: Instant): List<EventSession>
+    fun findUpcomingSessions(eventId: UUID, status: EventStatus, now: Instant): List<EventSession>
 
     /**
      * Find bookable sessions (upcoming with available tickets)
@@ -52,11 +53,11 @@ interface EventSessionRepository : JpaRepository<EventSession, Long> {
         ORDER BY s.startTime ASC
     """
     )
-    fun findBookableSessions(eventId: Long, now: Instant): List<EventSession>
+    fun findBookableSessions(eventId: UUID, now: Instant): List<EventSession>
 
     /**
      * Count sessions by event ID
      */
-    fun countByEventId(eventId: Long): Long
+    fun countByEventId(eventId: UUID): Long
 }
 

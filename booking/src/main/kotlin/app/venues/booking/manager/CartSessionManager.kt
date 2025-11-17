@@ -19,7 +19,7 @@ class CartSessionManager(
         const val CART_EXPIRATION_MINUTES = 15
     }
 
-    fun findOrCreateCart(token: UUID?, sessionId: Long, userId: Long? = null): Cart {
+    fun findOrCreateCart(token: UUID?, sessionId: UUID, userId: UUID? = null): Cart {
         val existingCart = token?.let { cartRepository.findByToken(it) }
 
         if (existingCart != null) {
@@ -46,7 +46,7 @@ class CartSessionManager(
         return cartRepository.save(cart)
     }
 
-    private fun validateCartSession(cart: Cart, sessionId: Long) {
+    private fun validateCartSession(cart: Cart, sessionId: UUID) {
         if (cart.isExpired()) {
             throw VenuesException.ValidationFailure("Cart has expired. Please start a new cart.")
         }
@@ -63,13 +63,12 @@ class CartSessionManager(
         return cartRepository.save(cart)
     }
 
-    private fun createNewCart(token: UUID?, sessionId: Long, userId: Long?): Cart {
+    private fun createNewCart(token: UUID?, sessionId: UUID, userId: UUID?): Cart {
         val newCart = Cart(
             token = token ?: UUID.randomUUID(),
             userId = userId,
             sessionId = sessionId,
             expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L),
-            lastActivityAt = Instant.now()
         )
 
         return cartRepository.save(newCart)

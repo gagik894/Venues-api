@@ -77,7 +77,7 @@ class User(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: UserStatus = UserStatus.ACTIVE
+    private var _status: UserStatus = UserStatus.PENDING_VERIFICATION
 
     /**
      * Public, read-only view of the user's current status.
@@ -122,8 +122,8 @@ class User(
     /**
      * Checks if the account is currently locked due to failed login attempts.
      */
-    private fun isAccountLocked(): Boolean {
-        return _lockedUntil?.let { it.isAfter(Instant.now()) } ?: false
+    fun isAccountLocked(): Boolean {
+        return _lockedUntil?.isAfter(Instant.now()) ?: false
     }
 
     /**
@@ -163,6 +163,7 @@ class User(
      */
     fun verifyEmail() {
         this._emailVerified = true
+        this._status = UserStatus.ACTIVE
     }
 
     /**
@@ -179,5 +180,12 @@ class User(
         if (this._status == UserStatus.SUSPENDED) {
             this._status = UserStatus.ACTIVE
         }
+    }
+
+    /**
+     * Deactivates (soft deletes) the user account.
+     */
+    fun deactivateAccount() {
+        this._status = UserStatus.DELETED
     }
 }

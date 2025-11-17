@@ -90,7 +90,7 @@ class Event(
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
     private var _status: EventStatus = EventStatus.DRAFT
@@ -121,5 +121,10 @@ class Event(
 
     fun isEditable(): Boolean {
         return _status == EventStatus.DRAFT || _status == EventStatus.UPCOMING
+    }
+
+    fun addTranslation(translation: EventTranslation) {
+        translation.event = this
+        this.translations.add(translation)
     }
 }

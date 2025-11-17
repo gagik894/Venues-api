@@ -64,52 +64,38 @@ class WebhookEvent(
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: WebhookStatus = WebhookStatus.PENDING
-
-    val status: WebhookStatus
-        get() = _status
+    var status: WebhookStatus = WebhookStatus.PENDING
+        protected set
 
     @Column(name = "response_code")
     @Access(AccessType.FIELD)
-    private var _responseCode: Int? = null
-
-    val responseCode: Int?
-        get() = _responseCode
+    var responseCode: Int? = null
+        protected set
 
     @Column(name = "response_body", columnDefinition = "TEXT")
     @Access(AccessType.FIELD)
-    private var _responseBody: String? = null
-
-    val responseBody: String?
-        get() = _responseBody
+    var responseBody: String? = null
+        protected set
 
     @Column(name = "error_message", columnDefinition = "TEXT")
     @Access(AccessType.FIELD)
-    private var _errorMessage: String? = null
-
-    val errorMessage: String?
-        get() = _errorMessage
+    var errorMessage: String? = null
+        protected set
 
     @Column(name = "attempt_count", nullable = false)
     @Access(AccessType.FIELD)
-    private var _attemptCount: Int = 0
-
-    val attemptCount: Int
-        get() = _attemptCount
+    var attemptCount: Int = 0
+        protected set
 
     @Column(name = "next_retry_at")
     @Access(AccessType.FIELD)
-    private var _nextRetryAt: Instant? = null
-
-    val nextRetryAt: Instant?
-        get() = _nextRetryAt
+    var nextRetryAt: Instant? = null
+        protected set
 
     @Column(name = "last_attempt_at")
     @Access(AccessType.FIELD)
-    private var _lastAttemptAt: Instant? = null
-
-    val lastAttemptAt: Instant?
-        get() = _lastAttemptAt
+    var lastAttemptAt: Instant? = null
+        protected set
 
     // --- Public Behaviors ---
 
@@ -117,35 +103,35 @@ class WebhookEvent(
      * Marks the webhook as successfully delivered.
      */
     fun markAsDelivered(responseCode: Int, responseBody: String?) {
-        this._status = WebhookStatus.DELIVERED
-        this._responseCode = responseCode
-        this._responseBody = responseBody
-        this._lastAttemptAt = Instant.now()
-        this._nextRetryAt = null
+        this.status = WebhookStatus.DELIVERED
+        this.responseCode = responseCode
+        this.responseBody = responseBody
+        this.lastAttemptAt = Instant.now()
+        this.nextRetryAt = null
     }
 
     /**
      * Marks the webhook as failed and schedules a retry if applicable.
      */
     fun markAsFailed(responseCode: Int?, errorMessage: String?) {
-        this._attemptCount++
-        this._responseCode = responseCode
-        this._errorMessage = errorMessage
-        this._lastAttemptAt = Instant.now()
+        this.attemptCount++
+        this.responseCode = responseCode
+        this.errorMessage = errorMessage
+        this.lastAttemptAt = Instant.now()
 
-        if (_attemptCount >= MAX_RETRY_ATTEMPTS) {
-            this._status = WebhookStatus.FAILED
-            this._nextRetryAt = null
+        if (attemptCount >= MAX_RETRY_ATTEMPTS) {
+            this.status = WebhookStatus.FAILED
+            this.nextRetryAt = null
         } else {
-            this._status = WebhookStatus.PENDING
-            val delaySeconds = calculateRetryDelay(_attemptCount)
-            this._nextRetryAt = Instant.now().plusSeconds(delaySeconds)
+            this.status = WebhookStatus.PENDING
+            val delaySeconds = calculateRetryDelay(attemptCount)
+            this.nextRetryAt = Instant.now().plusSeconds(delaySeconds)
         }
     }
 
     fun shouldRetry(): Boolean {
-        return _status == WebhookStatus.PENDING
-                && _attemptCount < MAX_RETRY_ATTEMPTS
-                && (_nextRetryAt == null || Instant.now().isAfter(_nextRetryAt))
+        return status == WebhookStatus.PENDING
+                && attemptCount < MAX_RETRY_ATTEMPTS
+                && (nextRetryAt == null || Instant.now().isAfter(nextRetryAt))
     }
 }

@@ -93,10 +93,8 @@ class Event(
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    private var _status: EventStatus = EventStatus.DRAFT
-
-    val status: EventStatus
-        get() = _status
+    var status: EventStatus = EventStatus.DRAFT
+        protected set
 
     // --- Relationships ---
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
@@ -110,17 +108,17 @@ class Event(
 
     // --- Public Behaviors ---
     fun publish() {
-        if (this._status == EventStatus.DRAFT) {
-            this._status = EventStatus.UPCOMING
+        if (this.status == EventStatus.DRAFT) {
+            this.status = EventStatus.UPCOMING
         }
     }
 
     fun cancel() {
-        this._status = EventStatus.CANCELLED
+        this.status = EventStatus.CANCELLED
     }
 
     fun isEditable(): Boolean {
-        return _status == EventStatus.DRAFT || _status == EventStatus.UPCOMING
+        return status == EventStatus.DRAFT || status == EventStatus.UPCOMING
     }
 
     fun addTranslation(translation: EventTranslation) {

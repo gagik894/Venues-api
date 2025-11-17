@@ -39,20 +39,15 @@ class UserFcmToken(
 
     @Column(name = "last_used_at")
     @Access(AccessType.FIELD)
-    private var _lastUsedAt: Instant? = null
-
-    /**
-     * Public, read-only view of the last used time.
-     */
-    val lastUsedAt: Instant?
-        get() = _lastUsedAt
+    var lastUsedAt: Instant? = null
+        protected set
 
     /**
      * Checks if this token is stale and should be considered for deletion.
      * @return true if the token hasn't been used in 90 days.
      */
     fun isStale(staleDurationInDays: Long = 90): Boolean {
-        val lastUsed = _lastUsedAt ?: createdAt
+        val lastUsed = lastUsedAt ?: createdAt
         val staleThreshold = Instant.now().minusSeconds(staleDurationInDays * 24 * 60 * 60)
         return lastUsed.isBefore(staleThreshold)
     }
@@ -61,6 +56,6 @@ class UserFcmToken(
      * Updates the last used timestamp to now.
      */
     fun markAsUsed() {
-        this._lastUsedAt = Instant.now()
+        this.lastUsedAt = Instant.now()
     }
 }

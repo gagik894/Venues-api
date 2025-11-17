@@ -41,16 +41,14 @@ class VenueReview(
 
     @Column(name = "is_moderated", nullable = false)
     @Access(AccessType.FIELD)
-    private var _isModerated: Boolean = false
-
-    val isModerated: Boolean
-        get() = _isModerated
+    var isModerated: Boolean = false
+        protected set
 
     init {
         require(rating in 1..5) { "Rating must be between 1 and 5" }
     }
 
     fun approve() {
-        this._isModerated = true
+        this.isModerated = true
     }
 }

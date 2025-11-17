@@ -41,70 +41,58 @@ class Platform(
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: PlatformStatus = PlatformStatus.ACTIVE
-
-    val status: PlatformStatus
-        get() = _status
+    var status: PlatformStatus = PlatformStatus.ACTIVE
+        protected set
 
     @Column(name = "webhook_enabled", nullable = false)
     @Access(AccessType.FIELD)
-    private var _webhookEnabled: Boolean = true
-
-    val webhookEnabled: Boolean
-        get() = _webhookEnabled
+    var webhookEnabled: Boolean = true
+        protected set
 
     @Column(name = "last_webhook_success")
     @Access(AccessType.FIELD)
-    private var _lastWebhookSuccess: Instant? = null
-
-    val lastWebhookSuccess: Instant?
-        get() = _lastWebhookSuccess
+    var lastWebhookSuccess: Instant? = null
+        protected set
 
     @Column(name = "last_webhook_failure")
     @Access(AccessType.FIELD)
-    private var _lastWebhookFailure: Instant? = null
-
-    val lastWebhookFailure: Instant?
-        get() = _lastWebhookFailure
+    var lastWebhookFailure: Instant? = null
+        protected set
 
     @Column(name = "webhook_success_count", nullable = false)
     @Access(AccessType.FIELD)
-    private var _webhookSuccessCount: Long = 0
-
-    val webhookSuccessCount: Long
-        get() = _webhookSuccessCount
+    var webhookSuccessCount: Long = 0
+        protected set
 
     @Column(name = "webhook_failure_count", nullable = false)
     @Access(AccessType.FIELD)
-    private var _webhookFailureCount: Long = 0
-
-    val webhookFailureCount: Long
-        get() = _webhookFailureCount
+    var webhookFailureCount: Long = 0
+        protected set
 
     // --- Public Behaviors ---
-    fun isActive(): Boolean = _status == PlatformStatus.ACTIVE
+    fun isActive(): Boolean = status == PlatformStatus.ACTIVE
 
-    fun shouldReceiveWebhooks(): Boolean = _webhookEnabled && isActive()
+    fun shouldReceiveWebhooks(): Boolean = webhookEnabled && isActive()
 
     fun deactivate() {
-        this._status = PlatformStatus.INACTIVE
+        this.status = PlatformStatus.INACTIVE
     }
 
     fun enableWebhooks() {
-        this._webhookEnabled = true
+        this.webhookEnabled = true
     }
 
     fun disableWebhooks() {
-        this._webhookEnabled = false
+        this.webhookEnabled = false
     }
 
     fun recordWebhookSuccess() {
-        this._lastWebhookSuccess = Instant.now()
-        this._webhookSuccessCount++
+        this.lastWebhookSuccess = Instant.now()
+        this.webhookSuccessCount++
     }
 
     fun recordWebhookFailure() {
-        this._lastWebhookFailure = Instant.now()
-        this._webhookFailureCount++
+        this.lastWebhookFailure = Instant.now()
+        this.webhookFailureCount++
     }
 }

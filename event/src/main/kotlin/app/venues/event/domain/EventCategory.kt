@@ -41,10 +41,8 @@ class EventCategory(
 
     @Column(name = "is_active", nullable = false)
     @Access(AccessType.FIELD)
-    private var _isActive: Boolean = true
-
-    val isActive: Boolean
-        get() = _isActive
+    var isActive: Boolean = true
+        protected set
 
     @OneToMany(mappedBy = "category", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     var translations: MutableList<EventCategoryTranslation> = mutableListOf()
@@ -54,10 +52,10 @@ class EventCategory(
     }
 
     fun activate() {
-        this._isActive = true
+        this.isActive = true
     }
 
     fun deactivate() {
-        this._isActive = false
+        this.isActive = false
     }
 }

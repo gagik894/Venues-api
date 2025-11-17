@@ -40,23 +40,21 @@ class SessionTableConfig(
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    private var _status: ConfigStatus = ConfigStatus.AVAILABLE
-
-    val status: ConfigStatus
-        get() = _status
+    var status: ConfigStatus = ConfigStatus.AVAILABLE
+        protected set
 
     // --- Public Behaviors ---
-    fun isAvailable(): Boolean = _status == ConfigStatus.AVAILABLE
+    fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
 
     /**
      * Reserves an available seat.
      * @throws IllegalStateException if the seat is not available.
      */
     fun reserve() {
-        if (_status != ConfigStatus.AVAILABLE) {
+        if (status != ConfigStatus.AVAILABLE) {
             throw IllegalStateException("Session table can't be reserved")
         }
-        this._status = ConfigStatus.RESERVED
+        this.status = ConfigStatus.RESERVED
     }
 
     /**
@@ -64,18 +62,18 @@ class SessionTableConfig(
      * @throws IllegalStateException if the seat cannot be sold.
      */
     fun sell() {
-        if (_status != ConfigStatus.AVAILABLE && _status != ConfigStatus.RESERVED) {
+        if (status != ConfigStatus.AVAILABLE && status != ConfigStatus.RESERVED) {
             throw IllegalStateException("Session table can't be sold")
         }
-        this._status = ConfigStatus.SOLD
+        this.status = ConfigStatus.SOLD
     }
 
     /**
      * Releases a reserved seat back to available.
      */
     fun release() {
-        if (_status == ConfigStatus.RESERVED) {
-            this._status = ConfigStatus.AVAILABLE
+        if (status == ConfigStatus.RESERVED) {
+            this.status = ConfigStatus.AVAILABLE
         }
     }
 }

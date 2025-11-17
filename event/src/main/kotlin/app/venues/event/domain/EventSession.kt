@@ -43,18 +43,14 @@ class EventSession(
     // --- Internal State (Encapsulated) ---
     @Column(name = "tickets_sold", nullable = false)
     @Access(AccessType.FIELD)
-    private var _ticketsSold: Int = 0
-
-    val ticketsSold: Int
-        get() = _ticketsSold
+    var ticketsSold: Int = 0
+        protected set
 
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    private var _status: EventStatus = EventStatus.UPCOMING
-
-    val status: EventStatus
-        get() = _status
+    var status: EventStatus = EventStatus.UPCOMING
+        protected set
 
     // --- Relationships ---
     @OneToMany(mappedBy = "session", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
@@ -64,7 +60,7 @@ class EventSession(
 
     fun getRemainingTickets(): Int? {
         return if (ticketsCount != null) {
-            ticketsCount!! - _ticketsSold
+            ticketsCount!! - ticketsSold
         } else {
             null
         }
@@ -76,11 +72,11 @@ class EventSession(
 
     fun hasAvailableTickets(): Boolean {
         // A null ticketsCount means unlimited (or at least, not tracked here)
-        return ticketsCount == null || _ticketsSold < ticketsCount!!
+        return ticketsCount == null || ticketsSold < ticketsCount!!
     }
 
     fun isBookable(): Boolean {
-        return _status == EventStatus.UPCOMING && hasAvailableTickets() && startTime.isAfter(Instant.now())
+        return status == EventStatus.UPCOMING && hasAvailableTickets() && startTime.isAfter(Instant.now())
     }
 
     /**
@@ -88,10 +84,10 @@ class EventSession(
      * @return true if the sale was successful, false if not enough capacity.
      */
     fun sellTickets(quantity: Int): Boolean {
-        if (ticketsCount != null && (_ticketsSold + quantity) > ticketsCount!!) {
+        if (ticketsCount != null && (ticketsSold + quantity) > ticketsCount!!) {
             return false // Not enough capacity
         }
-        this._ticketsSold += quantity
+        this.ticketsSold += quantity
         return true
     }
 
@@ -99,6 +95,6 @@ class EventSession(
      * Puts tickets back into inventory.
      */
     fun refundTickets(quantity: Int) {
-        this._ticketsSold = (this._ticketsSold - quantity).coerceAtLeast(0)
+        this.ticketsSold = (this.ticketsSold - quantity).coerceAtLeast(0)
     }
 }

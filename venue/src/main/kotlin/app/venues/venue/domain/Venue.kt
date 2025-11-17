@@ -108,25 +108,19 @@ class Venue(
     // --- Internal State (Encapsulated) ---
     @Column(name = "verified", nullable = false)
     @Access(AccessType.FIELD)
-    private var _verified: Boolean = false
-
-    val verified: Boolean
-        get() = _verified
+    var verified: Boolean = false
+        protected set
 
     @Column(name = "official", nullable = false)
     @Access(AccessType.FIELD)
-    private var _official: Boolean = false
-
-    val official: Boolean
-        get() = _official
+    var official: Boolean = false
+        protected set
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: VenueStatus = VenueStatus.PENDING_APPROVAL
-
-    val status: VenueStatus
-        get() = _status
+    var status: VenueStatus = VenueStatus.PENDING_APPROVAL
+        protected set
 
     // --- Relationships ---
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
@@ -156,9 +150,9 @@ class Venue(
      * Approves a venue that was pending.
      */
     fun approveVenue() {
-        if (this._status == VenueStatus.PENDING_APPROVAL) {
-            this._status = VenueStatus.ACTIVE
-            this._verified = true
+        if (this.status == VenueStatus.PENDING_APPROVAL) {
+            this.status = VenueStatus.ACTIVE
+            this.verified = true
         }
     }
 
@@ -166,8 +160,8 @@ class Venue(
      * Suspends an active venue.
      */
     fun suspendVenue() {
-        if (this._status == VenueStatus.ACTIVE) {
-            this._status = VenueStatus.SUSPENDED
+        if (this.status == VenueStatus.ACTIVE) {
+            this.status = VenueStatus.SUSPENDED
         }
     }
 }

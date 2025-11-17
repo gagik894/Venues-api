@@ -41,81 +41,75 @@ class Staff(
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _role: StaffRole = StaffRole.STAFF
-
-    val role: StaffRole
-        get() = _role
+    var role: StaffRole = StaffRole.STAFF
+        protected set
 
     @Column(name = "restricted_to_event_id")
     @Access(AccessType.FIELD)
-    private var _restrictedToEventId: UUID? = null
-
-    val restrictedToEventId: UUID?
-        get() = _restrictedToEventId
+    var restrictedToEventId: UUID? = null
+        protected set
 
     @Column(name = "expires_at")
     @Access(AccessType.FIELD)
-    private var _expiresAt: Instant? = null
-
-    val expiresAt: Instant?
-        get() = _expiresAt
+    var expiresAt: Instant? = null
+        protected set
 
     @Column(name = "failed_login_attempts", nullable = false)
     @Access(AccessType.FIELD)
-    private var _failedLoginAttempts: Int = 0
+    var failedLoginAttempts: Int = 0
+        protected set
 
     @Column(name = "account_locked_until")
     @Access(AccessType.FIELD)
-    private var _accountLockedUntil: Instant? = null
+    var accountLockedUntil: Instant? = null
+        protected set
 
     @Column(name = "last_login_at")
     @Access(AccessType.FIELD)
-    private var _lastLoginAt: Instant? = null
-
-    val lastLoginAt: Instant?
-        get() = _lastLoginAt
+    var lastLoginAt: Instant? = null
+        protected set
 
     @Column(name = "email_verified", nullable = false)
     @Access(AccessType.FIELD)
-    private var _emailVerified: Boolean = false
-
-    val emailVerified: Boolean
-        get() = _emailVerified
+    var emailVerified: Boolean = false
+        protected set
 
     @Column(name = "verification_token", length = 255)
     @Access(AccessType.FIELD)
-    private var _verificationToken: String? = null
+    var verificationToken: String? = null
+        protected set
 
     @Column(name = "verification_token_expires_at")
     @Access(AccessType.FIELD)
-    private var _verificationTokenExpiresAt: Instant? = null
+    var verificationTokenExpiresAt: Instant? = null
+        protected set
 
     // ===========================================
     // Public Behaviors
     // ===========================================
 
     private fun isAccountLocked(): Boolean {
-        return _accountLockedUntil?.isAfter(Instant.now()) ?: false
+        return accountLockedUntil?.isAfter(Instant.now()) ?: false
     }
 
     private fun isTemporaryAccessExpired(): Boolean {
-        return _expiresAt?.isBefore(Instant.now()) ?: false
+        return expiresAt?.isBefore(Instant.now()) ?: false
     }
 
     /**
      * Public, read-only check to see if this user can log in.
      */
     fun canAuthenticate(): Boolean {
-        return _emailVerified && !isAccountLocked() && !isTemporaryAccessExpired()
+        return emailVerified && !isAccountLocked() && !isTemporaryAccessExpired()
     }
 
     /**
      * Call on a successful login. Resets lockout state.
      */
     fun recordSuccessfulLogin() {
-        this._failedLoginAttempts = 0
-        this._accountLockedUntil = null
-        this._lastLoginAt = Instant.now()
+        this.failedLoginAttempts = 0
+        this.accountLockedUntil = null
+        this.lastLoginAt = Instant.now()
     }
 
     /**
@@ -125,9 +119,9 @@ class Staff(
      * @param lockoutMinutes The configurable duration for the lockout.
      */
     fun recordFailedLoginAttempt(maxAttempts: Int, lockoutMinutes: Long) {
-        this._failedLoginAttempts++
-        if (this._failedLoginAttempts >= maxAttempts) {
-            this._accountLockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
+        this.failedLoginAttempts++
+        if (this.failedLoginAttempts >= maxAttempts) {
+            this.accountLockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
         }
     }
 
@@ -138,18 +132,18 @@ class Staff(
      * @param expires The exact time the access expires.
      */
     fun grantTemporaryEventAccess(eventId: UUID, expires: Instant) {
-        this._role = StaffRole.EVENT_MANAGER
-        this._restrictedToEventId = eventId
-        this._expiresAt = expires
+        this.role = StaffRole.EVENT_MANAGER
+        this.restrictedToEventId = eventId
+        this.expiresAt = expires
     }
 
     /**
      * Marks the account's email as verified and clears tokens.
      */
     fun verifyEmail() {
-        this._emailVerified = true
-        this._verificationToken = null
-        this._verificationTokenExpiresAt = null
+        this.emailVerified = true
+        this.verificationToken = null
+        this.verificationTokenExpiresAt = null
     }
 
     /**
@@ -159,7 +153,7 @@ class Staff(
      * @param expires The exact time the token expires.
      */
     fun setVerificationToken(token: String, expires: Instant) {
-        this._verificationToken = token
-        this._verificationTokenExpiresAt = expires
+        this.verificationToken = token
+        this.verificationTokenExpiresAt = expires
     }
 }

@@ -63,22 +63,18 @@ class VenuePromoCode(
 
     @Column(name = "current_usage_count", nullable = false)
     @Access(AccessType.FIELD)
-    private var _currentUsageCount: Int = 0
-
-    val currentUsageCount: Int
-        get() = _currentUsageCount
+    var currentUsageCount: Int = 0
+        protected set
 
     @Column(name = "is_active", nullable = false)
     @Access(AccessType.FIELD)
-    private var _isActive: Boolean = true
-
-    val isActive: Boolean
-        get() = _isActive
+    var isActive: Boolean = true
+        protected set
 
     fun isValidForUse(): Boolean {
-        if (!_isActive) return false
+        if (!isActive) return false
         if (expiresAt?.isBefore(Instant.now()) == true) return false
-        return maxUsageCount == null || _currentUsageCount < maxUsageCount!!
+        return maxUsageCount == null || currentUsageCount < maxUsageCount!!
     }
 
     /**
@@ -89,12 +85,12 @@ class VenuePromoCode(
         if (!isValidForUse()) {
             return false
         }
-        this._currentUsageCount++
+        this.currentUsageCount++
         return true
     }
 
     fun deactivate() {
-        this._isActive = false
+        this.isActive = false
     }
 }
 

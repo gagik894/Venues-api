@@ -77,41 +77,28 @@ class User(
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: UserStatus = UserStatus.PENDING_VERIFICATION
-
-    /**
-     * Public, read-only view of the user's current status.
-     */
-    val status: UserStatus
-        get() = _status
+    var status: UserStatus = UserStatus.PENDING_VERIFICATION
+        protected set
 
     @Column(name = "faild_login_attemps", nullable = false)
     @Access(AccessType.FIELD)
-    private var _failedLoginAttempts: Int = 0
+    var failedLoginAttempts: Int = 0
+        protected set
 
     @Column(name = "locked_until")
     @Access(AccessType.FIELD)
-    private var _lockedUntil: Instant? = null
+    var lockedUntil: Instant? = null
+        protected set
 
     @Column(name = "last_login_at")
     @Access(AccessType.FIELD)
-    private var _lastLoginAt: Instant? = null
-
-    /**
-     * Public, read-only view of the last login time.
-     */
-    val lastLoginAt: Instant?
-        get() = _lastLoginAt
+    var lastLoginAt: Instant? = null
+        protected set
 
     @Column(name = "email_verified", nullable = false)
     @Access(AccessType.FIELD)
-    private var _emailVerified: Boolean = false
-
-    /**
-     * Public, read-only view of email verification status.
-     */
-    val emailVerified: Boolean
-        get() = _emailVerified
+    var emailVerified: Boolean = false
+        protected set
 
     // ===========================================
     // Public Behaviors
@@ -123,7 +110,7 @@ class User(
      * Checks if the account is currently locked due to failed login attempts.
      */
     fun isAccountLocked(): Boolean {
-        return _lockedUntil?.isAfter(Instant.now()) ?: false
+        return lockedUntil?.isAfter(Instant.now()) ?: false
     }
 
     /**
@@ -131,16 +118,16 @@ class User(
      */
     fun canAuthenticate(): Boolean {
         // Business logic for authentication lives here.
-        return _status == UserStatus.ACTIVE && _emailVerified && !isAccountLocked()
+        return status == UserStatus.ACTIVE && emailVerified && !isAccountLocked()
     }
 
     /**
      * Call on a successful login. Resets lockout state and updates last login time.
      */
     fun recordSuccessfulLogin() {
-        this._failedLoginAttempts = 0
-        this._lockedUntil = null
-        this._lastLoginAt = Instant.now()
+        this.failedLoginAttempts = 0
+        this.lockedUntil = null
+        this.lastLoginAt = Instant.now()
     }
 
     /**
@@ -151,9 +138,9 @@ class User(
      * @param lockoutMinutes The configured duration for the lockout.
      */
     fun recordFailedLogin(maxAttempts: Int, lockoutMinutes: Long) {
-        this._failedLoginAttempts++
-        if (this._failedLoginAttempts >= maxAttempts) {
-            this._lockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
+        this.failedLoginAttempts++
+        if (this.failedLoginAttempts >= maxAttempts) {
+            this.lockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
             logger.warn { "User account locked: $id (email: $email)" }
         }
     }
@@ -162,23 +149,23 @@ class User(
      * Marks the user's email as verified.
      */
     fun verifyEmail() {
-        this._emailVerified = true
-        this._status = UserStatus.ACTIVE
+        this.emailVerified = true
+        this.status = UserStatus.ACTIVE
     }
 
     /**
      * Suspends the user account.
      */
     fun suspendAccount() {
-        this._status = UserStatus.SUSPENDED
+        this.status = UserStatus.SUSPENDED
     }
 
     /**
      * Reactivates a suspended user account.
      */
     fun activateAccount() {
-        if (this._status == UserStatus.SUSPENDED) {
-            this._status = UserStatus.ACTIVE
+        if (this.status == UserStatus.SUSPENDED) {
+            this.status = UserStatus.ACTIVE
         }
     }
 
@@ -186,6 +173,6 @@ class User(
      * Deactivates (soft deletes) the user account.
      */
     fun deactivateAccount() {
-        this._status = UserStatus.DELETED
+        this.status = UserStatus.DELETED
     }
 }

@@ -39,10 +39,8 @@ class Cart(
 
     @Column(name = "last_activity_at", nullable = false)
     @Access(AccessType.FIELD)
-    private var _lastActivityAt: Instant = Instant.now()
-
-    val lastActivityAt: Instant
-        get() = _lastActivityAt
+    var lastActivityAt: Instant = Instant.now()
+        protected set
 
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
@@ -51,13 +49,13 @@ class Cart(
      */
     fun extendExpiration(minutes: Long) {
         this.expiresAt = Instant.now().plusSeconds(minutes * 60)
-        this._lastActivityAt = Instant.now()
+        this.lastActivityAt = Instant.now()
     }
 
     /**
      * Updates the last activity time without extending expiration.
      */
     fun touch() {
-        this._lastActivityAt = Instant.now()
+        this.lastActivityAt = Instant.now()
     }
 }

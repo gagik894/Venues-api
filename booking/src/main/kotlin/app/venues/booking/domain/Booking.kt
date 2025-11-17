@@ -65,38 +65,28 @@ class Booking(
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    private var _status: BookingStatus = BookingStatus.PENDING
-
-    val status: BookingStatus
-        get() = _status
+    var status: BookingStatus = BookingStatus.PENDING
+        protected set
 
     @Column(name = "confirmed_at")
     @Access(AccessType.FIELD)
-    private var _confirmedAt: Instant? = null
-
-    val confirmedAt: Instant?
-        get() = _confirmedAt
+    var confirmedAt: Instant? = null
+        protected set
 
     @Column(name = "cancelled_at")
     @Access(AccessType.FIELD)
-    private var _cancelledAt: Instant? = null
-
-    val cancelledAt: Instant?
-        get() = _cancelledAt
+    var cancelledAt: Instant? = null
+        protected set
 
     @Column(name = "cancellation_reason", length = 500)
     @Access(AccessType.FIELD)
-    private var _cancellationReason: String? = null
-
-    val cancellationReason: String?
-        get() = _cancellationReason
+    var cancellationReason: String? = null
+        protected set
 
     @Column(name = "payment_id")
     @Access(AccessType.FIELD)
-    private var _paymentId: UUID? = null
-
-    val paymentId: UUID?
-        get() = _paymentId
+    var paymentId: UUID? = null
+        protected set
 
     // --- Relationships ---
     @OneToMany(mappedBy = "booking", cascade = [CascadeType.ALL], orphanRemoval = true)
@@ -104,7 +94,7 @@ class Booking(
 
     // --- Public Behaviors ---
     fun isCancellable(): Boolean {
-        return _status == BookingStatus.PENDING || _status == BookingStatus.CONFIRMED
+        return status == BookingStatus.PENDING || status == BookingStatus.CONFIRMED
     }
 
     /**
@@ -115,12 +105,12 @@ class Booking(
      * @throws IllegalStateException if the booking is not in a PENDING state.
      */
     fun confirm(paymentId: UUID?) {
-        if (this._status != BookingStatus.PENDING) {
-            throw IllegalStateException("Booking $id cannot be confirmed (status is $_status).")
+        if (this.status != BookingStatus.PENDING) {
+            throw IllegalStateException("Booking $id cannot be confirmed (status is ${status}).")
         }
-        this._status = BookingStatus.CONFIRMED
-        this._confirmedAt = Instant.now()
-        this._paymentId = paymentId
+        this.status = BookingStatus.CONFIRMED
+        this.confirmedAt = Instant.now()
+        this.paymentId = paymentId
     }
 
     /**
@@ -129,12 +119,12 @@ class Booking(
      * @param reason A reason for the cancellation (e.g., "User request", "Payment failed").
      */
     fun cancel(reason: String?) {
-        if (this._status == BookingStatus.CANCELLED) {
+        if (this.status == BookingStatus.CANCELLED) {
             return // Already cancelled
         }
-        this._status = BookingStatus.CANCELLED
-        this._cancelledAt = Instant.now()
-        this._cancellationReason = reason
+        this.status = BookingStatus.CANCELLED
+        this.cancelledAt = Instant.now()
+        this.cancellationReason = reason
     }
 
     fun addItem(item: BookingItem) {

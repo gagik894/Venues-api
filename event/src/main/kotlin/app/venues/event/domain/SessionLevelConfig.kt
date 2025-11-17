@@ -39,31 +39,27 @@ class SessionLevelConfig(
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    private var _status: ConfigStatus = ConfigStatus.AVAILABLE
-
-    val status: ConfigStatus
-        get() = _status
+    var status: ConfigStatus = ConfigStatus.AVAILABLE
+        protected set
 
     @Column(name = "sold_count", nullable = false)
     @Access(AccessType.FIELD)
-    private var _soldCount: Int = 0
+    var soldCount: Int = 0
+        protected set
 
-    val soldCount: Int
-        get() = _soldCount
+    fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
 
-    fun isAvailable(): Boolean = _status == ConfigStatus.AVAILABLE
-
-    fun getAvailableCapacity(): Int? = capacity?.let { it - _soldCount }
+    fun getAvailableCapacity(): Int? = capacity?.let { it - soldCount }
 
     /**
      * Attempts to sell a specified number of tickets.
      * @return true if the sale was successful, false if not enough capacity.
      */
     fun sell(quantity: Int): Boolean {
-        if (capacity != null && (_soldCount + quantity) > capacity!!) {
+        if (capacity != null && (soldCount + quantity) > capacity!!) {
             return false // Not enough capacity
         }
-        this._soldCount += quantity
+        this.soldCount += quantity
         return true
     }
 
@@ -71,6 +67,6 @@ class SessionLevelConfig(
      * Puts tickets back into inventory.
      */
     fun refund(quantity: Int) {
-        this._soldCount = (this._soldCount - quantity).coerceAtLeast(0)
+        this.soldCount = (this.soldCount - quantity).coerceAtLeast(0)
     }
 }

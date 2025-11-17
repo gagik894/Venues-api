@@ -54,34 +54,28 @@ class UserPromoCode(
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
-    private var _status: PromoCodeStatus = PromoCodeStatus.AVAILABLE
-
-    val status: PromoCodeStatus
-        get() = _status
+    var status: PromoCodeStatus = PromoCodeStatus.AVAILABLE
+        protected set
 
     @Column(name = "times_used", nullable = false)
     @Access(AccessType.FIELD)
-    private var _timesUsed: Int = 0
-
-    val timesUsed: Int
-        get() = _timesUsed
+    var timesUsed: Int = 0
+        protected set
 
     /**
      * The `Booking.id` where this code was first/last used.
      */
     @Column(name = "used_in_booking_id")
     @Access(AccessType.FIELD)
-    private var _usedInBookingId: UUID? = null
-
-    val usedInBookingId: UUID?
-        get() = _usedInBookingId
+    var usedInBookingId: UUID? = null
+        protected set
 
     // --- Public Behaviors ---
 
     fun isValid(): Boolean {
-        if (_status != PromoCodeStatus.AVAILABLE) return false
+        if (status != PromoCodeStatus.AVAILABLE) return false
         if (expiresAt?.isBefore(Instant.now()) == true) return false
-        return maxUses == null || _timesUsed < maxUses
+        return maxUses == null || timesUsed < maxUses
     }
 
     /**
@@ -90,14 +84,14 @@ class UserPromoCode(
      * @param bookingId The ID of the booking where the code was applied.
      */
     fun markAsUsed(bookingId: UUID) {
-        this._timesUsed++
-        if (this._usedInBookingId == null) {
-            this._usedInBookingId = bookingId
+        this.timesUsed++
+        if (this.usedInBookingId == null) {
+            this.usedInBookingId = bookingId
         }
-        if (maxUses != null && _timesUsed >= maxUses) {
-            this._status = PromoCodeStatus.EXHAUSTED
+        if (maxUses != null && timesUsed >= maxUses) {
+            this.status = PromoCodeStatus.EXHAUSTED
         } else {
-            this._status = PromoCodeStatus.USED
+            this.status = PromoCodeStatus.USED
         }
     }
 

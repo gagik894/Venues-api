@@ -6,12 +6,11 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * A single seat item in a shopping cart.
- * This is a high-volume child entity.
+ * Represents a specific Seat selection within a [Cart].
  *
- * @param cart The parent cart.
- * @param sessionId The `EventSession.id`.
- * @param seatId The `Seat.id` (a Long).
+ * @param cart The parent Cart.
+ * @param sessionId The EventSession UUID.
+ * @param seatId The ID of the Seat.
  * @param unitPrice The snapshotted price.
  */
 @Entity

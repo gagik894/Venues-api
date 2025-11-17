@@ -7,10 +7,9 @@ import jakarta.persistence.Index
 import jakarta.persistence.Table
 
 /**
- * A "root" entity for a guest checkout.
- * Stores info for a non-authenticated booking.
+ * Represents a guest user for non-authenticated bookings.
  *
- * @param email The guest's email.
+ * @param email The guest's email address.
  * @param name The guest's full name.
  * @param phone The guest's phone number (optional).
  */

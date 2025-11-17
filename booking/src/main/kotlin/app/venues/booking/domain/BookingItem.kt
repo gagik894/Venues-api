@@ -5,15 +5,15 @@ import jakarta.persistence.*
 import java.math.BigDecimal
 
 /**
- * A line item in a Booking (e.g., "Seat A1" or "2x GA tickets").
- * This is a high-volume child entity.
+ * Represents a specific line item within a [Booking].
+ * This entity maps to either a specific [Seat] or a quantity of General Admission (GA) tickets.
  *
- * @param booking The parent booking.
- * @param quantity The number of tickets (e.g., 1 for a seat, >1 for GA).
- * @param unitPrice The snapshotted price per unit.
- * @param seatId The `Seat.id` (a Long), if this is a seat.
- * @param levelId The `Level.id` (a Long), if this is GA.
- * @param priceTemplateName The name of the price template used (e.g., "VIP").
+ * @param booking The parent [Booking].
+ * @param quantity The number of units (always 1 for seats, >=1 for GA).
+ * @param unitPrice The price per unit at the time of booking.
+ * @param seatId The ID of the specific [Seat] (if applicable).
+ * @param levelId The ID of the [Level] (if this is a GA ticket or a table).
+ * @param priceTemplateName The name of the price template applied (e.g., "VIP").
  */
 @Entity
 @Table(name = "booking_items")
@@ -35,7 +35,7 @@ class BookingItem(
     var seatId: Long? = null,
 
     /**
-     * The `Level.id` (a Long), if this is GA.
+     * The `Level.id` (a Long), if this is GA or Tables.
      */
     @Column(name = "level_id")
     var levelId: Long? = null,

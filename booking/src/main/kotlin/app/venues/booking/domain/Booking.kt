@@ -10,14 +10,17 @@ import java.util.*
 /**
  * A "root" entity representing a finalized booking.
  *
- * @param userId The `User.id` (customer) who made this booking.
- * @param guest The `Guest` who made this booking (if not a User).
- * @param sessionId The `EventSession.id` this booking is for.
- * @param totalPrice The total price paid.
- * @param currency The currency code (e.g., "USD", "EUR").
- * @param platformId The `Platform.id` where the booking was made (if applicable).
- * @param venueId The `Venue.id` where the event is held.
- * @param externalOrderNumber An optional external order number from third-party systems.
+ * This entity serves as the aggregate root for the booking transaction.
+ * It is created after a Cart is successfully checked out.
+ *
+ * @param userId The [UUID] of the customer who made this booking (nullable for guest checkout).
+ * @param guest The [Guest] entity for this booking (nullable for authenticated users).
+ * @param sessionId The [UUID] of the `EventSession` this booking applies to.
+ * @param totalPrice The total monetary value of the booking.
+ * @param currency The 3-letter ISO currency code (default "AMD").
+ * @param platformId The [UUID] of the external platform initiating the booking (if applicable).
+ * @param venueId The [UUID] of the venue (denormalized for faster reporting).
+ * @param externalOrderNumber An optional reference number from an external system.
  */
 @Entity
 @Table(

@@ -6,13 +6,12 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * A full table item in a shopping cart.
- * This is a high-volume child entity.
+ * Represents a full Table selection within a [Cart].
  *
- * @param cart The parent cart.
- * @param sessionId The `EventSession.id`.
- * @param tableId The `Level.id` (a Long) of the table.
- * @param unitPrice The snapshotted price for the whole table.
+ * @param cart The parent Cart.
+ * @param sessionId The EventSession UUID.
+ * @param tableId The ID of the Level (Table).
+ * @param unitPrice The snapshotted price for the entire table.
  */
 @Entity
 @Table(

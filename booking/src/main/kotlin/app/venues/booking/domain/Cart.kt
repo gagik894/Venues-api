@@ -6,12 +6,12 @@ import java.time.Instant
 import java.util.*
 
 /**
- * A "root" entity representing a temporary shopping cart.
+ * Represents a temporary shopping cart session.
  *
- * @param sessionId The `EventSession.id` this cart is for.
- * @param expiresAt The time this cart's reservations expire.
- * @param token A unique token to identify the cart.
- * @param userId The `User.id` (customer) who owns this cart (if logged in).
+ * @param sessionId The [UUID] of the EventSession.
+ * @param expiresAt The absolute timestamp when the cart reservations expire.
+ * @param token A unique public token for API access.
+ * @param userId The [UUID] of the authenticated user (nullable).
  */
 @Entity
 @Table(

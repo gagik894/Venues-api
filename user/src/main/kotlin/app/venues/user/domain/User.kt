@@ -80,7 +80,7 @@ class User(
     var status: UserStatus = UserStatus.PENDING_VERIFICATION
         protected set
 
-    @Column(name = "faild_login_attemps", nullable = false)
+    @Column(name = "failed_login_attempts", nullable = false)
     @Access(AccessType.FIELD)
     var failedLoginAttempts: Int = 0
         protected set

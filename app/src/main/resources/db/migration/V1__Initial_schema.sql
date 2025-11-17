@@ -46,7 +46,7 @@ create table users
     phone_number        varchar(20),
     avatar_url          varchar(512),
     email_verified      boolean                     not null,
-    faild_login_attemps integer                     not null,
+    failed_login_attempts integer not null,
     locked_until        timestamp(6) with time zone,
     last_login_at       timestamp(6) with time zone,
     referral_code       varchar(20) unique,

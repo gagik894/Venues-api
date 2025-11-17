@@ -29,25 +29,25 @@ import java.util.*
     ]
 )
 class User(
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(name = "email", nullable = false, unique = true, length = 255)
     var email: String,
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password_hash", nullable = false, length = 255)
     var passwordHash: String,
 
-    @Column(nullable = false, length = AppConstants.Validation.MAX_NAME_LENGTH)
+    @Column(name = "first_name", nullable = false, length = AppConstants.Validation.MAX_NAME_LENGTH)
     var firstName: String,
 
-    @Column(nullable = false, length = AppConstants.Validation.MAX_NAME_LENGTH)
+    @Column(name = "last_name", nullable = false, length = AppConstants.Validation.MAX_NAME_LENGTH)
     var lastName: String,
 
-    @Column(length = 20)
+    @Column(name = "phone_number", length = 20)
     var phoneNumber: String? = null,
 
-    @Column(length = 512)
+    @Column(name = "avatar_url", length = 512)
     var avatarUrl: String? = null,
 
-    @Column(unique = true, length = 20)
+    @Column(name = "referral_code", unique = true, length = 20)
     var referralCode: String? = null,
 
     /**
@@ -67,7 +67,7 @@ class User(
      * The user's role, e.g., USER or ADMIN.
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     var role: UserRole = UserRole.USER
 
     // ===========================================
@@ -75,7 +75,7 @@ class User(
     // ===========================================
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
     private var _status: UserStatus = UserStatus.PENDING_VERIFICATION
 
@@ -85,15 +85,15 @@ class User(
     val status: UserStatus
         get() = _status
 
-    @Column(nullable = false)
+    @Column(name = "faild_login_attemps", nullable = false)
     @Access(AccessType.FIELD)
     private var _failedLoginAttempts: Int = 0
 
-    @Column
+    @Column(name = "locked_until")
     @Access(AccessType.FIELD)
     private var _lockedUntil: Instant? = null
 
-    @Column
+    @Column(name = "last_login_at")
     @Access(AccessType.FIELD)
     private var _lastLoginAt: Instant? = null
 
@@ -103,7 +103,7 @@ class User(
     val lastLoginAt: Instant?
         get() = _lastLoginAt
 
-    @Column(nullable = false)
+    @Column(name = "email_verified", nullable = false)
     @Access(AccessType.FIELD)
     private var _emailVerified: Boolean = false
 

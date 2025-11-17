@@ -30,7 +30,7 @@ class UserFavoriteEvent(
     @Column(name = "event_id", nullable = false)
     val eventId: UUID,
 
-    @Column(nullable = false)
+    @Column(name = "notifications_enabled", nullable = false)
     var notificationsEnabled: Boolean = true,
 
     ) : AbstractLongEntity()

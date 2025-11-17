@@ -29,7 +29,7 @@ class UserBlockedUser(
     @JoinColumn(name = "blocked_user_id", nullable = false)
     val blockedUser: User,
 
-    @Column(length = 50)
+    @Column(name = "block_reason", length = 50)
     var blockReason: String? = null,
 
     ) : AbstractLongEntity() {

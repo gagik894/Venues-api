@@ -36,30 +36,30 @@ class UserPromoCode(
     val promoCode: String,
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "discount_type", nullable = false, length = 20)
     val discountType: DiscountType,
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "discount_value", nullable = false, precision = 10, scale = 2)
     val discountValue: BigDecimal,
 
-    @Column
+    @Column(name = "max_uses")
     val maxUses: Int? = null,
 
-    @Column
+    @Column(name = "expires_at")
     val expiresAt: Instant? = null,
 ) : AbstractLongEntity() {
 
     // --- Internal State (Encapsulated) ---
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
     private var _status: PromoCodeStatus = PromoCodeStatus.AVAILABLE
 
     val status: PromoCodeStatus
         get() = _status
 
-    @Column(nullable = false)
+    @Column(name = "times_used", nullable = false)
     @Access(AccessType.FIELD)
     private var _timesUsed: Int = 0
 
@@ -69,7 +69,7 @@ class UserPromoCode(
     /**
      * The `Booking.id` where this code was first/last used.
      */
-    @Column
+    @Column(name = "used_in_booking_id")
     @Access(AccessType.FIELD)
     private var _usedInBookingId: UUID? = null
 

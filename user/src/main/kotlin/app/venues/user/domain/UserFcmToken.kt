@@ -26,18 +26,18 @@ class UserFcmToken(
     @JoinColumn(name = "user_id", nullable = false)
     val user: User,
 
-    @Column(nullable = false, unique = true, length = 512)
+    @Column(name = "token", nullable = false, unique = true, length = 512)
     val token: String,
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "platform", nullable = false, length = 20)
     val platform: String,
 
-    @Column(length = 100)
+    @Column(name = "device_name", length = 100)
     var deviceName: String? = null,
 
     ) : AbstractLongEntity() {
 
-    @Column
+    @Column(name = "last_used_at")
     @Access(AccessType.FIELD)
     private var _lastUsedAt: Instant? = null
 

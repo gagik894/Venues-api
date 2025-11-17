@@ -33,19 +33,19 @@ import jakarta.persistence.*
     ]
 )
 class Venue(
-    @Column(nullable = false, length = 255)
+    @Column(name = "name", nullable = false, length = 255)
     var name: String,
 
-    @Column(nullable = false, length = 500)
+    @Column(name = "address", nullable = false, length = 500)
     var address: String,
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    @Column(length = 500)
+    @Column(name = "image_url", length = 500)
     var imageUrl: String? = null,
 
-    @Column(length = 100)
+    @Column(name = "city", length = 100)
     var city: String? = null,
 
     @Column(name = "latitude")
@@ -54,56 +54,66 @@ class Venue(
     @Column(name = "longitude")
     var longitude: Double? = null,
 
-    @Column(length = 50)
+    @Column(name = "phone_number", length = 50)
     var phoneNumber: String? = null,
 
-    @Column(length = 500)
+    @Column(name = "website", length = 500)
     var website: String? = null,
 
-    @Column(length = 255)
+    @Column(name = "custom_domain", length = 255)
     var customDomain: String? = null,
 
-    @Column(length = 50)
+    @Column(name = "category", length = 50)
     var category: String? = null,
 
-    @Column(nullable = false)
+    @Column(name = "is_always_open", nullable = false)
     var isAlwaysOpen: Boolean = false,
 
-    @Column(length = 500)
+    @Column(name = "verification_document_url", length = 500)
     var verificationDocumentUrl: String? = null,
 
     // --- Payment and SMTP fields ---
-    @Column(length = 255)
+    @Column(name = "telcel_postpone_bill_issuer", length = 255)
     var telcelPostponeBillIssuer: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "idram_rec_account", length = 255)
     var idramRecAccount: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "idram_secret_key", length = 255)
     var idramSecretKey: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "telcel_store_key", length = 255)
     var telcelStoreKey: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "arca_username", length = 255)
     var arcaUsername: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "arca_password", length = 255)
     var arcaPassword: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "converse_merchant_id", length = 255)
     var converseMerchantId: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "converse_secret_key", length = 255)
     var converseSecretKey: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "smtp_email", length = 255)
     var smtpEmail: String? = null,
-    @Column(length = 255)
+
+    @Column(name = "smtp_password", length = 255)
     var smtpPassword: String? = null,
+
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---
-    @Column(nullable = false)
+    @Column(name = "verified", nullable = false)
     @Access(AccessType.FIELD)
     private var _verified: Boolean = false
 
     val verified: Boolean
         get() = _verified
 
-    @Column(nullable = false)
+    @Column(name = "official", nullable = false)
     @Access(AccessType.FIELD)
     private var _official: Boolean = false
 
@@ -111,7 +121,7 @@ class Venue(
         get() = _official
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Access(AccessType.FIELD)
     private var _status: VenueStatus = VenueStatus.PENDING_APPROVAL
 

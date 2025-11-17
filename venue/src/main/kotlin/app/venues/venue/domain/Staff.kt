@@ -22,10 +22,10 @@ import java.util.*
     ]
 )
 class Staff(
-    @Column(unique = true, nullable = false, length = 255)
+    @Column(name = "email", unique = true, nullable = false, length = 255)
     var email: String,
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password_hash", nullable = false, length = 255)
     var passwordHash: String,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -39,7 +39,7 @@ class Staff(
     // ===========================================
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "role", nullable = false, length = 20)
     @Access(AccessType.FIELD)
     private var _role: StaffRole = StaffRole.STAFF
 
@@ -53,40 +53,40 @@ class Staff(
     val restrictedToEventId: UUID?
         get() = _restrictedToEventId
 
-    @Column
+    @Column(name = "expires_at")
     @Access(AccessType.FIELD)
     private var _expiresAt: Instant? = null
 
     val expiresAt: Instant?
         get() = _expiresAt
 
-    @Column(nullable = false)
+    @Column(name = "failed_login_attempts", nullable = false)
     @Access(AccessType.FIELD)
     private var _failedLoginAttempts: Int = 0
 
-    @Column
+    @Column(name = "account_locked_until")
     @Access(AccessType.FIELD)
     private var _accountLockedUntil: Instant? = null
 
-    @Column
+    @Column(name = "last_login_at")
     @Access(AccessType.FIELD)
     private var _lastLoginAt: Instant? = null
 
     val lastLoginAt: Instant?
         get() = _lastLoginAt
 
-    @Column(nullable = false)
+    @Column(name = "email_verified", nullable = false)
     @Access(AccessType.FIELD)
     private var _emailVerified: Boolean = false
 
     val emailVerified: Boolean
         get() = _emailVerified
 
-    @Column(length = 255)
+    @Column(name = "verification_token", length = 255)
     @Access(AccessType.FIELD)
     private var _verificationToken: String? = null
 
-    @Column
+    @Column(name = "verification_token_expires_at")
     @Access(AccessType.FIELD)
     private var _verificationTokenExpiresAt: Instant? = null
 
@@ -95,11 +95,11 @@ class Staff(
     // ===========================================
 
     private fun isAccountLocked(): Boolean {
-        return _accountLockedUntil?.let { it.isAfter(Instant.now()) } ?: false
+        return _accountLockedUntil?.isAfter(Instant.now()) ?: false
     }
 
     private fun isTemporaryAccessExpired(): Boolean {
-        return _expiresAt?.let { it.isBefore(Instant.now()) } ?: false
+        return _expiresAt?.isBefore(Instant.now()) ?: false
     }
 
     /**

@@ -1,61 +1,19 @@
-package app.venues.seating.api.mapper
+package app.venues.seating.mapper
 
-import app.venues.seating.api.dto.*
 import app.venues.seating.domain.*
+import app.venues.seating.model.*
 import org.springframework.stereotype.Component
 
+/**
+ * Maps domain entities to REST response models.
+ * Handles internal service layer mapping only.
+ */
 @Component
-class SeatingMapper {
+class SeatingResponseMapper {
 
-    // ==========================================
-    // Cross-Module Info Mappings (For SeatingApi)
-    // ==========================================
-
-    fun toSeatInfoDto(seat: ChartSeat): SeatInfoDto {
-        return SeatInfoDto(
-            id = seat.id!!,
-            code = seat.code,
-            seatNumber = seat.seatNumber,
-            rowLabel = seat.rowLabel,
-            zoneId = seat.zone.id!!,
-            zoneName = seat.zone.name,
-            categoryKey = seat.categoryKey
-        )
-    }
-
-    fun toTableInfoDto(table: ChartTable): TableInfoDto {
-        return TableInfoDto(
-            id = table.id!!,
-            code = table.code,
-            tableNumber = table.tableNumber,
-            seatCapacity = table.seatCapacity,
-            zoneId = table.zone.id!!,
-            zoneName = table.zone.name
-        )
-    }
-
-    fun toSectionInfoDto(zone: ChartZone): SectionInfoDto {
-        return SectionInfoDto(
-            id = zone.id!!,
-            code = zone.code,
-            name = zone.name
-        )
-    }
-
-    fun toGaInfoDto(ga: GeneralAdmissionArea): GaInfoDto {
-        return GaInfoDto(
-            id = ga.id!!,
-            code = ga.code,
-            name = ga.name,
-            capacity = ga.capacity,
-            zoneId = ga.zone.id!!
-        )
-    }
-
-    // ==========================================
-    // Response Mappings (For Controllers)
-    // ==========================================
-
+    /**
+     * Map chart entity to summary response.
+     */
     fun toResponse(
         chart: SeatingChart,
         venueName: String,
@@ -75,10 +33,13 @@ class SeatingMapper {
             zoneCount = zoneCount,
             seatCount = seatCount,
             createdAt = chart.createdAt.toString(),
-            updatedAt = chart.updatedAt.toString()
+            updatedAt = chart.lastModifiedAt.toString()
         )
     }
 
+    /**
+     * Map chart entity to detailed hierarchical response.
+     */
     fun toDetailedResponse(
         chart: SeatingChart,
         venueName: String,
@@ -98,13 +59,16 @@ class SeatingMapper {
             backgroundUrl = chart.backgroundUrl,
             rootZones = rootZones,
             createdAt = chart.createdAt.toString(),
-            updatedAt = chart.updatedAt.toString()
+            updatedAt = chart.lastModifiedAt.toString()
         )
     }
 
+    /**
+     * Map zone entity to response with recursive children.
+     */
     fun toZoneResponse(zone: ChartZone): ZoneResponse {
         return ZoneResponse(
-            id = zone.id!!,
+            id = zone.id ?: error("Zone ID cannot be null"),
             parentZoneId = zone.parentZone?.id,
             name = zone.name,
             code = zone.code,
@@ -115,18 +79,21 @@ class SeatingMapper {
             displayColor = zone.displayColor,
             seatCount = zone.seats.size,
             tableCount = zone.tables.size,
-            gaCount = zone.generalAdmissionAreas.size,
+            gaCount = zone.gaAreas.size,
             childZones = zone.childZones.map { toZoneResponse(it) },
             seats = zone.seats.map { toSeatResponse(it) },
             tables = zone.tables.map { toTableResponse(it) },
-            gaAreas = zone.generalAdmissionAreas.map { toGaAreaResponse(it) }
+            gaAreas = zone.gaAreas.map { toGaAreaResponse(it) }
         )
     }
 
+    /**
+     * Map seat entity to response.
+     */
     fun toSeatResponse(seat: ChartSeat): SeatResponse {
         return SeatResponse(
-            id = seat.id!!,
-            zoneId = seat.zone.id!!,
+            id = seat.id ?: error("Seat ID cannot be null"),
+            zoneId = seat.zone.id ?: error("Zone ID cannot be null"),
             tableId = seat.table?.id,
             code = seat.code,
             rowLabel = seat.rowLabel,
@@ -140,10 +107,13 @@ class SeatingMapper {
         )
     }
 
+    /**
+     * Map table entity to response.
+     */
     fun toTableResponse(table: ChartTable): TableResponse {
         return TableResponse(
-            id = table.id!!,
-            zoneId = table.zone.id!!,
+            id = table.id ?: error("Table ID cannot be null"),
+            zoneId = table.zone.id ?: error("Zone ID cannot be null"),
             code = table.code,
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
@@ -156,10 +126,13 @@ class SeatingMapper {
         )
     }
 
+    /**
+     * Map GA area entity to response.
+     */
     fun toGaAreaResponse(ga: GeneralAdmissionArea): GaAreaResponse {
         return GaAreaResponse(
-            id = ga.id!!,
-            zoneId = ga.zone.id!!,
+            id = ga.id ?: error("GA Area ID cannot be null"),
+            zoneId = ga.zone.id ?: error("Zone ID cannot be null"),
             code = ga.code,
             name = ga.name,
             capacity = ga.capacity,
@@ -168,3 +141,4 @@ class SeatingMapper {
         )
     }
 }
+

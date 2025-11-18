@@ -1,10 +1,15 @@
-package app.venues.seating.api.dto
+package app.venues.seating.model
 
 import jakarta.validation.constraints.*
 import java.util.*
 
+/**
+ * REST contract DTOs for seating chart management.
+ * These types are used by controllers for HTTP request/response.
+ */
+
 // =================================================================================
-// SEATING CHART (ROOT)
+// SEATING CHART
 // =================================================================================
 
 data class SeatingChartRequest(
@@ -37,9 +42,6 @@ data class SeatingChartResponse(
     val updatedAt: String
 )
 
-/**
- * The full hierarchical tree for the frontend renderer.
- */
 data class SeatingChartDetailedResponse(
     val id: UUID,
     val venueId: UUID,
@@ -47,13 +49,13 @@ data class SeatingChartDetailedResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
-    val rootZones: List<ZoneResponse>, // Hierarchy starts here
+    val rootZones: List<ZoneResponse>,
     val createdAt: String,
     val updatedAt: String
 )
 
 // =================================================================================
-// ZONE (CONTAINER)
+// ZONE
 // =================================================================================
 
 data class ZoneRequest(
@@ -64,7 +66,7 @@ data class ZoneRequest(
     val name: String,
 
     @field:NotBlank(message = "Code prefix is required")
-    @field:Pattern(regexp = "^[A-Z0-9_]+$", message = "Code must be uppercase alphanumeric (e.g., ORCH)")
+    @field:Pattern(regexp = "^[A-Z0-9_]+$", message = "Code must be uppercase alphanumeric")
     @field:Size(max = 50)
     val code: String,
 
@@ -80,30 +82,22 @@ data class ZoneResponse(
     val parentZoneId: Long?,
     val name: String,
     val code: String,
-
-    // Rendering
     val x: Double,
     val y: Double,
     val rotation: Double,
     val boundaryPath: String?,
     val displayColor: String?,
-
-    // Inventory Summary
     val seatCount: Int,
     val tableCount: Int,
     val gaCount: Int,
-
-    // Children (Recursive)
     val childZones: List<ZoneResponse>,
-
-    // Content
     val seats: List<SeatResponse>,
     val tables: List<TableResponse>,
     val gaAreas: List<GaAreaResponse>
 )
 
 // =================================================================================
-// SEAT (INVENTORY)
+// SEAT
 // =================================================================================
 
 data class SeatRequest(
@@ -132,7 +126,7 @@ data class SeatResponse(
     val id: Long,
     val zoneId: Long,
     val tableId: Long?,
-    val code: String, // "ORCH_ROW-A_SEAT-1"
+    val code: String,
     val rowLabel: String,
     val seatNumber: String,
     val categoryKey: String,
@@ -158,18 +152,18 @@ data class SeatBatchItem(
 )
 
 // =================================================================================
-// TABLE (PHYSICAL OBJECT)
+// TABLE
 // =================================================================================
 
 data class TableRequest(
     @field:NotNull val zoneId: Long,
 
     @field:NotBlank val tableNumber: String,
-    @field:NotBlank val code: String, // "VIP_T12"
+    @field:NotBlank val code: String,
 
     @field:Min(1) val seatCapacity: Int = 4,
 
-    val shape: String = "ROUND", // Enum: ROUND, SQUARE, RECTANGLE, OVAL
+    val shape: String = "ROUND",
 
     val x: Double,
     val y: Double,
@@ -193,14 +187,14 @@ data class TableResponse(
 )
 
 // =================================================================================
-// GENERAL ADMISSION (AREA)
+// GENERAL ADMISSION
 // =================================================================================
 
 data class GaAreaRequest(
     @field:NotNull val zoneId: Long,
 
     @field:NotBlank val name: String,
-    @field:NotBlank val code: String, // "PIT_A"
+    @field:NotBlank val code: String,
     @field:Min(1) val capacity: Int,
 
     val boundaryPath: String? = null,
@@ -216,3 +210,4 @@ data class GaAreaResponse(
     val boundaryPath: String?,
     val displayColor: String?
 )
+

@@ -63,10 +63,10 @@ class VenueService(
             .orElse(null)
     }
 
-    override fun getVenueName(venueId: UUID): String? {
+    override fun getVenueName(venueId: UUID): String {
         return venueRepository.findById(venueId)
             .map { it.name }
-            .orElse(null)
+            .orElse("")
     }
 
     override fun getVenueNameTranslated(venueId: UUID, language: String?): String? {

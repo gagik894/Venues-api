@@ -3,17 +3,25 @@ package app.venues.seating.api.dto
 import java.util.*
 
 /**
- * Complete seating chart structure for the Frontend Canvas Renderer.
+ * Basic chart information for cross-module lookups.
+ */
+data class SeatingChartInfoDto(
+    val chartId: UUID,
+    val venueId: UUID,
+    val chartName: String,
+    val width: Int,
+    val height: Int
+)
+
+/**
+ * Complete seating chart structure for frontend canvas rendering.
+ * Immutable snapshot of the entire chart hierarchy.
  */
 data class SeatingChartStructureDto(
     val chartId: UUID,
     val chartName: String,
-
-    // Coordinate System
     val width: Int,
     val height: Int,
-
-    // The Hierarchy
     val zones: List<ZoneDto>,
     val tables: List<TableDto>,
     val seats: List<SeatDto>,
@@ -21,34 +29,30 @@ data class SeatingChartStructureDto(
 )
 
 /**
- * Represents a Container (Section/Floor).
+ * Container zone (section/floor) in the chart hierarchy.
  */
 data class ZoneDto(
     val id: Long,
     val name: String,
     val code: String,
     val parentZoneId: Long?,
-
-    // Rendering
     val x: Double,
     val y: Double,
     val rotation: Double,
-    val boundaryPath: String?, // SVG path
+    val boundaryPath: String?,
     val displayColor: String?
 )
 
 /**
- * Represents a Physical Table.
+ * Physical table entity with seat capacity.
  */
 data class TableDto(
     val id: Long,
     val zoneId: Long,
     val tableNumber: String,
-    val code: String, // e.g. "VIP_T-1"
-    val shape: String, // ROUND, SQUARE
+    val code: String,
+    val shape: String,
     val seatCapacity: Int,
-
-    // Rendering
     val x: Double,
     val y: Double,
     val width: Double,
@@ -57,7 +61,7 @@ data class TableDto(
 )
 
 /**
- * Represents a Standing Area (GA).
+ * General admission standing area.
  */
 data class GaAreaDto(
     val id: Long,
@@ -65,30 +69,25 @@ data class GaAreaDto(
     val name: String,
     val code: String,
     val capacity: Int,
-
-    // Rendering
     val boundaryPath: String?,
     val displayColor: String?
 )
 
 /**
- * Represents an Individual Seat.
+ * Individual seat with rendering position.
  */
 data class SeatDto(
     val id: Long,
     val zoneId: Long,
-    val tableId: Long?, // Null if not at a table
-
-    val code: String, // "ORCH_ROW-A_SEAT-1"
+    val tableId: Long?,
+    val code: String,
     val rowLabel: String,
     val seatNumber: String,
     val categoryKey: String,
-
     val isAccessible: Boolean,
     val isObstructed: Boolean,
-
-    // Rendering
     val x: Double,
     val y: Double,
     val rotation: Double
 )
+

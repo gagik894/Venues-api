@@ -2,7 +2,7 @@ package app.venues.seating.api.controller
 
 import app.venues.common.model.ApiResponse
 import app.venues.common.util.PaginationUtil
-import app.venues.seating.api.dto.*
+import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
 import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -14,6 +14,10 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
+/**
+ * Venue seating chart management controller.
+ * Provides CRUD operations for venue owners to manage their seating charts.
+ */
 @RestController
 @RequestMapping("/api/v1/venues/{venueId}/seating-charts")
 @Tag(name = "Venue Seating Charts", description = "Seating chart management for venue owners")

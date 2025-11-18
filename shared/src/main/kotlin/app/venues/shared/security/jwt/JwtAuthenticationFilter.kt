@@ -8,6 +8,8 @@
 package app.venues.shared.security.jwt
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.jsonwebtoken.ExpiredJwtException
+import io.jsonwebtoken.JwtException
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -72,12 +74,14 @@ class JwtAuthenticationFilter(
             // Extract JWT token from Authorization header
             val jwt = extractJwtFromRequest(request)
 
-            // If token exists and is valid, set authentication in SecurityContext
-            if (jwt != null) {
+            // If token exists and authentication is not already set
+            if (jwt != null && SecurityContextHolder.getContext().authentication == null) {
                 authenticateWithJwt(jwt, request)
             }
         } catch (e: Exception) {
             log.warn(e) { "Cannot set user authentication: ${e.message}" }
+            // Note: We let the filter chain continue. If authentication is required,
+            // the JwtAuthenticationEntryPoint will handle the failure later.
         }
 
         // Continue with the filter chain
@@ -113,16 +117,21 @@ class JwtAuthenticationFilter(
      */
     private fun authenticateWithJwt(jwt: String, request: HttpServletRequest) {
         try {
-            // Extract principal information from JWT
-            val principalId = jwtService.getIdFromToken(jwt)
-            val email = jwtService.getEmailFromToken(jwt)
-            val role = jwtService.getRoleFromToken(jwt)
+            // --- OPTIMIZATION ---
+            // Parse the token ONCE to get all claims
+            val claims = jwtService.getAllClaimsFromToken(jwt)
 
-            // Check if token is expired
-            if (jwtService.isTokenExpired(jwt)) {
-                log.debug { "JWT token is expired for principal: $email" }
+            // Check if token is expired (this is already checked by getAllClaimsFromToken,
+            // but we can double-check the claim just in case)
+            if (jwtService.isTokenExpired(claims)) {
+                log.debug { "JWT token is expired" }
                 return
             }
+
+            // Extract principal information from the claims
+            val principalId = jwtService.getIdFromClaims(claims)
+            val email = jwtService.getEmailFromClaims(claims)
+            val role = jwtService.getRoleFromClaims(claims)
 
             // Create authorities from role
             val authorities = listOf(SimpleGrantedAuthority("ROLE_$role"))
@@ -149,10 +158,20 @@ class JwtAuthenticationFilter(
             SecurityContextHolder.getContext().authentication = authentication
 
             log.debug { "Principal authenticated successfully: principalId=$principalId, email=$email, role=$role" }
+
+        } catch (e: ExpiredJwtException) {
+            log.warn(e) { "JWT token is expired: ${e.message}" }
+        } catch (e: JwtException) {
+            // Catches other JWT-related errors (invalid signature, malformed, etc.)
+            log.warn(e) { "Invalid JWT token: ${e.message}" }
+        } catch (e: IllegalArgumentException) {
+            // Catches errors from our custom claim parsing (e.g., missing 'id' or 'role')
+            log.warn(e) { "Failed to parse custom claims from JWT: ${e.message}" }
         } catch (e: Exception) {
             log.warn(e) { "Failed to authenticate with JWT: ${e.message}" }
-            // Don't throw exception - let other filters handle it
         }
+        // If any exception occurs, we simply don't set the authentication
+        // and let the request proceed. The SecurityFilterChain will catch
+        // the lack of authentication later if the endpoint is secured.
     }
 }
-

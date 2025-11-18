@@ -21,7 +21,7 @@ interface VenueApi {
     /**
      * Get venue name by ID.
      */
-    fun getVenueName(venueId: UUID): String?
+    fun getVenueName(venueId: UUID): String
 
     /**
      * Get venue name with translation support.

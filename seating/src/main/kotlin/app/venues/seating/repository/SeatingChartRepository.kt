@@ -27,10 +27,5 @@ interface SeatingChartRepository : JpaRepository<SeatingChart, UUID> {
      * Check if chart name exists for venue
      */
     fun existsByVenueIdAndName(venueId: UUID, name: String): Boolean
-
-    /**
-     * Count charts by venue
-     */
-    fun countByVenueId(venueId: UUID): Long
 }
 

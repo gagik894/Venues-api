@@ -4,12 +4,8 @@ import app.venues.common.exception.VenuesException
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.*
 import app.venues.seating.api.mapper.SeatingMapper
-import app.venues.seating.domain.Level
-import app.venues.seating.domain.Seat
-import app.venues.seating.domain.SeatingChart
-import app.venues.seating.repository.LevelRepository
-import app.venues.seating.repository.SeatRepository
-import app.venues.seating.repository.SeatingChartRepository
+import app.venues.seating.domain.*
+import app.venues.seating.repository.*
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
@@ -18,524 +14,382 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
-/**
- * Service for seating chart management operations.
- *
- * This is the ADAPTER in Hexagonal Architecture.
- * Implements SeatingApi (the PORT) to provide a stable public API for other modules.
- *
- * Handles:
- * - Seating chart CRUD
- * - Level (section) management
- * - Seat management
- * - Translation management
- * - Cross-module API (via SeatingApi implementation)
- */
 @Service
 @Transactional
 class SeatingService(
     private val seatingChartRepository: SeatingChartRepository,
-    private val levelRepository: LevelRepository,
-    private val seatRepository: SeatRepository,
+    private val chartZoneRepository: ChartZoneRepository,
+    private val chartSeatRepository: ChartSeatRepository,
+    private val chartTableRepository: ChartTableRepository,
+    private val gaAreaRepository: GeneralAdmissionAreaRepository,
     private val seatingMapper: SeatingMapper,
     private val venueApi: VenueApi
 ) : SeatingApi {
+
     private val logger = KotlinLogging.logger {}
 
-    // ===========================================
+    // =================================================================================
     // PUBLIC API IMPLEMENTATION (SeatingApi Port)
-    // ===========================================
+    // =================================================================================
 
     @Transactional(readOnly = true)
     override fun getSeatInfo(seatId: Long): SeatInfoDto? {
-        return seatRepository.findById(seatId)
+        return chartSeatRepository.findById(seatId)
             .map(seatingMapper::toSeatInfoDto)
             .orElse(null)
     }
 
     @Transactional(readOnly = true)
     override fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto> {
-        if (seatIds.isEmpty()) {
-            return emptyList()
-        }
-
-        val seats = seatRepository.findAllById(seatIds)
-        return seats.map(seatingMapper::toSeatInfoDto)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto? {
-        val seat = seatRepository.findBySeatIdentifier(seatIdentifier) ?: return null
-        return seatingMapper.toSeatInfoDto(seat)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getLevelInfo(levelId: Long): LevelInfoDto? {
-        return levelRepository.findById(levelId)
-            .map(seatingMapper::toLevelInfoDto)
-            .orElse(null)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getLevelInfoBatch(levelIds: List<Long>): List<LevelInfoDto> {
-        if (levelIds.isEmpty()) {
-            return emptyList()
-        }
-        return levelRepository.findAllById(levelIds)
-            .map(seatingMapper::toLevelInfoDto)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto? {
-        val level = levelRepository.findByLevelIdentifier(levelIdentifier) ?: return null
-        return seatingMapper.toLevelInfoDto(level)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getSeatingChartName(chartId: UUID): String? {
-        return seatingChartRepository.findById(chartId)
-            .map { it.name }
-            .orElse(null)
-    }
-
-    @Transactional(readOnly = true)
-    override fun seatExists(seatId: Long): Boolean {
-        return seatRepository.existsById(seatId)
-    }
-
-    @Transactional(readOnly = true)
-    override fun levelExists(levelId: Long): Boolean {
-        return levelRepository.existsById(levelId)
-    }
-
-    @Transactional(readOnly = true)
-    override fun getSeatsForLevel(levelId: Long): List<SeatInfoDto> {
-        return seatRepository.findByLevelId(levelId)
+        if (seatIds.isEmpty()) return emptyList()
+        return chartSeatRepository.findAllById(seatIds)
             .map(seatingMapper::toSeatInfoDto)
     }
 
     @Transactional(readOnly = true)
-    override fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>> {
-        if (levelIds.isEmpty()) {
-            return emptyMap()
-        }
-        // Single query to load all seats for all levels
-        val seats = seatRepository.findByLevelIdIn(levelIds)
-
-        // Group by level ID
-        return seats.groupBy { it.level.id!! }
-            .mapValues { (_, levelSeats) ->
-                levelSeats.map(seatingMapper::toSeatInfoDto)
-            }
+    override fun getSeatInfoByCode(code: String): SeatInfoDto? {
+        val seat = chartSeatRepository.findByCode(code) ?: return null
+        return seatingMapper.toSeatInfoDto(seat)
     }
 
     @Transactional(readOnly = true)
-    override fun getTablesForSeat(seatId: Long): List<LevelInfoDto> {
-        val tableIds = levelRepository.findParentTableIdsForSeat(seatId)
-        if (tableIds.isEmpty()) {
-            return emptyList()
-        }
+    override fun seatExists(seatId: Long): Boolean = chartSeatRepository.existsById(seatId)
 
-        val tables = levelRepository.findAllById(tableIds)
-
-        return tables.map(seatingMapper::toLevelInfoDto)
+    @Transactional(readOnly = true)
+    override fun getSectionInfo(sectionId: Long): SectionInfoDto? {
+        return chartZoneRepository.findById(sectionId)
+            .map(seatingMapper::toSectionInfoDto)
+            .orElse(null)
     }
 
+    @Transactional(readOnly = true)
+    override fun getTableInfo(tableId: Long): TableInfoDto? {
+        return chartTableRepository.findById(tableId)
+            .map(seatingMapper::toTableInfoDto)
+            .orElse(null)
+    }
+
+    @Transactional(readOnly = true)
+    override fun getGaInfo(gaId: Long): GaInfoDto? {
+        return gaAreaRepository.findById(gaId)
+            .map(seatingMapper::toGaInfoDto)
+            .orElse(null)
+    }
+
+    @Transactional(readOnly = true)
+    override fun getTableForSeat(seatId: Long): TableInfoDto? {
+        val seat = chartSeatRepository.findById(seatId).orElse(null) ?: return null
+        return seat.table?.let { seatingMapper.toTableInfoDto(it) }
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSeatingChartName(chartId: UUID): String {
+        return seatingChartRepository.findById(chartId).map { it.name }.orElse("")
+    }
 
     @Transactional(readOnly = true)
     override fun getChartStructure(chartId: UUID): SeatingChartStructureDto? {
         val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
 
-        // Load all levels for this chart
-        val levels = levelRepository.findBySeatingChartId(chartId)
-        val levelDtos = levels.map { level ->
-            LevelDto(
-                id = level.id ?: throw IllegalStateException("Level ID should not be null"),
-                levelName = level.levelName,
-                levelIdentifier = level.levelIdentifier,
-                parentLevelId = level.parentLevel?.id,
-                capacity = level.capacity,
-                positionX = level.positionX,
-                positionY = level.positionY,
-                isTable = level.isTable
+        val zones = chartZoneRepository.findByChartId(chartId)
+        val seats = chartSeatRepository.findByChartId(chartId)
+        val tables = chartTableRepository.findByChartId(chartId)
+        val gaAreas = gaAreaRepository.findByChartId(chartId)
+
+        // Map Zones
+        val zoneDtos = zones.map { z ->
+            ZoneDto(
+                id = z.id!!,
+                name = z.name,
+                code = z.code,
+                parentZoneId = z.parentZone?.id,
+                x = z.x, y = z.y, rotation = z.rotation,
+                boundaryPath = z.boundaryPath, displayColor = z.displayColor
             )
         }
 
-        // Load all seats for this chart
-        val seats = seatRepository.findBySeatingChartId(chartId)
-        val seatDtos = seats.map { seat ->
+        // Map Tables
+        val tableDtos = tables.map { t ->
+            TableDto(
+                id = t.id!!,
+                zoneId = t.zone.id!!,
+                tableNumber = t.tableNumber,
+                code = t.code,
+                shape = t.shape.name,
+                seatCapacity = t.seatCapacity,
+                x = t.x, y = t.y, width = t.width, height = t.height, rotation = t.rotation
+            )
+        }
+
+        // Map Seats
+        val seatDtos = seats.map { s ->
             SeatDto(
-                id = seat.id!!,
-                seatIdentifier = seat.seatIdentifier,
-                seatNumber = seat.seatNumber,
-                rowLabel = seat.rowLabel,
-                levelId = seat.level.id!!,
-                positionX = seat.positionX,
-                positionY = seat.positionY,
+                id = s.id!!,
+                zoneId = s.zone.id!!,
+                tableId = s.table?.id,
+                code = s.code,
+                rowLabel = s.rowLabel,
+                seatNumber = s.seatNumber,
+                categoryKey = s.categoryKey,
+                isAccessible = s.isAccessible,
+                isObstructed = s.isObstructedView,
+                x = s.x, y = s.y, rotation = s.rotation
+            )
+        }
+
+        // Map GA
+        val gaDtos = gaAreas.map { g ->
+            GaAreaDto(
+                id = g.id!!,
+                zoneId = g.zone.id!!,
+                name = g.name,
+                code = g.code,
+                capacity = g.capacity,
+                boundaryPath = g.boundaryPath,
+                displayColor = g.displayColor
             )
         }
 
         return SeatingChartStructureDto(
             chartId = chart.id,
             chartName = chart.name,
-            levels = levelDtos,
-            seats = seatDtos
+            width = chart.width,
+            height = chart.height,
+            zones = zoneDtos,
+            tables = tableDtos,
+            seats = seatDtos,
+            gaAreas = gaDtos
         )
     }
 
+    // =================================================================================
+    // CHART CRUD OPERATIONS (For Venue Controller)
+    // =================================================================================
 
-    // ===========================================
-    // SEATING CHART OPERATIONS
-    // ===========================================
-
-    /**
-     * Create a new seating chart for a venue.
-     */
     fun createSeatingChart(venueId: UUID, request: SeatingChartRequest): SeatingChartResponse {
-        logger.debug { "Creating seating chart for venue: $venueId" }
-
-        // Verify venue exists using VenueApi
         if (!venueApi.venueExists(venueId)) {
-            throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
+            throw VenuesException.ResourceNotFound("Venue not found: $venueId")
         }
-
-        // Check for duplicate name
         if (seatingChartRepository.existsByVenueIdAndName(venueId, request.name)) {
-            throw VenuesException.ResourceConflict("Seating chart with name '${request.name}' already exists for this venue")
+            throw VenuesException.ResourceConflict("Chart name '${request.name}' already exists")
         }
 
         val chart = SeatingChart(
             venueId = venueId,
             name = request.name,
-            seatIndicatorSize = request.seatIndicatorSize,
-            levelIndicatorSize = request.levelIndicatorSize,
+            width = request.width,
+            height = request.height,
             backgroundUrl = request.backgroundUrl
         )
 
-        val savedChart = seatingChartRepository.save(chart)
-        logger.info { "Seating chart created successfully: ID=${savedChart.id}" }
-
-        // Fetch venue name via VenueApi
+        val saved = seatingChartRepository.save(chart)
         val venueName = venueApi.getVenueName(venueId)
 
-        // Fetch levels and seats for this chart (service layer responsibility)
-        val levels = levelRepository.findBySeatingChartId(savedChart.id!!)
-        val seats = seatRepository.findBySeatingChartId(savedChart.id!!)
-
-        return seatingMapper.toResponse(savedChart, levels, seats, venueName = venueName)
+        return seatingMapper.toResponse(saved, venueName, 0, 0, 0)
     }
 
-    /**
-     * Get seating chart by ID.
-     */
-    @Transactional(readOnly = true)
-    fun getSeatingChartById(id: UUID): SeatingChartResponse {
-        logger.debug { "Fetching seating chart: $id" }
-
-        val chart = seatingChartRepository.findById(id)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
-
-        val venueName = venueApi.getVenueName(chart.venueId)
-
-        // Service layer fetches children and aggregates data (proper layered architecture)
-        val levels = levelRepository.findBySeatingChartId(id)
-        val seats = seatRepository.findBySeatingChartId(id)
-
-        return seatingMapper.toResponse(chart, levels, seats, venueName = venueName)
-    }
-
-    /**
-     * Get detailed seating chart with levels and seats.
-     */
-    @Transactional(readOnly = true)
-    fun getSeatingChartDetailed(id: UUID): SeatingChartDetailedResponse {
-        logger.debug { "Fetching detailed seating chart: $id" }
-
-        val chart = seatingChartRepository.findById(id)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $id") }
-
-        // Service layer aggregates data from repositories
-        val levels = levelRepository.findBySeatingChartId(id)
-        val seats = seatRepository.findBySeatingChartId(id)
-        val venueName = venueApi.getVenueName(chart.venueId)
-
-        return seatingMapper.toDetailedResponse(chart, levels, seats, venueName = venueName)
-    }
-
-    /**
-     * Get seating charts by venue.
-     */
-    @Transactional(readOnly = true)
-    fun getSeatingChartsByVenue(venueId: UUID, pageable: Pageable): Page<SeatingChartResponse> {
-        logger.debug { "Fetching seating charts for venue: $venueId" }
-
-        val venueName = venueApi.getVenueName(venueId)
-
-        return seatingChartRepository.findByVenueId(venueId, pageable)
-            .map { chart ->
-                // Service layer fetches children for each chart
-                val levels = levelRepository.findBySeatingChartId(chart.id)
-                val seats = seatRepository.findBySeatingChartId(chart.id)
-                seatingMapper.toResponse(chart, levels, seats, venueName = venueName)
-            }
-    }
-
-    /**
-     * Update seating chart.
-     */
     fun updateSeatingChart(chartId: UUID, venueId: UUID, request: SeatingChartRequest): SeatingChartResponse {
-        logger.debug { "Updating seating chart: $chartId" }
-
         val chart = seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found: $chartId") }
 
-        // Verify ownership
         if (chart.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only update your own seating charts")
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
         }
 
-        // Check for duplicate name (excluding current chart)
-        val existing = seatingChartRepository.findByVenueIdAndName(venueId, request.name)
-        if (existing != null && existing.id != chartId) {
-            throw VenuesException.ResourceConflict("Seating chart with name '${request.name}' already exists")
+        if (chart.name != request.name) {
+            if (seatingChartRepository.existsByVenueIdAndName(venueId, request.name)) {
+                throw VenuesException.ResourceConflict("Chart name '${request.name}' already exists")
+            }
         }
 
         chart.name = request.name
-        chart.seatIndicatorSize = request.seatIndicatorSize
-        chart.levelIndicatorSize = request.levelIndicatorSize
+        chart.resizeCanvas(request.width, request.height)
         chart.backgroundUrl = request.backgroundUrl
 
-        val savedChart = seatingChartRepository.save(chart)
-        logger.info { "Seating chart updated successfully: $chartId" }
+        val saved = seatingChartRepository.save(chart)
 
-        // Fetch venue name via VenueApi (Hexagonal Architecture)
-        val venueName = venueApi.getVenueName(venueId)
+        // Recalculate stats
+        val seatCount = chartSeatRepository.countByZoneChartId(chartId).toInt()
+        val zoneCount = chartZoneRepository.countByChartId(chartId).toInt()
+        val gaCapacity = gaAreaRepository.sumCapacityByChartId(chartId)?.toInt() ?: 0
 
-        // Service layer fetches children
-        val levels = levelRepository.findBySeatingChartId(chartId)
-        val seats = seatRepository.findBySeatingChartId(chartId)
-
-        return seatingMapper.toResponse(savedChart, levels, seats, venueName = venueName)
+        return seatingMapper.toResponse(
+            saved,
+            venueApi.getVenueName(venueId),
+            seatCount,
+            gaCapacity,
+            zoneCount
+        )
     }
 
-    /**
-     * Delete seating chart.
-     */
     fun deleteSeatingChart(chartId: UUID, venueId: UUID) {
-        logger.debug { "Deleting seating chart: $chartId" }
-
         val chart = seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found: $chartId") }
 
-        // Verify ownership
         if (chart.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only delete your own seating charts")
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
         }
-
         seatingChartRepository.delete(chart)
-        logger.info { "Seating chart deleted successfully: $chartId" }
     }
 
-    // ===========================================
-    // LEVEL OPERATIONS
-    // ===========================================
+    @Transactional(readOnly = true)
+    fun getSeatingChartsByVenue(venueId: UUID, pageable: Pageable): Page<SeatingChartResponse> {
+        val venueName = venueApi.getVenueName(venueId)
+        return seatingChartRepository.findByVenueId(venueId, pageable).map { chart ->
+            val seatCount = chartSeatRepository.countByZoneChartId(chart.id).toInt()
+            val zoneCount = chartZoneRepository.countByChartId(chart.id).toInt()
+            val gaCapacity = gaAreaRepository.sumCapacityByChartId(chart.id)?.toInt() ?: 0
+            seatingMapper.toResponse(chart, venueName, seatCount, gaCapacity, zoneCount)
+        }
+    }
 
-    /**
-     * Add level to seating chart.
-     */
-    fun addLevel(chartId: UUID, request: LevelRequest): LevelResponse {
-        logger.debug { "Adding level to chart: $chartId" }
+    @Transactional(readOnly = true)
+    fun getSeatingChartDetailed(id: UUID): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(id)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found: $id") }
 
-        val seatingChart = seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
+        val allZones = chartZoneRepository.findByChartId(id)
+        val venueName = venueApi.getVenueName(chart.venueId)
 
-        // Get parent level if specified
-        val parentLevel = request.parentLevelId?.let {
-            levelRepository.findById(it)
-                .orElseThrow { VenuesException.ResourceNotFound("Parent level not found with ID: $it") }
+        return seatingMapper.toDetailedResponse(chart, venueName, allZones)
+    }
+
+    // =================================================================================
+    // COMPONENT MANAGEMENT
+    // =================================================================================
+
+    fun addZone(chartId: UUID, request: ZoneRequest): ZoneResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+
+        val parentZone = request.parentZoneId?.let {
+            chartZoneRepository.findById(it)
+                .orElseThrow { VenuesException.ResourceNotFound("Parent zone not found: $it") }
         }
 
-        val level = Level(
-            seatingChart = seatingChart,
-            parentLevel = parentLevel,
-            levelName = request.levelName,
-            levelIdentifier = request.levelIdentifier,
-            positionX = request.positionX,
-            positionY = request.positionY,
-            capacity = request.capacity
+        if (parentZone != null && parentZone.chart.id != chartId) {
+            throw VenuesException.ResourceConflict("Parent zone belongs to different chart")
+        }
+
+        if (chartZoneRepository.existsByChartIdAndCode(chartId, request.code)) {
+            throw VenuesException.ResourceConflict("Zone code '${request.code}' already exists")
+        }
+
+        val zone = ChartZone(
+            chart = chart,
+            parentZone = parentZone,
+            name = request.name,
+            code = request.code,
+            x = request.x, y = request.y, rotation = request.rotation,
+            boundaryPath = request.boundaryPath, displayColor = request.displayColor
         )
 
-        val savedLevel = levelRepository.save(level)
+        // Domain logic
+        if (parentZone != null) parentZone.addChildZone(zone) else chart.addZone(zone)
 
-        logger.info { "Level added successfully: ID=${savedLevel.id}" }
-
-        return seatingMapper.toLevelResponse(savedLevel)
+        val saved = chartZoneRepository.save(zone)
+        return seatingMapper.toZoneResponse(saved)
     }
 
-    /**
-     * Get level by ID.
-     */
-    @Transactional(readOnly = true)
-    fun getLevelById(id: Long): LevelResponse {
-        logger.debug { "Fetching level: $id" }
+    fun addTable(chartId: UUID, request: TableRequest): TableResponse {
+        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
 
-        val level = levelRepository.findById(id)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found with ID: $id") }
+        val table = ChartTable(
+            zone = zone,
+            tableNumber = request.tableNumber,
+            code = request.code,
+            seatCapacity = request.seatCapacity,
+            shape = TableShape.valueOf(request.shape.uppercase()),
+            x = request.x, y = request.y, width = request.width, height = request.height, rotation = request.rotation
+        )
 
-        return seatingMapper.toLevelResponse(level, includeChildren = true)
+        val saved = chartTableRepository.save(table)
+        return seatingMapper.toTableResponse(saved)
     }
 
-    /**
-     * Update level.
-     */
-    fun updateLevel(levelId: Long, request: LevelRequest): LevelResponse {
-        logger.debug { "Updating level: $levelId" }
+    fun addGaArea(chartId: UUID, request: GaAreaRequest): GaAreaResponse {
+        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
 
-        val level = levelRepository.findById(levelId)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found with ID: $levelId") }
+        val ga = GeneralAdmissionArea(
+            zone = zone,
+            name = request.name,
+            code = request.code,
+            capacity = request.capacity,
+            boundaryPath = request.boundaryPath,
+            displayColor = request.displayColor
+        )
 
-        // Update parent if specified
-        if (request.parentLevelId != null) {
-            val parentLevel = levelRepository.findById(request.parentLevelId)
-                .orElseThrow { VenuesException.ResourceNotFound("Parent level not found with ID: ${request.parentLevelId}") }
-            level.parentLevel = parentLevel
-        } else {
-            // Allow setting parent to null
-            level.parentLevel = null
-        }
-
-        level.levelName = request.levelName
-        level.levelIdentifier = request.levelIdentifier
-        level.positionX = request.positionX
-        level.positionY = request.positionY
-        level.capacity = request.capacity
-
-        val savedLevel = levelRepository.save(level)
-        logger.info { "Level updated successfully: $levelId" }
-
-        return seatingMapper.toLevelResponse(savedLevel)
+        val saved = gaAreaRepository.save(ga)
+        return seatingMapper.toGaAreaResponse(saved)
     }
 
-    /**
-     * Delete level.
-     */
-    fun deleteLevel(levelId: Long) {
-        logger.debug { "Deleting level: $levelId" }
-
-        val level = levelRepository.findById(levelId)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found with ID: $levelId") }
-
-        levelRepository.delete(level)
-        logger.info { "Level deleted successfully: $levelId" }
-    }
-
-    // ===========================================
-    // SEAT OPERATIONS
-    // ===========================================
-
-    /**
-     * Add seat to level.
-     */
     fun addSeat(chartId: UUID, request: SeatRequest): SeatResponse {
-        logger.debug { "Adding seat to level: ${request.levelId}" }
+        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
 
-        // Verify chart exists
-        seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
-
-        val level = levelRepository.findById(request.levelId)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found with ID: ${request.levelId}") }
-
-        // Check for duplicate seat identifier
-        if (seatRepository.existsByLevelIdAndSeatIdentifier(request.levelId, request.seatIdentifier)) {
-            throw VenuesException.ResourceConflict("Seat with identifier '${request.seatIdentifier}' already exists in this level")
+        val table = request.tableId?.let {
+            chartTableRepository.findById(it).orElseThrow { VenuesException.ResourceNotFound("Table not found: $it") }
         }
 
-        val seat = Seat(
-            level = level,
-            seatIdentifier = request.seatIdentifier,
-            seatNumber = request.seatNumber,
-            rowLabel = request.rowLabel,
-            positionX = request.positionX,
-            positionY = request.positionY
+        if (table != null && table.zone.id != zone.id) {
+            throw VenuesException.ResourceConflict("Table must belong to same zone as seat")
+        }
+
+        val seat = ChartSeat(
+            zone = zone,
+            row = request.rowLabel,
+            number = request.seatNumber,
+            x = request.x, y = request.y, category = request.categoryKey
         )
+        seat.rotation = request.rotation
+        seat.isAccessible = request.isAccessible
+        seat.isObstructedView = request.isObstructed
 
-        val savedSeat = seatRepository.save(seat)
+        if (table != null) table.attachSeat(seat)
 
-        logger.info { "Seat added successfully: ID=${savedSeat.id}, identifier=${savedSeat.seatIdentifier}" }
-
-        return seatingMapper.toSeatResponse(savedSeat)
-    }
-
-    /**
-     * Batch add seats to level.
-     */
-    fun addSeats(chartId: UUID, request: BatchSeatRequest): List<SeatResponse> {
-        logger.debug { "Batch adding ${request.seats.size} seats to level: ${request.levelId}" }
-
-        // Verify chart exists
-        seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seating chart not found with ID: $chartId") }
-
-        val level = levelRepository.findById(request.levelId)
-            .orElseThrow { VenuesException.ResourceNotFound("Level not found with ID: ${request.levelId}") }
-
-        val savedSeats = request.seats.map { item ->
-            // Check for duplicate
-            if (seatRepository.existsByLevelIdAndSeatIdentifier(request.levelId, item.seatIdentifier)) {
-                throw VenuesException.ResourceConflict("Seat with identifier '${item.seatIdentifier}' already exists")
-            }
-
-            val seat = Seat(
-                level = level,
-                seatIdentifier = item.seatIdentifier,
-                seatNumber = item.seatNumber,
-                rowLabel = item.rowLabel,
-                positionX = item.positionX,
-                positionY = item.positionY
-            )
-
-            seatRepository.save(seat)
+        if (chartSeatRepository.existsByZoneIdAndCode(zone.id!!, seat.code)) {
+            throw VenuesException.ResourceConflict("Seat code '${seat.code}' already exists in this zone")
         }
 
-        logger.info { "Batch added ${savedSeats.size} seats successfully" }
-
-        return savedSeats.map { seatingMapper.toSeatResponse(it) }
+        val saved = chartSeatRepository.save(seat)
+        return seatingMapper.toSeatResponse(saved)
     }
 
-    /**
-     * Get seat by identifier.
-     */
-    @Transactional(readOnly = true)
-    fun getSeatByIdentifier(levelId: Long, seatIdentifier: String): SeatResponse {
-        logger.debug { "Fetching seat: level=$levelId, identifier=$seatIdentifier" }
+    fun addSeatsBatch(chartId: UUID, request: BatchSeatRequest): List<SeatResponse> {
+        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
 
-        val seat = seatRepository.findByLevelIdAndSeatIdentifier(levelId, seatIdentifier)
-            ?: throw VenuesException.ResourceNotFound("Seat not found with identifier: $seatIdentifier")
+        val seats = request.seats.map { item ->
+            val s = ChartSeat(
+                zone = zone,
+                row = item.rowLabel,
+                number = item.seatNumber,
+                x = item.x, y = item.y, category = item.categoryKey
+            )
+            s.rotation = item.rotation
+            s
+        }
 
-        return seatingMapper.toSeatResponse(seat)
+        // Code uniqueness check inside batch
+        if (seats.map { it.code }.distinct().size != seats.size) {
+            throw VenuesException.ValidationFailure("Duplicate seat codes in batch")
+        }
+
+        val saved = chartSeatRepository.saveAll(seats)
+        return saved.map { seatingMapper.toSeatResponse(it) }
     }
 
-    /**
-     * Get seats for a level.
-     */
-    @Transactional(readOnly = true)
-    fun getSeatsByLevel(levelId: Long, pageable: Pageable): Page<SeatResponse> {
-        logger.debug { "Fetching seats for level: $levelId" }
-        return seatRepository.findByLevelId(levelId, pageable)
-            .map { seatingMapper.toSeatResponse(it) }
-    }
-
-    /**
-     * Delete seat.
-     */
     fun deleteSeat(seatId: Long) {
-        logger.debug { "Deleting seat: $seatId" }
+        if (!chartSeatRepository.existsById(seatId)) {
+            throw VenuesException.ResourceNotFound("Seat not found")
+        }
+        chartSeatRepository.deleteById(seatId)
+    }
 
-        val seat = seatRepository.findById(seatId)
-            .orElseThrow { VenuesException.ResourceNotFound("Seat not found with ID: $seatId") }
-
-        seatRepository.delete(seat)
-        logger.info { "Seat deleted successfully: $seatId" }
+    private fun findZoneAndVerifyChart(zoneId: Long, chartId: UUID): ChartZone {
+        val zone = chartZoneRepository.findById(zoneId)
+            .orElseThrow { VenuesException.ResourceNotFound("Zone not found: $zoneId") }
+        if (zone.chart.id != chartId) {
+            throw VenuesException.ResourceConflict("Zone belongs to a different chart")
+        }
+        return zone
     }
 }

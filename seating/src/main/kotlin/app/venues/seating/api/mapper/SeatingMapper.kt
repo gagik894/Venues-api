@@ -1,166 +1,170 @@
 package app.venues.seating.api.mapper
 
 import app.venues.seating.api.dto.*
-import app.venues.seating.domain.Level
-import app.venues.seating.domain.Seat
-import app.venues.seating.domain.SeatingChart
+import app.venues.seating.domain.*
 import org.springframework.stereotype.Component
 
-/**
- * Mapper for converting between Seating entities and DTOs.
- *
- * Follows clean architecture - mapper only converts data, does not fetch it.
- * All data fetching is done by the service layer before calling the mapper.
- */
 @Component
 class SeatingMapper {
-    /**
-     * Convert Level entity to LevelInfoDto.
-     * This DTO is used for the public SeatingApi interface.
-     * It correctly uses the entity's business logic methods.
-     */
-    fun toLevelInfoDto(level: Level): LevelInfoDto {
-        return LevelInfoDto(
-            id = level.id!!,
-            levelName = level.levelName,
-            levelIdentifier = level.levelIdentifier,
-            capacity = level.capacity,
-            isGeneralAdmission = level.isGeneralAdmission()
-        )
-    }
 
-    /**
-     * Convert Seat entity to SeatInfoDto.
-     * This DTO is used for the public SeatingApi interface.
-     * Assumes seat.level has been fetched by the service.
-     */
-    fun toSeatInfoDto(seat: Seat): SeatInfoDto {
+    // ==========================================
+    // Cross-Module Info Mappings (For SeatingApi)
+    // ==========================================
+
+    fun toSeatInfoDto(seat: ChartSeat): SeatInfoDto {
         return SeatInfoDto(
             id = seat.id!!,
-            seatIdentifier = seat.seatIdentifier,
+            code = seat.code,
             seatNumber = seat.seatNumber,
             rowLabel = seat.rowLabel,
-            levelId = seat.level.id!!,
-            levelName = seat.level.levelName
+            zoneId = seat.zone.id!!,
+            zoneName = seat.zone.name,
+            categoryKey = seat.categoryKey
         )
     }
 
-    /**
-     * Convert SeatingChart entity to SeatingChartResponse DTO.
-     * Service layer must provide all pre-fetched data.
-     *
-     * @param chart SeatingChart entity
-     * @param levels Pre-fetched levels for this chart
-     * @param seats Pre-fetched seats for this chart
-     * @param venueName Venue name (optional, fetched via VenueApi)
-     */
+    fun toTableInfoDto(table: ChartTable): TableInfoDto {
+        return TableInfoDto(
+            id = table.id!!,
+            code = table.code,
+            tableNumber = table.tableNumber,
+            seatCapacity = table.seatCapacity,
+            zoneId = table.zone.id!!,
+            zoneName = table.zone.name
+        )
+    }
+
+    fun toSectionInfoDto(zone: ChartZone): SectionInfoDto {
+        return SectionInfoDto(
+            id = zone.id!!,
+            code = zone.code,
+            name = zone.name
+        )
+    }
+
+    fun toGaInfoDto(ga: GeneralAdmissionArea): GaInfoDto {
+        return GaInfoDto(
+            id = ga.id!!,
+            code = ga.code,
+            name = ga.name,
+            capacity = ga.capacity,
+            zoneId = ga.zone.id!!
+        )
+    }
+
+    // ==========================================
+    // Response Mappings (For Controllers)
+    // ==========================================
+
     fun toResponse(
         chart: SeatingChart,
-        levels: List<Level>,
-        seats: List<Seat>,
-        venueName: String? = null
+        venueName: String,
+        seatCount: Int,
+        gaCapacity: Int,
+        zoneCount: Int
     ): SeatingChartResponse {
-        val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
-        val seatedCapacity = seats.size
-        val totalCapacity = gaCapacity + seatedCapacity
-
         return SeatingChartResponse(
-            id = chart.id!!,
+            id = chart.id,
             venueId = chart.venueId,
-            venueName = venueName ?: "Unknown",
+            venueName = venueName,
             name = chart.name,
-            seatIndicatorSize = chart.seatIndicatorSize,
-            levelIndicatorSize = chart.levelIndicatorSize,
+            width = chart.width,
+            height = chart.height,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = totalCapacity,
-            levelCount = levels.size,
-            seatCount = seats.size,
+            totalCapacity = seatCount + gaCapacity,
+            zoneCount = zoneCount,
+            seatCount = seatCount,
             createdAt = chart.createdAt.toString(),
-            lastModifiedAt = chart.lastModifiedAt.toString()
+            updatedAt = chart.updatedAt.toString()
         )
     }
 
-    /**
-     * Convert SeatingChart entity to detailed response with levels.
-     * Service layer must provide all pre-fetched data.
-     *
-     * @param chart SeatingChart entity
-     * @param levels Pre-fetched levels for this chart
-     * @param seats Pre-fetched seats for this chart
-     * @param venueName Venue name (optional, fetched via VenueApi)
-     */
     fun toDetailedResponse(
         chart: SeatingChart,
-        levels: List<Level>,
-        seats: List<Seat>,
-        venueName: String? = null
+        venueName: String,
+        allZones: List<ChartZone>
     ): SeatingChartDetailedResponse {
-        // Get top-level sections (no parent)
-        val topLevels = levels
-            .filter { it.parentLevel == null }
-            .sortedBy { it.levelName }
-            .map { toLevelResponse(it, includeChildren = true) }
-
-        val gaCapacity = levels.filter { it.isGeneralAdmission() }.sumOf { it.capacity ?: 0 }
-        val seatedCapacity = seats.size
-        val totalCapacity = gaCapacity + seatedCapacity
+        val rootZones = allZones
+            .filter { it.parentZone == null }
+            .sortedBy { it.name }
+            .map { toZoneResponse(it) }
 
         return SeatingChartDetailedResponse(
-            id = chart.id!!,
+            id = chart.id,
             venueId = chart.venueId,
-            venueName = venueName ?: "Unknown",
             name = chart.name,
-            seatIndicatorSize = chart.seatIndicatorSize,
-            levelIndicatorSize = chart.levelIndicatorSize,
+            width = chart.width,
+            height = chart.height,
             backgroundUrl = chart.backgroundUrl,
-            totalCapacity = totalCapacity,
-            levels = topLevels,
+            rootZones = rootZones,
             createdAt = chart.createdAt.toString(),
-            lastModifiedAt = chart.lastModifiedAt.toString()
+            updatedAt = chart.updatedAt.toString()
         )
     }
 
-    /**
-     * Convert Level entity to LevelResponse DTO.
-     */
-    fun toLevelResponse(level: Level, includeChildren: Boolean = false): LevelResponse {
-        val childLevels = if (includeChildren) {
-            level.childLevels.sortedBy { it.levelName }.map { toLevelResponse(it, includeChildren = true) }
-        } else {
-            null
-        }
-
-        return LevelResponse(
-            id = level.id!!,
-            parentLevelId = level.parentLevel?.id,
-            levelName = level.levelName,
-            levelIdentifier = level.levelIdentifier,
-            positionX = level.positionX,
-            positionY = level.positionY,
-            capacity = level.capacity,
-            isGeneralAdmission = level.isGeneralAdmission(),
-            isSeatedSection = level.isSeatedSection(),
-            seatCount = level.seats.size,
-            childLevels = childLevels,
-            createdAt = level.createdAt.toString()
+    fun toZoneResponse(zone: ChartZone): ZoneResponse {
+        return ZoneResponse(
+            id = zone.id!!,
+            parentZoneId = zone.parentZone?.id,
+            name = zone.name,
+            code = zone.code,
+            x = zone.x,
+            y = zone.y,
+            rotation = zone.rotation,
+            boundaryPath = zone.boundaryPath,
+            displayColor = zone.displayColor,
+            seatCount = zone.seats.size,
+            tableCount = zone.tables.size,
+            gaCount = zone.generalAdmissionAreas.size,
+            childZones = zone.childZones.map { toZoneResponse(it) },
+            seats = zone.seats.map { toSeatResponse(it) },
+            tables = zone.tables.map { toTableResponse(it) },
+            gaAreas = zone.generalAdmissionAreas.map { toGaAreaResponse(it) }
         )
     }
 
-    /**
-     * Convert Seat entity to SeatResponse DTO.
-     */
-    fun toSeatResponse(seat: Seat): SeatResponse {
+    fun toSeatResponse(seat: ChartSeat): SeatResponse {
         return SeatResponse(
             id = seat.id!!,
-            levelId = seat.level.id!!,
-            levelName = seat.level.levelName,
-            seatIdentifier = seat.seatIdentifier,
-            seatNumber = seat.seatNumber,
+            zoneId = seat.zone.id!!,
+            tableId = seat.table?.id,
+            code = seat.code,
             rowLabel = seat.rowLabel,
-            positionX = seat.positionX,
-            positionY = seat.positionY,
-            fullDisplayName = seat.getFullDisplayName(),
-            createdAt = seat.createdAt.toString()
+            seatNumber = seat.seatNumber,
+            categoryKey = seat.categoryKey,
+            x = seat.x,
+            y = seat.y,
+            rotation = seat.rotation,
+            isAccessible = seat.isAccessible,
+            isObstructed = seat.isObstructedView
+        )
+    }
+
+    fun toTableResponse(table: ChartTable): TableResponse {
+        return TableResponse(
+            id = table.id!!,
+            zoneId = table.zone.id!!,
+            code = table.code,
+            tableNumber = table.tableNumber,
+            seatCapacity = table.seatCapacity,
+            shape = table.shape.name,
+            x = table.x,
+            y = table.y,
+            width = table.width,
+            height = table.height,
+            rotation = table.rotation
+        )
+    }
+
+    fun toGaAreaResponse(ga: GeneralAdmissionArea): GaAreaResponse {
+        return GaAreaResponse(
+            id = ga.id!!,
+            zoneId = ga.zone.id!!,
+            code = ga.code,
+            name = ga.name,
+            capacity = ga.capacity,
+            boundaryPath = ga.boundaryPath,
+            displayColor = ga.displayColor
         )
     }
 }

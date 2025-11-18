@@ -217,18 +217,23 @@ class BookingService(
 
         // Prepare items data using SeatingApi (Hexagonal Architecture)
         val itemsData = booking.items.map { item ->
-            val seatIdentifier = item.seatId?.let {
-                seatingApi.getSeatInfo(it)?.seatIdentifier
+            val seatId = item.seatId
+            val levelId = item.levelId
+
+            val seatIdentifier = seatId?.let {
+                seatingApi.getSeatInfo(it)?.code
             }
-            val levelName = item.levelId?.let {
-                seatingApi.getLevelInfo(it)?.levelName
+            val levelName = when {
+                seatId != null -> seatingApi.getSeatInfo(seatId)?.zoneName
+                levelId != null -> seatingApi.getGaInfo(levelId)?.name
+                else -> null
             }
 
             BookingItemData(
-                id = item.id!!,
-                seatId = item.seatId,
+                id = item.id ?: error("Booking item ID cannot be null"),
+                seatId = seatId,
                 seatIdentifier = seatIdentifier,
-                levelId = item.levelId,
+                levelId = levelId,
                 levelName = levelName,
                 quantity = item.quantity,
                 unitPrice = item.unitPrice.toString(),
@@ -237,7 +242,7 @@ class BookingService(
             )
         }
 
-        val venueName = venueApi.getVenueName(event.venueId) ?: "Unknown"
+        val venueName = venueApi.getVenueName(event.venueId)
 
         return bookingMapper.toResponse(
             booking = booking,

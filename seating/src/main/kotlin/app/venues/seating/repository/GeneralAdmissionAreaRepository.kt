@@ -13,6 +13,11 @@ import java.util.*
 interface GeneralAdmissionAreaRepository : JpaRepository<GeneralAdmissionArea, Long> {
 
     /**
+     * Find GA area by business code.
+     */
+    fun findByCode(code: String): GeneralAdmissionArea?
+
+    /**
      * Find GA areas by zone.
      */
     fun findByZoneId(zoneId: Long): List<GeneralAdmissionArea>

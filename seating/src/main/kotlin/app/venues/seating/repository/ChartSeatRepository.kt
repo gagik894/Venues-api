@@ -21,6 +21,11 @@ interface ChartSeatRepository : JpaRepository<ChartSeat, Long> {
     fun findByZoneId(zoneId: Long, pageable: Pageable): Page<ChartSeat>
 
     /**
+     * Find seats by table ID.
+     */
+    fun findByTableId(tableId: Long): List<ChartSeat>
+
+    /**
      * Optimized batch fetch.
      */
     fun findByZoneIdIn(zoneIds: List<Long>): List<ChartSeat>

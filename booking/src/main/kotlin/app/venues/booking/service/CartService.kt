@@ -87,9 +87,9 @@ class CartService(
         // Validate session exists
         validateSessionExists(request.sessionId)
 
-        // Fetch seat information
-        val seatInfo = seatingApi.getSeatInfoByIdentifier(request.seatIdentifier)
-            ?: throw VenuesException.ValidationFailure("Seat not found with identifier: ${request.seatIdentifier}")
+        // Fetch seat information by code (seat identifier is the seat code)
+        val seatInfo = seatingApi.getSeatInfoByCode(request.seatIdentifier)
+            ?: throw VenuesException.ValidationFailure("Seat not found with code: ${request.seatIdentifier}")
 
         // Get or create cart session
         val cart = getOrCreateCartForSession(token, request.sessionId)
@@ -142,19 +142,15 @@ class CartService(
         // Validate session exists
         validateSessionExists(request.sessionId)
 
-        // Fetch level information
-        val levelInfo = seatingApi.getLevelInfoByIdentifier(request.levelIdentifier)
-            ?: throw VenuesException.ValidationFailure("Level not found with identifier: ${request.levelIdentifier}")
-
-        if (!levelInfo.isGeneralAdmission) {
-            throw VenuesException.ValidationFailure("Level is not general admission")
-        }
+        // Fetch GA area information by code
+        val gaInfo = seatingApi.getGaInfoByCode(request.levelIdentifier)
+            ?: throw VenuesException.ValidationFailure("GA area not found with code: ${request.levelIdentifier}")
 
         // Get or create cart session
         val cart = getOrCreateCartForSession(token, request.sessionId)
 
-        // Check for existing GA item for this level
-        val existingItem = cartItemPersistence.findExistingGAItem(cart, levelInfo.id)
+        // Check for existing GA item for this area
+        val existingItem = cartItemPersistence.findExistingGAItem(cart, gaInfo.id)
 
         // Validate quantity limits
         cartLimitValidator.validateAddGALimit(
@@ -166,7 +162,7 @@ class CartService(
         // Atomic reservation with price snapshot (only for new tickets)
         val reservation = inventoryReservation.reserveGATickets(
             request.sessionId,
-            levelInfo.id,
+            gaInfo.id,
             request.quantity
         )
 
@@ -174,21 +170,21 @@ class CartService(
         val (savedItem, isUpdate) = cartItemPersistence.saveOrUpdateGAItem(
             cart = cart,
             sessionId = request.sessionId,
-            levelId = levelInfo.id,
-            levelIdentifier = levelInfo.levelIdentifier ?: "",
-            levelName = levelInfo.levelName,
+            levelId = gaInfo.id,
+            levelIdentifier = gaInfo.code,
+            levelName = gaInfo.name,
             quantityToAdd = request.quantity,
             unitPrice = reservation.unitPrice,
             existingItem = existingItem
         )
 
         val message = if (isUpdate) {
-            "Cart updated: ${request.quantity} ticket(s) added. Total for ${levelInfo.levelName}: ${savedItem.quantity}"
+            "Cart updated: ${request.quantity} ticket(s) added. Total for ${gaInfo.name}: ${savedItem.quantity}"
         } else {
             "GA tickets added to cart successfully"
         }
 
-        logger.info { "GA tickets added to cart: ${levelInfo.levelName}, quantity=${savedItem.quantity}, token=${cart.token}" }
+        logger.info { "GA tickets added to cart: ${gaInfo.name}, quantity=${savedItem.quantity}, token=${cart.token}" }
 
         return buildSuccessResponse(cart, message)
     }
@@ -244,23 +240,20 @@ class CartService(
     override fun removeSeatFromCart(token: UUID, seatIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
-        // 1. Get info from external API ONCE
-        val seatInfo = seatingApi.getSeatInfoByIdentifier(seatIdentifier)
-            ?: throw VenuesException.ResourceNotFound("Seat not found with identifier: $seatIdentifier")
+        // Get seat info from seating API
+        val seatInfo = seatingApi.getSeatInfoByCode(seatIdentifier)
+            ?: throw VenuesException.ResourceNotFound("Seat not found with code: $seatIdentifier")
 
-        val levelInfo = seatingApi.getLevelInfo(seatInfo.levelId)
-            ?: throw VenuesException.ResourceNotFound("Level not found for seat")
-
-        // 2. Remove from cart (passing info to avoid second API call)
+        // Remove from cart
         cartItemPersistence.removeSeat(
             cart = cart,
             seatId = seatInfo.id,
             sessionId = cart.sessionId,
-            seatIdentifier = seatInfo.seatIdentifier, // Pass info
-            levelName = levelInfo.levelName           // Pass info
+            seatIdentifier = seatInfo.code,
+            levelName = seatInfo.zoneName
         )
 
-        // 3. Release inventory
+        // Release inventory
         inventoryReservation.releaseSeat(cart.sessionId, seatInfo.id)
     }
 
@@ -283,10 +276,10 @@ class CartService(
 
         val cart = cartSessionManager.getActiveCart(token)
 
-        val levelInfo = seatingApi.getLevelInfoByIdentifier(levelIdentifier)
-            ?: throw VenuesException.ResourceNotFound("Level not found: $levelIdentifier")
+        val gaInfo = seatingApi.getGaInfoByCode(levelIdentifier)
+            ?: throw VenuesException.ResourceNotFound("GA area not found: $levelIdentifier")
 
-        val existingItem = cartItemPersistence.findExistingGAItem(cart, levelInfo.id)
+        val existingItem = cartItemPersistence.findExistingGAItem(cart, gaInfo.id)
             ?: throw VenuesException.ResourceNotFound("GA item not found in cart")
 
         // Calculate the *change* in quantity
@@ -304,7 +297,7 @@ class CartService(
         // Atomically adjust inventory reservation
         inventoryReservation.adjustGATickets(
             sessionId = cart.sessionId,
-            levelId = levelInfo.id,
+            levelId = gaInfo.id,
             newQuantity = newQuantity,
             oldQuantity = existingItem.quantity
         )
@@ -313,8 +306,8 @@ class CartService(
         cartItemPersistence.updateGAItemQuantity(
             item = existingItem,
             newQuantity = newQuantity,
-            levelIdentifier = levelInfo.levelIdentifier ?: "",
-            levelName = levelInfo.levelName
+            levelIdentifier = gaInfo.code,
+            levelName = gaInfo.name
         )
 
         logger.info { "GA quantity updated in cart ${cart.token}: level=$levelIdentifier, new_qty=$newQuantity" }
@@ -327,10 +320,10 @@ class CartService(
     override fun removeGAFromCart(token: UUID, levelIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
-        val levelInfo = seatingApi.getLevelInfoByIdentifier(levelIdentifier)
-            ?: throw VenuesException.ResourceNotFound("Level not found: $levelIdentifier")
+        val gaInfo = seatingApi.getGaInfoByCode(levelIdentifier)
+            ?: throw VenuesException.ResourceNotFound("GA area not found: $levelIdentifier")
 
-        val existingItem = cartItemPersistence.findExistingGAItem(cart, levelInfo.id)
+        val existingItem = cartItemPersistence.findExistingGAItem(cart, gaInfo.id)
             ?: throw VenuesException.ResourceNotFound("GA item not found in cart")
 
         val quantityToRelease = existingItem.quantity
@@ -338,12 +331,12 @@ class CartService(
         // Remove from persistence
         cartItemPersistence.removeGAItem(
             item = existingItem,
-            levelIdentifier = levelInfo.levelIdentifier ?: "",
-            levelName = levelInfo.levelName
+            levelIdentifier = gaInfo.code,
+            levelName = gaInfo.name
         )
 
         // Release inventory
-        inventoryReservation.releaseGATickets(cart.sessionId, levelInfo.id, quantityToRelease)
+        inventoryReservation.releaseGATickets(cart.sessionId, gaInfo.id, quantityToRelease)
 
         logger.info { "GA item removed from cart ${cart.token}: level=$levelIdentifier, qty_released=$quantityToRelease" }
     }
@@ -355,16 +348,16 @@ class CartService(
     override fun removeTableFromCart(token: UUID, tableIdentifier: String) {
         val cart = cartSessionManager.getActiveCart(token)
 
-        // 1. Get table info to find its ID
-        val tableInfo = seatingApi.getLevelInfoByIdentifier(tableIdentifier)
+        // Get table info by code
+        val tableInfo = seatingApi.getTableInfoByCode(tableIdentifier)
             ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
         val tableId = tableInfo.id
 
-        // 2. Release table (unblocks seats)
+        // Release table (unblocks seats)
         tableReservationService.releaseTable(cart.sessionId, tableId)
 
-        // 3. Remove from cart persistence
+        // Remove from cart persistence
         cartTablePersistence.removeTableFromCart(cart, tableId)
 
         logger.info { "Table $tableIdentifier (ID: $tableId) removed from cart $token" }

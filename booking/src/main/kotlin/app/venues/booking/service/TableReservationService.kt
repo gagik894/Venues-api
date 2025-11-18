@@ -49,54 +49,54 @@ class TableReservationService(
     fun reserveTable(cart: Cart, sessionId: UUID, tableIdentifier: String): TableReservationResult {
         logger.debug { "Reserving table $tableIdentifier for session $sessionId" }
 
-        // Get table level info (Table is a type of level)
-        val tableInfo = seatingApi.getLevelInfoByIdentifier(tableIdentifier)
+        // Get table info by code
+        val tableInfo = seatingApi.getTableInfoByCode(tableIdentifier)
             ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
         val tableId = tableInfo.id
         val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
             ?: throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' is not configured for this session."
+                "Table '${tableInfo.tableNumber}' is not configured for this session."
             )
 
-        // Get the *actual* seats for this table (THIS IS THE SOURCE OF TRUTH)
-        val seats = seatingApi.getSeatsForLevel(tableId)
+        // Get the seats for this table
+        val seats = seatingApi.getSeatsForTable(tableId)
         val seatCount = seats.size
 
-        // Validate the seat count.
+        // Validate the seat count
         if (seatCount <= 0) {
             throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' (ID: $tableId) has no seats assigned and cannot be booked."
+                "Table '${tableInfo.tableNumber}' (ID: $tableId) has no seats assigned and cannot be booked."
             )
         }
 
-        // Validate table booking mode using the "smart" DTO field
+        // Validate table booking mode
         if (tableConfig.bookingMode == TableBookingMode.SEATS_ONLY) {
             throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' is configured for SEATS_ONLY booking in this session."
+                "Table '${tableInfo.tableNumber}' is configured for SEATS_ONLY booking in this session."
             )
         }
 
         // Check if table already in cart
         if (cartTableRepository.existsByCartAndTableId(cart, tableId)) {
-            throw VenuesException.ResourceConflict("Table '${tableInfo.levelName}' is already in your cart")
+            throw VenuesException.ResourceConflict("Table '${tableInfo.tableNumber}' is already in your cart")
         }
 
         // Get table price
         val price = sessionTableConfigRepository.getTablePriceIfAvailable(sessionId, tableId)
             ?: throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.levelName}' is not available or not priced"
+                "Table '${tableInfo.tableNumber}' is not available or not priced"
             )
 
         // Atomically reserve the table
         val rowsAffected = sessionTableConfigRepository.reserveTableIfAvailable(sessionId, tableId)
         if (rowsAffected == 0) {
             throw VenuesException.ResourceConflict(
-                "Table '${tableInfo.levelName}' is not available for reservation"
+                "Table '${tableInfo.tableNumber}' is not available for reservation"
             )
         }
 
-        // Block all individual seats (pass the list to avoid a 2nd API call)
+        // Block all individual seats
         blockAllSeatsInTable(sessionId, tableId, seats)
 
         // Publish table reserved event
@@ -104,16 +104,15 @@ class TableReservationService(
             TableReservedEvent(
                 sessionId = sessionId,
                 tableId = tableId,
-                tableName = tableInfo.levelName
+                tableName = tableInfo.tableNumber
             )
         )
 
         logger.info { "Table reserved successfully: tableId=$tableId, sessionId=$sessionId" }
 
-        //Return the correct seatCount
         return TableReservationResult(
             tableId = tableId,
-            tableName = tableInfo.levelName,
+            tableName = tableInfo.tableNumber,
             seatCount = seatCount,
             price = price
         )
@@ -130,10 +129,8 @@ class TableReservationService(
             ?: return
 
         // Only release if it's RESERVED
-        // A SOLD table should not be released by this flow.
         if (tableConfig.status != ConfigStatus.RESERVED) {
             logger.warn { "Attempted to release table $tableId with status ${tableConfig.status}" }
-            // If it's already AVAILABLE, still try to unblock seats
             if (tableConfig.status != ConfigStatus.AVAILABLE) return
         }
 
@@ -141,17 +138,19 @@ class TableReservationService(
         tableConfig.release()
         sessionTableConfigRepository.save(tableConfig)
 
-        val tableInfo = seatingApi.getLevelInfo(tableId)
 
         if (tableConfig.bookingMode != TableBookingMode.TABLE_ONLY) {
             unblockAllSeatsInTable(sessionId, tableId)
         }
 
+        // Get table info for event
+        val tableInfo = seatingApi.getTableInfo(tableId)
+
         eventPublisher.publishEvent(
             TableReleasedEvent(
                 sessionId = sessionId,
                 tableId = tableId,
-                tableName = tableInfo?.levelName ?: "Table $tableId"
+                tableName = tableInfo?.tableNumber ?: "Table $tableId"
             )
         )
 
@@ -183,10 +182,9 @@ class TableReservationService(
 
     /**
      * Unblock all seats in a table atomically (set to AVAILABLE status).
-     * This version fetches the seats itself, as it's called from `releaseTable`.
      */
     private fun unblockAllSeatsInTable(sessionId: UUID, tableId: Long) {
-        val seats = seatingApi.getSeatsForLevel(tableId)
+        val seats = seatingApi.getSeatsForTable(tableId)
         if (seats.isEmpty()) {
             return
         }

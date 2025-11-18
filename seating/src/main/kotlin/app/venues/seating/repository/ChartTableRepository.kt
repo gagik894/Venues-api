@@ -6,10 +6,25 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.util.*
 
+/**
+ * Repository for table operations.
+ */
 @Repository
 interface ChartTableRepository : JpaRepository<ChartTable, Long> {
+
+    /**
+     * Find table by business code.
+     */
+    fun findByCode(code: String): ChartTable?
+
+    /**
+     * Find tables by zone.
+     */
     fun findByZoneId(zoneId: Long): List<ChartTable>
 
+    /**
+     * Find all tables in a chart.
+     */
     @Query("SELECT t FROM ChartTable t WHERE t.zone.chart.id = :chartId")
     fun findByChartId(chartId: UUID): List<ChartTable>
 }

@@ -114,6 +114,10 @@ class InventoryReservationHandler(
         logger.info { "Adjusted GA tickets for level $levelId by $quantityDelta (new total: $newQuantity)" }
     }
 
+    /**
+     * Release a seat reservation.
+     * Unblocks tables if all their seats become available.
+     */
     fun releaseSeat(sessionId: UUID, seatId: Long) {
         sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
             ?.let { config ->
@@ -125,19 +129,21 @@ class InventoryReservationHandler(
 
                 // Publish seat released event
                 val seatInfo = seatingApi.getSeatInfo(seatId)
-                val levelInfo = seatInfo?.let { seatingApi.getLevelInfo(it.levelId) }
 
-                if (seatInfo != null && levelInfo != null) {
+                if (seatInfo != null) {
                     eventPublisher.publishEvent(
                         SeatReleasedEvent(
                             sessionId = sessionId,
-                            seatIdentifier = seatInfo.seatIdentifier,
+                            seatIdentifier = seatInfo.code,
                         )
                     )
                 }
             }
     }
 
+    /**
+     * Release GA tickets back to inventory.
+     */
     fun releaseGATickets(sessionId: UUID, levelId: Long, quantity: Int) {
         sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, levelId)
             ?.let { config ->
@@ -145,16 +151,16 @@ class InventoryReservationHandler(
                 sessionLevelConfigRepository.save(config)
 
                 // Publish GA availability changed event
-                val levelInfo = seatingApi.getLevelInfo(levelId)
-                if (levelInfo != null) {
+                val gaInfo = seatingApi.getGaInfo(levelId)
+                if (gaInfo != null) {
                     val capacity = config.capacity ?: 0
                     val availableTickets = capacity - config.soldCount
 
                     eventPublisher.publishEvent(
                         GAAvailabilityChangedEvent(
                             sessionId = sessionId,
-                            levelIdentifier = levelInfo.levelIdentifier ?: "",
-                            levelName = levelInfo.levelName,
+                            levelIdentifier = gaInfo.code,
+                            levelName = gaInfo.name,
                             availableTickets = availableTickets,
                             totalCapacity = capacity
                         )
@@ -171,12 +177,12 @@ class InventoryReservationHandler(
      * If this fails, seat reservation will be rolled back.
      */
     private fun blockTablesContainingSeat(sessionId: UUID, seatId: Long) {
-        val tables = seatingApi.getTablesForSeat(seatId)
-        tables.forEach { tableInfo ->
-            val blockedRows = sessionTableConfigRepository.blockTable(sessionId, tableInfo.id)
-            if (blockedRows > 0) {
-                logger.debug { "Blocked table ${tableInfo.levelName} (ID: ${tableInfo.id}) due to seat $seatId reservation" }
-            }
+        // Get the table that contains this seat (if any)
+        val tableInfo = seatingApi.getTableForSeat(seatId) ?: return
+
+        val blockedRows = sessionTableConfigRepository.blockTable(sessionId, tableInfo.id)
+        if (blockedRows > 0) {
+            logger.debug { "Blocked table ${tableInfo.tableNumber} (ID: ${tableInfo.id}) due to seat $seatId reservation" }
         }
     }
 
@@ -188,26 +194,24 @@ class InventoryReservationHandler(
      * If this fails, seat release will be rolled back.
      */
     private fun unblockTablesIfAllSeatsAvailable(sessionId: UUID, seatId: Long) {
-        // 1. Find which tables this seat belongs to
-        val tables = seatingApi.getTablesForSeat(seatId)
+        // 1. Find which table this seat belongs to (if any)
+        val tableInfo = seatingApi.getTableForSeat(seatId) ?: return
 
-        tables.forEach { tableInfo ->
-            // 2. Get all seats for this table from seating API
-            val tableSeats = seatingApi.getSeatsForLevel(tableInfo.id)
-            if (tableSeats.isEmpty()) return@forEach
+        // 2. Get all seats for this table from seating API
+        val tableSeats = seatingApi.getSeatsForTable(tableInfo.id)
+        if (tableSeats.isEmpty()) return
 
-            val tableSeatIds = tableSeats.map { it.id }
+        val tableSeatIds = tableSeats.map { it.id }
 
-            // 3. Call the single, atomic repository method to check and update
-            val unblockedRows = sessionTableConfigRepository.unblockTableIfAllSeatsAreAvailable(
-                sessionId,
-                tableInfo.id,
-                tableSeatIds
-            )
+        // 3. Call the single, atomic repository method to check and update
+        val unblockedRows = sessionTableConfigRepository.unblockTableIfAllSeatsAreAvailable(
+            sessionId,
+            tableInfo.id,
+            tableSeatIds
+        )
 
-            if (unblockedRows > 0) {
-                logger.debug { "Unblocked table ${tableInfo.levelName} (ID: ${tableInfo.id}) - all seats available" }
-            }
+        if (unblockedRows > 0) {
+            logger.debug { "Unblocked table ${tableInfo.tableNumber} (ID: ${tableInfo.id}) - all seats available" }
         }
     }
 }

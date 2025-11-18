@@ -72,30 +72,35 @@ class CartQueryService(
         val levelConfigs = sessionLevelConfigRepository.findBySessionIdAndLevelIdIn(cart.sessionId, gaLevelIds)
             .associateBy { it.levelId }
 
+        // Batch fetch seat info from seating API
         val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
 
-        val allLevelIds = (
-                seatInfoMap.values.map { it.levelId } + gaLevelIds + tableIds
-                ).distinct()
-        val levelInfoMap = seatingApi.getLevelInfoBatch(allLevelIds).associateBy { it.id }
+        // Batch fetch GA info - we need to fetch each GA area individually since no batch method exists
+        val gaInfoMap = gaLevelIds.mapNotNull { gaId ->
+            seatingApi.getGaInfo(gaId)?.let { gaId to it }
+        }.toMap()
+
+        // Batch fetch table info
+        val tableInfoMap = tableIds.mapNotNull { tableId ->
+            seatingApi.getTableInfo(tableId)?.let { tableId to it }
+        }.toMap()
 
         // 4. Map results in memory (no more calls inside loops)
         val seatResponses = seats.mapNotNull { cartSeat ->
             val config = seatConfigs[cartSeat.seatId]
             val seatInfo = seatInfoMap[cartSeat.seatId]
-            val levelInfo = seatInfo?.let { levelInfoMap[it.levelId] }
 
-            if (config == null || seatInfo == null || levelInfo == null) {
+            if (config == null || seatInfo == null) {
                 logger.warn { "Missing data for cart seat: ${cartSeat.seatId}" }
                 null // Skip item if data is inconsistent
             } else {
                 cartMapper.toCartSeatResponse(
                     cartSeat = cartSeat,
-                    seatIdentifier = seatInfo.seatIdentifier,
+                    seatIdentifier = seatInfo.code,
                     seatNumber = seatInfo.seatNumber,
                     rowLabel = seatInfo.rowLabel,
-                    levelName = levelInfo.levelName,
-                    levelIdentifier = levelInfo.levelIdentifier,
+                    levelName = seatInfo.zoneName,
+                    levelIdentifier = seatInfo.code.substringBefore("_"),
                     price = cartSeat.unitPrice,
                     priceTemplateName = config.priceTemplate?.templateName
                 )
@@ -104,16 +109,16 @@ class CartQueryService(
 
         val gaItemResponses = gaItems.mapNotNull { cartItem ->
             val config = levelConfigs[cartItem.levelId]
-            val levelInfo = levelInfoMap[cartItem.levelId]
+            val gaInfo = gaInfoMap[cartItem.levelId]
 
-            if (config == null || levelInfo == null) {
+            if (config == null || gaInfo == null) {
                 logger.warn { "Missing data for cart GA item: ${cartItem.levelId}" }
                 null
             } else {
                 cartMapper.toCartGAItemResponse(
                     cartItem = cartItem,
-                    levelIdentifier = levelInfo.levelIdentifier,
-                    levelName = levelInfo.levelName,
+                    levelIdentifier = gaInfo.code,
+                    levelName = gaInfo.name,
                     unitPrice = cartItem.unitPrice,
                     priceTemplateName = config.priceTemplate?.templateName
                 )
@@ -121,14 +126,14 @@ class CartQueryService(
         }
 
         val tableResponses = tables.mapNotNull { cartTable ->
-            val levelInfo = levelInfoMap[cartTable.tableId] // Table is a level
-            if (levelInfo == null) {
+            val tableInfo = tableInfoMap[cartTable.tableId]
+            if (tableInfo == null) {
                 logger.warn { "Missing data for cart table item: ${cartTable.tableId}" }
                 null
             } else {
                 cartMapper.toCartTableResponse(
                     cartTable = cartTable,
-                    tableName = levelInfo.levelName,
+                    tableName = tableInfo.tableNumber,
                     price = cartTable.unitPrice
                 )
             }

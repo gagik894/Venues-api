@@ -201,6 +201,17 @@ class SeatingPortService(
         )
     }
 
+    override fun getGaInfoByCode(code: String): GaInfoDto? {
+        val ga = gaAreaRepository.findByCode(code) ?: return null
+        return GaInfoDto(
+            id = ga.id ?: error("GA Area ID cannot be null"),
+            code = ga.code,
+            name = ga.name,
+            capacity = ga.capacity,
+            zoneId = ga.zone.id ?: error("Zone ID cannot be null")
+        )
+    }
+
     override fun getTableForSeat(seatId: Long): TableInfoDto? {
         val seat = chartSeatRepository.findById(seatId).orElse(null) ?: return null
         val table = seat.table ?: return null
@@ -213,6 +224,33 @@ class SeatingPortService(
             zoneId = table.zone.id ?: error("Zone ID cannot be null"),
             zoneName = table.zone.name
         )
+    }
+
+    override fun getTableInfoByCode(code: String): TableInfoDto? {
+        val table = chartTableRepository.findByCode(code) ?: return null
+        return TableInfoDto(
+            id = table.id ?: error("Table ID cannot be null"),
+            code = table.code,
+            tableNumber = table.tableNumber,
+            seatCapacity = table.seatCapacity,
+            zoneId = table.zone.id ?: error("Zone ID cannot be null"),
+            zoneName = table.zone.name
+        )
+    }
+
+    override fun getSeatsForTable(tableId: Long): List<SeatInfoDto> {
+        val seats = chartSeatRepository.findByTableId(tableId)
+        return seats.map { seat ->
+            SeatInfoDto(
+                id = seat.id ?: error("Seat ID cannot be null"),
+                code = seat.code,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                zoneId = seat.zone.id ?: error("Zone ID cannot be null"),
+                zoneName = seat.zone.name,
+                categoryKey = seat.categoryKey
+            )
+        }
     }
 }
 

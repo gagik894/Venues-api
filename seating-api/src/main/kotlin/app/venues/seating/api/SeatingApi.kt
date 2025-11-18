@@ -85,9 +85,31 @@ interface SeatingApi {
     fun getGaInfo(gaId: Long): GaInfoDto?
 
     /**
+     * Get general admission area by business key (code).
+     * @param code GA area code (e.g., "PIT_A")
+     * @return GA info or null if not found
+     */
+    fun getGaInfoByCode(code: String): GaInfoDto?
+
+    /**
      * Get table that contains a specific seat.
      * Used by booking logic to handle whole-table pricing.
      * @return table info or null if seat has no table or seat not found
      */
     fun getTableForSeat(seatId: Long): TableInfoDto?
+
+    /**
+     * Get table information by business key (code).
+     * @param code Table code (e.g., "VIP_T12")
+     * @return table info or null if not found
+     */
+    fun getTableInfoByCode(code: String): TableInfoDto?
+
+    /**
+     * Get all seats for a specific table.
+     * Used by booking logic for table reservations.
+     * @param tableId The table ID
+     * @return list of seats in the table (empty if table has no seats)
+     */
+    fun getSeatsForTable(tableId: Long): List<SeatInfoDto>
 }

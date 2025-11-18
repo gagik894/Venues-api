@@ -6,12 +6,12 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * Represents a specific Seat selection within a [Cart].
+ * Represents an individual seat selection in a shopping cart.
  *
- * @param cart The parent Cart.
- * @param sessionId The EventSession UUID.
- * @param seatId The ID of the Seat.
- * @param unitPrice The snapshotted price.
+ * @property cart The parent cart
+ * @property sessionId Event session ID
+ * @property seatId Seat ID from seating module
+ * @property unitPrice Snapshotted price (captured at add-to-cart time)
  */
 @Entity
 @Table(

@@ -4,14 +4,17 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Configures a General Admission (GA) area for a specific EventSession.
- * GA areas are represented as zones in the seating module with capacity tracking.
- * High-volume child entity (uses AbstractLongEntity).
+ * Configures a General Admission (GA) area for a specific event session.
+ *
+ * GA areas are standing/general admission zones from the seating module
+ * with capacity tracking and sold count management.
+ *
+ * High-volume child entity (uses AbstractLongEntity for performance).
  *
  * @property session The session this config applies to
- * @property levelId The GA area ID (zone ID from seating module)
+ * @property gaAreaId The GA area ID from seating module
  * @property priceTemplate The price template for this GA area
- * @property capacity The maximum capacity for this GA area in the session
+ * @property capacity The maximum capacity for this GA area in this session
  */
 @Entity
 @Table(
@@ -20,13 +23,13 @@ import jakarta.persistence.*
         UniqueConstraint(name = "uk_session_level_config", columnNames = ["session_id", "level_id"])
     ]
 )
-class SessionLevelConfig(
+class SessionGAConfig(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
     @Column(name = "level_id", nullable = false)
-    var levelId: Long,
+    var gaAreaId: Long,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")

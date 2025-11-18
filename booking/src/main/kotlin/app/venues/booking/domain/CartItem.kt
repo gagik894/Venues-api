@@ -6,13 +6,16 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * Represents a General Admission (GA) ticket selection within a [Cart].
+ * Represents General Admission (GA) ticket selections in a shopping cart.
  *
- * @param cart The parent Cart.
- * @param sessionId The EventSession UUID.
- * @param levelId The ID of the Level (GA Area).
- * @param unitPrice The snapshotted price per ticket.
- * @param quantity The number of tickets selected.
+ * GA areas are standing/general admission zones from the seating module
+ * with capacity tracking (e.g., "Pit A", "Standing Area").
+ *
+ * @property cart The parent cart
+ * @property sessionId Event session ID
+ * @property levelId GA area ID from seating module
+ * @property unitPrice Snapshotted price per ticket (captured at add-to-cart time)
+ * @property quantity Number of tickets selected
  */
 @Entity
 @Table(name = "cart_item")

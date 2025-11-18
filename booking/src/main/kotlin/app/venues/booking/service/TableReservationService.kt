@@ -194,4 +194,36 @@ class TableReservationService(
 
         logger.debug { "Unblocked $unblockedCount/${seatIds.size} seats in table $tableId" }
     }
+
+    /**
+     * BATCH operation: Release multiple tables atomically.
+     * Optimized for cart cleanup operations.
+     *
+     * Performance: Single UPDATE per operation type instead of N queries.
+     *
+     * @param sessionId Session ID
+     * @param tableIds List of table IDs to release
+     */
+    fun releaseTablesBatch(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isEmpty()) return
+
+        logger.debug { "Batch releasing ${tableIds.size} tables for session $sessionId" }
+
+        // 1. Release all tables in one UPDATE
+        val releasedTables = sessionTableConfigRepository.releaseTables(sessionId, tableIds)
+
+        // 2. Unblock all seats for these tables (batch operation)
+        // Get all seat IDs for all tables
+        val allSeatIds = tableIds.flatMap { tableId ->
+            seatingApi.getSeatsForTable(tableId).map { it.id }
+        }
+
+        if (allSeatIds.isNotEmpty()) {
+            val unblockedSeats = sessionSeatConfigRepository.unblockSeats(sessionId, allSeatIds)
+            logger.debug { "Unblocked $unblockedSeats seats from $releasedTables tables" }
+        }
+
+        logger.info { "Batch released $releasedTables tables with ${allSeatIds.size} seats for session $sessionId" }
+    }
 }
+

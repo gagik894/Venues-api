@@ -9,7 +9,7 @@ import app.venues.booking.domain.Guest
 import app.venues.booking.repository.*
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionLevelConfigRepository
+import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
@@ -44,7 +44,7 @@ class BookingService(
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
     private val guestService: GuestService,
     private val bookingMapper: BookingMapper,

@@ -5,7 +5,7 @@ import app.venues.event.api.dto.*
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionLevelConfigRepository
+import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
@@ -29,7 +29,7 @@ import java.util.*
 @Transactional
 class SessionSeatingService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val eventSessionRepository: EventSessionRepository,
     private val seatingApi: SeatingApi
@@ -58,8 +58,8 @@ class SessionSeatingService(
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
         val seatConfigMap = seatConfigs.associateBy { it.seatId }
 
-        val gaConfigs = sessionLevelConfigRepository.findBySessionId(sessionId)
-        val gaConfigMap = gaConfigs.associateBy { it.levelId }
+        val gaConfigs = sessionGAConfigRepository.findBySessionId(sessionId)
+        val gaConfigMap = gaConfigs.associateBy { it.gaAreaId }
 
         val tableConfigs = sessionTableConfigRepository.findBySessionId(sessionId)
         val tableConfigMap = tableConfigs.associateBy { it.tableId }

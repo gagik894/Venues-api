@@ -8,7 +8,7 @@ import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
 import app.venues.common.exception.VenuesException
 import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionLevelConfigRepository
+import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -33,7 +33,7 @@ class CartQueryService(
     private val cartTablePersistence: CartTablePersistence,
     private val eventSessionRepository: EventSessionRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val cartMapper: CartMapper,
     private val seatingApi: SeatingApi
 ) : CartQueryApi {
@@ -69,8 +69,8 @@ class CartQueryService(
         // 3. Make batch calls to repositories and APIs
         val seatConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(cart.sessionId, seatIds)
             .associateBy { it.seatId }
-        val levelConfigs = sessionLevelConfigRepository.findBySessionIdAndLevelIdIn(cart.sessionId, gaLevelIds)
-            .associateBy { it.levelId }
+        val gaConfigs = sessionGAConfigRepository.findBySessionIdAndGaAreaIdIn(cart.sessionId, gaLevelIds)
+            .associateBy { it.gaAreaId }
 
         // Batch fetch seat info from seating API
         val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
@@ -108,7 +108,7 @@ class CartQueryService(
         }
 
         val gaItemResponses = gaItems.mapNotNull { cartItem ->
-            val config = levelConfigs[cartItem.levelId]
+            val config = gaConfigs[cartItem.levelId]
             val gaInfo = gaInfoMap[cartItem.levelId]
 
             if (config == null || gaInfo == null) {

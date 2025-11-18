@@ -5,15 +5,17 @@ import jakarta.persistence.*
 import java.math.BigDecimal
 
 /**
- * Represents a specific line item within a [Booking].
- * This entity maps to either a specific [Seat] or a quantity of General Admission (GA) tickets.
+ * Represents a confirmed booking line item.
+ * Can be either an individual seat OR general admission tickets.
  *
- * @param booking The parent [Booking].
- * @param quantity The number of units (always 1 for seats, >=1 for GA).
- * @param unitPrice The price per unit at the time of booking.
- * @param seatId The ID of the specific [Seat] (if applicable).
- * @param levelId The ID of the [Level] (if this is a GA ticket or a table).
- * @param priceTemplateName The name of the price template applied (e.g., "VIP").
+ * Note: Tables are stored in cart but not yet implemented in bookings.
+ *
+ * @property booking The parent booking
+ * @property quantity Number of units (1 for seats, >=1 for GA tickets)
+ * @property unitPrice Price per unit at booking time (snapshot pricing)
+ * @property seatId Seat ID from seating module (for seat bookings)
+ * @property levelId GA area ID from seating module (for GA bookings)
+ * @property priceTemplateName Price template name for display (e.g., "VIP", "Standard")
  */
 @Entity
 @Table(name = "booking_items")
@@ -29,25 +31,34 @@ class BookingItem(
     var unitPrice: BigDecimal,
 
     /**
-     * The `Seat.id` (a Long), if this is a seat.
+     * Seat ID from seating module (populated for seat bookings).
      */
     @Column(name = "seat_id")
     var seatId: Long? = null,
 
     /**
-     * The `Level.id` (a Long), if this is GA or Tables.
+     * GA area ID from seating module (populated for GA ticket bookings).
      */
     @Column(name = "level_id")
     var levelId: Long? = null,
 
     @Column(name = "price_template_name", length = 100)
-    var priceTemplateName: String? = null,
+    var priceTemplateName: String? = null
 
-    ) : AbstractLongEntity() {
+) : AbstractLongEntity() {
 
+    /**
+     * Calculate total price for this line item.
+     */
     fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 
+    /**
+     * Check if this is a seat booking.
+     */
     fun isSeat(): Boolean = seatId != null
 
-    fun isGA(): Boolean = levelId != null
+    /**
+     * Check if this is a GA ticket booking.
+     */
+    fun isGA(): Boolean = levelId != null && seatId == null
 }

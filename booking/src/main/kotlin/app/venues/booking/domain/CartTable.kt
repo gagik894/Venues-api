@@ -6,12 +6,15 @@ import java.math.BigDecimal
 import java.util.*
 
 /**
- * Represents a full Table selection within a [Cart].
+ * Represents a complete table booking in a shopping cart.
  *
- * @param cart The parent Cart.
- * @param sessionId The EventSession UUID.
- * @param tableId The ID of the Level (Table).
- * @param unitPrice The snapshotted price for the entire table.
+ * Tables are groups of seats that can be booked as a complete unit.
+ * When a table is added to cart, all its individual seats are blocked.
+ *
+ * @property cart The parent cart
+ * @property sessionId Event session ID
+ * @property tableId Table ID from seating module
+ * @property unitPrice Snapshotted price for the entire table (captured at add-to-cart time)
  */
 @Entity
 @Table(

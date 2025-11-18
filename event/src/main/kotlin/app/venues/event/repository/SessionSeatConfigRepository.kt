@@ -153,6 +153,28 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun unblockSeats(sessionId: UUID, seatIds: List<Long>): Int
 
     /**
+     * BATCH operation: Release multiple seats atomically (RESERVED -> AVAILABLE).
+     * Optimized for cart cleanup and bulk operations.
+     *
+     * Performance: Single UPDATE instead of N queries.
+     *
+     * @param sessionId Event session ID
+     * @param seatIds List of seat IDs to release
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status = app.venues.event.domain.ConfigStatus.RESERVED
+    """
+    )
+    fun releaseSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
      * Get availability statistics for session (optimized - count only).
      * Returns aggregated seat counts: total, available, and reserved.
      */

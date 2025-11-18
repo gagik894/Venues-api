@@ -3,7 +3,7 @@ package app.venues.booking.persistence
 import app.venues.booking.event.GAAvailabilityChangedEvent
 import app.venues.booking.event.SeatReleasedEvent
 import app.venues.common.exception.VenuesException
-import app.venues.event.repository.SessionLevelConfigRepository
+import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
@@ -21,7 +21,7 @@ import java.util.*
 @Component
 class InventoryReservationHandler(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionLevelConfigRepository: SessionLevelConfigRepository,
+    private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val seatingApi: SeatingApi,
     private val eventPublisher: ApplicationEventPublisher
@@ -71,7 +71,7 @@ class InventoryReservationHandler(
      */
     fun reserveGATickets(sessionId: UUID, levelId: Long, quantity: Int): GAReservationResult {
         // Atomic operation: reserve + get price in single UPDATE
-        val price = sessionLevelConfigRepository.reserveGAAndGetPrice(sessionId, levelId, quantity)
+        val price = sessionGAConfigRepository.reserveGAAndGetPrice(sessionId, levelId, quantity)
             ?: throw VenuesException.ResourceConflict(
                 "Not enough tickets available or level not priced. Requested: $quantity"
             )
@@ -97,7 +97,7 @@ class InventoryReservationHandler(
             return
         }
 
-        val rowsAffected = sessionLevelConfigRepository.adjustGATickets(sessionId, levelId, quantityDelta)
+        val rowsAffected = sessionGAConfigRepository.adjustGATickets(sessionId, levelId, quantityDelta)
 
         if (rowsAffected == 0) {
             if (quantityDelta > 0) {
@@ -145,10 +145,10 @@ class InventoryReservationHandler(
      * Release GA tickets back to inventory.
      */
     fun releaseGATickets(sessionId: UUID, levelId: Long, quantity: Int) {
-        sessionLevelConfigRepository.findBySessionIdAndLevelId(sessionId, levelId)
+        sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, levelId)
             ?.let { config ->
                 config.sell(maxOf(0, config.soldCount - quantity))
-                sessionLevelConfigRepository.save(config)
+                sessionGAConfigRepository.save(config)
 
                 // Publish GA availability changed event
                 val gaInfo = seatingApi.getGaInfo(levelId)
@@ -167,6 +167,49 @@ class InventoryReservationHandler(
                     )
                 }
             }
+    }
+
+    /**
+     * BATCH operation: Release multiple seats atomically.
+     * Optimized for high-volume scenarios (cart cleanup, bulk operations).
+     *
+     * Performance: O(1) instead of O(n) - single database UPDATE.
+     *
+     * @param sessionId Session ID
+     * @param seatIds List of seat IDs to release
+     */
+    fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isEmpty()) return
+
+        // Single bulk UPDATE query
+        val releasedCount = sessionSeatConfigRepository.releaseSeats(sessionId, seatIds)
+
+        logger.info { "Batch released $releasedCount seats for session $sessionId" }
+
+        // Note: Individual seat released events not published for batch operations
+        // to avoid event storm. Consider aggregate event if needed.
+    }
+
+    /**
+     * BATCH operation: Release GA tickets for multiple areas.
+     * Optimized for cart cleanup operations - all in single transaction.
+     *
+     * @param sessionId Session ID
+     * @param gaAreaQuantities List of (gaAreaId, quantity) pairs
+     */
+    fun releaseGATicketsBatch(sessionId: UUID, gaAreaQuantities: List<Pair<Long, Int>>) {
+        if (gaAreaQuantities.isEmpty()) return
+
+        // Process each GA area release (all in same transaction for atomicity)
+        var totalReleased = 0
+        gaAreaQuantities.forEach { (gaAreaId, quantity) ->
+            releaseGATickets(sessionId, gaAreaId, quantity)
+            totalReleased += quantity
+        }
+
+        logger.info {
+            "Batch released $totalReleased GA tickets across ${gaAreaQuantities.size} areas for session $sessionId"
+        }
     }
 
     /**

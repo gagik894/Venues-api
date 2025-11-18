@@ -5,12 +5,14 @@ import app.venues.seating.api.TableBookingMode
 import jakarta.persistence.*
 
 /**
- * Configures a "Table" (a type of Level) for a specific EventSession.
- * High-volume child entity (uses AbstractLongEntity).
+ * Configures a table for a specific EventSession.
+ * Tables are groups of seats that can be booked as a complete unit.
+ * High-volume child entity (uses AbstractLongEntity for performance).
  *
- * @param session The session this config applies to.
- * @param tableId The `Level.id` (a Long) of the table.
- * @param priceTemplate The `EventPriceTemplate` (a UUID-based entity) for this table.
+ * @property session The session this config applies to
+ * @property tableId The table ID from seating module
+ * @property priceTemplate The price template for this table (whole table price)
+ * @property bookingMode How the table can be booked (TABLE_ONLY, SEATS_ONLY, FLEXIBLE)
  */
 @Entity
 @Table(
@@ -33,9 +35,8 @@ class SessionTableConfig(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "booking_mode", length = 20, nullable = false)
-    var bookingMode: TableBookingMode = TableBookingMode.FLEXIBLE,
-
-    ) : AbstractLongEntity() {
+    var bookingMode: TableBookingMode = TableBookingMode.FLEXIBLE
+) : AbstractLongEntity() {
 
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
@@ -43,37 +44,66 @@ class SessionTableConfig(
     var status: ConfigStatus = ConfigStatus.AVAILABLE
         protected set
 
-    // --- Public Behaviors ---
+    /**
+     * Check if table is available for booking.
+     */
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
 
     /**
-     * Reserves an available seat.
-     * @throws IllegalStateException if the seat is not available.
+     * Reserve an available table.
+     * @throws IllegalStateException if table is not available
      */
     fun reserve() {
         if (status != ConfigStatus.AVAILABLE) {
-            throw IllegalStateException("Session table can't be reserved")
+            throw IllegalStateException("Table $tableId cannot be reserved (current status: $status)")
         }
         this.status = ConfigStatus.RESERVED
     }
 
     /**
-     * Sells a reserved or available seat.
-     * @throws IllegalStateException if the seat cannot be sold.
+     * Sell a reserved or available table.
+     * @throws IllegalStateException if table cannot be sold
      */
     fun sell() {
         if (status != ConfigStatus.AVAILABLE && status != ConfigStatus.RESERVED) {
-            throw IllegalStateException("Session table can't be sold")
+            throw IllegalStateException("Table $tableId cannot be sold (current status: $status)")
         }
         this.status = ConfigStatus.SOLD
     }
 
     /**
-     * Releases a reserved seat back to available.
+     * Release a reserved table back to available.
      */
     fun release() {
         if (status == ConfigStatus.RESERVED) {
             this.status = ConfigStatus.AVAILABLE
         }
     }
+
+    /**
+     * Block table from sales.
+     */
+    fun block() {
+        this.status = ConfigStatus.BLOCKED
+    }
+
+    /**
+     * Unblock table for sales.
+     */
+    fun unblock() {
+        if (status == ConfigStatus.BLOCKED) {
+            this.status = ConfigStatus.AVAILABLE
+        }
+    }
+
+    /**
+     * Check if table can only be booked as a complete unit.
+     */
+    fun isTableOnly(): Boolean = bookingMode == TableBookingMode.TABLE_ONLY
+
+    /**
+     * Check if individual seats can be booked.
+     */
+    fun allowsSeatBooking(): Boolean =
+        bookingMode == TableBookingMode.SEATS_ONLY || bookingMode == TableBookingMode.FLEXIBLE
 }

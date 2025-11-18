@@ -4,13 +4,14 @@ import app.venues.common.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**
- * Configures a GA Level for a specific EventSession.
+ * Configures a General Admission (GA) area for a specific EventSession.
+ * GA areas are represented as zones in the seating module with capacity tracking.
  * High-volume child entity (uses AbstractLongEntity).
  *
- * @param session The session this config applies to.
- * @param levelId The `Level.id` (a Long) this config is for.
- * @param priceTemplate The `EventPriceTemplate` (a UUID-based entity) for this level.
- * @param capacity The maximum capacity for this level in the session (null = unlimited).
+ * @property session The session this config applies to
+ * @property levelId The GA area ID (zone ID from seating module)
+ * @property priceTemplate The price template for this GA area
+ * @property capacity The maximum capacity for this GA area in the session
  */
 @Entity
 @Table(
@@ -32,8 +33,7 @@ class SessionLevelConfig(
     var priceTemplate: EventPriceTemplate? = null,
 
     @Column(name = "capacity")
-    var capacity: Int? = null,
-
+    var capacity: Int? = null
 ) : AbstractLongEntity() {
 
     @Column(name = "status", nullable = false, length = 20)
@@ -47,26 +47,54 @@ class SessionLevelConfig(
     var soldCount: Int = 0
         protected set
 
+    /**
+     * Check if GA area is available for purchase.
+     */
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
 
+    /**
+     * Get remaining capacity for GA area.
+     */
     fun getAvailableCapacity(): Int? = capacity?.let { it - soldCount }
 
     /**
-     * Attempts to sell a specified number of tickets.
-     * @return true if the sale was successful, false if not enough capacity.
+     * Sell tickets for GA area.
+     * @param quantity Number of tickets to sell
+     * @return true if successful, false if not enough capacity
+     * @throws IllegalStateException if GA area is not available
      */
     fun sell(quantity: Int): Boolean {
-        if (capacity != null && (soldCount + quantity) > capacity!!) {
-            return false // Not enough capacity
+        if (status != ConfigStatus.AVAILABLE) {
+            throw IllegalStateException("GA area is not available (status: $status)")
         }
+
+        if (capacity != null && (soldCount + quantity) > capacity!!) {
+            return false
+        }
+
         this.soldCount += quantity
         return true
     }
 
     /**
-     * Puts tickets back into inventory.
+     * Refund tickets for GA area.
+     * @param quantity Number of tickets to refund
      */
     fun refund(quantity: Int) {
         this.soldCount = (this.soldCount - quantity).coerceAtLeast(0)
+    }
+
+    /**
+     * Block GA area from sales.
+     */
+    fun block() {
+        this.status = ConfigStatus.BLOCKED
+    }
+
+    /**
+     * Unblock GA area for sales.
+     */
+    fun unblock() {
+        this.status = ConfigStatus.AVAILABLE
     }
 }

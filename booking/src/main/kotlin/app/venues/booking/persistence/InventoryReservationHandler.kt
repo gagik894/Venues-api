@@ -32,8 +32,8 @@ class InventoryReservationHandler(
         val price: BigDecimal
     )
 
-    data class GAReservationResult(
-        val levelId: Long,
+    data class GaReservationResult(
+        val gaAreaId: Long,
         val quantity: Int,
         val unitPrice: BigDecimal
     )
@@ -69,15 +69,15 @@ class InventoryReservationHandler(
      * @throws VenuesException.ResourceConflict if insufficient capacity
      * @throws VenuesException.ValidationFailure if level not priced
      */
-    fun reserveGATickets(sessionId: UUID, levelId: Long, quantity: Int): GAReservationResult {
+    fun reserveGATickets(sessionId: UUID, gaAreaId: Long, quantity: Int): GaReservationResult {
         // Atomic operation: reserve + get price in single UPDATE
-        val price = sessionGAConfigRepository.reserveGAAndGetPrice(sessionId, levelId, quantity)
+        val price = sessionGAConfigRepository.reserveGAAndGetPrice(sessionId, gaAreaId, quantity)
             ?: throw VenuesException.ResourceConflict(
                 "Not enough tickets available or level not priced. Requested: $quantity"
             )
 
-        return GAReservationResult(
-            levelId = levelId,
+        return GaReservationResult(
+            gaAreaId = gaAreaId,
             quantity = quantity,
             unitPrice = price
         )
@@ -89,15 +89,15 @@ class InventoryReservationHandler(
      *
      * @throws VenuesException.ResourceConflict if adjustment fails (e.g., not enough capacity)
      */
-    fun adjustGATickets(sessionId: UUID, levelId: Long, newQuantity: Int, oldQuantity: Int) {
+    fun adjustGATickets(sessionId: UUID, gaAreaId: Long, newQuantity: Int, oldQuantity: Int) {
         val quantityDelta = newQuantity - oldQuantity
 
         if (quantityDelta == 0) {
-            logger.debug { "No change in GA quantity for level $levelId" }
+            logger.debug { "No change in GA quantity for level $gaAreaId" }
             return
         }
 
-        val rowsAffected = sessionGAConfigRepository.adjustGATickets(sessionId, levelId, quantityDelta)
+        val rowsAffected = sessionGAConfigRepository.adjustGATickets(sessionId, gaAreaId, quantityDelta)
 
         if (rowsAffected == 0) {
             if (quantityDelta > 0) {
@@ -106,12 +106,12 @@ class InventoryReservationHandler(
                 )
             } else {
                 // This shouldn't happen if data is consistent, but good to log
-                logger.warn { "Failed to release $quantityDelta tickets for level $levelId" }
+                logger.warn { "Failed to release $quantityDelta tickets for level $gaAreaId" }
                 throw VenuesException.ResourceConflict("Failed to update ticket quantity")
             }
         }
 
-        logger.info { "Adjusted GA tickets for level $levelId by $quantityDelta (new total: $newQuantity)" }
+        logger.info { "Adjusted GA tickets for level $gaAreaId by $quantityDelta (new total: $newQuantity)" }
     }
 
     /**
@@ -144,14 +144,14 @@ class InventoryReservationHandler(
     /**
      * Release GA tickets back to inventory.
      */
-    fun releaseGATickets(sessionId: UUID, levelId: Long, quantity: Int) {
-        sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, levelId)
+    fun releaseGATickets(sessionId: UUID, gaAreaId: Long, quantity: Int) {
+        sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, gaAreaId)
             ?.let { config ->
                 config.sell(maxOf(0, config.soldCount - quantity))
                 sessionGAConfigRepository.save(config)
 
                 // Publish GA availability changed event
-                val gaInfo = seatingApi.getGaInfo(levelId)
+                val gaInfo = seatingApi.getGaInfo(gaAreaId)
                 if (gaInfo != null) {
                     val capacity = config.capacity ?: 0
                     val availableTickets = capacity - config.soldCount

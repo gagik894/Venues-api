@@ -63,7 +63,7 @@ class CartQueryService(
 
         // 2. Collect all unique IDs needed for batch fetching
         val seatIds = seats.map { it.seatId }.distinct()
-        val gaLevelIds = gaItems.map { it.levelId }.distinct()
+        val gaLevelIds = gaItems.map { it.gaAreaId }.distinct()
         val tableIds = tables.map { it.tableId }.distinct()
 
         // 3. Make batch calls to repositories and APIs
@@ -95,12 +95,10 @@ class CartQueryService(
                 null // Skip item if data is inconsistent
             } else {
                 cartMapper.toCartSeatResponse(
-                    cartSeat = cartSeat,
-                    seatIdentifier = seatInfo.code,
+                    code = seatInfo.code,
                     seatNumber = seatInfo.seatNumber,
                     rowLabel = seatInfo.rowLabel,
                     levelName = seatInfo.zoneName,
-                    levelIdentifier = seatInfo.code.substringBefore("_"),
                     price = cartSeat.unitPrice,
                     priceTemplateName = config.priceTemplate?.templateName
                 )
@@ -108,16 +106,16 @@ class CartQueryService(
         }
 
         val gaItemResponses = gaItems.mapNotNull { cartItem ->
-            val config = gaConfigs[cartItem.levelId]
-            val gaInfo = gaInfoMap[cartItem.levelId]
+            val config = gaConfigs[cartItem.gaAreaId]
+            val gaInfo = gaInfoMap[cartItem.gaAreaId]
 
             if (config == null || gaInfo == null) {
-                logger.warn { "Missing data for cart GA item: ${cartItem.levelId}" }
+                logger.warn { "Missing data for cart GA item: ${cartItem.gaAreaId}" }
                 null
             } else {
                 cartMapper.toCartGAItemResponse(
-                    cartItem = cartItem,
-                    levelIdentifier = gaInfo.code,
+                    quantity = cartItem.quantity,
+                    code = gaInfo.code,
                     levelName = gaInfo.name,
                     unitPrice = cartItem.unitPrice,
                     priceTemplateName = config.priceTemplate?.templateName
@@ -132,7 +130,7 @@ class CartQueryService(
                 null
             } else {
                 cartMapper.toCartTableResponse(
-                    cartTable = cartTable,
+                    code = tableInfo.code,
                     tableName = tableInfo.tableNumber,
                     price = cartTable.unitPrice
                 )

@@ -20,7 +20,7 @@ data class SessionSeatingResponse(
     val seats: List<SessionSeatResponse>,
 
     // GA (General Admission) areas
-    val gaAreas: List<SessionGAAreaResponse>,
+    val gaAreas: List<SessionGaAreaResponse>,
 
     // Tables (complete booking units)
     val tables: List<SessionTableResponse>,
@@ -57,7 +57,7 @@ data class SessionSeatResponse(
 /**
  * General Admission area with capacity.
  */
-data class SessionGAAreaResponse(
+data class SessionGaAreaResponse(
     val levelIdentifier: String,
     val levelName: String,
     val levels: List<String>,  // Hierarchy (e.g., ["Balcony", "Standing Area"])

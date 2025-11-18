@@ -17,8 +17,8 @@ data class AddSeatToCartRequest(
     @field:NotNull(message = "Session ID is required")
     var sessionId: UUID,
 
-    @field:NotNull(message = "Seat identifier is required")
-    var seatIdentifier: String
+    @field:NotNull(message = "Seat code is required")
+    var code: String
 )
 
 /**
@@ -28,8 +28,8 @@ data class AddGAToCartRequest(
     @field:NotNull(message = "Session ID is required")
     var sessionId: UUID,
 
-    @field:NotNull(message = "Level identifier is required")
-    var levelIdentifier: String,
+    @field:NotNull(message = "GA code is required")
+    var code: String,
 
     @field:Min(value = 1, message = "Quantity must be at least 1")
     @field:Max(value = 10, message = "Maximum 10 tickets per transaction")
@@ -43,8 +43,8 @@ data class AddTableToCartRequest(
     @field:NotNull(message = "Session ID is required")
     var sessionId: UUID,
 
-    @field:NotNull(message = "Table ID is required")
-    var tableIdentifier: String
+    @field:NotNull(message = "Table code is required")
+    var code: String
 )
 
 /**
@@ -68,11 +68,10 @@ data class UpdateGAQuantityRequest(
  * Cart seat item response
  */
 data class CartSeatResponse(
-    val seatIdentifier: String,
-    val seatNumber: String?,
+    val code: String,
+    val number: String?,
     val rowLabel: String?,
     val levelName: String,
-    val levelIdentifier: String?,
     val price: String,
     val priceTemplateName: String?
 )
@@ -81,8 +80,8 @@ data class CartSeatResponse(
  * Cart GA item response
  */
 data class CartGAItemResponse(
-    val levelIdentifier: String?,
-    val levelName: String,
+    val code: String?,
+    val name: String,
     val quantity: Int,
     val unitPrice: String,
     val totalPrice: String,
@@ -93,8 +92,8 @@ data class CartGAItemResponse(
  * Cart table response
  */
 data class CartTableResponse(
-    val tableId: Long,
-    val tableName: String,
+    val code: String,
+    val number: String,
     val price: BigDecimal
 )
 

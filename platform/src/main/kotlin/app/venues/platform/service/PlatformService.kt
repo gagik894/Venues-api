@@ -179,7 +179,7 @@ class PlatformService(
         request.seatIdentifiers?.forEach { seatIdentifier ->
             val cartRequest = AddSeatToCartRequest(
                 sessionId = request.sessionId,
-                seatIdentifier = seatIdentifier
+                code = seatIdentifier
             )
             val result = cartApi.addSeatToCart(cartRequest, reservationToken)
             expiresAt = result.expiresAt
@@ -188,7 +188,7 @@ class PlatformService(
         request.gaReservations?.forEach { ga ->
             val cartRequest = AddGAToCartRequest(
                 sessionId = request.sessionId,
-                levelIdentifier = ga.levelIdentifier,
+                code = ga.levelIdentifier,
                 quantity = ga.quantity
             )
             val result = cartApi.addGAToCart(cartRequest, reservationToken)
@@ -202,9 +202,9 @@ class PlatformService(
         // Map cart seats to response with actual details
         val actualSeats = cartSummary.seats.map { seat ->
             ReservedSeatInfo(
-                seatIdentifier = seat.seatIdentifier,
+                seatIdentifier = seat.code,
                 levelName = seat.levelName,
-                seatNumber = seat.seatNumber,
+                seatNumber = seat.number,
                 rowLabel = seat.rowLabel
             )
         }
@@ -212,8 +212,8 @@ class PlatformService(
         // Map GA items to response with actual details
         val actualGA = cartSummary.gaItems.map { ga ->
             ReservedGAInfo(
-                levelIdentifier = ga.levelIdentifier ?: "",
-                levelName = ga.levelName,
+                levelIdentifier = ga.code ?: "",
+                levelName = ga.name,
                 quantity = ga.quantity
             )
         }

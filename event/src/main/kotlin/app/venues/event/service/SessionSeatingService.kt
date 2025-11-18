@@ -100,7 +100,7 @@ class SessionSeatingService(
             val capacity = config.capacity ?: 0
             val available = config.getAvailableCapacity() ?: 0
 
-            SessionGAAreaResponse(
+            SessionGaAreaResponse(
                 levelIdentifier = gaDto.code,
                 levelName = gaDto.name,
                 levels = zoneHierarchyMap[gaDto.zoneId] ?: listOf(gaDto.name),

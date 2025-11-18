@@ -57,9 +57,9 @@ class CartCleanupHelper(
             // Release GA capacity
             gaItems.forEach { cartItem ->
                 try {
-                    inventoryReservation.releaseGATickets(cart.sessionId, cartItem.levelId, cartItem.quantity)
+                    inventoryReservation.releaseGATickets(cart.sessionId, cartItem.gaAreaId, cartItem.quantity)
                 } catch (e: Exception) {
-                    logger.warn { "Failed to release GA for level ${cartItem.levelId} from cart ${cart.token}: ${e.message}" }
+                    logger.warn { "Failed to release GA for level ${cartItem.gaAreaId} from cart ${cart.token}: ${e.message}" }
                 }
             }
 

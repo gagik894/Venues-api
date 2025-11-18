@@ -79,7 +79,7 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
             UPDATE session_level_configs
             SET sold_count = sold_count + :quantity
             WHERE session_id = :sessionId
-            AND level_id = :gaAreaId
+            AND ga_area_id = :gaAreaId
             AND status = 'AVAILABLE'
             AND (capacity - sold_count) >= :quantity
             RETURNING price_template_id

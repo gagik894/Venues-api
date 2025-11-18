@@ -20,7 +20,7 @@ import jakarta.persistence.*
 @Table(
     name = "session_level_configs",
     uniqueConstraints = [
-        UniqueConstraint(name = "uk_session_level_config", columnNames = ["session_id", "level_id"])
+        UniqueConstraint(name = "uk_session_level_config", columnNames = ["session_id", "ga_area_id"])
     ]
 )
 class SessionGAConfig(
@@ -28,7 +28,7 @@ class SessionGAConfig(
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    @Column(name = "level_id", nullable = false)
+    @Column(name = "ga_area_id", nullable = false)
     var gaAreaId: Long,
 
     @ManyToOne(fetch = FetchType.LAZY)

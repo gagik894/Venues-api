@@ -13,12 +13,12 @@ import java.util.*
  *
  * @property cart The parent cart
  * @property sessionId Event session ID
- * @property levelId GA area ID from seating module
+ * @property gaAreaId GA area ID from seating module
  * @property unitPrice Snapshotted price per ticket (captured at add-to-cart time)
  * @property quantity Number of tickets selected
  */
 @Entity
-@Table(name = "cart_item")
+@Table(name = "cart_ga_item")
 class CartItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cart_id", nullable = false)
@@ -27,8 +27,8 @@ class CartItem(
     @Column(name = "session_id", nullable = false)
     var sessionId: UUID,
 
-    @Column(name = "level_id", nullable = false)
-    var levelId: Long,
+    @Column(name = "ga_area_id", nullable = false)
+    var gaAreaId: Long,
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,

@@ -77,7 +77,7 @@ class CartService(
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?): AddToCartResponse {
-        logger.debug { "Adding seat to cart: ${request.seatIdentifier}" }
+        logger.debug { "Adding seat to cart: ${request.code}" }
 
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) {
@@ -88,8 +88,8 @@ class CartService(
         validateSessionExists(request.sessionId)
 
         // Fetch seat information by code (seat identifier is the seat code)
-        val seatInfo = seatingApi.getSeatInfoByCode(request.seatIdentifier)
-            ?: throw VenuesException.ValidationFailure("Seat not found with code: ${request.seatIdentifier}")
+        val seatInfo = seatingApi.getSeatInfoByCode(request.code)
+            ?: throw VenuesException.ValidationFailure("Seat not found with code: ${request.code}")
 
         // Get or create cart session
         val cart = getOrCreateCartForSession(token, request.sessionId)
@@ -97,7 +97,7 @@ class CartService(
         // Validate seat not already in cart
         if (cartItemPersistence.checkSeatAlreadyInCart(cart, seatInfo.id)) {
             throw VenuesException.ValidationFailure(
-                "Seat ${request.seatIdentifier} is already in your cart"
+                "Seat ${request.code} is already in your cart"
             )
         }
 
@@ -112,11 +112,11 @@ class CartService(
             cart = cart,
             sessionId = request.sessionId,
             seatId = seatInfo.id,
-            seatIdentifier = request.seatIdentifier,
+            seatIdentifier = request.code,
             price = reservation.price
         )
 
-        logger.info { "Seat ${request.seatIdentifier} added to cart ${cart.token}" }
+        logger.info { "Seat ${request.code} added to cart ${cart.token}" }
 
         return buildSuccessResponse(cart, "Seat added to cart successfully")
     }
@@ -132,7 +132,7 @@ class CartService(
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     override fun addGAToCart(request: AddGAToCartRequest, token: UUID?): AddToCartResponse {
-        logger.debug { "Adding GA to cart: ${request.levelIdentifier}, quantity=${request.quantity}" }
+        logger.debug { "Adding GA to cart: ${request.code}, quantity=${request.quantity}" }
 
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) {
@@ -143,8 +143,8 @@ class CartService(
         validateSessionExists(request.sessionId)
 
         // Fetch GA area information by code
-        val gaInfo = seatingApi.getGaInfoByCode(request.levelIdentifier)
-            ?: throw VenuesException.ValidationFailure("GA area not found with code: ${request.levelIdentifier}")
+        val gaInfo = seatingApi.getGaInfoByCode(request.code)
+            ?: throw VenuesException.ValidationFailure("GA area not found with code: ${request.code}")
 
         // Get or create cart session
         val cart = getOrCreateCartForSession(token, request.sessionId)
@@ -170,7 +170,7 @@ class CartService(
         val (savedItem, isUpdate) = cartItemPersistence.saveOrUpdateGAItem(
             cart = cart,
             sessionId = request.sessionId,
-            levelId = gaInfo.id,
+            gaAreaId = gaInfo.id,
             levelIdentifier = gaInfo.code,
             levelName = gaInfo.name,
             quantityToAdd = request.quantity,
@@ -197,7 +197,7 @@ class CartService(
      */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     override fun addTableToCart(request: AddTableToCartRequest, token: UUID?): AddToCartResponse {
-        logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.tableIdentifier}" }
+        logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.code}" }
 
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) {
@@ -214,7 +214,7 @@ class CartService(
         cartLimitValidator.validateAddTableLimit(cart)
 
         // Reserve table (atomic + block seats)
-        val reservation = tableReservationService.reserveTable(cart, request.sessionId, request.tableIdentifier)
+        val reservation = tableReservationService.reserveTable(cart, request.sessionId, request.code)
 
         // Save to cart
         cartTablePersistence.saveTableToCart(
@@ -250,7 +250,6 @@ class CartService(
             seatId = seatInfo.id,
             sessionId = cart.sessionId,
             seatIdentifier = seatInfo.code,
-            levelName = seatInfo.zoneName
         )
 
         // Release inventory
@@ -297,7 +296,7 @@ class CartService(
         // Atomically adjust inventory reservation
         inventoryReservation.adjustGATickets(
             sessionId = cart.sessionId,
-            levelId = gaInfo.id,
+            gaAreaId = gaInfo.id,
             newQuantity = newQuantity,
             oldQuantity = existingItem.quantity
         )
@@ -380,7 +379,7 @@ class CartService(
 
         // 2. Extract IDs for batch operations
         val seatIds = seats.map { it.seatId }
-        val gaUpdates = gaItems.map { Pair(it.levelId, it.quantity) }
+        val gaUpdates = gaItems.map { Pair(it.gaAreaId, it.quantity) }
         val tableIds = tables.map { it.tableId }
 
         // 3. Delete cart items FIRST (ensures FK cleanup before inventory release)

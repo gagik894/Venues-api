@@ -64,7 +64,7 @@ class CartItemPersistence(
     fun saveOrUpdateGAItem(
         cart: Cart,
         sessionId: UUID,
-        levelId: Long,
+        gaAreaId: Long,
         levelIdentifier: String,
         levelName: String,
         quantityToAdd: Int,
@@ -78,7 +78,7 @@ class CartItemPersistence(
             val newItem = CartItem(
                 cart = cart,
                 sessionId = sessionId,
-                levelId = levelId,
+                gaAreaId = gaAreaId,
                 unitPrice = unitPrice,
                 quantity = quantityToAdd
             )
@@ -97,7 +97,7 @@ class CartItemPersistence(
             }
         }
 
-        publishGAAvailabilityEvent(sessionId, levelId, levelIdentifier, levelName)
+        publishGAAvailabilityEvent(sessionId, gaAreaId, levelIdentifier, levelName)
 
         return savedItem to isUpdate
     }
@@ -113,7 +113,7 @@ class CartItemPersistence(
 
         logger.info { "GA quantity set: $levelIdentifier, total=${savedItem.quantity}, cart=${item.cart.token}" }
 
-        publishGAAvailabilityEvent(item.sessionId, item.levelId, levelIdentifier, levelName)
+        publishGAAvailabilityEvent(item.sessionId, item.gaAreaId, levelIdentifier, levelName)
         return savedItem
     }
 
@@ -123,13 +123,13 @@ class CartItemPersistence(
         levelName: String
     ) {
         val sessionId = item.sessionId
-        val levelId = item.levelId
+        val gaAreaId = item.gaAreaId
 
         cartItemRepository.delete(item)
 
         logger.info { "GA item removed: $levelIdentifier, cart=${item.cart.token}" }
 
-        publishGAAvailabilityEvent(sessionId, levelId, levelIdentifier, levelName)
+        publishGAAvailabilityEvent(sessionId, gaAreaId, levelIdentifier, levelName)
     }
 
     fun checkSeatAlreadyInCart(cart: Cart, seatId: Long): Boolean {
@@ -137,8 +137,8 @@ class CartItemPersistence(
         return existingSeats.any { it.seatId == seatId }
     }
 
-    fun findExistingGAItem(cart: Cart, levelId: Long): CartItem? {
-        return cartItemRepository.findByCartAndLevelId(cart, levelId)
+    fun findExistingGAItem(cart: Cart, gaAreaId: Long): CartItem? {
+        return cartItemRepository.findByCartAndGaAreaId(cart, gaAreaId)
     }
 
     fun removeSeat(
@@ -146,7 +146,6 @@ class CartItemPersistence(
         seatId: Long,
         sessionId: UUID,
         seatIdentifier: String,
-        levelName: String
     ) {
         val cartSeats = cartSeatRepository.findByCart(cart)
         val cartSeat = cartSeats.find { it.seatId == seatId }

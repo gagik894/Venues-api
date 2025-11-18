@@ -21,7 +21,7 @@ interface CartItemRepository : JpaRepository<CartItem, UUID> {
     /**
      * Find specific GA item in cart by level
      */
-    fun findByCartAndLevelId(cart: Cart, levelId: Long): CartItem?
+    fun findByCartAndGaAreaId(cart: Cart, gaAreaId: Long): CartItem?
 
     /**
      * Find all items in a cart by token
@@ -37,11 +37,11 @@ interface CartItemRepository : JpaRepository<CartItem, UUID> {
         SELECT COALESCE(SUM(ci.quantity), 0) FROM CartItem ci
         JOIN ci.cart c
         WHERE ci.sessionId = :sessionId
-        AND ci.levelId = :levelId
+        AND ci.gaAreaId = :gaAreaId
         AND c.expiresAt > CURRENT_TIMESTAMP
     """
     )
-    fun countActiveGATicketsBySessionAndLevel(sessionId: Long, levelId: Long): Int
+    fun countActiveGATicketsBySessionAndLevel(sessionId: Long, gaAreaId: Long): Int
 
     /**
      * Delete all items in a cart

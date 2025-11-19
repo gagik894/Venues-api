@@ -1,9 +1,9 @@
 package app.venues.seating.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
 import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -51,7 +51,7 @@ class VenueSeatingController(
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<SeatingChartResponse>> {
         securityUtil.requireVenueOwnership(venueId)
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val charts = seatingService.getSeatingChartsByVenue(venueId, pageable)
         return ApiResponse.success(charts, "Retrieved successfully")
     }

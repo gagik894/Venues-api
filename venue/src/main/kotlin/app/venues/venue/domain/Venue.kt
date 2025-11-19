@@ -69,8 +69,8 @@ class Venue(
     @Column(name = "is_always_open", nullable = false)
     var isAlwaysOpen: Boolean = false,
 
-    @Column(name = "verification_document_url", length = 500)
-    var verificationDocumentUrl: String? = null,
+    @Column(name = "time_zone", nullable = false, length = 50)
+    var timeZone: String = "Asia/Yerevan"
 
 ) : AbstractUuidEntity() {
 

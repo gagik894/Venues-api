@@ -3,7 +3,7 @@ package app.venues.booking.api.controller
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.BookingService
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -97,7 +97,7 @@ class BookingController(
         logger.debug { "Fetching user bookings" }
 
         val userId = securityUtil.getCurrentUserId()
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val bookings = bookingService.getUserBookings(userId, pageable)
 
         return ApiResponse.success(
@@ -121,7 +121,7 @@ class BookingController(
     ): ApiResponse<Page<BookingResponse>> {
         logger.debug { "Fetching bookings for email: $email" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val bookings = bookingService.getGuestBookings(email, pageable)
 
         return ApiResponse.success(

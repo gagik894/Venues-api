@@ -1,11 +1,11 @@
 package app.venues.platform.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
 import app.venues.platform.api.dto.*
 import app.venues.platform.security.NonceService
 import app.venues.platform.security.NonceStats
 import app.venues.platform.service.PlatformService
+import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -67,7 +67,7 @@ class PlatformAdminController(
     ): ApiResponse<Page<PlatformResponse>> {
         logger.debug { "Fetching all platforms" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val platforms = platformService.getAllPlatforms(pageable)
 
         return ApiResponse.success(

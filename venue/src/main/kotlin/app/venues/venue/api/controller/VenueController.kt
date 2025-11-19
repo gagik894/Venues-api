@@ -1,7 +1,7 @@
 package app.venues.venue.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
 import app.venues.venue.api.dto.*
 import app.venues.venue.service.VenueAuthService
@@ -68,7 +68,7 @@ class VenueController(
         // Whitelist of allowed sort fields for Venue entity
         val allowedSortFields = setOf("createdAt", "name", "city", "category", "id")
 
-        val pageable = PaginationUtil.createPageable(
+        val pageable = PageableMapper.createPageable(
             limit = limit,
             offset = offset,
             sortBy = sortBy,
@@ -100,7 +100,7 @@ class VenueController(
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Searching venues: {}, language: {}", searchTerm, lang)
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
 
         val venues = venueService.searchVenues(searchTerm, pageable, language = lang)
 
@@ -126,7 +126,7 @@ class VenueController(
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Fetching venues in city: {}, language: {}", city, lang)
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
 
         val venues = venueService.getVenuesByCity(city, pageable, language = lang)
 
@@ -152,7 +152,7 @@ class VenueController(
     ): ApiResponse<Page<VenueResponse>> {
         logger.debug("Fetching venues in category: {}, language: {}", category, lang)
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
 
         val venues = venueService.getVenuesByCategory(category, pageable, language = lang)
 
@@ -450,7 +450,7 @@ class VenueController(
         logger.debug("Fetching reviews for venue: {}", id)
 
         val allowedSortFields = setOf("createdAt", "rating", "id")
-        val pageable = PaginationUtil.createPageable(
+        val pageable = PageableMapper.createPageable(
             limit = limit,
             offset = offset,
             sortBy = "createdAt",

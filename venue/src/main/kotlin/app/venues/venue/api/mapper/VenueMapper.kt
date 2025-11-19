@@ -30,6 +30,8 @@ class VenueMapper {
      * @param language Optional language code for translations (e.g., "hy", "ru", "en")
      */
     fun toResponse(venue: Venue, includeStats: Boolean = false, language: String? = null): VenueResponse {
+        val cityLang = language ?: "en"
+
         // Apply translation if requested language exists
         val translation = language?.let { lang ->
             venue.translations.find { it.language.equals(lang, ignoreCase = true) }
@@ -41,7 +43,11 @@ class VenueMapper {
             description = translation?.description ?: venue.description,
             imageUrl = venue.imageUrl,
             address = venue.address,
-            city = venue.city,
+
+            // Inline city fields (frontend-friendly)
+            citySlug = venue.city.slug,
+            cityName = venue.city.getName(cityLang),
+
             latitude = venue.latitude,
             longitude = venue.longitude,
             email = null, //TODO: add email in model

@@ -1,5 +1,6 @@
 package app.venues.venue.repository
 
+import app.venues.location.domain.City
 import app.venues.venue.domain.Venue
 import app.venues.venue.domain.VenueStatus
 import org.springframework.data.domain.Page
@@ -13,7 +14,7 @@ import java.util.*
 /**
  * Repository for Venue entity.
  *
- * Provides data access methods for venue management.
+ * Provides data access methods for venue management with location-based filtering.
  */
 @Repository
 interface VenueRepository : JpaRepository<Venue, UUID> {
@@ -23,9 +24,74 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
     fun findByStatus(status: VenueStatus, pageable: Pageable): Page<Venue>
 
     /**
-     * Find venues by city
+     * Find venues by city (entity relationship).
+     *
+     * @param city City entity
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the specified city
      */
-    fun findByCityAndStatus(city: String, status: VenueStatus, pageable: Pageable): Page<Venue>
+    fun findByCityAndStatus(city: City, status: VenueStatus, pageable: Pageable): Page<Venue>
+
+    /**
+     * Find venues by city ID.
+     *
+     * @param cityId City ID
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the specified city
+     */
+    @Query("SELECT v FROM Venue v WHERE v.city.id = :cityId AND v.status = :status")
+    fun findByCityIdAndStatus(
+        @Param("cityId") cityId: Long,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
+
+    /**
+     * Find venues by city slug (URL-friendly lookup).
+     *
+     * @param citySlug City slug (e.g., "gyumri", "yerevan")
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the city matching the slug
+     */
+    @Query("SELECT v FROM Venue v WHERE v.city.slug = :citySlug AND v.status = :status")
+    fun findByCitySlugAndStatus(
+        @Param("citySlug") citySlug: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
+
+    /**
+     * Find venues by region ID.
+     *
+     * @param regionId Region ID
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in all cities within the region
+     */
+    @Query("SELECT v FROM Venue v WHERE v.city.region.id = :regionId AND v.status = :status")
+    fun findByRegionIdAndStatus(
+        @Param("regionId") regionId: Long,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
+
+    /**
+     * Find venues by region code (ISO code lookup).
+     *
+     * @param regionCode ISO region code (e.g., "AM-ER", "AM-SH")
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the region
+     */
+    @Query("SELECT v FROM Venue v WHERE v.city.region.code = :regionCode AND v.status = :status")
+    fun findByRegionCodeAndStatus(
+        @Param("regionCode") regionCode: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
 
     /**
      * Find venues by category
@@ -38,6 +104,30 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
     @Query("SELECT v FROM Venue v WHERE LOWER(v.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) AND v.status = :status")
     fun searchByName(
         @Param("searchTerm") searchTerm: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
+
+    /**
+     * Search venues by name in a specific city.
+     *
+     * @param searchTerm Search term (partial name match)
+     * @param cityId City ID filter
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of matching venues
+     */
+    @Query(
+        """
+        SELECT v FROM Venue v 
+        WHERE LOWER(v.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) 
+        AND v.city.id = :cityId 
+        AND v.status = :status
+    """
+    )
+    fun searchByNameInCity(
+        @Param("searchTerm") searchTerm: String,
+        @Param("cityId") cityId: Long,
         @Param("status") status: VenueStatus,
         pageable: Pageable
     ): Page<Venue>
@@ -72,6 +162,28 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
      * Count venues by status
      */
     fun countByStatus(status: VenueStatus): Long
+
+    /**
+     * Count venues by city.
+     *
+     * @param cityId City ID
+     * @param status Venue status filter (optional)
+     * @return Number of venues in the city
+     */
+    fun countByCityIdAndStatus(cityId: Long, status: VenueStatus): Long
+
+    /**
+     * Count venues by region.
+     *
+     * @param regionId Region ID
+     * @param status Venue status filter (optional)
+     * @return Number of venues in the region
+     */
+    @Query("SELECT COUNT(v) FROM Venue v WHERE v.city.region.id = :regionId AND v.status = :status")
+    fun countByRegionIdAndStatus(
+        @Param("regionId") regionId: Long,
+        @Param("status") status: VenueStatus
+    ): Long
 
     /**
      * Find all venues with status NOT DELETED

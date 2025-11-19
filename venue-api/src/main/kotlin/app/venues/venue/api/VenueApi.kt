@@ -36,11 +36,6 @@ interface VenueApi {
     fun venueExists(venueId: UUID): Boolean
 
     /**
-     * Get venue owner ID.
-     */
-    fun getVenueOwnerId(venueId: UUID): UUID?
-
-    /**
      * Get venue names in batch (for performance optimization).
      * Returns a map of venueId to venue name.
      *

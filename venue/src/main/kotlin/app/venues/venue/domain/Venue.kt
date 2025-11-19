@@ -1,5 +1,6 @@
 package app.venues.venue.domain
 
+import app.venues.location.domain.City
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
 
@@ -20,13 +21,12 @@ import jakarta.persistence.*
  * @param customDomain Custom domain name for the venue's page.
  * @param category The category/type of the venue (e.g., restaurant, gym).
  * @param isAlwaysOpen Indicates if the venue is open 24/7.
- * @param verificationDocumentUrl URL to the document used for venue verification.
  */
 @Entity
 @Table(
     name = "venues",
     indexes = [
-        Index(name = "idx_venue_city", columnList = "city"),
+        Index(name = "idx_venue_city_id", columnList = "city_id"),
         Index(name = "idx_venue_category", columnList = "category"),
         Index(name = "idx_venue_verified", columnList = "verified"),
         Index(name = "idx_venue_status", columnList = "status")
@@ -45,8 +45,19 @@ class Venue(
     @Column(name = "image_url", length = 500)
     var imageUrl: String? = null,
 
-    @Column(name = "city", length = 100)
-    var city: String? = null,
+    /**
+     * City/Community where the venue is located.
+     *
+     * Mandatory relationship linking venue to official government location data.
+     * Enables:
+     * - Location-based venue filtering
+     * - Regional venue discovery
+     * - Government reporting by administrative region
+     * - Interoperability with national cadastre systems
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "city_id", nullable = false)
+    var city: City,
 
     @Column(name = "latitude")
     var latitude: Double? = null,

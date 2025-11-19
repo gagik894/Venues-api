@@ -1,6 +1,7 @@
 package app.venues.venue.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.location.repository.CityRepository
 import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueMapper
@@ -35,6 +36,7 @@ import java.util.*
 @Transactional
 class VenueService(
     private val venueRepository: VenueRepository,
+    private val cityRepository: CityRepository,
     private val venueScheduleRepository: VenueScheduleRepository,
     private val venueTranslationRepository: VenueTranslationRepository,
     private val venuePhotoRepository: VenuePhotoRepository,
@@ -86,15 +88,6 @@ class VenueService(
     override fun venueExists(venueId: UUID): Boolean {
         return venueRepository.existsById(venueId)
     }
-
-    override fun getVenueOwnerId(venueId: UUID): UUID? {
-        // NOTE: Venue entity doesn't have an ownerId field yet
-        // This would need to be added to the Venue entity for proper owner tracking
-        // For now, returning null as venues authenticate via email/password
-        // TODO: Add ownerId field to Venue entity to track which User owns the venue
-        return null
-    }
-
 
     override fun getVenueNamesBatch(venueIds: Set<UUID>, language: String?): Map<UUID, String> {
         if (venueIds.isEmpty()) return emptyMap()
@@ -171,7 +164,15 @@ class VenueService(
         request.name?.let { venue.name = it }
         request.description?.let { venue.description = it }
         request.address?.let { venue.address = it }
-        request.city?.let { venue.city = it }
+
+        // Update city if cityId provided
+        request.cityId?.let { cityId ->
+            val city = cityRepository.findById(cityId).orElseThrow {
+                VenuesException.ResourceNotFound("City not found with ID: $cityId")
+            }
+            venue.city = city
+        }
+
         request.latitude?.let { venue.latitude = it }
         request.longitude?.let { venue.longitude = it }
         request.phoneNumber?.let { venue.phoneNumber = it }
@@ -206,12 +207,32 @@ class VenueService(
     }
 
     /**
-     * Get venues by city.
+     * Get venues by city slug.
+     *
+     * @param citySlug City slug (e.g., "yerevan", "gyumri")
+     * @param pageable Pagination parameters
+     * @param language Language code for localization
+     * @return Page of venues in the specified city
      */
     @Transactional(readOnly = true)
-    fun getVenuesByCity(city: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
-        logger.debug("Fetching venues in city: {}, language: {}", city, language)
-        return venueRepository.findByCityAndStatus(city, VenueStatus.ACTIVE, pageable)
+    fun getVenuesByCity(citySlug: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Fetching venues in city: {}, language: {}", citySlug, language)
+        return venueRepository.findByCitySlugAndStatus(citySlug, VenueStatus.ACTIVE, pageable)
+            .map { venueMapper.toResponse(it, includeStats = true, language = language) }
+    }
+
+    /**
+     * Get venues by region code.
+     *
+     * @param regionCode ISO region code (e.g., "AM-ER", "AM-SH")
+     * @param pageable Pagination parameters
+     * @param language Language code for localization
+     * @return Page of venues in the specified region
+     */
+    @Transactional(readOnly = true)
+    fun getVenuesByRegion(regionCode: String, pageable: Pageable, language: String? = null): Page<VenueResponse> {
+        logger.debug("Fetching venues in region: {}, language: {}", regionCode, language)
+        return venueRepository.findByRegionCodeAndStatus(regionCode, VenueStatus.ACTIVE, pageable)
             .map { venueMapper.toResponse(it, includeStats = true, language = language) }
     }
 

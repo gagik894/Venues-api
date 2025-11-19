@@ -111,24 +111,54 @@ class VenueController(
     }
 
     /**
-     * Get venues by city.
+     * Get venues by city slug.
+     *
+     * Frontend usage: GET /api/v1/venues/city/yerevan?lang=hy
      */
-    @GetMapping("/city/{city}")
+    @GetMapping("/city/{citySlug}")
     @Operation(
         summary = "Get venues by city",
-        description = "Get all venues in a specific city. Use 'lang' parameter for translations"
+        description = "Get all venues in a specific city using city slug (e.g., 'yerevan', 'gyumri'). Use 'lang' parameter for translations"
     )
     fun getVenuesByCity(
-        @PathVariable city: String,
+        @PathVariable citySlug: String,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in city: {}, language: {}", city, lang)
+        logger.debug("Fetching venues in city: {}, language: {}", citySlug, lang)
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
 
-        val venues = venueService.getVenuesByCity(city, pageable, language = lang)
+        val venues = venueService.getVenuesByCity(citySlug, pageable, language = lang)
+
+        return ApiResponse.success(
+            data = venues,
+            message = "Venues retrieved successfully"
+        )
+    }
+
+    /**
+     * Get venues by region code.
+     *
+     * Frontend usage: GET /api/v1/venues/region/AM-ER?lang=hy
+     */
+    @GetMapping("/region/{regionCode}")
+    @Operation(
+        summary = "Get venues by region",
+        description = "Get all venues in a specific region using ISO region code (e.g., 'AM-ER' for Yerevan, 'AM-SH' for Shirak). Use 'lang' parameter for translations"
+    )
+    fun getVenuesByRegion(
+        @PathVariable regionCode: String,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) lang: String?
+    ): ApiResponse<Page<VenueResponse>> {
+        logger.debug("Fetching venues in region: {}, language: {}", regionCode, lang)
+
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+
+        val venues = venueService.getVenuesByRegion(regionCode, pageable, language = lang)
 
         return ApiResponse.success(
             data = venues,

@@ -5,6 +5,7 @@ import app.venues.venue.domain.VenueStatus
 import jakarta.validation.constraints.*
 import java.util.*
 
+
 // ===========================================
 // VENUE REGISTRATION & AUTHENTICATION
 // ===========================================
@@ -31,8 +32,8 @@ data class VenueRegistrationRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String,
 
-    @field:Size(max = 100, message = "City must not exceed 100 characters")
-    val city: String? = null,
+    @field:NotNull(message = "City is required")
+    val cityId: Long,
 
     @field:DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
     @field:DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
@@ -113,8 +114,7 @@ data class VenueUpdateRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String? = null,
 
-    @field:Size(max = 100, message = "City must not exceed 100 characters")
-    val city: String? = null,
+    val cityId: Long? = null,
 
     @field:DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
     @field:DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
@@ -141,6 +141,10 @@ data class VenueUpdateRequest(
 
 /**
  * Response DTO for venue information.
+ *
+ * City fields are inlined for frontend simplicity:
+ * - citySlug: For filtering (?city=yerevan)
+ * - cityName: Localized display name
  */
 data class VenueResponse(
     val id: UUID,
@@ -148,7 +152,11 @@ data class VenueResponse(
     val description: String?,
     val imageUrl: String?,
     val address: String,
-    val city: String?,
+
+    // Inlined city fields (frontend-friendly)
+    val citySlug: String,
+    val cityName: String,
+
     val latitude: Double?,
     val longitude: Double?,
     val email: String?,
@@ -174,25 +182,3 @@ data class VenueDetailedResponse(
     val translations: List<VenueTranslationResponse>,
     val photos: List<VenuePhotoResponse>
 )
-
-// ===========================================
-// PASSWORD CHANGE
-// ===========================================
-
-/**
- * Request DTO for venue password change.
- */
-data class VenuePasswordChangeRequest(
-
-    @field:NotBlank(message = "Current password is required")
-    val currentPassword: String,
-
-    @field:NotBlank(message = "New password is required")
-    @field:Size(
-        min = AppConstants.Validation.MIN_PASSWORD_LENGTH,
-        max = AppConstants.Validation.MAX_PASSWORD_LENGTH,
-        message = "Password must be between ${AppConstants.Validation.MIN_PASSWORD_LENGTH} and ${AppConstants.Validation.MAX_PASSWORD_LENGTH} characters"
-    )
-    val newPassword: String
-)
-

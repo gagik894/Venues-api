@@ -1,19 +1,18 @@
 -- ================================================================
--- Venues API - Development Data Seed Script (FIXED UUID SYNTAX)
--- All UUIDs now use valid Hex characters (0-9, a-f)
+-- Venues API - Development Data Seed Script (FIXED v3)
 -- ================================================================
 
 -- ================================================================
--- 1. VENUES (Prefix: 1111..., 2222..., 3333...)
+-- 1. VENUES
 -- ================================================================
-INSERT INTO venues (id, name, smtp_email, smtp_password, address, city, category, verified, official, is_always_open,
+INSERT INTO venues (id, name, address, city, category, verified, official, is_always_open,
                     status, created_at, last_modified_at)
-VALUES ('11111111-1111-1111-1111-111111111111', 'Yerevan Opera House', 'opera@yerevan.am', 'mock_smtp_pass',
+VALUES ('11111111-1111-1111-1111-111111111111', 'Yerevan Opera House',
         'Tumanyan 54, Yerevan', 'Yerevan', 'OPERA_HOUSE', true, true, false, 'ACTIVE', NOW(), NOW()),
-       ('22222222-2222-2222-2222-222222222222', 'Gyumri Drama Theatre', 'drama@gyumri.am', 'mock_smtp_pass',
+       ('22222222-2222-2222-2222-222222222222', 'Gyumri Drama Theatre',
         'Abovyan 12, Gyumri', 'Gyumri', 'THEATRE', true, true, false, 'ACTIVE', NOW(), NOW()),
-       ('33333333-3333-3333-3333-333333333333', 'Aram Khachaturian Concert Hall', 'concert@yerevan.am',
-        'mock_smtp_pass', 'Marshal Baghramyan Avenue 46, Yerevan', 'Yerevan', 'CONCERT_HALL', true, true, false,
+       ('33333333-3333-3333-3333-333333333333', 'Aram Khachaturian Concert Hall',
+        'Marshal Baghramyan Avenue 46, Yerevan', 'Yerevan', 'CONCERT_HALL', true, true, false,
         'ACTIVE', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
@@ -31,22 +30,25 @@ VALUES ('11111111-1111-1111-1111-111111111111', 'hy', 'Երևանի օպերայ
         'Երևանի կենտրոնական համերգասրահը։', NOW(), NOW());
 
 -- ================================================================
--- 2. USERS (Prefix: a000...)
+-- 2. USERS
 -- ================================================================
 INSERT INTO users (id, email, password_hash, first_name, last_name, phone_number, role, status, failed_login_attempts,
                    email_verified, created_at, last_modified_at)
-VALUES ('a0000000-0000-0000-0000-000000000001', 'admin@gov.am', '$2a$10$e.g.mockhashforpassword123.......', 'Admin',
+VALUES ('a0000000-0000-0000-0000-000000000001', 'admin@gov.am',
+        '$2a$12$ibgO8gE2JgrJOpLmz75UXu9LLr9.6EoCyb8uV3VVELVgUFBFxgmEG', 'Admin',
         'User', '+37411111111', 'ADMIN', 'ACTIVE', 0, true, NOW(), NOW()),
        ('a0000000-0000-0000-0000-000000000002', 'anna.petrosyan@example.com',
-        '$2a$10$e.g.mockhashforpassword123.......', 'Anna', 'Petrosyan', '+37422222222', 'USER', 'ACTIVE', 0, true,
+        '$2a$12$ibgO8gE2JgrJOpLmz75UXu9LLr9.6EoCyb8uV3VVELVgUFBFxgmEG', 'Anna', 'Petrosyan', '+37422222222', 'USER',
+        'ACTIVE', 0, true,
         NOW(), NOW()),
        ('a0000000-0000-0000-0000-000000000003', 'karen.sargsyan@example.com',
-        '$2a$10$e.g.mockhashforpassword123.......', 'Karen', 'Sargsyan', '+37433333333', 'USER', 'ACTIVE', 0, true,
+        '$2a$12$ibgO8gE2JgrJOpLmz75UXu9LLr9.6EoCyb8uV3VVELVgUFBFxgmEG', 'Karen', 'Sargsyan', '+37433333333', 'USER',
+        'ACTIVE', 0, true,
         NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 3. PLATFORMS (Prefix: bbbb... - replaced invalid 'p')
+-- 3. PLATFORMS
 -- ================================================================
 INSERT INTO platforms (id, name, api_url, shared_secret, status, webhook_enabled, description, contact_email,
                        rate_limit, webhook_success_count, webhook_failure_count, created_at, last_modified_at)
@@ -56,9 +58,7 @@ VALUES ('bbbbbbbb-1111-1111-1111-111111111111', 'Ticketmaster Armenia', 'https:/
         'Booking platform', 'api@toms.com', 500, 0, 0, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- ================================================================
 -- 3.1 EVENT CATEGORIES
--- ================================================================
 INSERT INTO event_categories (id, category_key, name, color, icon, display_order, is_active, created_at,
                               last_modified_at)
 VALUES (10, 'BALLET', 'Ballet', '#FF6B9D', 'ballet-icon', 10, true, NOW(), NOW()),
@@ -80,20 +80,20 @@ VALUES (10, 'hy', 'Բալետ', NOW(), NOW()),
        (40, 'ru', 'Концерт', NOW(), NOW());
 
 -- ================================================================
--- 4. SEATING CHARTS (Prefix: 9999... - replaced invalid 'sc')
+-- 4. SEATING CHARTS
 -- ================================================================
-INSERT INTO seating_charts (id, venue_id, name, seat_indicator_size, level_indicator_size, background_url, created_at,
-                            last_modified_at)
-VALUES ('99999999-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'Opera Main Hall', 1, 1,
-        'http://img.url', NOW(), NOW()),
-       ('99999999-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'Drama Theatre Hall', 1, 1,
-        NULL, NOW(), NOW()),
-       ('99999999-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333', 'Concert Hall VIP Lounge', 1, 1,
-        'http://img.url', NOW(), NOW())
+INSERT INTO seating_charts (id, venue_id, name, width, height, is_active, background_url, created_at, last_modified_at)
+VALUES ('99999999-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111', 'Opera Main Hall', 2000, 2000,
+        true, 'http://img.url', NOW(), NOW()),
+       ('99999999-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222', 'Drama Theatre Hall', 1500,
+        1500,
+        true, NULL, NOW(), NOW()),
+       ('99999999-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333', 'Concert Hall VIP Lounge', 1000,
+        1000, true, 'http://img.url', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 5. EVENTS (Prefix: eeee...)
+-- 5. EVENTS
 -- ================================================================
 INSERT INTO events (id, venue_id, category_id, seating_chart_id, title, description, currency, status, created_at,
                     last_modified_at)
@@ -107,15 +107,13 @@ VALUES ('eeeeeeee-1111-1111-1111-111111111111', '11111111-1111-1111-1111-1111111
         NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- ================================================================
 -- 5.1 EVENT TRANSLATIONS
--- ================================================================
 INSERT INTO event_translations (event_id, language, title, description, created_at, last_modified_at)
 VALUES ('eeeeeeee-1111-1111-1111-111111111111', 'hy', 'Կարապի լիճ', 'Չայկովսկու գլուխգործոցը', NOW(), NOW()),
        ('eeeeeeee-2222-2222-2222-222222222222', 'hy', 'Համլետ', 'Շեքսպիրի ողբերգություն', NOW(), NOW());
 
 -- ================================================================
--- 6. EVENT SESSIONS (Prefix: 5555... - replaced invalid 's')
+-- 6. EVENT SESSIONS
 -- ================================================================
 INSERT INTO event_sessions (id, event_id, start_time, end_time, tickets_count, tickets_sold, status, created_at,
                             last_modified_at)
@@ -128,33 +126,59 @@ VALUES ('55555555-1111-1111-1111-111111111111', 'eeeeeeee-1111-1111-1111-1111111
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 7. LEVELS
+-- 7. CHART ZONES
 -- ================================================================
-INSERT INTO levels (id, seating_chart_id, parent_level_id, level_name, level_identifier, position_x, position_y,
-                    capacity, is_table, created_at, last_modified_at)
-VALUES (1, '99999999-1111-1111-1111-111111111111', NULL, 'Orchestra', 'ORCH', 50.0, 100.0, NULL, false, NOW(), NOW()),
-       (2, '99999999-1111-1111-1111-111111111111', NULL, 'Balcony', 'BALC', 50.0, 50.0, NULL, false, NOW(), NOW()),
-       (3, '99999999-1111-1111-1111-111111111111', NULL, 'Standing', 'STAND', 50.0, 150.0, 100, false, NOW(), NOW()),
-       (5, '99999999-3333-3333-3333-333333333333', NULL, 'VIP Lounge', 'VIP', 30.0, 80.0, NULL, false, NOW(), NOW()),
-       (6, '99999999-3333-3333-3333-333333333333', 5, 'VIP Table 1', 'VIP-T1', 20.0, 70.0, 4, true, NOW(), NOW()),
-       (7, '99999999-3333-3333-3333-333333333333', 5, 'VIP Table 2', 'VIP-T2', 40.0, 70.0, 4, true, NOW(), NOW())
+INSERT INTO chart_zones (id, chart_id, parent_zone_id, name, code, x_position, y_position, rotation, created_at,
+                         last_modified_at)
+VALUES
+-- Opera Hall Zones
+(1, '99999999-1111-1111-1111-111111111111', NULL, 'Orchestra', 'ORCH', 500.0, 1000.0, 0, NOW(), NOW()),
+(2, '99999999-1111-1111-1111-111111111111', NULL, 'Balcony', 'BALC', 500.0, 500.0, 0, NOW(), NOW()),
+(3, '99999999-1111-1111-1111-111111111111', NULL, 'Standing Area', 'STAND', 500.0, 1500.0, 0, NOW(), NOW()),
+
+-- VIP Hall Zones
+(5, '99999999-3333-3333-3333-333333333333', NULL, 'VIP Lounge', 'VIP', 300.0, 800.0, 0, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
-SELECT setval(pg_get_serial_sequence('levels', 'id'), 50);
+SELECT setval(pg_get_serial_sequence('chart_zones', 'id'), 50);
 
 -- ================================================================
--- 8. SEATS
+-- 8. CHART GA AREAS
 -- ================================================================
-INSERT INTO seats (id, level_id, seat_identifier, seat_number, row_label, position_x, position_y, created_at,
-                   last_modified_at)
-VALUES (1, 1, 'ORCH-A1', '1', 'Row A', 10.0, 10.0, NOW(), NOW()),
-       (2, 1, 'ORCH-A2', '2', 'Row A', 20.0, 10.0, NOW(), NOW()),
-       (10, 6, 'VIP-T1-S1', '1', NULL, 18.0, 68.0, NOW(), NOW()),
-       (11, 6, 'VIP-T1-S2', '2', NULL, 22.0, 68.0, NOW(), NOW())
+INSERT INTO chart_ga_areas (id, zone_id, name, code, capacity, created_at, last_modified_at)
+VALUES (100, 3, 'General Standing', 'STAND-GA-1', 100, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
-SELECT setval(pg_get_serial_sequence('seats', 'id'), 50);
+SELECT setval(pg_get_serial_sequence('chart_ga_areas', 'id'), 200);
 
 -- ================================================================
--- 9. PRICE TEMPLATES (Prefix: dddd... - replaced invalid 'pt')
+-- 9. CHART TABLES
+-- ================================================================
+INSERT INTO chart_tables (id, zone_id, table_number, code, seat_capacity, shape, x_position, y_position, width, height,
+                          rotation, created_at, last_modified_at)
+VALUES (1, 5, 'T1', 'VIP-T1', 4, 'ROUND', 200.0, 700.0, 100.0, 100.0, 0, NOW(), NOW()),
+       (2, 5, 'T2', 'VIP-T2', 4, 'ROUND', 400.0, 700.0, 100.0, 100.0, 0, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+SELECT setval(pg_get_serial_sequence('chart_tables', 'id'), 50);
+
+-- ================================================================
+-- 10. CHART SEATS (FIXED)
+--    - Removed `seat_identifier`
+--    - Ensure `code`, `row_label`, `seat_number` are set
+-- ================================================================
+INSERT INTO chart_seats (id, zone_id, table_id, row_label, seat_number, code, category_key, x_position, y_position,
+                         created_at, last_modified_at)
+VALUES
+-- Seats in Orchestra Zone (Zone 1)
+(1, 1, NULL, 'A', '1', 'ORCH_ROW-A_SEAT-1', 'STANDARD', 100.0, 100.0, NOW(), NOW()),
+(2, 1, NULL, 'A', '2', 'ORCH_ROW-A_SEAT-2', 'STANDARD', 200.0, 100.0, NOW(), NOW()),
+
+-- Seats at VIP Table 1 (Zone 5, Table 1)
+(10, 5, 1, 'T1', '1', 'VIP_ROW-T1_SEAT-1', 'VIP', 180.0, 680.0, NOW(), NOW()),
+(11, 5, 1, 'T1', '2', 'VIP_ROW-T1_SEAT-2', 'VIP', 220.0, 680.0, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+SELECT setval(pg_get_serial_sequence('chart_seats', 'id'), 50);
+
+-- ================================================================
+-- 11. PRICE TEMPLATES
 -- ================================================================
 INSERT INTO event_price_templates (id, event_id, template_name, price, color, created_at, last_modified_at)
 VALUES ('dddddddd-1111-1111-1111-111111111111', 'eeeeeeee-1111-1111-1111-111111111111', 'VIP', 10000.00, '#FFD700',
@@ -166,31 +190,36 @@ VALUES ('dddddddd-1111-1111-1111-111111111111', 'eeeeeeee-1111-1111-1111-1111111
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 10. SESSION CONFIGS
+-- 12. SESSION CONFIGS
 -- ================================================================
+
+-- Seat Configs
 INSERT INTO session_seat_configs (session_id, seat_id, price_template_id, status, created_at, last_modified_at)
 VALUES ('55555555-1111-1111-1111-111111111111', 1, 'dddddddd-1111-1111-1111-111111111111', 'AVAILABLE', NOW(), NOW()),
        ('55555555-1111-1111-1111-111111111111', 2, 'dddddddd-2222-2222-2222-222222222222', 'SOLD', NOW(), NOW());
 
-INSERT INTO session_level_configs (session_id, level_id, price_template_id, capacity, sold_count, status, created_at,
+-- Level/GA Configs
+INSERT INTO session_level_configs (session_id, ga_area_id, price_template_id, capacity, sold_count, status, created_at,
                                    last_modified_at)
-VALUES ('55555555-1111-1111-1111-111111111111', 3, 'dddddddd-2222-2222-2222-222222222222', 100, 25, 'AVAILABLE', NOW(),
+VALUES ('55555555-1111-1111-1111-111111111111', 100, 'dddddddd-2222-2222-2222-222222222222', 100, 25, 'AVAILABLE',
+        NOW(),
         NOW());
 
+-- Table Configs
 INSERT INTO session_table_configs (session_id, table_id, price_template_id, booking_mode, status, created_at,
                                    last_modified_at)
-VALUES ('55555555-3333-3333-3333-333333333333', 6, 'dddddddd-3333-3333-3333-333333333333', 'TABLE_ONLY', 'AVAILABLE',
+VALUES ('55555555-3333-3333-3333-333333333333', 1, 'dddddddd-3333-3333-3333-333333333333', 'TABLE_ONLY', 'AVAILABLE',
         NOW(), NOW());
 
 -- ================================================================
--- 11. GUESTS (Prefix: eeee... - replaced invalid 'g' and 'g... is taken' so using eeee9999)
+-- 13. GUESTS
 -- ================================================================
 INSERT INTO guests (id, name, email, phone, created_at, last_modified_at)
 VALUES ('eeeeeeee-9999-1111-1111-111111111111', 'John Doe', 'guest@example.com', '+37499888777', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 12. BOOKINGS (Prefix: bbbb... - replaced invalid 'b')
+-- 14. BOOKINGS
 -- ================================================================
 INSERT INTO bookings (id, reservation_token, user_id, guest_id, session_id, venue_id, platform_id,
                       total_price, currency, status, created_at, last_modified_at)
@@ -202,11 +231,11 @@ VALUES ('bbbbbbbb-1111-1111-1111-111111111111', 'aaaaaaaa-1111-1111-1111-1111111
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================
--- 13. BOOKING ITEMS
+-- 15. BOOKING ITEMS
 -- ================================================================
-INSERT INTO booking_items (booking_id, seat_id, level_id, price_template_name, unit_price, quantity, created_at,
+INSERT INTO booking_items (booking_id, seat_id, ga_area_id, price_template_name, unit_price, quantity, created_at,
                            last_modified_at)
-VALUES ('bbbbbbbb-1111-1111-1111-111111111111', 2, 1, 'Standard', 6000.00, 1, NOW(), NOW());
+VALUES ('bbbbbbbb-1111-1111-1111-111111111111', 2, NULL, 'Standard', 6000.00, 1, NOW(), NOW());
 
 -- ================================================================
 -- Final Sequence Updates

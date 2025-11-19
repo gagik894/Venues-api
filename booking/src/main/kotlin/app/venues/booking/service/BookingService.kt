@@ -218,7 +218,7 @@ class BookingService(
         // Prepare items data using SeatingApi (Hexagonal Architecture)
         val itemsData = booking.items.map { item ->
             val seatId = item.seatId
-            val levelId = item.levelId
+            val levelId = item.gaAreaId
 
             val seatIdentifier = seatId?.let {
                 seatingApi.getSeatInfo(it)?.code

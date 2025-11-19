@@ -14,7 +14,7 @@ import java.math.BigDecimal
  * @property quantity Number of units (1 for seats, >=1 for GA tickets)
  * @property unitPrice Price per unit at booking time (snapshot pricing)
  * @property seatId Seat ID from seating module (for seat bookings)
- * @property levelId GA area ID from seating module (for GA bookings)
+ * @property gaAreaId GA area ID from seating module (for GA bookings)
  * @property priceTemplateName Price template name for display (e.g., "VIP", "Standard")
  */
 @Entity
@@ -39,8 +39,8 @@ class BookingItem(
     /**
      * GA area ID from seating module (populated for GA ticket bookings).
      */
-    @Column(name = "level_id")
-    var levelId: Long? = null,
+    @Column(name = "ga_area_id")
+    var gaAreaId: Long? = null,
 
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null
@@ -60,5 +60,5 @@ class BookingItem(
     /**
      * Check if this is a GA ticket booking.
      */
-    fun isGA(): Boolean = levelId != null && seatId == null
+    fun isGA(): Boolean = gaAreaId != null && seatId == null
 }

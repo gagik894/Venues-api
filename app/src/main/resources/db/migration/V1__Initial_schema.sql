@@ -36,23 +36,23 @@ create table platforms
 
 create table users
 (
-    id                  uuid                        not null primary key,
-    email               varchar(255)                not null unique,
-    password_hash       varchar(255)                not null,
-    first_name          varchar(100)                not null,
-    last_name           varchar(100)                not null,
-    role                varchar(20)                 not null check (role in ('USER', 'ADMIN')),
-    status              varchar(20)                 not null check (status in ('ACTIVE', 'PENDING_VERIFICATION', 'SUSPENDED', 'DELETED')),
-    phone_number        varchar(20),
-    avatar_url          varchar(512),
-    email_verified      boolean                     not null,
-    failed_login_attempts integer not null,
-    locked_until        timestamp(6) with time zone,
-    last_login_at       timestamp(6) with time zone,
-    referral_code       varchar(20) unique,
-    referrer_id         uuid,
-    created_at          timestamp(6) with time zone not null,
-    last_modified_at    timestamp(6) with time zone not null
+    id                    uuid                        not null primary key,
+    email                 varchar(255)                not null unique,
+    password_hash         varchar(255)                not null,
+    first_name            varchar(100)                not null,
+    last_name             varchar(100)                not null,
+    role                  varchar(20)                 not null check (role in ('USER', 'ADMIN')),
+    status                varchar(20)                 not null check (status in ('ACTIVE', 'PENDING_VERIFICATION', 'SUSPENDED', 'DELETED')),
+    phone_number          varchar(20),
+    avatar_url            varchar(512),
+    email_verified        boolean                     not null,
+    failed_login_attempts integer                     not null,
+    locked_until          timestamp(6) with time zone,
+    last_login_at         timestamp(6) with time zone,
+    referral_code         varchar(20) unique,
+    referrer_id           uuid,
+    created_at            timestamp(6) with time zone not null,
+    last_modified_at      timestamp(6) with time zone not null
 );
 create index idx_user_status on users (status);
 create index idx_user_referrer_id on users (referrer_id);
@@ -67,6 +67,7 @@ create table guests
     last_modified_at timestamp(6) with time zone not null
 );
 
+-- UPDATED: Sensitive fields removed
 create table venues
 (
     id                          uuid                        not null primary key,
@@ -88,17 +89,6 @@ create table venues
     is_always_open              boolean                     not null,
     latitude                    double precision,
     longitude                   double precision,
-    -- Payment & Integrations
-    telcel_postpone_bill_issuer varchar(255),
-    telcel_store_key            varchar(255),
-    idram_rec_account           varchar(255),
-    idram_secret_key            varchar(255),
-    arca_username               varchar(255),
-    arca_password               varchar(255),
-    converse_merchant_id        varchar(255),
-    converse_secret_key         varchar(255),
-    smtp_email                  varchar(255),
-    smtp_password               varchar(255),
     created_at                  timestamp(6) with time zone not null,
     last_modified_at            timestamp(6) with time zone not null
 );
@@ -110,6 +100,18 @@ create index idx_venue_status on venues (status);
 /* =========================================================
    2. Venue Dependent Tables
    ========================================================= */
+
+-- NEW: Vertical Partitioning for Security
+create table venue_settings
+(
+    venue_id            uuid                        not null primary key
+        constraint fk_venue_settings_venue references venues (id) on delete cascade,
+    payment_config_json text,
+    smtp_config_json    text,
+    custom_config_json  text,
+    created_at          timestamp(6) with time zone not null default now(),
+    updated_at          timestamp(6) with time zone not null default now()
+);
 
 create table staff
 (
@@ -220,70 +222,103 @@ create table venue_translations
     constraint uk_venue_translation_venue_language unique (venue_id, language)
 );
 
-create table seating_charts
-(
-    id                   uuid                        not null primary key,
-    venue_id             uuid                        not null
-        constraint fk_seating_charts_venue references venues,
-    name                 varchar(255)                not null,
-    background_url       varchar(500),
-    level_indicator_size integer                     not null,
-    seat_indicator_size  integer                     not null,
-    created_at           timestamp(6) with time zone not null,
-    last_modified_at     timestamp(6) with time zone not null
-);
-create index idx_seating_chart_venue_id on seating_charts (venue_id);
-create index idx_seating_chart_name on seating_charts (name);
-
 /* =========================================================
-   3. Seating & Levels
+   3. Seating Chart Architecture
    ========================================================= */
 
-create table levels
+create table seating_charts
 (
-    id               bigint generated by default as identity primary key,
-    seating_chart_id uuid                        not null
-        constraint fk_levels_seating_chart references seating_charts,
-    parent_level_id  bigint
-        constraint fk_levels_parent references levels,
-    level_name       varchar(255)                not null,
-    level_identifier varchar(50),
-    capacity         integer,
-    is_table         boolean                     not null,
-    position_x       double precision,
-    position_y       double precision,
-    created_at       timestamp(6) with time zone not null,
-    last_modified_at timestamp(6) with time zone not null
+    id                uuid                        not null primary key,
+    venue_id          uuid                        not null
+        constraint fk_seating_charts_venue references venues,
+    name              varchar(255)                not null,
+    width             integer                     not null default 2000,
+    height            integer                     not null default 2000,
+    is_active         boolean                     not null default true,
+    background_url    varchar(500),
+    style_config_json text,
+    created_at        timestamp(6) with time zone not null,
+    last_modified_at  timestamp(6) with time zone not null
 );
-create index idx_level_seating_chart_id on levels (seating_chart_id);
-create index idx_level_parent_id on levels (parent_level_id);
+create index idx_chart_venue on seating_charts (venue_id);
+create index idx_chart_active on seating_charts (is_active);
 
-create table level_translations
+create table chart_zones
 (
     id               bigint generated by default as identity primary key,
-    level_id         bigint                      not null
-        constraint fk_level_translations_level references levels,
-    language         varchar(10)                 not null,
-    level_label      varchar(255)                not null,
+    chart_id         uuid                        not null
+        constraint fk_zones_chart references seating_charts,
+    parent_zone_id   bigint
+        constraint fk_zones_parent references chart_zones,
+    name             varchar(100)                not null,
+    code             varchar(50)                 not null,
+    x_position       double precision            not null,
+    y_position       double precision            not null,
+    rotation         double precision            not null default 0.0,
+    boundary_path    text,
+    display_color    varchar(7),
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null,
-    constraint uk_level_translation_level_language unique (level_id, language)
+    constraint uk_zone_chart_code unique (chart_id, code)
 );
+create index idx_zone_chart_id on chart_zones (chart_id);
 
-create table seats
+create table chart_tables
 (
     id               bigint generated by default as identity primary key,
-    level_id         bigint                      not null
-        constraint fk_seats_level references levels,
-    seat_identifier  varchar(50)                 not null,
-    seat_number      varchar(50),
-    row_label        varchar(50),
-    position_x       double precision,
-    position_y       double precision,
+    zone_id          bigint                      not null
+        constraint fk_tables_zone references chart_zones,
+    table_number     varchar(20)                 not null,
+    code             varchar(150)                not null,
+    seat_capacity    integer                     not null default 4,
+    shape            varchar(20)                 not null check (shape in ('ROUND', 'SQUARE', 'RECTANGLE', 'OVAL')),
+    x_position       double precision            not null,
+    y_position       double precision            not null,
+    width            double precision            not null,
+    height           double precision            not null,
+    rotation         double precision            not null default 0.0,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null,
-    constraint uk_seat_level_identifier unique (level_id, seat_identifier)
+    constraint uk_table_zone_code unique (zone_id, code)
 );
+
+create table chart_seats
+(
+    id                 bigint generated by default as identity primary key,
+    zone_id            bigint                      not null
+        constraint fk_seats_zone references chart_zones,
+    table_id           bigint
+        constraint fk_seats_table references chart_tables,
+    row_label          varchar(20)                 not null,
+    seat_number        varchar(20)                 not null,
+    code               varchar(150)                not null,
+    category_key       varchar(50)                 not null default 'STANDARD',
+    is_accessible      boolean                     not null default false,
+    is_obstructed_view boolean                     not null default false,
+    x_position         double precision            not null,
+    y_position         double precision            not null,
+    rotation           double precision            not null default 0.0,
+    created_at         timestamp(6) with time zone not null,
+    last_modified_at   timestamp(6) with time zone not null,
+    constraint uk_seat_zone_code unique (zone_id, code)
+);
+create index idx_seat_code on chart_seats (code);
+
+create table chart_ga_areas
+(
+    id               bigint generated by default as identity primary key,
+    zone_id       bigint       not null
+        constraint fk_ga_areas_zone references chart_zones,
+    name          varchar(100) not null,
+    code          varchar(150) not null,
+    capacity      integer      not null,
+    boundary_path text,
+    display_color varchar(7),
+    created_at       timestamp(6) with time zone not null,
+    last_modified_at timestamp(6) with time zone not null,
+    constraint uk_ga_zone_code unique (zone_id, code)
+);
+create index idx_ga_code on chart_ga_areas (code);
 
 /* =========================================================
    4. Events
@@ -296,7 +331,8 @@ create table events
         constraint fk_events_venue references venues,
     category_id      bigint
         constraint fk_events_category references event_categories,
-    seating_chart_id uuid,
+    seating_chart_id uuid
+        constraint fk_events_seating_chart references seating_charts,
     title            varchar(255)                not null,
     description      text,
     status           varchar(20)                 not null check (status in
@@ -404,15 +440,16 @@ create table session_level_configs
     id                bigint generated by default as identity primary key,
     session_id        uuid                        not null
         constraint fk_session_level_configs_session references event_sessions,
-    level_id          bigint                      not null,
+    ga_area_id bigint  not null
+        constraint fk_session_level_configs_area references chart_ga_areas,
     price_template_id uuid
         constraint fk_session_level_configs_price references event_price_templates,
     status            varchar(20)                 not null check (status in ('AVAILABLE', 'RESERVED', 'SOLD', 'CLOSED', 'BLOCKED')),
     capacity          integer,
-    sold_count        integer                     not null,
+    sold_count integer not null default 0,
     created_at        timestamp(6) with time zone not null,
     last_modified_at  timestamp(6) with time zone not null,
-    constraint uk_session_level_config unique (session_id, level_id)
+    constraint uk_session_level_config unique (session_id, ga_area_id)
 );
 
 create table session_seat_configs
@@ -420,7 +457,8 @@ create table session_seat_configs
     id                bigint generated by default as identity primary key,
     session_id        uuid                        not null
         constraint fk_session_seat_configs_session references event_sessions,
-    seat_id           bigint                      not null,
+    seat_id bigint not null
+        constraint fk_session_seat_configs_seat references chart_seats,
     price_template_id uuid
         constraint fk_session_seat_configs_price references event_price_templates,
     status            varchar(20)                 not null check (status in ('AVAILABLE', 'RESERVED', 'SOLD', 'CLOSED', 'BLOCKED')),
@@ -434,7 +472,8 @@ create table session_table_configs
     id                bigint generated by default as identity primary key,
     session_id        uuid                        not null
         constraint fk_session_table_configs_session references event_sessions,
-    table_id          bigint                      not null,
+    table_id bigint not null
+        constraint fk_session_table_configs_table references chart_tables,
     price_template_id uuid
         constraint fk_session_table_configs_price references event_price_templates,
     booking_mode      varchar(20)                 not null check (booking_mode in ('SEATS_ONLY', 'TABLE_ONLY', 'FLEXIBLE')),
@@ -537,7 +576,6 @@ create index idx_booking_platform_id on bookings (platform_id);
 create index idx_booking_venue_id on bookings (venue_id);
 create index idx_booking_reservation_token on bookings (reservation_token);
 
-
 create table booking_items
 (
     id                  bigint generated by default as identity primary key,
@@ -545,8 +583,10 @@ create table booking_items
         constraint fk_booking_items_booking references bookings,
     quantity            integer                     not null,
     unit_price          numeric(10, 2)              not null,
-    seat_id             bigint,
-    level_id            bigint,
+    seat_id    bigint
+        constraint fk_booking_items_seat references chart_seats,
+    ga_area_id bigint
+        constraint fk_booking_items_ga_area references chart_ga_areas,
     price_template_name varchar(100),
     created_at          timestamp(6) with time zone not null,
     last_modified_at    timestamp(6) with time zone not null
@@ -567,13 +607,14 @@ create index idx_cart_token on carts (token);
 create index idx_cart_user_id on carts (user_id);
 create index idx_cart_expires_at on carts (expires_at);
 
-create table cart_item
+create table cart_ga_item
 (
     id               bigint generated by default as identity primary key,
     cart_id          uuid                        not null
-        constraint fk_cart_item_cart references carts,
+        constraint fk_cart_ga_item_cart references carts,
     session_id       uuid                        not null,
-    level_id         bigint                      not null,
+    ga_area_id       bigint                      not null
+        constraint fk_cart_ga_item_area references chart_ga_areas,
     quantity         integer                     not null,
     unit_price       numeric(10, 2)              not null,
     created_at       timestamp(6) with time zone not null,
@@ -586,7 +627,8 @@ create table cart_seats
     cart_id          uuid                        not null
         constraint fk_cart_seats_cart references carts,
     session_id       uuid                        not null,
-    seat_id          bigint                      not null,
+    seat_id bigint not null
+        constraint fk_cart_seats_seat references chart_seats,
     unit_price       numeric(10, 2)              not null,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null,
@@ -599,7 +641,8 @@ create table cart_tables
     cart_id          uuid                        not null
         constraint fk_cart_tables_cart references carts,
     session_id       uuid                        not null,
-    table_id         bigint                      not null,
+    table_id bigint not null
+        constraint fk_cart_tables_table references chart_tables,
     unit_price       numeric(10, 2)              not null,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null,
@@ -627,8 +670,9 @@ create table webhook_events
     attempt_count    integer                     not null,
     last_attempt_at  timestamp(6) with time zone,
     next_retry_at    timestamp(6) with time zone,
-    seat_identifier  varchar(50),
-    level_identifier varchar(50),
+    seat_code    varchar(50),
+    ga_area_code varchar(50),
+    table_code   varchar(50),
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null
 );

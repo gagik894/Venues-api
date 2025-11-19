@@ -12,8 +12,8 @@ import java.util.*
  * @param eventType The type of event (e.g., "SEAT_RESERVED").
  * @param sessionId The `EventSession.id` (a UUID) this event pertains to.
  * @param payload The JSON payload sent.
- * @param seatIdentifier An optional seat identifier related to the event.
- * @param levelIdentifier An optional level identifier related to the event.
+ * @param seatCode An optional seat identifier related to the event.
+ * @param gaAreaCode An optional level identifier related to the event.
  */
 @Entity
 @Table(
@@ -38,13 +38,16 @@ class WebhookEvent(
     @Column(name = "payload", columnDefinition = "TEXT", nullable = false)
     var payload: String,
 
-    @Column(name = "seat_identifier", length = 50)
-    var seatIdentifier: String? = null,
+    @Column(name = "seat_code", length = 50)
+    var seatCode: String? = null,
 
-    @Column(name = "level_identifier", length = 50)
-    var levelIdentifier: String? = null,
+    @Column(name = "ga_area_code", length = 50)
+    var gaAreaCode: String? = null,
 
-    ) : AbstractUuidEntity() {
+    @Column(name = "table_code", length = 50)
+    var tableCode: String? = null
+
+) : AbstractUuidEntity() {
 
     companion object {
         const val MAX_RETRY_ATTEMPTS = 5

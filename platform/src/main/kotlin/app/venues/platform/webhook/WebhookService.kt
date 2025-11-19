@@ -25,6 +25,8 @@ import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+
+//TODO: fix tableCode propagation in webhook events
 /**
  * Service for sending webhook callbacks to platforms.
  *
@@ -190,8 +192,8 @@ class WebhookService(
             platformId = platform.id,
             eventType = eventType,
             sessionId = sessionId,
-            seatIdentifier = seatIdentifier,
-            levelIdentifier = levelIdentifier,
+            seatCode = seatIdentifier,
+            gaAreaCode = levelIdentifier,
             payload = payloadJson
         )
 

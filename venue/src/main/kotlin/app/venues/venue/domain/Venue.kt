@@ -72,37 +72,6 @@ class Venue(
     @Column(name = "verification_document_url", length = 500)
     var verificationDocumentUrl: String? = null,
 
-    // --- Payment and SMTP fields ---
-    @Column(name = "telcel_postpone_bill_issuer", length = 255)
-    var telcelPostponeBillIssuer: String? = null,
-
-    @Column(name = "idram_rec_account", length = 255)
-    var idramRecAccount: String? = null,
-
-    @Column(name = "idram_secret_key", length = 255)
-    var idramSecretKey: String? = null,
-
-    @Column(name = "telcel_store_key", length = 255)
-    var telcelStoreKey: String? = null,
-
-    @Column(name = "arca_username", length = 255)
-    var arcaUsername: String? = null,
-
-    @Column(name = "arca_password", length = 255)
-    var arcaPassword: String? = null,
-
-    @Column(name = "converse_merchant_id", length = 255)
-    var converseMerchantId: String? = null,
-
-    @Column(name = "converse_secret_key", length = 255)
-    var converseSecretKey: String? = null,
-
-    @Column(name = "smtp_email", length = 255)
-    var smtpEmail: String? = null,
-
-    @Column(name = "smtp_password", length = 255)
-    var smtpPassword: String? = null,
-
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---
@@ -123,6 +92,15 @@ class Venue(
         protected set
 
     // --- Relationships ---
+
+    /**
+     * Sensitive configuration stored separately.
+     * LAZY loading prevents accidental exposure of credentials.
+     * Only load when explicitly needed for payment/email operations.
+     */
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    var settings: VenueSettings? = null
+
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     val schedules: MutableList<VenueSchedule> = mutableListOf()
 

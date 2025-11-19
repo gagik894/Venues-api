@@ -11,19 +11,16 @@ import jakarta.persistence.*
  * @param language The language code (e.g., "en", "hy").
  * @param name The translated name.
  * @param description The translated description.
+ * @param address The translated address.
  */
 @Entity
 @Table(
-    name = "venue_translations",
-    uniqueConstraints = [
-        UniqueConstraint(
-            name = "uk_venue_translation_venue_language",
-            columnNames = ["venue_id", "language"]
-        )
+    name = "venue_translations", uniqueConstraints = [
+        UniqueConstraint(name = "uq_venue_lang", columnNames = ["venue_id", "language"])
     ]
 )
 class VenueTranslation(
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
@@ -36,4 +33,7 @@ class VenueTranslation(
     @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    ) : AbstractLongEntity()
+    @Column(name = "address", length = 500)
+    var address: String? = null
+
+) : AbstractLongEntity()

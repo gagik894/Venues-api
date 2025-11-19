@@ -3,6 +3,8 @@ package app.venues.venue.domain
 import app.venues.location.domain.City
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 
 /**
  * Represents a Venue (the "place").
@@ -12,7 +14,7 @@ import jakarta.persistence.*
  * @param name The official name of the venue.
  * @param address The full street address of the venue.
  * @param description A detailed description of the venue.
- * @param imageUrl URL to the main image representing the venue.
+ * @param logoUrl URL to the main image representing the venue.
  * @param city The city where the venue is located.
  * @param latitude The latitude coordinate of the venue.
  * @param longitude The longitude coordinate of the venue.
@@ -26,38 +28,47 @@ import jakarta.persistence.*
 @Table(
     name = "venues",
     indexes = [
-        Index(name = "idx_venue_city_id", columnList = "city_id"),
-        Index(name = "idx_venue_category", columnList = "category"),
-        Index(name = "idx_venue_verified", columnList = "verified"),
+        Index(name = "idx_venue_city", columnList = "city_id"),
+        Index(name = "idx_venue_slug", columnList = "slug", unique = true),
         Index(name = "idx_venue_status", columnList = "status")
     ]
 )
 class Venue(
+
+    // --- Base Content (Default Language) ---
     @Column(name = "name", nullable = false, length = 255)
     var name: String,
-
-    @Column(name = "address", nullable = false, length = 500)
-    var address: String,
 
     @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    @Column(name = "image_url", length = 500)
-    var imageUrl: String? = null,
+    @Column(name = "slug", nullable = false, unique = true)
+    var slug: String,
 
-    /**
-     * City/Community where the venue is located.
-     *
-     * Mandatory relationship linking venue to official government location data.
-     * Enables:
-     * - Location-based venue filtering
-     * - Regional venue discovery
-     * - Government reporting by administrative region
-     * - Interoperability with national cadastre systems
-     */
+    // --- Legal ---
+    @Column(name = "legal_name", length = 255)
+    var legalName: String? = null,
+
+    @Column(name = "tax_id", length = 50) // Essential for Gov/Invoicing
+    var taxId: String? = null,
+
+    // --- Visuals (needed for lists, so keep in Main Table) ---
+    @Column(name = "logo_url", length = 500)
+    var logoUrl: String? = null,
+
+    @Column(name = "cover_image_url", length = 500)
+    var coverImageUrl: String? = null,
+
+    // --- Location ---
+    @Column(name = "address", nullable = false, length = 500)
+    var address: String,
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "city_id", nullable = false)
     var city: City,
+
+    @Column(name = "time_zone", nullable = false)
+    var timeZone: String = "Asia/Yerevan",
 
     @Column(name = "latitude")
     var latitude: Double? = null,
@@ -65,92 +76,65 @@ class Venue(
     @Column(name = "longitude")
     var longitude: Double? = null,
 
-    @Column(name = "phone_number", length = 50)
-    var phoneNumber: String? = null,
-
-    @Column(name = "website", length = 500)
-    var website: String? = null,
-
-    @Column(name = "custom_domain", length = 255)
-    var customDomain: String? = null,
-
-    @Column(name = "category", length = 50)
-    var category: String? = null,
-
-    @Column(name = "is_always_open", nullable = false)
+    // --- Config ---
+    @Column(name = "is_always_open")
     var isAlwaysOpen: Boolean = false,
 
-    @Column(name = "time_zone", nullable = false, length = 50)
-    var timeZone: String = "Asia/Yerevan"
+    @Column(name = "custom_domain")
+    var customDomain: String? = null,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    var category: VenueCategory? = null,
+
+    // --- Contacts ---
+    @Column(name = "phone_number")
+    var phoneNumber: String? = null,
+
+    @Column(name = "website")
+    var website: String? = null,
+
+    @Column(name = "contact_email")
+    var contactEmail: String? = null,
+
+    @Column(name = "social_links", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    var socialLinks: Map<String, String>? = null,
+
+    /**
+     * Ownership type (State vs Private).
+     * Critical for Government reporting and tax handling.
+     */
+    @Column(name = "ownership_type", length = 20)
+    @Enumerated(EnumType.STRING)
+    var ownershipType: VenueOwnership? = null,
+
+    /**
+     * Private list of emails that receive system alerts (Sales reports, Payout issues).
+     * JSONB List: ["manager@opera.am", "accountant@opera.am"]
+     */
+    @Column(name = "notification_emails", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    var notificationEmails: List<String> = emptyList(),
 ) : AbstractUuidEntity() {
 
-    // --- Internal State (Encapsulated) ---
-    @Column(name = "verified", nullable = false)
-    @Access(AccessType.FIELD)
-    var verified: Boolean = false
-        protected set
-
-    @Column(name = "official", nullable = false)
-    @Access(AccessType.FIELD)
-    var official: Boolean = false
-        protected set
-
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    @Access(AccessType.FIELD)
+    @Column(name = "status", nullable = false)
     var status: VenueStatus = VenueStatus.PENDING_APPROVAL
         protected set
 
-    // --- Relationships ---
+    // --- Relations ---
 
-    /**
-     * Sensitive configuration stored separately.
-     * LAZY loading prevents accidental exposure of credentials.
-     * Only load when explicitly needed for payment/email operations.
-     */
+    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
+    var translations: MutableList<VenueTranslation> = mutableListOf()
+
     @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    var settings: VenueSettings? = null
+    var branding: VenueBranding? = null // The White Label Config
 
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val schedules: MutableList<VenueSchedule> = mutableListOf()
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    var settings: VenueSettings? = null // The Secrets (Stripe/SMTP)
 
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val photos: MutableList<VenuePhoto> = mutableListOf()
-
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val reviews: MutableList<VenueReview> = mutableListOf()
-
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val followers: MutableList<VenueFollower> = mutableListOf()
-
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val promoCodes: MutableList<VenuePromoCode> = mutableListOf()
-
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val translations: MutableList<VenueTranslation> = mutableListOf()
-
-    // --- Public Behaviors ---
-    fun getNameInLanguage(language: String): String {
-        return translations.find { it.language == language }?.name ?: name
-    }
-
-    /**
-     * Approves a venue that was pending.
-     */
-    fun approveVenue() {
-        if (this.status == VenueStatus.PENDING_APPROVAL) {
-            this.status = VenueStatus.ACTIVE
-            this.verified = true
-        }
-    }
-
-    /**
-     * Suspends an active venue.
-     */
-    fun suspendVenue() {
-        if (this.status == VenueStatus.ACTIVE) {
-            this.status = VenueStatus.SUSPENDED
-        }
-    }
+    // Helper
+    fun getName(lang: String): String =
+        translations.firstOrNull { it.language == lang }?.name ?: name
 }

@@ -1,244 +1,278 @@
 package app.venues.venue.api.mapper
 
+import app.venues.location.domain.City
+import app.venues.location.repository.CityRepository
 import app.venues.venue.api.dto.*
-import app.venues.venue.domain.*
+import app.venues.venue.domain.Venue
+import app.venues.venue.domain.VenueCategory
+import app.venues.venue.domain.VenueSchedule
+import app.venues.venue.domain.VenueTranslation
+import app.venues.venue.repository.VenueCategoryRepository
 import org.springframework.stereotype.Component
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.*
 
 /**
- * Mapper for converting between Venue entities and DTOs.
- *
- * Handles bidirectional mapping for all venue-related objects.
- * Includes proper type conversions for timestamps and monetary values.
+ * Maps between Venue domain entities and DTOs.
+ * Handles localization and data formatting for API responses.
  */
 @Component
-class VenueMapper {
-
-    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-    // ===========================================
-    // VENUE MAPPERS
-    // ===========================================
+class VenueMapper(
+    private val cityRepository: CityRepository,
+    private val categoryRepository: VenueCategoryRepository
+) {
 
     /**
-     * Convert Venue entity to VenueResponse DTO
+     * Converts Venue entity to public response DTO.
      *
-     * @param venue Venue entity to convert
-     * @param includeStats Whether to include statistics (follower count, reviews, etc.)
-     * @param language Optional language code for translations (e.g., "hy", "ru", "en")
+     * @param venue Venue entity
+     * @param lang Language code for localization (defaults to "en")
+     * @param includeStats Whether to include follower/rating statistics
+     * @return VenueResponse for public API
      */
-    fun toResponse(venue: Venue, includeStats: Boolean = false, language: String? = null): VenueResponse {
-        val cityLang = language ?: "en"
-
-        // Apply translation if requested language exists
-        val translation = language?.let { lang ->
-            venue.translations.find { it.language.equals(lang, ignoreCase = true) }
-        }
-
+    fun toPublicResponse(
+        venue: Venue,
+        lang: String = "en",
+        includeStats: Boolean = false
+    ): VenueResponse {
         return VenueResponse(
             id = venue.id,
-            name = translation?.name ?: venue.name,
-            description = translation?.description ?: venue.description,
-            imageUrl = venue.imageUrl,
-            address = venue.address,
+            slug = venue.slug,
+            name = venue.getName(lang),
+            description = venue.translations
+                .firstOrNull { it.language == lang }?.description
+                ?: venue.description,
+            logoUrl = venue.logoUrl,
+            coverImageUrl = venue.coverImageUrl,
 
-            // Inline city fields (frontend-friendly)
             citySlug = venue.city.slug,
-            cityName = venue.city.getName(cityLang),
+            cityName = venue.city.getName(lang),
 
-            latitude = venue.latitude,
-            longitude = venue.longitude,
-            email = null, //TODO: add email in model
+            categoryCode = venue.category?.code,
+            categoryName = venue.category?.getName(lang),
+            categoryColor = venue.category?.color,
+
             phoneNumber = venue.phoneNumber,
             website = venue.website,
-            customDomain = venue.customDomain,
-            category = venue.category,
-            isAlwaysOpen = venue.isAlwaysOpen,
-            verified = venue.verified,
-            official = venue.official,
             status = venue.status,
-            followerCount = if (includeStats) venue.followers.size.toLong() else null,
-            reviewCount = if (includeStats) venue.reviews.filter { !it.isModerated }.size.toLong() else null,
-            averageRating = if (includeStats && venue.reviews.isNotEmpty()) {
-                venue.reviews.filter { !it.isModerated }.map { it.rating }.average()
-            } else null
+
+            followerCount = if (includeStats) 0L else null, // TODO: implement follower count
+            averageRating = if (includeStats) null else null // TODO: implement rating calculation
         )
     }
 
     /**
-     * Convert Venue entity to VenueDetailedResponse DTO
+     * Converts Venue entity to detailed response DTO.
+     *
+     * @param venue Venue entity
+     * @param lang Language code for localization
+     * @return VenueDetailResponse with full information
      */
-    fun toDetailedResponse(venue: Venue): VenueDetailedResponse {
-        return VenueDetailedResponse(
-            venue = toResponse(venue, includeStats = true),
-            schedules = venue.schedules.map { toScheduleResponse(it) },
-            translations = venue.translations.map { toTranslationResponse(it) },
-            photos = venue.photos.map { toPhotoResponse(it) }
+    fun toDetailResponse(venue: Venue, lang: String = "en"): VenueDetailResponse {
+        return VenueDetailResponse(
+            id = venue.id,
+            slug = venue.slug,
+            name = venue.getName(lang),
+            description = venue.translations
+                .firstOrNull { it.language == lang }?.description
+                ?: venue.description,
+            logoUrl = venue.logoUrl,
+            coverImageUrl = venue.coverImageUrl,
+
+            address = venue.address,
+            citySlug = venue.city.slug,
+            cityName = venue.city.getName(lang),
+            latitude = venue.latitude,
+            longitude = venue.longitude,
+            timeZone = venue.timeZone,
+
+            categoryCode = venue.category?.code,
+            categoryName = venue.category?.getName(lang),
+            categoryColor = venue.category?.color,
+            categoryIcon = venue.category?.icon,
+
+            phoneNumber = venue.phoneNumber,
+            website = venue.website,
+            contactEmail = venue.contactEmail,
+            socialLinks = venue.socialLinks,
+
+            isAlwaysOpen = venue.isAlwaysOpen,
+            customDomain = venue.customDomain,
+            status = venue.status,
+
+            translations = venue.translations.map(::toTranslationDto),
+            schedules = emptyList(), // TODO: load schedules
+
+            followerCount = 0L, // TODO: implement
+            averageRating = null, // TODO: implement
+            reviewCount = 0L, // TODO: implement
+
+            createdAt = venue.createdAt,
+            lastModifiedAt = venue.lastModifiedAt
         )
     }
 
-    // ===========================================
-    // SCHEDULE MAPPERS
-    // ===========================================
+    /**
+     * Converts Venue entity to admin response DTO (includes sensitive data).
+     *
+     * @param venue Venue entity
+     * @param lang Language code for localization
+     * @return VenueAdminResponse with full administrative information
+     */
+    fun toAdminResponse(venue: Venue, lang: String = "en"): VenueAdminResponse {
+        return VenueAdminResponse(
+            id = venue.id,
+            slug = venue.slug,
+            name = venue.name,
+            legalName = venue.legalName,
+            taxId = venue.taxId,
+            description = venue.description,
+
+            address = venue.address,
+            citySlug = venue.city.slug,
+            cityName = venue.city.getName(lang),
+            latitude = venue.latitude,
+            longitude = venue.longitude,
+            timeZone = venue.timeZone,
+
+            categoryCode = venue.category?.code,
+            categoryName = venue.category?.getName(lang),
+
+            phoneNumber = venue.phoneNumber,
+            website = venue.website,
+            contactEmail = venue.contactEmail,
+            socialLinks = venue.socialLinks,
+
+            ownershipType = venue.ownershipType,
+            notificationEmails = venue.notificationEmails,
+
+            logoUrl = venue.logoUrl,
+            coverImageUrl = venue.coverImageUrl,
+            customDomain = venue.customDomain,
+            isAlwaysOpen = venue.isAlwaysOpen,
+
+            status = venue.status,
+
+            createdAt = venue.createdAt,
+            lastModifiedAt = venue.lastModifiedAt
+        )
+    }
 
     /**
-     * Convert VenueSchedule entity to response DTO
+     * Creates a new Venue entity from creation request.
+     *
+     * @param request CreateVenueRequest with venue data
+     * @param city City entity (must be pre-fetched)
+     * @param category VenueCategory entity (optional, pre-fetched)
+     * @return New Venue entity (not yet persisted)
      */
-    fun toScheduleResponse(schedule: VenueSchedule): VenueScheduleResponse {
-        return VenueScheduleResponse(
-            id = schedule.id!!,
-            dayOfWeek = schedule.dayOfWeek,
-            openTime = schedule.openTime?.format(timeFormatter),
-            closeTime = schedule.closeTime?.format(timeFormatter),
+    fun toEntity(
+        request: CreateVenueRequest,
+        city: City,
+        category: VenueCategory?
+    ): Venue {
+        return Venue(
+            name = request.name,
+            slug = request.slug,
+            description = request.description,
+
+            address = request.address,
+            city = city,
+
+            legalName = request.legalName,
+            taxId = request.taxId,
+
+            latitude = request.latitude,
+            longitude = request.longitude,
+            timeZone = request.timeZone,
+
+            category = category,
+
+            phoneNumber = request.phoneNumber,
+            website = request.website,
+            contactEmail = request.contactEmail,
+
+            ownershipType = request.ownershipType
+        )
+    }
+
+    /**
+     * Updates existing Venue entity from update request.
+     * Only updates fields that are non-null in the request.
+     *
+     * @param venue Existing venue entity to update
+     * @param request UpdateVenueRequest with changes
+     * @param city Optional new city (if cityId provided)
+     * @param category Optional new category (if categoryCode provided)
+     */
+    fun updateEntity(
+        venue: Venue,
+        request: UpdateVenueRequest,
+        city: City? = null,
+        category: VenueCategory? = null
+    ) {
+        request.name?.let { venue.name = it }
+        request.description?.let { venue.description = it }
+        request.legalName?.let { venue.legalName = it }
+        request.taxId?.let { venue.taxId = it }
+
+        request.address?.let { venue.address = it }
+        city?.let { venue.city = it }
+
+        request.latitude?.let { venue.latitude = it }
+        request.longitude?.let { venue.longitude = it }
+        request.timeZone?.let { venue.timeZone = it }
+
+        if (category !== null || request.categoryCode != null) {
+            venue.category = category
+        }
+
+        request.phoneNumber?.let { venue.phoneNumber = it }
+        request.website?.let { venue.website = it }
+        request.contactEmail?.let { venue.contactEmail = it }
+
+        request.socialLinks?.let { venue.socialLinks = it }
+        request.notificationEmails?.let { venue.notificationEmails = it }
+
+        request.logoUrl?.let { venue.logoUrl = it }
+        request.coverImageUrl?.let { venue.coverImageUrl = it }
+        request.customDomain?.let { venue.customDomain = it }
+        request.isAlwaysOpen?.let { venue.isAlwaysOpen = it }
+
+        request.ownershipType?.let { venue.ownershipType = it }
+    }
+
+    /**
+     * Converts VenueTranslation entity to DTO.
+     */
+    fun toTranslationDto(translation: VenueTranslation): VenueTranslationDto {
+        return VenueTranslationDto(
+            language = translation.language,
+            name = translation.name,
+            description = translation.description
+        )
+    }
+
+    /**
+     * Converts VenueSchedule entity to DTO.
+     */
+    fun toScheduleDto(schedule: VenueSchedule): VenueScheduleDto {
+        return VenueScheduleDto(
+            dayOfWeek = schedule.dayOfWeek.toString(),
+            openTime = schedule.openTime?.toString(),
+            closeTime = schedule.closeTime?.toString(),
             isClosed = schedule.isClosed
         )
     }
 
     /**
-     * Convert schedule request DTO to entity
+     * Converts VenueCategory entity to DTO.
      */
-    fun toScheduleEntity(request: VenueScheduleRequest, venue: Venue): VenueSchedule {
-        return VenueSchedule(
-            venue = venue,
-            dayOfWeek = request.dayOfWeek,
-            openTime = request.openTime?.let { LocalTime.parse(it, timeFormatter) },
-            closeTime = request.closeTime?.let { LocalTime.parse(it, timeFormatter) },
-            isClosed = request.isClosed
-        )
-    }
-
-    // ===========================================
-    // TRANSLATION MAPPERS
-    // ===========================================
-
-    /**
-     * Convert VenueTranslation entity to response DTO
-     */
-    fun toTranslationResponse(translation: VenueTranslation): VenueTranslationResponse {
-        return VenueTranslationResponse(
-            id = translation.id!!,
-            language = translation.language,
-            name = translation.name,
-            description = translation.description,
-            createdAt = translation.createdAt,
-            lastModifiedAt = translation.lastModifiedAt
-        )
-    }
-
-    /**
-     * Convert translation request DTO to entity
-     */
-    fun toTranslationEntity(request: VenueTranslationRequest, venue: Venue): VenueTranslation {
-        return VenueTranslation(
-            venue = venue,
-            language = request.language.lowercase(),
-            name = request.name,
-            description = request.description
-        )
-    }
-
-    // ===========================================
-    // PHOTO MAPPERS
-    // ===========================================
-
-    /**
-     * Convert VenuePhoto entity to response DTO
-     */
-    fun toPhotoResponse(photo: VenuePhoto): VenuePhotoResponse {
-        return VenuePhotoResponse(
-            id = photo.id!!,
-            url = photo.url,
-            caption = photo.caption,
-            displayOrder = photo.displayOrder,
-            userId = photo.userId,
-            createdAt = photo.createdAt,
-        )
-    }
-
-    /**
-     * Convert photo request DTO to entity
-     */
-    fun toPhotoEntity(request: VenuePhotoRequest, venue: Venue, userId: UUID): VenuePhoto {
-        return VenuePhoto(
-            venue = venue,
-            userId = userId,
-            url = request.url,
-            caption = request.caption,
-            displayOrder = request.displayOrder
-        )
-    }
-
-    // ===========================================
-    // REVIEW MAPPERS
-    // ===========================================
-
-    /**
-     * Convert VenueReview entity to response DTO
-     */
-    fun toReviewResponse(review: VenueReview): VenueReviewResponse {
-        return VenueReviewResponse(
-            id = review.id!!,
-            userId = review.userId,
-            rating = review.rating,
-            comment = review.comment,
-            createdAt = review.createdAt,
-            lastModifiedAt = review.lastModifiedAt,
-            isModerated = review.isModerated
-        )
-    }
-
-    /**
-     * Convert review request DTO to entity
-     */
-    fun toReviewEntity(request: VenueReviewRequest, venue: Venue, userId: UUID): VenueReview {
-        return VenueReview(
-            venue = venue,
-            userId = userId,
-            rating = request.rating,
-            comment = request.comment
-        )
-    }
-
-    // ===========================================
-    // PROMO CODE MAPPERS
-    // ===========================================
-
-    /**
-     * Convert VenuePromoCode entity to response DTO
-     */
-    fun toPromoCodeResponse(promoCode: VenuePromoCode): VenuePromoCodeResponse {
-        return VenuePromoCodeResponse(
-            id = promoCode.id,
-            code = promoCode.code,
-            description = promoCode.description,
-            discountType = promoCode.discountType,
-            discountValue = promoCode.discountValue.toString(),
-            minOrderAmount = promoCode.minOrderAmount.toString(),
-            maxDiscountAmount = promoCode.maxDiscountAmount.toString(),
-            maxUsageCount = promoCode.maxUsageCount,
-            currentUsageCount = promoCode.currentUsageCount,
-            expiresAt = promoCode.expiresAt,
-            isActive = promoCode.isActive,
-            createdAt = promoCode.createdAt
-        )
-    }
-
-    /**
-     * Convert promo code request DTO to entity
-     */
-    fun toPromoCodeEntity(request: VenuePromoCodeRequest, venue: Venue): VenuePromoCode {
-        return VenuePromoCode(
-            venue = venue,
-            code = request.code.uppercase(),
-            description = request.description,
-            discountType = request.discountType,
-            discountValue = request.discountValue,
-            minOrderAmount = request.minOrderAmount,
-            maxDiscountAmount = request.maxDiscountAmount,
-            maxUsageCount = request.maxUsageCount,
-            expiresAt = request.expiresAt
+    fun toCategoryDto(category: VenueCategory, lang: String = "en"): VenueCategoryDto {
+        return VenueCategoryDto(
+            code = category.code,
+            name = category.getName(lang),
+            color = category.color,
+            icon = category.icon,
+            displayOrder = category.displayOrder
         )
     }
 }

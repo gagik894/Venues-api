@@ -128,13 +128,28 @@ class Venue(
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
     var translations: MutableList<VenueTranslation> = mutableListOf()
 
-    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
     var branding: VenueBranding? = null // The White Label Config
 
-    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
     var settings: VenueSettings? = null // The Secrets (Stripe/SMTP)
 
     // Helper
     fun getName(lang: String): String =
         translations.firstOrNull { it.language == lang }?.name ?: name
+
+    fun getDescription(lang: String): String? =
+        translations.firstOrNull { it.language == lang }?.description ?: description
+
+    fun activate() {
+        this.status = VenueStatus.ACTIVE
+    }
+
+    fun suspend() {
+        this.status = VenueStatus.SUSPENDED
+    }
+
+    fun delete() {
+        this.status = VenueStatus.DELETED
+    }
 }

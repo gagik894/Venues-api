@@ -2,691 +2,266 @@ package app.venues.venue.api.controller
 
 import app.venues.common.model.ApiResponse
 import app.venues.shared.persistence.util.PageableMapper
-import app.venues.shared.security.util.SecurityUtil
 import app.venues.venue.api.dto.*
-import app.venues.venue.service.VenueAuthService
 import app.venues.venue.service.VenueService
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
 /**
- * REST Controller for venue management operations.
- *
- * This controller handles all venue-related operations including:
- * - Profile management
- * - Schedule management
- * - Translation management
- * - Photo management
- * - Review management
- * - Promo code management
- * - Follower management
- *
- * Most endpoints require authentication with ROLE_VENUE.
- * Public endpoints (search, view) don't require authentication.
+ * REST controller for public venue operations.
+ * Uses UUIDs for primary access, slugs for SEO-friendly alternative.
+ * All endpoints support localization via lang parameter.
  */
 @RestController
 @RequestMapping("/api/v1/venues")
-@Validated
-@Tag(name = "Venue Management", description = "Venue profile and management endpoints")
+@Tag(name = "Venues", description = "Public venue discovery and information")
 class VenueController(
-    private val venueService: VenueService,
-    private val venueAuthService: VenueAuthService,
-    private val securityUtil: SecurityUtil
+    private val venueService: VenueService
 ) {
-    private val logger = LoggerFactory.getLogger(javaClass)
 
-    // ===========================================
-    // PUBLIC ENDPOINTS (No authentication required)
-    // ===========================================
-
-    /**
-     * Get all active venues (public listing).
-     */
     @GetMapping
     @Operation(
-        summary = "Get all active venues",
-        description = "Public endpoint to browse all active venues. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
+        summary = "List venues",
+        description = "Returns paginated list of active venues. Use 'lang' for localization (hy, en, ru)."
     )
-    fun getAllVenues(
+    fun listVenues(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) sortBy: String?,
         @RequestParam(required = false) sortDirection: String?,
-        @RequestParam(required = false) lang: String?
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
     ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching all active venues, language: {}", lang)
-
-        // Whitelist of allowed sort fields for Venue entity
-        val allowedSortFields = setOf("createdAt", "name", "city", "category", "id")
-
         val pageable = PageableMapper.createPageable(
             limit = limit,
             offset = offset,
             sortBy = sortBy,
             sortDirection = sortDirection,
-            allowedSortFields = allowedSortFields
+            allowedSortFields = setOf("name", "createdAt")
         )
 
-        val venues = venueService.getAllActiveVenues(pageable, language = lang)
-
-        return ApiResponse.success(
-            data = venues,
-            message = "Venues retrieved successfully"
-        )
+        val venues = venueService.listVenues(pageable, lang)
+        return ApiResponse.success(venues, "Venues retrieved successfully")
     }
 
-    /**
-     * Search venues by name.
-     */
-    @GetMapping("/search")
-    @Operation(
-        summary = "Search venues by name",
-        description = "Search for venues by name (case-insensitive). Use 'lang' parameter for translations"
-    )
-    fun searchVenues(
-        @RequestParam("q") searchTerm: String,
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Searching venues: {}, language: {}", searchTerm, lang)
-
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-
-        val venues = venueService.searchVenues(searchTerm, pageable, language = lang)
-
-        return ApiResponse.success(
-            data = venues,
-            message = "Search completed successfully"
-        )
-    }
-
-    /**
-     * Get venues by city slug.
-     *
-     * Frontend usage: GET /api/v1/venues/city/yerevan?lang=hy
-     */
-    @GetMapping("/city/{citySlug}")
-    @Operation(
-        summary = "Get venues by city",
-        description = "Get all venues in a specific city using city slug (e.g., 'yerevan', 'gyumri'). Use 'lang' parameter for translations"
-    )
-    fun getVenuesByCity(
-        @PathVariable citySlug: String,
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in city: {}, language: {}", citySlug, lang)
-
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-
-        val venues = venueService.getVenuesByCity(citySlug, pageable, language = lang)
-
-        return ApiResponse.success(
-            data = venues,
-            message = "Venues retrieved successfully"
-        )
-    }
-
-    /**
-     * Get venues by region code.
-     *
-     * Frontend usage: GET /api/v1/venues/region/AM-ER?lang=hy
-     */
-    @GetMapping("/region/{regionCode}")
-    @Operation(
-        summary = "Get venues by region",
-        description = "Get all venues in a specific region using ISO region code (e.g., 'AM-ER' for Yerevan, 'AM-SH' for Shirak). Use 'lang' parameter for translations"
-    )
-    fun getVenuesByRegion(
-        @PathVariable regionCode: String,
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in region: {}, language: {}", regionCode, lang)
-
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-
-        val venues = venueService.getVenuesByRegion(regionCode, pageable, language = lang)
-
-        return ApiResponse.success(
-            data = venues,
-            message = "Venues retrieved successfully"
-        )
-    }
-
-    /**
-     * Get venues by category.
-     */
-    @GetMapping("/category/{category}")
-    @Operation(
-        summary = "Get venues by category",
-        description = "Get all venues in a specific category. Use 'lang' parameter for translations"
-    )
-    fun getVenuesByCategory(
-        @PathVariable category: String,
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<VenueResponse>> {
-        logger.debug("Fetching venues in category: {}, language: {}", category, lang)
-
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-
-        val venues = venueService.getVenuesByCategory(category, pageable, language = lang)
-
-        return ApiResponse.success(
-            data = venues,
-            message = "Venues retrieved successfully"
-        )
-    }
-
-    /**
-     * Get venue by ID (public, includes detailed info).
-     */
     @GetMapping("/{id}")
     @Operation(
         summary = "Get venue by ID",
-        description = "Get detailed venue information by ID. Use 'lang' parameter for translations"
+        description = "Returns detailed venue information. Use 'lang' for localization."
     )
-    fun getVenueById(
+    fun getVenue(
         @PathVariable id: UUID,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<VenueDetailedResponse> {
-        logger.debug("Fetching venue by ID: {}, language: {}", id, lang)
-
-        val venue = venueService.getVenueDetailed(id)
-
-        return ApiResponse.success(
-            data = venue,
-            message = "Venue retrieved successfully"
-        )
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<VenueDetailResponse> {
+        val venue = venueService.getVenue(id, lang)
+        return ApiResponse.success(venue, "Venue retrieved successfully")
     }
 
-    // ===========================================
-    // VENUE PROFILE MANAGEMENT (Requires ROLE_VENUE)
-    // ===========================================
-
-    /**
-     * Get current venue's profile.
-     */
-    @GetMapping("/me")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
+    @GetMapping("/slug/{slug}")
     @Operation(
-        summary = "Get current venue profile",
-        description = "Get authenticated venue's profile information"
+        summary = "Get venue by slug (SEO-friendly)",
+        description = "Returns detailed venue information using URL-friendly slug. Use 'lang' for localization."
     )
-    fun getCurrentVenue(): ApiResponse<VenueResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug("Fetching current venue profile: {}", venueId)
-
-        val venue = venueService.getVenueById(venueId, includeStats = true)
-
-        return ApiResponse.success(
-            data = venue,
-            message = "Venue profile retrieved successfully"
-        )
+    fun getVenueBySlug(
+        @PathVariable slug: String,
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<VenueDetailResponse> {
+        val venue = venueService.getVenueBySlug(slug, lang)
+        return ApiResponse.success(venue, "Venue retrieved successfully")
     }
 
-    /**
-     * Update venue profile.
-     */
-    @PutMapping("/me")
-    @PreAuthorize("hasRole('VENUE')")
+    @GetMapping("/search")
+    @Operation(
+        summary = "Search venues",
+        description = "Search venues by name. Supports partial matching, case-insensitive."
+    )
+    fun searchVenues(
+        @Parameter(description = "Search query")
+        @RequestParam("q") query: String,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<Page<VenueResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val venues = venueService.searchVenues(query, pageable, lang)
+        return ApiResponse.success(venues, "Search completed successfully")
+    }
+
+    @GetMapping("/city/{citySlug}")
+    @Operation(
+        summary = "List venues by city",
+        description = "Returns venues in a specific city (e.g., 'yerevan', 'gyumri')."
+    )
+    fun listVenuesByCity(
+        @PathVariable citySlug: String,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<Page<VenueResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val venues = venueService.listVenuesByCity(citySlug, pageable, lang)
+        return ApiResponse.success(venues, "Venues retrieved successfully")
+    }
+
+    @GetMapping("/region/{regionCode}")
+    @Operation(
+        summary = "List venues by region",
+        description = "Returns venues in a region using ISO code (e.g., 'AM-ER', 'AM-SH')."
+    )
+    fun listVenuesByRegion(
+        @PathVariable regionCode: String,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<Page<VenueResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val venues = venueService.listVenuesByRegion(regionCode, pageable, lang)
+        return ApiResponse.success(venues, "Venues retrieved successfully")
+    }
+
+    @GetMapping("/category/{categoryCode}")
+    @Operation(
+        summary = "List venues by category",
+        description = "Returns venues in a category using code (e.g., 'OPERA', 'MUSEUM')."
+    )
+    fun listVenuesByCategory(
+        @PathVariable categoryCode: String,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<Page<VenueResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val venues = venueService.listVenuesByCategory(categoryCode, pageable, lang)
+        return ApiResponse.success(venues, "Venues retrieved successfully")
+    }
+
+    @GetMapping("/categories")
+    @Operation(
+        summary = "List venue categories",
+        description = "Returns all active venue categories for filtering."
+    )
+    fun listCategories(
+        @Parameter(description = "Language code (hy, en, ru)")
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<List<VenueCategoryDto>> {
+        val categories = venueService.listCategories(lang)
+        return ApiResponse.success(categories, "Categories retrieved successfully")
+    }
+}
+
+/**
+ * REST controller for venue administration.
+ * Requires ADMIN or VENUE_OWNER role. Can use UUIDs internally.
+ */
+@RestController
+@RequestMapping("/api/v1/admin/venues")
+@Tag(name = "Venue Administration", description = "Admin-only venue management endpoints")
+class VenueAdminController(
+    private val venueService: VenueService
+) {
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+        summary = "Create venue",
+        description = "Creates a new venue (admin only). Status will be PENDING_APPROVAL."
+    )
+    fun createVenue(
+        @Valid @RequestBody request: CreateVenueRequest
+    ): ApiResponse<VenueAdminResponse> {
+        val venue = venueService.createVenue(request)
+        return ApiResponse.success(venue, "Venue created successfully")
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('VENUE_OWNER')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
-        summary = "Update venue profile",
-        description = "Update authenticated venue's profile information"
+        summary = "Update venue",
+        description = "Updates venue information (admin or owner only)."
     )
     fun updateVenue(
-        @Valid @RequestBody request: VenueUpdateRequest
-    ): ApiResponse<VenueResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Updating venue profile: {}", venueId)
-
-        val venue = venueService.updateVenue(venueId, request)
-
-        return ApiResponse.success(
-            data = venue,
-            message = "Venue profile updated successfully"
-        )
-    }
-
-    // ===========================================
-    // SCHEDULE MANAGEMENT
-    // ===========================================
-
-    /**
-     * Get venue schedules.
-     */
-    @GetMapping("/{id}/schedules")
-    @Operation(
-        summary = "Get venue schedules",
-        description = "Get operating hours for all days of the week"
-    )
-    fun getSchedules(
-        @PathVariable id: UUID
-    ): ApiResponse<List<VenueScheduleResponse>> {
-        logger.debug("Fetching schedules for venue: {}", id)
-
-        val schedules = venueService.getSchedules(id)
-
-        return ApiResponse.success(
-            data = schedules,
-            message = "Schedules retrieved successfully"
-        )
-    }
-
-    /**
-     * Set or update schedule for a specific day.
-     */
-    @PutMapping("/me/schedules")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Set venue schedule",
-        description = "Set operating hours for a specific day"
-    )
-    fun setSchedule(
-        @Valid @RequestBody request: VenueScheduleRequest
-    ): ApiResponse<VenueScheduleResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Setting schedule for venue {} on {}", venueId, request.dayOfWeek)
-
-        val schedule = venueService.setSchedule(venueId, request)
-
-        return ApiResponse.success(
-            data = schedule,
-            message = "Schedule updated successfully"
-        )
-    }
-
-    // ===========================================
-    // TRANSLATION MANAGEMENT
-    // ===========================================
-
-    /**
-     * Get venue translations.
-     */
-    @GetMapping("/{id}/translations")
-    @Operation(
-        summary = "Get venue translations",
-        description = "Get all translations for a venue"
-    )
-    fun getTranslations(
-        @PathVariable id: UUID
-    ): ApiResponse<List<VenueTranslationResponse>> {
-        logger.debug("Fetching translations for venue: {}", id)
-
-        val translations = venueService.getTranslations(id)
-
-        return ApiResponse.success(
-            data = translations,
-            message = "Translations retrieved successfully"
-        )
-    }
-
-    /**
-     * Add or update translation.
-     */
-    @PutMapping("/me/translations")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Set venue translation",
-        description = "Add or update translation for a specific language"
-    )
-    fun setTranslation(
-        @Valid @RequestBody request: VenueTranslationRequest
-    ): ApiResponse<VenueTranslationResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Setting translation for venue {} in language {}", venueId, request.language)
-
-        val translation = venueService.setTranslation(venueId, request)
-
-        return ApiResponse.success(
-            data = translation,
-            message = "Translation saved successfully"
-        )
-    }
-
-    /**
-     * Delete translation.
-     */
-    @DeleteMapping("/me/translations/{language}")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Delete venue translation",
-        description = "Delete translation for a specific language"
-    )
-    fun deleteTranslation(
-        @PathVariable language: String
-    ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Deleting translation for venue {} in language {}", venueId, language)
-
-        venueService.deleteTranslation(venueId, language)
-
-        return ApiResponse.success(
-            message = "Translation deleted successfully"
-        )
-    }
-
-    // ===========================================
-    // PHOTO MANAGEMENT
-    // ===========================================
-
-    /**
-     * Get venue photos.
-     */
-    @GetMapping("/{id}/photos")
-    @Operation(
-        summary = "Get venue photos",
-        description = "Get all photos for a venue"
-    )
-    fun getPhotos(
-        @PathVariable id: UUID
-    ): ApiResponse<List<VenuePhotoResponse>> {
-        logger.debug("Fetching photos for venue: {}", id)
-
-        val photos = venueService.getPhotos(id)
-
-        return ApiResponse.success(
-            data = photos,
-            message = "Photos retrieved successfully"
-        )
-    }
-
-    /**
-     * Add photo to venue.
-     */
-    @PostMapping("/me/photos")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Add venue photo",
-        description = "Upload a new photo to the venue"
-    )
-    fun addPhoto(
-        @Valid @RequestBody request: VenuePhotoRequest
-    ): ApiResponse<VenuePhotoResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("Adding photo to venue {} by user {}", venueId, userId)
-
-        val photo = venueService.addPhoto(venueId, userId, request)
-
-        return ApiResponse.success(
-            data = photo,
-            message = "Photo added successfully",
-        )
-    }
-
-    /**
-     * Delete photo.
-     */
-    @DeleteMapping("/me/photos/{photoId}")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Delete venue photo",
-        description = "Delete a photo from the venue"
-    )
-    fun deletePhoto(
-        @PathVariable photoId: Long
-    ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("Deleting photo {} from venue {}", photoId, venueId)
-
-        venueService.deletePhoto(venueId, photoId, userId)
-
-        return ApiResponse.success(
-            message = "Photo deleted successfully"
-        )
-    }
-
-    // ===========================================
-    // REVIEW MANAGEMENT
-    // ===========================================
-
-    /**
-     * Get venue reviews.
-     */
-    @GetMapping("/{id}/reviews")
-    @Operation(
-        summary = "Get venue reviews",
-        description = "Get all reviews for a venue"
-    )
-    fun getReviews(
         @PathVariable id: UUID,
+        @Valid @RequestBody request: UpdateVenueRequest
+    ): ApiResponse<VenueAdminResponse> {
+        val venue = venueService.updateVenue(id, request)
+        return ApiResponse.success(venue, "Venue updated successfully")
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @Operation(
+        summary = "List all venues",
+        description = "Returns all venues including non-active (admin only)."
+    )
+    fun listAllVenues(
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?
-    ): ApiResponse<Page<VenueReviewResponse>> {
-        logger.debug("Fetching reviews for venue: {}", id)
-
-        val allowedSortFields = setOf("createdAt", "rating", "id")
-        val pageable = PageableMapper.createPageable(
-            limit = limit,
-            offset = offset,
-            sortBy = "createdAt",
-            sortDirection = "DESC",
-            allowedSortFields = allowedSortFields
-        )
-
-        val reviews = venueService.getReviews(id, pageable)
-
-        return ApiResponse.success(
-            data = reviews,
-            message = "Reviews retrieved successfully"
-        )
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false, defaultValue = "en") lang: String
+    ): ApiResponse<Page<VenueAdminResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val venues = venueService.listAllVenues(pageable, lang)
+        return ApiResponse.success(venues, "Venues retrieved successfully")
     }
 
-    /**
-     * Add or update review (requires USER authentication).
-     */
-    @PutMapping("/{id}/reviews")
-    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
-        summary = "Add or update review",
-        description = "Add or update your review for a venue"
+        summary = "Activate venue",
+        description = "Sets venue status to ACTIVE (admin only)."
     )
-    fun addOrUpdateReview(
-        @PathVariable id: UUID,
-        @Valid @RequestBody request: VenueReviewRequest
-    ): ApiResponse<VenueReviewResponse> {
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("Adding/updating review for venue {} by user {}", id, userId)
-
-        val review = venueService.addOrUpdateReview(id, userId, request)
-
-        return ApiResponse.success(
-            data = review,
-            message = "Review saved successfully"
-        )
+    fun activateVenue(
+        @PathVariable id: UUID
+    ): ApiResponse<VenueAdminResponse> {
+        val venue = venueService.activateVenue(id)
+        return ApiResponse.success(venue, "Venue activated successfully")
     }
 
-    /**
-     * Delete review (requires USER authentication).
-     */
-    @DeleteMapping("/{id}/reviews")
-    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/{id}/suspend")
+    @PreAuthorize("hasRole('ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
-        summary = "Delete review",
-        description = "Delete your review for a venue"
+        summary = "Suspend venue",
+        description = "Sets venue status to SUSPENDED (admin only)."
     )
-    fun deleteReview(
+    fun suspendVenue(
+        @PathVariable id: UUID
+    ): ApiResponse<VenueAdminResponse> {
+        val venue = venueService.suspendVenue(id)
+        return ApiResponse.success(venue, "Venue suspended successfully")
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+        summary = "Delete venue",
+        description = "Soft-deletes venue (admin only). Sets status to DELETED."
+    )
+    fun deleteVenue(
         @PathVariable id: UUID
     ): ApiResponse<Unit> {
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("Deleting review for venue {} by user {}", id, userId)
-
-        venueService.deleteReview(id, userId)
-
-        return ApiResponse.success(
-            message = "Review deleted successfully"
-        )
-    }
-
-    // ===========================================
-    // PROMO CODE MANAGEMENT
-    // ===========================================
-
-    /**
-     * Get venue promo codes.
-     */
-    @GetMapping("/me/promo-codes")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Get venue promo codes",
-        description = "Get all active promo codes for the venue"
-    )
-    fun getPromoCodes(): ApiResponse<List<VenuePromoCodeResponse>> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug("Fetching promo codes for venue: {}", venueId)
-
-        val promoCodes = venueService.getPromoCodes(venueId)
-
-        return ApiResponse.success(
-            data = promoCodes,
-            message = "Promo codes retrieved successfully"
-        )
-    }
-
-    /**
-     * Create promo code.
-     */
-    @PostMapping("/me/promo-codes")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create promo code",
-        description = "Create a new promo code for the venue"
-    )
-    fun createPromoCode(
-        @Valid @RequestBody request: VenuePromoCodeRequest
-    ): ApiResponse<VenuePromoCodeResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Creating promo code for venue: {}", venueId)
-
-        val promoCode = venueService.createPromoCode(venueId, request)
-
-        return ApiResponse.success(
-            data = promoCode,
-            message = "Promo code created successfully",
-        )
-    }
-
-    /**
-     * Deactivate promo code.
-     */
-    @DeleteMapping("/me/promo-codes/{codeId}")
-    @PreAuthorize("hasRole('VENUE')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Deactivate promo code",
-        description = "Deactivate a promo code"
-    )
-    fun deactivatePromoCode(
-        @PathVariable codeId: UUID
-    ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.info("Deactivating promo code {} for venue {}", codeId, venueId)
-
-        venueService.deactivatePromoCode(venueId, codeId)
-
-        return ApiResponse.success(
-            message = "Promo code deactivated successfully"
-        )
-    }
-
-    // ===========================================
-    // FOLLOWER MANAGEMENT
-    // ===========================================
-
-    /**
-     * Follow a venue (requires USER authentication).
-     */
-    @PostMapping("/{id}/follow")
-    @PreAuthorize("hasRole('USER')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Follow venue",
-        description = "Follow a venue to receive updates"
-    )
-    fun followVenue(
-        @PathVariable id: UUID
-    ): ApiResponse<Unit> {
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("User {} following venue {}", userId, id)
-
-        venueService.followVenue(id, userId)
-
-        return ApiResponse.success(
-            message = "You are now following this venue"
-        )
-    }
-
-    /**
-     * Unfollow a venue (requires USER authentication).
-     */
-    @DeleteMapping("/{id}/follow")
-    @PreAuthorize("hasRole('USER')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Unfollow venue",
-        description = "Unfollow a venue"
-    )
-    fun unfollowVenue(
-        @PathVariable id: UUID
-    ): ApiResponse<Unit> {
-        val userId = securityUtil.getCurrentUserId()
-        logger.info("User {} unfollowing venue {}", userId, id)
-
-        venueService.unfollowVenue(id, userId)
-
-        return ApiResponse.success(
-            message = "You have unfollowed this venue"
-        )
-    }
-
-    /**
-     * Check if current user is following a venue.
-     */
-    @GetMapping("/{id}/follow")
-    @PreAuthorize("hasRole('USER')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Check if following",
-        description = "Check if you are following this venue"
-    )
-    fun isFollowing(
-        @PathVariable id: UUID
-    ): ApiResponse<Map<String, Boolean>> {
-        val userId = securityUtil.getCurrentUserId()
-        val isFollowing = venueService.isFollowing(id, userId)
-
-        return ApiResponse.success(
-            data = mapOf("isFollowing" to isFollowing)
-        )
+        venueService.deleteVenue(id)
+        return ApiResponse.success(Unit, "Venue deleted successfully")
     }
 }
 

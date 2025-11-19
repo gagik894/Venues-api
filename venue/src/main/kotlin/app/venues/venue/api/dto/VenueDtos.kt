@@ -1,29 +1,148 @@
 package app.venues.venue.api.dto
 
 import app.venues.common.constants.AppConstants
+import app.venues.venue.domain.VenueOwnership
 import app.venues.venue.domain.VenueStatus
 import jakarta.validation.constraints.*
+import java.time.Instant
 import java.util.*
 
-
 // ===========================================
-// VENUE REGISTRATION & AUTHENTICATION
+// PUBLIC VENUE RESPONSES
 // ===========================================
 
 /**
- * Request DTO for venue registration.
- *
- * Validates all required fields before venue account creation.
+ * Public venue information (list view).
+ * Used for venue discovery, search results, and listings.
  */
-data class VenueRegistrationRequest(
-
-    @field:NotBlank(message = "Venue name is required")
-    @field:Size(
-        min = AppConstants.Validation.MIN_NAME_LENGTH,
-        max = 255,
-        message = "Venue name must be between ${AppConstants.Validation.MIN_NAME_LENGTH} and 255 characters"
-    )
+data class VenueResponse(
+    val id: UUID,
+    val slug: String,
     val name: String,
+    val description: String?,
+    val logoUrl: String?,
+    val coverImageUrl: String?,
+
+    val citySlug: String,
+    val cityName: String,
+
+    val categoryCode: String?,
+    val categoryName: String?,
+    val categoryColor: String?,
+
+    val phoneNumber: String?,
+    val website: String?,
+    val status: VenueStatus,
+
+    val followerCount: Long? = null,
+    val averageRating: Double? = null
+)
+
+/**
+ * Detailed venue information (single venue view).
+ * Includes full details, schedules, and social links.
+ */
+data class VenueDetailResponse(
+    val id: UUID,
+    val slug: String,
+    val name: String,
+    val description: String?,
+    val logoUrl: String?,
+    val coverImageUrl: String?,
+
+    val address: String,
+    val citySlug: String,
+    val cityName: String,
+    val latitude: Double?,
+    val longitude: Double?,
+    val timeZone: String,
+
+    val categoryCode: String?,
+    val categoryName: String?,
+    val categoryColor: String?,
+    val categoryIcon: String?,
+
+    val phoneNumber: String?,
+    val website: String?,
+    val contactEmail: String?,
+    val socialLinks: Map<String, String>?,
+
+    val isAlwaysOpen: Boolean,
+    val customDomain: String?,
+    val status: VenueStatus,
+
+    val translations: List<VenueTranslationDto>,
+    val schedules: List<VenueScheduleDto>,
+
+    val followerCount: Long,
+    val averageRating: Double?,
+    val reviewCount: Long,
+
+    val createdAt: Instant?,
+    val lastModifiedAt: Instant?
+)
+
+// ===========================================
+// ADMIN/OWNER RESPONSES
+// ===========================================
+
+/**
+ * Admin venue information (includes sensitive data).
+ * Used for venue management dashboard.
+ */
+data class VenueAdminResponse(
+    val id: UUID,
+    val slug: String,
+    val name: String,
+    val legalName: String?,
+    val taxId: String?,
+    val description: String?,
+
+    val address: String,
+    val citySlug: String,
+    val cityName: String,
+    val latitude: Double?,
+    val longitude: Double?,
+    val timeZone: String,
+
+    val categoryCode: String?,
+    val categoryName: String?,
+
+    val phoneNumber: String?,
+    val website: String?,
+    val contactEmail: String?,
+    val socialLinks: Map<String, String>?,
+
+    val ownershipType: VenueOwnership?,
+    val notificationEmails: List<String>,
+
+    val logoUrl: String?,
+    val coverImageUrl: String?,
+    val customDomain: String?,
+    val isAlwaysOpen: Boolean,
+
+    val status: VenueStatus,
+
+    val createdAt: Instant?,
+    val lastModifiedAt: Instant?
+)
+
+// ===========================================
+// CREATE/UPDATE REQUESTS
+// ===========================================
+
+/**
+ * Request to create a new venue (admin/staff only).
+ */
+data class CreateVenueRequest(
+    @field:NotBlank(message = "Name is required")
+    @field:Size(min = 2, max = 255, message = "Name must be 2-255 characters")
+    val name: String,
+
+    @field:NotBlank(message = "Slug is required")
+    @field:Pattern(regexp = "^[a-z0-9-]+$", message = "Slug must be lowercase alphanumeric with hyphens")
+    @field:Size(min = 2, max = 100, message = "Slug must be 2-100 characters")
+    val slug: String,
 
     @field:Size(max = 2000, message = "Description must not exceed 2000 characters")
     val description: String? = null,
@@ -33,79 +152,36 @@ data class VenueRegistrationRequest(
     val address: String,
 
     @field:NotNull(message = "City is required")
-    val cityId: Long,
+    var cityId: Long,
 
-    @field:DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
-    @field:DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
+    val categoryCode: String? = null,
+
+    val legalName: String? = null,
+    val taxId: String? = null,
+
+    @field:DecimalMin(value = "-90.0")
+    @field:DecimalMax(value = "90.0")
     val latitude: Double? = null,
 
-    @field:DecimalMin(value = "-180.0", message = "Longitude must be between -180 and 180")
-    @field:DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
+    @field:DecimalMin(value = "-180.0")
+    @field:DecimalMax(value = "180.0")
     val longitude: Double? = null,
 
-    @field:NotBlank(message = "Email is required")
-    @field:Email(message = "Email must be valid")
-    @field:Size(max = 255, message = "Email must not exceed 255 characters")
-    val email: String,
-
-    @field:NotBlank(message = "Password is required")
-    @field:Size(
-        min = AppConstants.Validation.MIN_PASSWORD_LENGTH,
-        max = AppConstants.Validation.MAX_PASSWORD_LENGTH,
-        message = "Password must be between ${AppConstants.Validation.MIN_PASSWORD_LENGTH} and ${AppConstants.Validation.MAX_PASSWORD_LENGTH} characters"
-    )
-    val password: String,
-
-    @field:Pattern(
-        regexp = AppConstants.Patterns.PHONE,
-        message = "Phone number format is invalid"
-    )
+    @field:Pattern(regexp = AppConstants.Patterns.PHONE, message = "Invalid phone number")
     val phoneNumber: String? = null,
 
-    @field:Size(max = 500, message = "Website must not exceed 500 characters")
     val website: String? = null,
+    val contactEmail: String? = null,
 
-    @field:Size(max = 50, message = "Category must not exceed 50 characters")
-    val category: String? = null
+    val ownershipType: VenueOwnership? = null,
+    val timeZone: String = "Asia/Yerevan"
 )
 
 /**
- * Request DTO for venue login.
+ * Request to update venue information (owner/admin only).
  */
-data class VenueLoginRequest(
-
-    @field:NotBlank(message = "Email is required")
-    @field:Email(message = "Email must be valid")
-    val email: String,
-
-    @field:NotBlank(message = "Password is required")
-    val password: String
-)
-
-/**
- * Response DTO for successful venue authentication.
- */
-data class VenueLoginResponse(
-    val token: String,
-    val tokenType: String = "Bearer",
-    val expiresIn: Long,
-    val venue: VenueResponse
-)
-
-// ===========================================
-// VENUE PROFILE
-// ===========================================
-
-/**
- * Request DTO for updating venue profile.
- */
-data class VenueUpdateRequest(
-
-    @field:Size(
-        min = AppConstants.Validation.MIN_NAME_LENGTH,
-        max = 255,
-        message = "Venue name must be between ${AppConstants.Validation.MIN_NAME_LENGTH} and 255 characters"
-    )
+data class UpdateVenueRequest(
+    @field:Size(min = 2, max = 255, message = "Name must be 2-255 characters")
     val name: String? = null,
 
     @field:Size(max = 2000, message = "Description must not exceed 2000 characters")
@@ -115,70 +191,68 @@ data class VenueUpdateRequest(
     val address: String? = null,
 
     val cityId: Long? = null,
+    val categoryCode: String? = null,
 
-    @field:DecimalMin(value = "-90.0", message = "Latitude must be between -90 and 90")
-    @field:DecimalMax(value = "90.0", message = "Latitude must be between -90 and 90")
+    val legalName: String? = null,
+    val taxId: String? = null,
+
+    @field:DecimalMin(value = "-90.0")
+    @field:DecimalMax(value = "90.0")
     val latitude: Double? = null,
 
-    @field:DecimalMin(value = "-180.0", message = "Longitude must be between -180 and 180")
-    @field:DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
+    @field:DecimalMin(value = "-180.0")
+    @field:DecimalMax(value = "180.0")
     val longitude: Double? = null,
 
-    @field:Pattern(
-        regexp = AppConstants.Patterns.PHONE,
-        message = "Phone number format is invalid"
-    )
+    @field:Pattern(regexp = AppConstants.Patterns.PHONE, message = "Invalid phone number")
     val phoneNumber: String? = null,
 
-    @field:Size(max = 500, message = "Website must not exceed 500 characters")
     val website: String? = null,
+    val contactEmail: String? = null,
 
-    @field:Size(max = 50, message = "Category must not exceed 50 characters")
-    val category: String? = null,
+    val socialLinks: Map<String, String>? = null,
+    val notificationEmails: List<String>? = null,
 
-    val isAlwaysOpen: Boolean? = null
+    val logoUrl: String? = null,
+    val coverImageUrl: String? = null,
+    val customDomain: String? = null,
+    val isAlwaysOpen: Boolean? = null,
+
+    val ownershipType: VenueOwnership? = null,
+    val timeZone: String? = null
 )
 
+// ===========================================
+// SUPPORTING DTOs
+// ===========================================
+
 /**
- * Response DTO for venue information.
- *
- * City fields are inlined for frontend simplicity:
- * - citySlug: For filtering (?city=yerevan)
- * - cityName: Localized display name
+ * Venue translation information.
  */
-data class VenueResponse(
-    val id: UUID,
+data class VenueTranslationDto(
+    val language: String,
     val name: String,
-    val description: String?,
-    val imageUrl: String?,
-    val address: String,
-
-    // Inlined city fields (frontend-friendly)
-    val citySlug: String,
-    val cityName: String,
-
-    val latitude: Double?,
-    val longitude: Double?,
-    val email: String?,
-    val phoneNumber: String?,
-    val website: String?,
-    val customDomain: String?,
-    val category: String?,
-    val isAlwaysOpen: Boolean,
-    val verified: Boolean,
-    val official: Boolean,
-    val status: VenueStatus,
-    val followerCount: Long? = null,
-    val averageRating: Double? = null,
-    val reviewCount: Long? = null
+    val description: String?
 )
 
 /**
- * Detailed venue response with schedules and translations
+ * Venue operating schedule.
  */
-data class VenueDetailedResponse(
-    val venue: VenueResponse,
-    val schedules: List<VenueScheduleResponse>,
-    val translations: List<VenueTranslationResponse>,
-    val photos: List<VenuePhotoResponse>
+data class VenueScheduleDto(
+    val dayOfWeek: String,
+    val openTime: String?,
+    val closeTime: String?,
+    val isClosed: Boolean
 )
+
+/**
+ * Venue category information (public).
+ */
+data class VenueCategoryDto(
+    val code: String,
+    val name: String,
+    val color: String?,
+    val icon: String?,
+    val displayOrder: Int
+)
+

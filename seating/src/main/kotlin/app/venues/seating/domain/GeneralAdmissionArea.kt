@@ -1,6 +1,6 @@
 package app.venues.seating.domain
 
-import app.venues.common.domain.AbstractLongEntity
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**

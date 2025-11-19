@@ -1,6 +1,6 @@
 package app.venues.booking.domain
 
-import app.venues.common.domain.AbstractUuidEntity
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index

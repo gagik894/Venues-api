@@ -1,7 +1,7 @@
 package app.venues.user.domain
 
 import app.venues.common.constants.AppConstants
-import app.venues.common.domain.AbstractUuidEntity
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.persistence.*
 import java.time.Instant

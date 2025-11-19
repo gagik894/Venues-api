@@ -1,7 +1,7 @@
 package app.venues.event.domain
 
-import app.venues.common.domain.AbstractLongEntity
 import app.venues.seating.api.TableBookingMode
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
 
 /**

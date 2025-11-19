@@ -1,6 +1,6 @@
 package app.venues.venue.domain
 
-import app.venues.common.domain.AbstractLongEntity
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
 import java.util.*
 

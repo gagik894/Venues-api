@@ -1,6 +1,6 @@
 package app.venues.booking.domain
 
-import app.venues.common.domain.AbstractLongEntity
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.util.*

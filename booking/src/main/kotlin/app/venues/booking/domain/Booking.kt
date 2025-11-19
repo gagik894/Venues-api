@@ -1,7 +1,7 @@
 package app.venues.booking.domain
 
 import app.venues.booking.api.domain.BookingStatus
-import app.venues.common.domain.AbstractUuidEntity
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
 import java.time.Instant

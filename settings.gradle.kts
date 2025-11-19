@@ -39,6 +39,7 @@ include(":seating")
 include(":event")
 include(":booking")
 include(":platform")
+include(":location")
 
 
 rootProject.name = "Venues-api"

@@ -11,9 +11,10 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
- * Service for user authentication operations.
+ * Service handling user authentication operations.
  *
  * Responsibilities:
  * - User login and credential validation
@@ -28,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional
  * - Password verification with BCrypt
  */
 @Service
-@Transactional
 class UserAuthService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
@@ -42,21 +42,26 @@ class UserAuthService(
      * Authenticates a user and generates JWT token.
      *
      * Process:
-     * 1. Find user by email
+     * 1. Find user by email (READ-ONLY transaction)
      * 2. Check account status (active, not locked)
      * 3. Verify password
-     * 4. Update login tracking
+     * 4. Update login tracking (WRITE transaction)
      * 5. Generate JWT token
      * 6. Return token and user info
+     *
+     * Performance Optimization:
+     * - Uses @Transactional(readOnly = true) for initial lookup to reduce lock contention
+     * - Only opens write transaction after successful authentication
      *
      * @param request Login credentials
      * @return LoginResponse with JWT token and user info
      * @throws VenuesException.AuthenticationFailure if authentication fails
      */
+    @Transactional(readOnly = true)
     fun login(request: LoginRequest): LoginResponse {
         logger.info { "Login attempt for user: ${request.email}" }
 
-        // Find user by email
+        // Find user by email (read-only)
         val user = userRepository.findByEmail(request.email.lowercase().trim())
             .orElseThrow {
                 logger.warn { "Login failed: User not found: ${request.email}" }
@@ -81,7 +86,7 @@ class UserAuthService(
             throw VenuesException.AuthorizationFailure(message, "ACCOUNT_NOT_ACTIVE")
         }
 
-        // Verify password
+        // Verify password (still in read-only transaction)
         if (!passwordEncoder.matches(request.password, user.passwordHash)) {
             logger.warn { "Login failed: Invalid password for user: ${user.email}" }
 
@@ -94,15 +99,14 @@ class UserAuthService(
             )
         }
 
-        // Successful authentication
-        user.recordSuccessfulLogin()
-        userRepository.save(user)
+        // Successful authentication - now record it in write transaction
+        recordSuccessfulLoginInWriteTransaction(user.id!!)
 
         // Generate JWT token
         val token = jwtService.generateToken(
             email = user.email,
             id = user.id,
-            role = user.role.name
+            role = "USER"  // All users are customers with USER role
         )
 
         logger.info { "Login successful for user: ${user.email}, ID=${user.id}" }
@@ -114,5 +118,19 @@ class UserAuthService(
             user = UserMapper.toResponse(user)
         )
     }
-}
 
+    /**
+     * Records successful login in a separate write transaction.
+     * This method is called after password verification succeeds.
+     *
+     * @param userId User ID
+     */
+    @Transactional
+    protected fun recordSuccessfulLoginInWriteTransaction(userId: UUID) {
+        val user = userRepository.findById(userId).orElseThrow {
+            VenuesException.InternalError("User not found after successful auth", "USER_NOT_FOUND")
+        }
+        user.recordSuccessfulLogin()
+        userRepository.save(user)
+    }
+}

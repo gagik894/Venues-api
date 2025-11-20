@@ -28,6 +28,7 @@ import java.util.*
         Index(name = "idx_user_referrer_id", columnList = "referrer_id")
     ]
 )
+@org.hibernate.annotations.Check(constraints = "failed_login_attempts >= 0")
 class User(
     @Column(name = "email", nullable = false, unique = true, length = 255)
     var email: String,
@@ -62,13 +63,6 @@ class User(
     companion object {
         private val logger = KotlinLogging.logger {}
     }
-
-    /**
-     * The user's role, e.g., USER or ADMIN.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
-    var role: UserRole = UserRole.USER
 
     // ===========================================
     // Internal State (Encapsulated)

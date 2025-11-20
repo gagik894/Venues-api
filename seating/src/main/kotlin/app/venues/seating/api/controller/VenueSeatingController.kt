@@ -15,6 +15,7 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.security.Principal
 import java.util.*
 
 /**
@@ -51,7 +52,7 @@ class VenueSeatingController(
     fun createSeatingChart(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartRequest
+        @Valid @RequestBody request: SeatingChartRequest, principal: Principal
     ): ApiResponse<SeatingChartResponse> {
         // Check permission: can staff manage this venue?
         requireVenueManagementPermission(staffId, venueId)

@@ -87,6 +87,13 @@ class Event(
      */
     @Column(name = "seating_chart_id")
     var seatingChartId: UUID? = null,
+
+    /**
+     * Override Merchant Profile for this specific event.
+     * Used for co-hosted events or specific financial routing.
+     */
+    @Column(name = "merchant_profile_id")
+    var merchantProfileId: UUID? = null,
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---

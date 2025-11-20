@@ -61,6 +61,13 @@ class Venue(
     @Column(name = "tax_id", length = 50) // Essential for Gov/Invoicing
     var taxId: String? = null,
 
+    /**
+     * Override Merchant Profile for this specific venue.
+     * If null, falls back to Organization default.
+     */
+    @Column(name = "merchant_profile_id")
+    var merchantProfileId: UUID? = null,
+
     // --- Visuals (needed for lists, so keep in Main Table) ---
     @Column(name = "logo_url", length = 500)
     var logoUrl: String? = null,

@@ -190,7 +190,9 @@ class VenueMapper(
             website = request.website,
             contactEmail = request.contactEmail,
 
-            ownershipType = request.ownershipType
+            ownershipType = request.ownershipType,
+
+            organizationId = request.organizationId,
         )
     }
 

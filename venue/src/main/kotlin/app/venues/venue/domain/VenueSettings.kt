@@ -1,11 +1,13 @@
 package app.venues.venue.domain
 
-import app.venues.venue.converter.PaymentConfigConverter
+
 import app.venues.venue.converter.SmtpConfigConverter
-import app.venues.venue.dto.PaymentConfig
 import app.venues.venue.dto.SmtpConfig
 import jakarta.persistence.*
-import java.time.LocalDateTime
+import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.annotation.LastModifiedDate
+import org.springframework.data.jpa.domain.support.AuditingEntityListener
+import java.time.Instant
 import java.util.*
 
 /**
@@ -25,6 +27,7 @@ import java.util.*
  * Uses @MapsId to share primary key with Venue (no separate ID generation).
  */
 @Entity
+@EntityListeners(AuditingEntityListener::class)
 @Table(name = "venue_settings")
 class VenueSettings(
     /**
@@ -36,34 +39,6 @@ class VenueSettings(
     @MapsId
     @JoinColumn(name = "venue_id")
     var venue: Venue,
-
-    /**
-     * Payment gateway configuration as encrypted JSON.
-     * Automatically encrypted/decrypted by JPA AttributeConverter.
-     *
-     * Example structure (before encryption):
-     * {
-     *   "idram": {
-     *     "recAccount": "...",
-     *     "secretKey": "..."
-     *   },
-     *   "telcel": {
-     *     "storeKey": "...",
-     *     "postponeBillIssuer": "..."
-     *   },
-     *   "arca": {
-     *     "username": "...",
-     *     "password": "..."
-     *   },
-     *   "converse": {
-     *     "merchantId": "...",
-     *     "secretKey": "..."
-     *   }
-     * }
-     */
-    @Column(name = "payment_config_json", columnDefinition = "TEXT")
-    @Convert(converter = PaymentConfigConverter::class)
-    var paymentConfig: PaymentConfig? = null,
 
     /**
      * SMTP configuration as encrypted JSON.
@@ -97,21 +72,18 @@ class VenueSettings(
     @Column(name = "venue_id")
     var id: UUID? = null
 
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now()
+    var createdAt: Instant = Instant.now()
 
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    @LastModifiedDate
+    @Column(name = "last_modified_at", nullable = false)
+    var lastModifiedAt: Instant = Instant.now()
 
     @PreUpdate
     fun onUpdate() {
-        updatedAt = LocalDateTime.now()
+        lastModifiedAt = Instant.now()
     }
-
-    /**
-     * Check if payment gateway is configured.
-     */
-    fun hasPaymentConfig(): Boolean = paymentConfig != null
 
     /**
      * Check if SMTP is configured.
@@ -123,7 +95,7 @@ class VenueSettings(
      * Use when venue is being deleted or deactivated.
      */
     fun clearAllSecrets() {
-        paymentConfig = null
+
         smtpConfig = null
         customConfigJson = null
     }

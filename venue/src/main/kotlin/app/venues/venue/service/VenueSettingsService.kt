@@ -1,7 +1,6 @@
 package app.venues.venue.service
 
 import app.venues.venue.domain.VenueSettings
-import app.venues.venue.dto.PaymentConfig
 import app.venues.venue.dto.SmtpConfig
 import app.venues.venue.repository.VenueRepository
 import app.venues.venue.repository.VenueSettingsRepository
@@ -46,28 +45,6 @@ class VenueSettingsService(
         }
     }
 
-    /**
-     * Update payment configuration for a venue.
-     * Encryption happens automatically via JPA AttributeConverter.
-     */
-    fun updatePaymentConfig(venueId: UUID, config: PaymentConfig) {
-        val settings = getOrCreateSettings(venueId)
-        settings.paymentConfig = config
-        venueSettingsRepository.save(settings)
-
-        logger.info { "Updated payment config for venue $venueId (providers: ${config.getConfiguredProviders()})" }
-    }
-
-    /**
-     * Get decrypted payment configuration.
-     * Decryption happens automatically via JPA AttributeConverter.
-     * Returns null if not configured.
-     */
-    fun getPaymentConfig(venueId: UUID): PaymentConfig? {
-        return venueSettingsRepository.findById(venueId)
-            .map { it.paymentConfig }
-            .orElse(null)
-    }
 
     /**
      * Update SMTP configuration for a venue.
@@ -101,39 +78,6 @@ class VenueSettingsService(
         logger.info { "Deleted settings for venue $venueId" }
     }
 
-    /**
-     * Check if venue has payment gateway configured.
-     */
-    fun hasPaymentConfig(venueId: UUID): Boolean {
-        return venueSettingsRepository.findById(venueId)
-            .map { it.hasPaymentConfig() }
-            .orElse(false)
-    }
-
-    /**
-     * Check if venue has SMTP configured.
-     */
-    fun hasSmtpConfig(venueId: UUID): Boolean {
-        return venueSettingsRepository.findById(venueId)
-            .map { it.hasSmtpConfig() }
-            .orElse(false)
-    }
-
-    /**
-     * Get masked payment config for safe logging/display.
-     * Never log unmasked credentials!
-     */
-    fun getPaymentConfigMasked(venueId: UUID): PaymentConfig? {
-        val config = getPaymentConfig(venueId) ?: return null
-
-        return PaymentConfig(
-            idram = config.idram?.toMasked(),
-            telcel = config.telcel?.toMasked(),
-            arca = config.arca?.toMasked(),
-            converse = config.converse?.toMasked(),
-            stripe = config.stripe?.toMasked()
-        )
-    }
 
     /**
      * Get masked SMTP config for safe logging/display.

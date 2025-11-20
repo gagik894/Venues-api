@@ -135,6 +135,9 @@ data class VenueAdminResponse(
  * Request to create a new venue (admin/staff only).
  */
 data class CreateVenueRequest(
+    @field:NotNull(message = "Organization ID is required")
+    val organizationId: UUID,
+
     @field:NotBlank(message = "Name is required")
     @field:Size(min = 2, max = 255, message = "Name must be 2-255 characters")
     val name: String,

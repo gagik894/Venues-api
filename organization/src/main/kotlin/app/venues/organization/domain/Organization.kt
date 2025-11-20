@@ -69,6 +69,13 @@ class Organization(
     @JdbcTypeCode(SqlTypes.JSON)
     var brandingConfig: Map<String, Any>? = null,
 
+    /**
+     * Default Merchant Profile for this organization.
+     * Used as a fallback if a Venue does not have a specific override.
+     */
+    @Column(name = "default_merchant_profile_id")
+    var defaultMerchantProfileId: java.util.UUID? = null,
+
     // --- Status ---
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true

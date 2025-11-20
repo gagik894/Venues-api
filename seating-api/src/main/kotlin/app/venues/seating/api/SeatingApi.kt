@@ -1,105 +1,115 @@
 package app.venues.seating.api
 
-import app.venues.seating.api.dto.LevelInfoDto
-import app.venues.seating.api.dto.SeatInfoDto
-import app.venues.seating.api.dto.SeatingChartStructureDto
+import app.venues.seating.api.dto.*
+import java.util.*
 
 /**
- * Public API contract for Seating module.
- *
- * This is the Port in Hexagonal Architecture.
- * Defines the stable interface for seating data access.
- *
- * Implementation is provided by SeatingService in the seating module.
+ * Port interface for seating module.
+ * Provides stable API for cross-module communication (booking, event, etc.).
+ * All DTOs are immutable and do not expose domain entities.
  */
 interface SeatingApi {
 
+    // --- Chart Operations ---
+
+    /**
+     * Get basic chart information by ID.
+     * @return chart info or null if not found
+     */
+    fun getChartInfo(chartId: UUID): SeatingChartInfoDto?
+
+    /**
+     * Check if chart exists.
+     * @return true if chart exists
+     */
+    fun chartExists(chartId: UUID): Boolean
+
+    /**
+     * Get chart name for display purposes.
+     * @return chart name or empty string if not found
+     */
+    fun getSeatingChartName(chartId: UUID): String
+
+    /**
+     * Get complete chart structure for frontend rendering.
+     * Returns immutable snapshot of zones, tables, seats, and GA areas.
+     * @return full structure or null if chart not found
+     */
+    fun getChartStructure(chartId: UUID): SeatingChartStructureDto?
+
+    // --- Seat Operations ---
+
     /**
      * Get seat information by ID.
+     * @return seat info or null if not found
      */
     fun getSeatInfo(seatId: Long): SeatInfoDto?
 
     /**
-     * Get seat information for multiple seats at once (batch operation).
-     *
-     * @param seatIds List of seat IDs
-     * @return List of found SeatInfoDto objects
+     * Get seat information by business key (code).
+     * @return seat info or null if not found
+     */
+    fun getSeatInfoByCode(code: String): SeatInfoDto?
+
+    /**
+     * Batch fetch seat information for multiple seats.
+     * @param seatIds list of seat IDs
+     * @return list of found seats (missing IDs are omitted)
      */
     fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto>
 
     /**
-     * Get seat information by seat identifier string.
-     * Used for API operations that reference seats by their human-readable identifier.
-     */
-    fun getSeatInfoByIdentifier(seatIdentifier: String): SeatInfoDto?
-
-    /**
-     * Get level information by ID.
-     */
-    fun getLevelInfo(levelId: Long): LevelInfoDto?
-
-    /**
-     * Get level information for multiple levels at once (batch operation).
-     *
-     * @param levelIds List of level IDs
-     * @return List of found LevelInfoDto objects
-     */
-    fun getLevelInfoBatch(levelIds: List<Long>): List<LevelInfoDto>
-
-    /**
-     * Get level information by level identifier string.
-     * Used for API operations that reference levels by their human-readable identifier.
-     */
-    fun getLevelInfoByIdentifier(levelIdentifier: String): LevelInfoDto?
-
-    /**
-     * Get seating chart name by ID.
-     */
-    fun getSeatingChartName(chartId: Long): String?
-
-    /**
-     * Get complete seating chart structure.
-     *
-     * Returns all structural information needed to render the seating chart:
-     * - Chart metadata (name, configuration)
-     * - All levels with hierarchy information
-     * - All seats with positions and level associations
-     *
-     * This is optimized for bulk loading to avoid N+1 queries.
-     *
-     * @param chartId Seating chart ID
-     * @return Complete chart structure or null if not found
-     */
-    fun getChartStructure(chartId: Long): SeatingChartStructureDto?
-
-    /**
      * Check if seat exists.
+     * @return true if seat exists
      */
     fun seatExists(seatId: Long): Boolean
 
-    /**
-     * Check if level exists.
-     */
-    fun levelExists(levelId: Long): Boolean
+    // --- Container Operations ---
 
     /**
-     * Get all seats for a given level.
-     * Used for table operations to check if all table seats are available.
+     * Get section/zone information.
+     * @return section info or null if not found
      */
-    fun getSeatsForLevel(levelId: Long): List<SeatInfoDto>
+    fun getSectionInfo(sectionId: Long): SectionInfoDto?
 
     /**
-     * Get all seats for multiple levels at once (batch operation).
-     * Optimized to avoid N+1 queries when loading table seats.
-     *
-     * @param levelIds List of level IDs
-     * @return Map of levelId to list of seats for that level
+     * Get physical table information.
+     * @return table info or null if not found
      */
-    fun getSeatsForLevelsBatch(levelIds: List<Long>): Map<Long, List<SeatInfoDto>>
+    fun getTableInfo(tableId: Long): TableInfoDto?
 
     /**
-     * Get all tables that contain the given seat.
-     * Used for blocking/unblocking tables when individual seats are reserved/released.
+     * Get general admission area information.
+     * @return GA info or null if not found
      */
-    fun getTablesForSeat(seatId: Long): List<LevelInfoDto>
+    fun getGaInfo(gaId: Long): GaInfoDto?
+
+    /**
+     * Get general admission area by business key (code).
+     * @param code GA area code (e.g., "PIT_A")
+     * @return GA info or null if not found
+     */
+    fun getGaInfoByCode(code: String): GaInfoDto?
+
+    /**
+     * Get table that contains a specific seat.
+     * Used by booking logic to handle whole-table pricing.
+     * @return table info or null if seat has no table or seat not found
+     */
+    fun getTableForSeat(seatId: Long): TableInfoDto?
+
+    /**
+     * Get table information by business key (code).
+     * @param code Table code (e.g., "VIP_T12")
+     * @return table info or null if not found
+     */
+    fun getTableInfoByCode(code: String): TableInfoDto?
+
+    /**
+     * Get all seats for a specific table.
+     * Used by booking logic for table reservations.
+     * @param tableId The table ID
+     * @return list of seats in the table (empty if table has no seats)
+     */
+    fun getSeatsForTable(tableId: Long): List<SeatInfoDto>
 }

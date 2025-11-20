@@ -1,5 +1,7 @@
 package app.venues.event.api.dto
 
+import java.util.*
+
 /**
  * Response DTO for session seating chart with pricing and availability.
  *
@@ -7,10 +9,10 @@ package app.venues.event.api.dto
  * Optimized for large venues (10k+ seats).
  */
 data class SessionSeatingResponse(
-    val sessionId: Long,
-    val eventId: Long,
+    val sessionId: UUID,
+    val eventId: UUID,
     val eventTitle: String,
-    val seatingChartId: Long,
+    val seatingChartId: UUID,
     val seatingChartName: String,
     val priceTemplates: List<SessionPriceTemplateResponse>,
 
@@ -18,7 +20,7 @@ data class SessionSeatingResponse(
     val seats: List<SessionSeatResponse>,
 
     // GA (General Admission) areas
-    val gaAreas: List<SessionGAAreaResponse>,
+    val gaAreas: List<SessionGaAreaResponse>,
 
     // Tables (complete booking units)
     val tables: List<SessionTableResponse>,
@@ -48,7 +50,6 @@ data class SessionSeatResponse(
     // Session-specific data
     val status: String,  // AVAILABLE, RESERVED, SOLD, CLOSED, BLOCKED
     val price: String?,
-    val priceTemplateId: Long?,
     val priceTemplateName: String?,
     val priceTemplateColor: String?
 )
@@ -56,14 +57,13 @@ data class SessionSeatResponse(
 /**
  * General Admission area with capacity.
  */
-data class SessionGAAreaResponse(
+data class SessionGaAreaResponse(
     val levelIdentifier: String,
     val levelName: String,
     val levels: List<String>,  // Hierarchy (e.g., ["Balcony", "Standing Area"])
     val capacity: Int,
     val available: Int,
     val price: String?,
-    val priceTemplateId: Long?,
     val priceTemplateName: String?
 )
 
@@ -91,7 +91,6 @@ data class SessionTableResponse(
     // Session-specific data
     val status: String,  // AVAILABLE, RESERVED, SOLD, BLOCKED
     val price: String?,
-    val priceTemplateId: Long?,
     val priceTemplateName: String?,
     val priceTemplateColor: String?
 )
@@ -100,11 +99,10 @@ data class SessionTableResponse(
  * Price template for the session.
  */
 data class SessionPriceTemplateResponse(
-    val id: Long,
+    val id: UUID,
     val templateName: String,
     val color: String?,
     val price: String,
-    val displayOrder: Int,
     val isOverride: Boolean  // true if session-specific override
 )
 
@@ -112,7 +110,7 @@ data class SessionPriceTemplateResponse(
  * Lightweight response for checking seat availability.
  */
 data class SeatAvailabilityResponse(
-    val sessionId: Long,
+    val sessionId: UUID,
     val totalSeats: Int,
     val availableSeats: Int,
     val soldSeats: Int,

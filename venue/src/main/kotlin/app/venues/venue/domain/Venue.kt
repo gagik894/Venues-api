@@ -1,387 +1,179 @@
 package app.venues.venue.domain
 
-import app.venues.common.constants.AppConstants
+import app.venues.location.domain.City
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
+import java.util.*
 
 /**
- * Venue Entity
+ * Represents a Venue (the "place").
+ * This entity is "clean" and contains no authentication fields.
+ * Auth is handled by the separate `Staff` entity.
  *
- * Represents a cultural venue (theater, opera house, museum, etc.) in the system.
- * This is the core entity for the venue module.
- *
- * Key Features:
- * - Multi-language support for name and description
- * - Geolocation with PostGIS support
- * - Operating schedule management
- * - Verification and official status
- * - Social features (followers, reviews)
- * - Integration with payment systems
- *
- * Relationships:
- * - One-to-Many: Photos, Reviews, Schedules, PromoCodes
- * - Many-to-Many: Followers (Users)
- *
- * Security:
- * - Password for venue owner authentication
- * - Separate email credentials for notifications
- * - Payment gateway credentials (encrypted in production)
+ * @param name The official name of the venue.
+ * @param address The full street address of the venue.
+ * @param description A detailed description of the venue.
+ * @param logoUrl URL to the main image representing the venue.
+ * @param city The city where the venue is located.
+ * @param latitude The latitude coordinate of the venue.
+ * @param longitude The longitude coordinate of the venue.
+ * @param phoneNumber Contact phone number for the venue.
+ * @param website Official website URL of the venue.
+ * @param customDomain Custom domain name for the venue's page.
+ * @param category The category/type of the venue (e.g., restaurant, gym).
+ * @param isAlwaysOpen Indicates if the venue is open 24/7.
  */
 @Entity
 @Table(
     name = "venues",
     indexes = [
-        Index(name = "idx_venue_email", columnList = "email"),
-        Index(name = "idx_venue_city", columnList = "city"),
-        Index(name = "idx_venue_category", columnList = "category"),
-        Index(name = "idx_venue_verified", columnList = "verified"),
+        Index(name = "idx_venue_city", columnList = "city_id"),
+        Index(name = "idx_venue_slug", columnList = "slug", unique = true),
         Index(name = "idx_venue_status", columnList = "status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Venue(
+class Venue(
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
-    // ===========================================
-    // Basic Information (with translations)
-    // ===========================================
-
-    /**
-     * Venue name - supports translations via VenueTranslation entity
-     * This is the default/fallback name
-     */
-    @Column(nullable = false, length = 255)
+    // --- Base Content (Default Language) ---
+    @Column(name = "name", nullable = false, length = 255)
     var name: String,
 
-    /**
-     * Venue description - supports translations via VenueTranslation entity
-     * This is the default/fallback description
-     */
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
 
-    /**
-     * Main image URL for the venue
-     */
-    @Column(length = 500)
-    var imageUrl: String? = null,
+    @Column(name = "slug", nullable = false, unique = true)
+    var slug: String,
 
-    // ===========================================
-    // Location Information
-    // ===========================================
+    // --- Legal ---
 
     /**
-     * Full address of the venue
+     * The Parent Organization ID.
+     * Allows efficient "Get all venues for Ministry X" queries.
      */
-    @Column(nullable = false, length = 500)
+    @Column(name = "organization_id", nullable = false)
+    var organizationId: UUID,
+
+    @Column(name = "legal_name", length = 255)
+    var legalName: String? = null,
+
+    @Column(name = "tax_id", length = 50) // Essential for Gov/Invoicing
+    var taxId: String? = null,
+
+    /**
+     * Override Merchant Profile for this specific venue.
+     * If null, falls back to Organization default.
+     */
+    @Column(name = "merchant_profile_id")
+    var merchantProfileId: UUID? = null,
+
+    // --- Visuals (needed for lists, so keep in Main Table) ---
+    @Column(name = "logo_url", length = 500)
+    var logoUrl: String? = null,
+
+    @Column(name = "cover_image_url", length = 500)
+    var coverImageUrl: String? = null,
+
+    // --- Location ---
+    @Column(name = "address", nullable = false, length = 500)
     var address: String,
 
-    /**
-     * Canonical city name in English (for filtering/searching)
-     */
-    @Column(length = 100)
-    var city: String? = null,
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "city_id", nullable = false)
+    var city: City,
 
-    /**
-     * Latitude coordinate (WGS84)
-     * Valid range: -90 to 90 degrees
-     */
+    @Column(name = "time_zone", nullable = false)
+    var timeZone: String = "Asia/Yerevan",
+
     @Column(name = "latitude")
     var latitude: Double? = null,
 
-    /**
-     * Longitude coordinate (WGS84)
-     * Valid range: -180 to 180 degrees
-     */
     @Column(name = "longitude")
     var longitude: Double? = null,
 
-    // ===========================================
-    // Contact Information
-    // ===========================================
-
-    /**
-     * Primary contact email (also used for venue owner login)
-     */
-    @Column(unique = true, nullable = false, length = 255)
-    var email: String,
-
-    /**
-     * Contact phone number
-     */
-    @Column(length = 50)
-    var phoneNumber: String? = null,
-
-    /**
-     * Venue website URL
-     */
-    @Column(length = 500)
-    var website: String? = null,
-
-    /**
-     * Custom domain for the venue (if any)
-     */
-    @Column(length = 255)
-    var customDomain: String? = null,
-
-    // ===========================================
-    // Classification
-    // ===========================================
-
-    /**
-     * Venue category (e.g., "THEATER", "OPERA_HOUSE", "MUSEUM", "CONCERT_HALL")
-     */
-    @Column(length = 50)
-    var category: String? = null,
-
-    // ===========================================
-    // Operating Schedule
-    // ===========================================
-
-    /**
-     * Flag indicating if venue is always open (24/7)
-     */
-    @Column(nullable = false)
+    // --- Config ---
+    @Column(name = "is_always_open")
     var isAlwaysOpen: Boolean = false,
 
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var schedules: MutableList<VenueSchedule> = mutableListOf(),
+    @Column(name = "custom_domain")
+    var customDomain: String? = null,
 
-    // ===========================================
-    // Verification & Status
-    // ===========================================
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    var category: VenueCategory? = null,
 
-    /**
-     * Verification status (verified by admin)
-     */
-    @Column(nullable = false)
-    var verified: Boolean = false,
+    // --- Contacts ---
+    @Column(name = "phone_number")
+    var phoneNumber: String? = null,
 
-    /**
-     * Official status (official venue account)
-     */
-    @Column(nullable = false)
-    var official: Boolean = false,
+    @Column(name = "website")
+    var website: String? = null,
 
-    /**
-     * URL to verification document (stored securely)
-     */
-    @Column(length = 500)
-    var verificationDocumentUrl: String? = null,
+    @Column(name = "contact_email")
+    var contactEmail: String? = null,
+
+    @Column(name = "social_links", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    var socialLinks: Map<String, String>? = null,
 
     /**
-     * Current status of the venue
+     * Ownership type (State vs Private).
+     * Critical for Government reporting and tax handling.
      */
+    @Column(name = "ownership_type", length = 20)
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    var status: VenueStatus = VenueStatus.PENDING_APPROVAL,
-
-    // ===========================================
-    // Authentication
-    // ===========================================
+    var ownershipType: VenueOwnership? = null,
 
     /**
-     * Hashed password for venue owner authentication
+     * Private list of emails that receive system alerts (Sales reports, Payout issues).
+     * JSONB List: ["manager@opera.am", "accountant@opera.am"]
      */
-    @Column(nullable = false, length = 255)
-    var passwordHash: String,
+    @Column(name = "notification_emails", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    var notificationEmails: List<String> = emptyList(),
+) : AbstractUuidEntity() {
 
-    /**
-     * Email password for SMTP (if sending emails from venue's email)
-     * NOTE: Should be encrypted at rest using database-level encryption
-     */
-    @Column(length = 255)
-    var emailPassword: String? = null,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    var status: VenueStatus = VenueStatus.PENDING_APPROVAL
+        protected set
 
-    /**
-     * Secret email for internal communications
-     */
-    @Column(length = 255)
-    var secretEmail: String? = null,
-
-    // ===========================================
-    // Payment Integration Credentials
-    // NOTE: These credentials should be encrypted at rest using database-level encryption
-    // ===========================================
-
-    @Column(length = 255)
-    var telcelPostponeBillIssuer: String? = null,
-
-    @Column(length = 255)
-    var idramRecAccount: String? = null,
-
-    @Column(length = 255)
-    var idramSecretKey: String? = null,
-
-    @Column(length = 255)
-    var telcelStoreKey: String? = null,
-
-    @Column(length = 255)
-    var arcaUsername: String? = null,
-
-    @Column(length = 255)
-    var arcaPassword: String? = null,
-
-    @Column(length = 255)
-    var converseMerchantId: String? = null,
-
-    @Column(length = 255)
-    var converseSecretKey: String? = null,
-
-    // ===========================================
-    // Notifications
-    // ===========================================
-
-    /**
-     * Firebase Cloud Messaging token for push notifications
-     */
-    @Column(length = 500)
-    var fcmToken: String? = null,
-
-    // ===========================================
-    // Social Features
-    // ===========================================
+    // --- Relations ---
 
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var photos: MutableList<VenuePhoto> = mutableListOf(),
+    var translations: MutableList<VenueTranslation> = mutableListOf()
+
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
+    var branding: VenueBranding? = null // The White Label Config
+
+    @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
+    var settings: VenueSettings? = null // The Secrets (Stripe/SMTP)
 
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var reviews: MutableList<VenueReview> = mutableListOf(),
+    @OrderBy("dayOfWeek ASC")
+    var schedules: MutableList<VenueSchedule> = mutableListOf()
 
     @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var followers: MutableList<VenueFollower> = mutableListOf(),
+    @OrderBy("displayOrder ASC")
+    var photos: MutableList<VenuePhoto> = mutableListOf()
 
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var promoCodes: MutableList<VenuePromoCode> = mutableListOf(),
+    // Helper
+    fun getName(lang: String): String =
+        translations.firstOrNull { it.language == lang }?.name ?: name
 
-    // ===========================================
-    // Translations
-    // ===========================================
+    fun getDescription(lang: String): String? =
+        translations.firstOrNull { it.language == lang }?.description ?: description
 
-    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var translations: MutableList<VenueTranslation> = mutableListOf(),
-
-    // ===========================================
-    // Security & Auditing
-    // ===========================================
-
-    /**
-     * Number of consecutive failed login attempts
-     */
-    @Column(nullable = false)
-    var failedLoginAttempts: Int = 0,
-
-    /**
-     * Timestamp when account was locked due to failed attempts
-     */
-    @Column
-    var accountLockedUntil: Instant? = null,
-
-    /**
-     * Last successful login timestamp
-     */
-    @Column
-    var lastLoginAt: Instant? = null,
-
-    /**
-     * Email verification status
-     */
-    @Column(nullable = false)
-    var emailVerified: Boolean = false,
-
-    /**
-     * Email verification token
-     */
-    @Column(length = 255)
-    var emailVerificationToken: String? = null,
-
-    /**
-     * Token expiration time
-     */
-    @Column
-    var emailVerificationTokenExpiresAt: Instant? = null,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
-    /**
-     * Computed property for full name (for consistency with potential future name changes)
-     */
-    val fullName: String
-        get() = name
-
-    /**
-     * Check if the account is currently locked
-     */
-    fun isAccountLocked(): Boolean {
-        return accountLockedUntil?.let { it.isAfter(Instant.now()) } ?: false
+    fun activate() {
+        this.status = VenueStatus.ACTIVE
     }
 
-    /**
-     * Increment failed login attempts and lock account if threshold is reached.
-     * Uses AppConstants.Security.MAX_LOGIN_ATTEMPTS and LOCKOUT_DURATION_MINUTES.
-     */
-    fun incrementFailedLoginAttempts() {
-        failedLoginAttempts++
-
-        // Auto-lock if threshold reached
-        if (failedLoginAttempts >= AppConstants.Security.MAX_LOGIN_ATTEMPTS) {
-            accountLockedUntil = Instant.now().plusSeconds(AppConstants.Security.LOCKOUT_DURATION_MINUTES * 60)
-        }
+    fun suspend() {
+        this.status = VenueStatus.SUSPENDED
     }
 
-    /**
-     * Reset failed login attempts on successful login
-     */
-    fun resetFailedLoginAttempts() {
-        failedLoginAttempts = 0
-        accountLockedUntil = null
-    }
-
-    /**
-     * Get translation for specific language or fall back to default
-     */
-    fun getNameInLanguage(language: String): String {
-        return translations.find { it.language == language }?.name ?: name
-    }
-
-    /**
-     * Get description for specific language or fall back to default
-     */
-    fun getDescriptionInLanguage(language: String): String? {
-        return translations.find { it.language == language }?.description ?: description
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as Venue
-
-        return id != null && id == other.id
-    }
-
-    override fun hashCode(): Int {
-        return id?.hashCode() ?: 0
-    }
-
-    override fun toString(): String {
-        return "Venue(id=$id, name='$name', email='$email', city=$city, status=$status)"
+    fun delete() {
+        this.status = VenueStatus.DELETED
     }
 }
-

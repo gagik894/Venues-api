@@ -1,11 +1,11 @@
 package app.venues.platform.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
 import app.venues.platform.api.dto.*
 import app.venues.platform.security.NonceService
 import app.venues.platform.security.NonceStats
 import app.venues.platform.service.PlatformService
+import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -14,6 +14,7 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Admin controller for platform management.
@@ -66,7 +67,7 @@ class PlatformAdminController(
     ): ApiResponse<Page<PlatformResponse>> {
         logger.debug { "Fetching all platforms" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val platforms = platformService.getAllPlatforms(pageable)
 
         return ApiResponse.success(
@@ -83,7 +84,7 @@ class PlatformAdminController(
         summary = "Get platform",
         description = "Get platform details by ID"
     )
-    fun getPlatformById(@PathVariable id: Long): ApiResponse<PlatformResponse> {
+    fun getPlatformById(@PathVariable id: UUID): ApiResponse<PlatformResponse> {
         logger.debug { "Fetching platform: $id" }
 
         val platform = platformService.getPlatformById(id)
@@ -103,7 +104,7 @@ class PlatformAdminController(
         description = "Update platform configuration"
     )
     fun updatePlatform(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @Valid @RequestBody request: UpdatePlatformRequest
     ): ApiResponse<PlatformResponse> {
         logger.debug { "Updating platform: $id" }
@@ -125,7 +126,7 @@ class PlatformAdminController(
         description = "Generate a new shared secret for the platform. Old secret will be invalidated immediately!"
     )
     fun regenerateSharedSecret(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @Valid @RequestBody request: RegenerateSecretRequest
     ): ApiResponse<PlatformWithSecretResponse> {
         logger.debug { "Regenerating secret for platform: $id" }
@@ -146,7 +147,7 @@ class PlatformAdminController(
         summary = "Delete platform",
         description = "Delete a platform (cannot be undone)"
     )
-    fun deletePlatform(@PathVariable id: Long): ApiResponse<Unit> {
+    fun deletePlatform(@PathVariable id: UUID): ApiResponse<Unit> {
         logger.debug { "Deleting platform: $id" }
 
         platformService.deletePlatform(id)

@@ -1,91 +1,78 @@
 package app.venues.seating.api.controller
 
+import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
-import app.venues.seating.api.dto.LevelResponse
-import app.venues.seating.api.dto.SeatResponse
-import app.venues.seating.api.dto.SeatingChartDetailedResponse
+import app.venues.seating.api.SeatingApi
+import app.venues.seating.api.dto.GaInfoDto
+import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.seating.api.dto.SectionInfoDto
+import app.venues.seating.api.dto.TableInfoDto
+import app.venues.seating.model.SeatingChartDetailedResponse
 import app.venues.seating.service.SeatingService
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.util.*
 
 /**
- * Public controller for viewing seating charts.
- *
- * Provides endpoints for:
- * - Viewing seating chart layouts
- * - Getting seat information for booking
+ * Public seating chart viewing controller.
+ * Provides read-only access to chart structure and component information.
  */
 @RestController
 @RequestMapping("/api/v1/seating-charts")
 @Tag(name = "Seating Charts", description = "Public seating chart viewing")
 class SeatingChartController(
+    private val seatingApi: SeatingApi,
     private val seatingService: SeatingService
 ) {
-    private val logger = KotlinLogging.logger {}
 
-    /**
-     * Get seating chart with full details.
-     */
     @GetMapping("/{chartId}")
-    @Operation(
-        summary = "Get seating chart",
-        description = "Get complete seating chart layout with all levels and seats"
-    )
-    fun getSeatingChart(@PathVariable chartId: Long): ApiResponse<SeatingChartDetailedResponse> {
-        logger.debug { "Public: Fetching seating chart: $chartId" }
-
+    @Operation(summary = "Get seating chart structure")
+    fun getSeatingChart(@PathVariable chartId: UUID): ApiResponse<SeatingChartDetailedResponse> {
         val chart = seatingService.getSeatingChartDetailed(chartId)
-
-        return ApiResponse.success(
-            data = chart,
-            message = "Seating chart retrieved successfully"
-        )
+        return ApiResponse.success(chart, "Retrieved successfully")
     }
 
-    /**
-     * Get level details.
-     */
-    @GetMapping("/levels/{levelId}")
-    @Operation(
-        summary = "Get level details",
-        description = "Get detailed information about a specific level/section"
-    )
-    fun getLevel(@PathVariable levelId: Long): ApiResponse<LevelResponse> {
-        logger.debug { "Public: Fetching level: $levelId" }
-
-        val level = seatingService.getLevelById(levelId)
-
-        return ApiResponse.success(
-            data = level,
-            message = "Level retrieved successfully"
-        )
+    @GetMapping("/sections/{sectionId}")
+    @Operation(summary = "Get section info")
+    fun getSection(@PathVariable sectionId: Long): ApiResponse<SectionInfoDto> {
+        val info = seatingApi.getSectionInfo(sectionId)
+            ?: throw VenuesException.ResourceNotFound("Section not found")
+        return ApiResponse.success(info, "Retrieved successfully")
     }
 
-    /**
-     * Get seat by identifier.
-     */
-    @GetMapping("/levels/{levelId}/seats/{seatIdentifier}")
-    @Operation(
-        summary = "Get seat by identifier",
-        description = "Get seat details using its identifier (e.g., 'A1', 'B12')"
-    )
-    fun getSeatByIdentifier(
-        @PathVariable levelId: Long,
-        @PathVariable seatIdentifier: String
-    ): ApiResponse<SeatResponse> {
-        logger.debug { "Public: Fetching seat: level=$levelId, identifier=$seatIdentifier" }
+    @GetMapping("/tables/{tableId}")
+    @Operation(summary = "Get table info")
+    fun getTable(@PathVariable tableId: Long): ApiResponse<TableInfoDto> {
+        val info = seatingApi.getTableInfo(tableId)
+            ?: throw VenuesException.ResourceNotFound("Table not found")
+        return ApiResponse.success(info, "Retrieved successfully")
+    }
 
-        val seat = seatingService.getSeatByIdentifier(levelId, seatIdentifier)
+    @GetMapping("/ga-areas/{gaId}")
+    @Operation(summary = "Get GA area info")
+    fun getGaArea(@PathVariable gaId: Long): ApiResponse<GaInfoDto> {
+        val info = seatingApi.getGaInfo(gaId)
+            ?: throw VenuesException.ResourceNotFound("GA Area not found")
+        return ApiResponse.success(info, "Retrieved successfully")
+    }
 
-        return ApiResponse.success(
-            data = seat,
-            message = "Seat retrieved successfully"
-        )
+    @GetMapping("/seats/{seatId}")
+    @Operation(summary = "Get seat by ID")
+    fun getSeat(@PathVariable seatId: Long): ApiResponse<SeatInfoDto> {
+        val seat = seatingApi.getSeatInfo(seatId)
+            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        return ApiResponse.success(seat, "Retrieved successfully")
+    }
+
+    @GetMapping("/by-code/{code}")
+    @Operation(summary = "Get seat by code")
+    fun getSeatByCode(@PathVariable code: String): ApiResponse<SeatInfoDto> {
+        val seat = seatingApi.getSeatInfoByCode(code)
+            ?: throw VenuesException.ResourceNotFound("Seat not found")
+        return ApiResponse.success(seat, "Retrieved successfully")
     }
 }
-

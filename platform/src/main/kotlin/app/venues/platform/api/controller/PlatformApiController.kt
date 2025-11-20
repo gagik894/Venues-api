@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Platform API controller for external platform integrations.
@@ -37,7 +38,7 @@ class PlatformApiController(
     )
     @SecurityRequirement(name = "platformAuth")
     fun reserveSeats(
-        @RequestHeader("X-Platform-ID") platformId: Long,
+        @RequestHeader("X-Platform-ID") platformId: UUID,
         @Valid @RequestBody request: PlatformReservationRequest
     ): ApiResponse<PlatformReservationResponse> {
         logger.debug { "Platform $platformId requesting reservation for session ${request.sessionId}" }
@@ -63,7 +64,7 @@ class PlatformApiController(
     )
     @SecurityRequirement(name = "platformAuth")
     fun releaseSeats(
-        @RequestHeader("X-Platform-ID") platformId: Long,
+        @RequestHeader("X-Platform-ID") platformId: UUID,
         @Valid @RequestBody request: PlatformReleaseRequest
     ): ApiResponse<PlatformReleaseResponse> {
         logger.debug { "Platform $platformId releasing reservation ${request.reservationToken}" }

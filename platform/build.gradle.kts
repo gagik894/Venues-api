@@ -32,6 +32,8 @@ dependencies {
     api(project(":shared"))
 
     // Module dependencies
+    api(project(":booking-api"))  // Platform uses booking API
+    //TODO: consider if we can reduce dependency on cart API
     api(project(":booking"))   // Platform integrations use booking service
     api(project(":event"))     // Platform needs event session info
 
@@ -61,3 +63,8 @@ kotlin {
     }
 }
 
+allOpen {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.MappedSuperclass")
+    annotation("jakarta.persistence.Embeddable")
+}

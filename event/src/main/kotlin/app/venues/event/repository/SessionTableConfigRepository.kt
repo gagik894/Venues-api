@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * Repository for SessionTableConfig operations.
@@ -19,17 +20,17 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     /**
      * Find table config by session and table ID
      */
-    fun findBySessionIdAndTableId(sessionId: Long, tableId: Long): SessionTableConfig?
+    fun findBySessionIdAndTableId(sessionId: UUID, tableId: Long): SessionTableConfig?
 
     /**
      * Find all table configs for a session
      */
-    fun findBySessionId(sessionId: Long): List<SessionTableConfig>
+    fun findBySessionId(sessionId: UUID): List<SessionTableConfig>
 
     /**
      * Find all available tables for a session
      */
-    fun findBySessionIdAndStatus(sessionId: Long, status: ConfigStatus): List<SessionTableConfig>
+    fun findBySessionIdAndStatus(sessionId: UUID, status: ConfigStatus): List<SessionTableConfig>
 
     /**
      * Get table price if available and priced
@@ -46,7 +47,7 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
         AND pt.price IS NOT NULL
     """
     )
-    fun getTablePriceIfAvailable(sessionId: Long, tableId: Long): BigDecimal?
+    fun getTablePriceIfAvailable(sessionId: UUID, tableId: Long): BigDecimal?
 
     /**
      * Atomically reserve a table if available.
@@ -63,7 +64,7 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
         AND stc.status = 'AVAILABLE'
     """
     )
-    fun reserveTableIfAvailable(sessionId: Long, tableId: Long): Int
+    fun reserveTableIfAvailable(sessionId: UUID, tableId: Long): Int
 
     /**
      * Block table (when any of its seats are reserved/sold)
@@ -78,7 +79,7 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
         AND stc.status = 'AVAILABLE'
     """
     )
-    fun blockTable(sessionId: Long, tableId: Long): Int
+    fun blockTable(sessionId: UUID, tableId: Long): Int
 
     /**
      * Unblock table (when all its seats become available again)
@@ -93,26 +94,8 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
         AND stc.status = 'BLOCKED'
     """
     )
-    fun unblockTable(sessionId: Long, tableId: Long): Int
+    fun unblockTable(sessionId: UUID, tableId: Long): Int
 
-    /**
-     * Find all tables that contain a specific seat
-     * Used to block/unblock tables when seat status changes
-     */
-    @Query(
-        """
-        SELECT stc 
-        FROM SessionTableConfig stc
-        WHERE stc.session.id = :sessionId
-        AND stc.tableId IN (
-            SELECT s.level.id
-            FROM Seat s
-            WHERE s.id = :seatId
-            AND s.level.isTable = true
-        )
-    """
-    )
-    fun findTablesBySeatId(sessionId: Long, seatId: Long): List<SessionTableConfig>
 
     /**
      * Atomically unblocks a table ONLY IF all its constituent seats are available.
@@ -141,9 +124,30 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     """
     )
     fun unblockTableIfAllSeatsAreAvailable(
-        sessionId: Long,
+        sessionId: UUID,
         tableId: Long,
         tableSeatIds: List<Long>
     ): Int
-}
 
+    /**
+     * BATCH operation: Release multiple tables atomically (RESERVED -> AVAILABLE).
+     * Optimized for cart cleanup operations.
+     *
+     * Performance: Single UPDATE instead of N queries.
+     *
+     * @param sessionId Session ID
+     * @param tableIds List of table IDs to release
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status = app.venues.event.domain.ConfigStatus.RESERVED
+    """
+    )
+    fun releaseTables(sessionId: UUID, tableIds: List<Long>): Int
+}

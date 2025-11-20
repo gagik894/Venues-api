@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.util.*
 
 /**
  * Service for event management operations.
@@ -49,7 +50,7 @@ class EventService(
     /**
      * Create a new event for a venue.
      */
-    fun createEvent(venueId: Long, request: EventRequest): EventResponse {
+    fun createEvent(venueId: UUID, request: EventRequest): EventResponse {
         logger.debug { "Creating event for venue: $venueId" }
 
         if (!venueApi.venueExists(venueId)) {
@@ -72,7 +73,6 @@ class EventService(
             priceRange = request.priceRange,
             currency = request.currency,
             seatingChartId = request.seatingChartId,
-            status = request.status
         )
 
 
@@ -92,7 +92,7 @@ class EventService(
      * Get event by ID.
      */
     @Transactional(readOnly = true)
-    fun getEventById(id: Long, includeStats: Boolean = false, language: String? = null): EventResponse {
+    fun getEventById(id: UUID, includeStats: Boolean = false, language: String? = null): EventResponse {
         logger.debug { "Fetching event by ID: $id, language: $language" }
 
         val event = eventRepository.findById(id)
@@ -113,7 +113,7 @@ class EventService(
     /**
      * Update event.
      */
-    fun updateEvent(eventId: Long, venueId: Long, request: EventRequest): EventResponse {
+    fun updateEvent(eventId: UUID, venueId: UUID, request: EventRequest): EventResponse {
         logger.debug { "Updating event: $eventId for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
@@ -144,7 +144,6 @@ class EventService(
         event.priceRange = request.priceRange
         event.currency = request.currency
         event.seatingChartId = request.seatingChartId
-        event.status = request.status
 
         // Update collections
         event.secondaryImgUrls.clear()
@@ -164,7 +163,7 @@ class EventService(
     /**
      * Delete event.
      */
-    fun deleteEvent(eventId: Long, venueId: Long) {
+    fun deleteEvent(eventId: UUID, venueId: UUID) {
         logger.debug { "Deleting event: $eventId" }
 
         val event = eventRepository.findById(eventId)
@@ -208,7 +207,7 @@ class EventService(
      * Get events by venue.
      */
     @Transactional(readOnly = true)
-    fun getEventsByVenue(venueId: Long, pageable: Pageable, language: String? = null): Page<EventResponse> {
+    fun getEventsByVenue(venueId: UUID, pageable: Pageable, language: String? = null): Page<EventResponse> {
         logger.debug { "Fetching events for venue: $venueId, language: $language" }
 
         val venueName = venueApi.getVenueNameTranslated(venueId, language) ?: "Unknown"
@@ -302,7 +301,7 @@ class EventService(
     /**
      * Add session to event.
      */
-    fun addSession(eventId: Long, request: EventSessionRequest): EventSessionResponse {
+    fun addSession(eventId: UUID, request: EventSessionRequest): EventSessionResponse {
         logger.debug { "Adding session to event: $eventId" }
 
         val event = eventRepository.findById(eventId)
@@ -317,7 +316,6 @@ class EventService(
             startTime = request.startTime,
             endTime = request.endTime,
             ticketsCount = request.ticketsCount,
-            status = request.status,
             priceOverride = request.priceOverride,
             priceRangeOverride = request.priceRangeOverride
         )
@@ -332,7 +330,7 @@ class EventService(
      * Get sessions for an event.
      */
     @Transactional(readOnly = true)
-    fun getEventSessions(eventId: Long, pageable: Pageable): Page<EventSessionResponse> {
+    fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSessionResponse> {
         logger.debug { "Fetching sessions for event: $eventId" }
         return eventSessionRepository.findByEventId(eventId, pageable)
             .map { eventMapper.toSessionResponse(it) }
@@ -342,7 +340,7 @@ class EventService(
      * Get upcoming bookable sessions for an event.
      */
     @Transactional(readOnly = true)
-    fun getBookableSessions(eventId: Long): List<EventSessionResponse> {
+    fun getBookableSessions(eventId: UUID): List<EventSessionResponse> {
         logger.debug { "Fetching bookable sessions for event: $eventId" }
         return eventSessionRepository.findBookableSessions(eventId, Instant.now())
             .map { eventMapper.toSessionResponse(it) }
@@ -351,7 +349,7 @@ class EventService(
     /**
      * Update session.
      */
-    fun updateSession(sessionId: Long, request: EventSessionRequest): EventSessionResponse {
+    fun updateSession(sessionId: UUID, request: EventSessionRequest): EventSessionResponse {
         logger.debug { "Updating session: $sessionId" }
 
         val session = eventSessionRepository.findById(sessionId)
@@ -364,7 +362,6 @@ class EventService(
         session.startTime = request.startTime
         session.endTime = request.endTime
         session.ticketsCount = request.ticketsCount
-        session.status = request.status
         session.priceOverride = request.priceOverride
         session.priceRangeOverride = request.priceRangeOverride
 
@@ -377,7 +374,7 @@ class EventService(
     /**
      * Delete session.
      */
-    fun deleteSession(sessionId: Long) {
+    fun deleteSession(sessionId: UUID) {
         logger.debug { "Deleting session: $sessionId" }
 
         val session = eventSessionRepository.findById(sessionId)
@@ -394,7 +391,7 @@ class EventService(
     /**
      * Add or update translation for an event.
      */
-    fun setTranslation(eventId: Long, request: EventTranslationRequest): EventTranslationResponse {
+    fun setTranslation(eventId: UUID, request: EventTranslationRequest): EventTranslationResponse {
         logger.debug { "Setting translation for event: $eventId, language: ${request.language}" }
 
         val event = eventRepository.findById(eventId)
@@ -425,7 +422,7 @@ class EventService(
      * Get translations for an event.
      */
     @Transactional(readOnly = true)
-    fun getTranslations(eventId: Long): List<EventTranslationResponse> {
+    fun getTranslations(eventId: UUID): List<EventTranslationResponse> {
         logger.debug { "Fetching translations for event: $eventId" }
 
         val event = eventRepository.findById(eventId)

@@ -23,7 +23,7 @@ import java.util.*
  * - JPQL (Java Persistence Query Language) for database-agnostic queries
  */
 @Repository
-interface UserRepository : JpaRepository<User, Long> {
+interface UserRepository : JpaRepository<User, UUID> {
 
     /**
      * Finds a user by email address.
@@ -110,7 +110,7 @@ interface UserRepository : JpaRepository<User, Long> {
      * @param referrerId ID of the referring user
      * @return List of referred users
      */
-    fun findByReferrerId(referrerId: Long): List<User>
+    fun findByReferrerId(referrerId: UUID): List<User>
 
     /**
      * Counts how many users were referred by a specific user.
@@ -119,6 +119,6 @@ interface UserRepository : JpaRepository<User, Long> {
      * @param referrerId ID of the referring user
      * @return Number of referred users
      */
-    fun countByReferrerId(referrerId: Long): Long
+    fun countByReferrerId(referrerId: UUID): Long
 }
 

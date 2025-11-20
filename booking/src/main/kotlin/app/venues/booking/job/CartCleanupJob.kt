@@ -1,9 +1,10 @@
 package app.venues.booking.job
 
-import app.venues.booking.service.CartService
+import app.venues.booking.service.CartCleanupService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+
 
 /**
  * Scheduled job for cleaning up expired cart items.
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Component
  */
 @Component
 class CartCleanupJob(
-    private val cartService: CartService
+    private val cartCleanupService: CartCleanupService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -24,7 +25,7 @@ class CartCleanupJob(
     @Scheduled(fixedRate = 60000) // 60 seconds
     fun cleanupExpiredCarts() {
         try {
-            val deletedCount = cartService.deleteExpiredCarts()
+            val deletedCount = cartCleanupService.deleteExpiredCarts()
 
             if (deletedCount > 0) {
                 logger.info { "Cart cleanup completed: Deleted $deletedCount expired items" }

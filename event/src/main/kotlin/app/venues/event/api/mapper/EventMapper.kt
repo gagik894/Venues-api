@@ -43,7 +43,7 @@ class EventMapper {
         }
 
         return EventResponse(
-            id = event.id ?: 0,
+            id = event.id,
             title = translation?.title ?: event.title,
             description = translation?.description ?: event.description,
             imgUrl = event.imgUrl,
@@ -74,8 +74,8 @@ class EventMapper {
      */
     fun toSessionResponse(session: EventSession): EventSessionResponse {
         return EventSessionResponse(
-            id = session.id ?: throw IllegalArgumentException("Session ID must not be null"),
-            eventId = session.event.id ?: throw IllegalArgumentException("Event ID must not be null"),
+            id = session.id,
+            eventId = session.event.id,
             startTime = session.startTime.toString(),
             endTime = session.endTime.toString(),
             ticketsCount = session.ticketsCount,
@@ -84,7 +84,6 @@ class EventMapper {
             status = session.status,
             priceOverride = session.priceOverride?.toString(),
             priceRangeOverride = session.priceRangeOverride,
-            effectivePrice = session.getEffectivePrice()?.toString(),
             effectivePriceRange = session.getEffectivePriceRange(),
             isBookable = session.isBookable(),
             createdAt = session.createdAt.toString()
@@ -96,11 +95,10 @@ class EventMapper {
      */
     fun toPriceTemplateResponse(template: EventPriceTemplate): PriceTemplateResponse {
         return PriceTemplateResponse(
-            id = template.id ?: throw IllegalArgumentException("Template ID must not be null"),
+            id = template.id,
             templateName = template.templateName,
             color = template.color,
-            price = template.price.toString(),
-            displayOrder = template.displayOrder
+            price = template.price.toString()
         )
     }
 
@@ -109,7 +107,7 @@ class EventMapper {
      */
     fun toTranslationResponse(translation: EventTranslation): EventTranslationResponse {
         return EventTranslationResponse(
-            id = translation.id ?: throw IllegalArgumentException("Translation ID must not be null"),
+            id = translation.id ?: throw IllegalArgumentException("Translation ID cannot be null"),
             language = translation.language,
             title = translation.title,
             description = translation.description,

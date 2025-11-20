@@ -7,6 +7,7 @@
 
 package app.venues.user.service
 
+import app.venues.common.constants.AppConstants
 import app.venues.common.exception.VenuesException
 import app.venues.user.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -14,6 +15,7 @@ import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Service dedicated to recording failed login attempts.
@@ -60,7 +62,7 @@ class FailedLoginService(
      * @param userId ID of the user who failed to login
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    fun recordFailedLoginAttempt(userId: Long) {
+    fun recordFailedLoginAttempt(userId: UUID) {
         logger.debug { "Recording failed login attempt for user $userId in NEW transaction" }
 
         // Load user from database
@@ -72,10 +74,11 @@ class FailedLoginService(
             )
         }
 
-        val previousAttempts = user.failedLoginAttempts
-
         // Increment failed login attempts (may also lock account)
-        user.recordFailedLogin()
+        user.recordFailedLogin(
+            maxAttempts = AppConstants.Security.MAX_LOGIN_ATTEMPTS,
+            lockoutMinutes = AppConstants.Security.LOCKOUT_DURATION_MINUTES
+        )
 
         // Save changes
         userRepository.save(user)
@@ -84,9 +87,7 @@ class FailedLoginService(
         entityManager.flush()
 
         logger.info {
-            "Failed login attempt recorded for user $userId (email: ${user.email}). " +
-                    "Attempts: $previousAttempts -> ${user.failedLoginAttempts}" +
-                    if (user.isAccountLocked()) " | Account LOCKED until ${user.lockedUntil}" else ""
+            "Failed login attempt recorded for user $userId (email: ${user.email}). "
         }
     }
 }

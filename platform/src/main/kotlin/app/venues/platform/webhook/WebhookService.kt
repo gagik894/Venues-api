@@ -21,9 +21,12 @@ import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+
+//TODO: fix tableCode propagation in webhook events
 /**
  * Service for sending webhook callbacks to platforms.
  *
@@ -60,7 +63,7 @@ class WebhookService(
      */
     @Async
     fun notifySeatReserved(
-        sessionId: Long,
+        sessionId: UUID,
         seatIdentifier: String
     ) {
         logger.debug { "Notifying platforms: seat reserved - $seatIdentifier" }
@@ -84,7 +87,7 @@ class WebhookService(
      */
     @Async
     fun notifySeatReleased(
-        sessionId: Long,
+        sessionId: UUID,
         seatIdentifier: String,
     ) {
         logger.debug { "Notifying platforms: seat released - $seatIdentifier" }
@@ -108,7 +111,7 @@ class WebhookService(
      */
     @Async
     fun notifyGAAvailabilityChanged(
-        sessionId: Long,
+        sessionId: UUID,
         levelIdentifier: String,
         levelName: String,
         availableTickets: Int,
@@ -142,7 +145,7 @@ class WebhookService(
      */
     private fun sendToAllPlatforms(
         eventType: WebhookEventType,
-        sessionId: Long,
+        sessionId: UUID,
         seatIdentifier: String? = null,
         levelIdentifier: String? = null,
         payload: WebhookPayload
@@ -176,7 +179,7 @@ class WebhookService(
     private fun createAndSendWebhook(
         platform: Platform,
         eventType: WebhookEventType,
-        sessionId: Long,
+        sessionId: UUID,
         seatIdentifier: String?,
         levelIdentifier: String?,
         payload: WebhookPayload
@@ -186,11 +189,11 @@ class WebhookService(
 
         // Create webhook event record
         val webhookEvent = WebhookEvent(
-            platformId = platform.id!!,
+            platformId = platform.id,
             eventType = eventType,
             sessionId = sessionId,
-            seatIdentifier = seatIdentifier,
-            levelIdentifier = levelIdentifier,
+            seatCode = seatIdentifier,
+            gaAreaCode = levelIdentifier,
             payload = payloadJson
         )
 
@@ -211,8 +214,8 @@ class WebhookService(
         try {
             val url = "${platform.apiUrl}$WEBHOOK_ENDPOINT"
             val timestamp = Instant.now().toString()
-            val nonce = java.util.UUID.randomUUID().toString()
-            val signature = generateSignature(platform.id ?: 0L, timestamp, nonce, platform.sharedSecret)
+            val nonce = UUID.randomUUID().toString()
+            val signature = generateSignature(platform.id, timestamp, nonce, platform.sharedSecret)
 
             logger.debug { "Sending webhook to ${platform.name} at $url" }
 
@@ -254,7 +257,7 @@ class WebhookService(
      * Generate HMAC-SHA256 signature for webhook
      * Signature format: HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
      */
-    private fun generateSignature(platformId: Long, timestamp: String, nonce: String, secret: String): String {
+    private fun generateSignature(platformId: UUID, timestamp: String, nonce: String, secret: String): String {
         val data = "$platformId|$timestamp|$nonce"
         val mac = Mac.getInstance("HmacSHA256")
         val secretKeySpec = SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")

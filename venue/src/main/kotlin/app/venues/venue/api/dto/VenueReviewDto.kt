@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import kotlinx.serialization.Serializable
 import java.time.Instant
+import java.util.*
 
 /**
  * Request DTO for adding/updating venue review.
@@ -35,7 +36,7 @@ data class VenueReviewResponse(
     val id: Long,
     val rating: Int,
     val comment: String?,
-    val userId: Long,
+    val userId: UUID,
     val isModerated: Boolean,
     val createdAt: Instant,
     val lastModifiedAt: Instant

@@ -1,16 +1,16 @@
 package app.venues.event.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
- * Session seat configuration.
+ * Configures a single seat for a specific EventSession.
+ * Stores session-specific pricing and availability status for each seat.
+ * High-volume child entity (uses AbstractLongEntity for performance).
  *
- * Assigns price templates and tracks availability per session.
- * Prices are read from the template and snapshotted to the cart.
+ * @property session The session this config applies to
+ * @property seatId The seat ID from seating module
+ * @property priceTemplate The price template for this seat
  */
 @Entity
 @Table(
@@ -19,18 +19,10 @@ import java.time.Instant
         UniqueConstraint(name = "uk_session_seat_config", columnNames = ["session_id", "seat_id"])
     ],
     indexes = [
-        Index(name = "idx_session_seat_config_session", columnList = "session_id"),
-        Index(name = "idx_session_seat_config_seat", columnList = "seat_id"),
-        Index(name = "idx_session_seat_config_template", columnList = "price_template_id"),
-        Index(name = "idx_session_seat_config_status", columnList = "status")
+        Index(name = "idx_session_seat_status", columnList = "session_id, status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class SessionSeatConfig(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class SessionSeatConfig(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
@@ -40,21 +32,64 @@ data class SessionSeatConfig(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")
-    var priceTemplate: EventPriceTemplate? = null,
+    var priceTemplate: EventPriceTemplate? = null
+) : AbstractLongEntity() {
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    var status: ConfigStatus = ConfigStatus.AVAILABLE,
+    @Access(AccessType.FIELD)
+    var status: ConfigStatus = ConfigStatus.AVAILABLE
+        protected set
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    /**
+     * Check if seat is available for purchase.
+     */
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
-    fun isPriced(): Boolean = priceTemplate != null
-}
 
+    /**
+     * Reserve an available seat.
+     * @throws IllegalStateException if seat is not available
+     */
+    fun reserve() {
+        if (status != ConfigStatus.AVAILABLE) {
+            throw IllegalStateException("Seat $seatId cannot be reserved (current status: $status)")
+        }
+        this.status = ConfigStatus.RESERVED
+    }
+
+    /**
+     * Sell a reserved or available seat.
+     * @throws IllegalStateException if seat cannot be sold
+     */
+    fun sell() {
+        if (status != ConfigStatus.AVAILABLE && status != ConfigStatus.RESERVED) {
+            throw IllegalStateException("Seat $seatId cannot be sold (current status: $status)")
+        }
+        this.status = ConfigStatus.SOLD
+    }
+
+    /**
+     * Release a reserved seat back to available.
+     */
+    fun release() {
+        if (status == ConfigStatus.RESERVED) {
+            this.status = ConfigStatus.AVAILABLE
+        }
+    }
+
+    /**
+     * Block seat from sales (e.g., damaged, removed).
+     */
+    fun block() {
+        this.status = ConfigStatus.BLOCKED
+    }
+
+    /**
+     * Unblock seat for sales.
+     */
+    fun unblock() {
+        if (status == ConfigStatus.BLOCKED) {
+            this.status = ConfigStatus.AVAILABLE
+        }
+    }
+}

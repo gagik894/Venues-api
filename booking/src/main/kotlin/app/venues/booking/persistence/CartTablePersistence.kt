@@ -7,6 +7,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.util.*
 
 /**
  * Handles cart table persistence operations.
@@ -24,18 +25,16 @@ class CartTablePersistence(
      */
     fun saveTableToCart(
         cart: Cart,
-        sessionId: Long,
+        sessionId: UUID,
         tableId: Long,
         tableName: String,
-        seatCount: Int,
         unitPrice: BigDecimal
     ): CartTable {
         val cartTable = CartTable(
             cart = cart,
             sessionId = sessionId,
             tableId = tableId,
-            unitPrice = unitPrice,
-            seatCount = seatCount
+            unitPrice = unitPrice
         )
 
         val saved = cartTableRepository.save(cartTable)
@@ -86,7 +85,7 @@ class CartTablePersistence(
     /**
      * Get cart table by session and table ID (for cleanup).
      */
-    fun findBySessionAndTable(sessionId: Long, tableId: Long): CartTable? {
+    fun findBySessionAndTable(sessionId: UUID, tableId: Long): CartTable? {
         return cartTableRepository.findBySessionIdAndTableId(sessionId, tableId)
     }
 }

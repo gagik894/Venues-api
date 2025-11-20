@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * REST controller for user profile management.
@@ -131,7 +132,7 @@ class UserController(
         description = "Returns user profile for any user. Requires ADMIN role."
     )
     fun getUserById(
-        @PathVariable id: Long
+        @PathVariable id: UUID
     ): ApiResponse<UserResponse> {
         logger.debug { "Get user by ID request: userId=$id" }
 

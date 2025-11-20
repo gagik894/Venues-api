@@ -15,7 +15,7 @@ import java.util.*
  * Supports moderation and statistical queries.
  */
 @Repository
-interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
+interface VenueReviewRepository : JpaRepository<VenueReview, UUID> {
 
     /**
      * Find all reviews for a specific venue (paginated).
@@ -24,7 +24,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param pageable Pagination parameters
      * @return Page of reviews for the venue
      */
-    fun findByVenueId(venueId: Long, pageable: Pageable): Page<VenueReview>
+    fun findByVenueId(venueId: UUID, pageable: Pageable): Page<VenueReview>
 
     /**
      * Find all non-moderated reviews for a specific venue (paginated).
@@ -34,7 +34,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param pageable Pagination parameters
      * @return Page of non-moderated reviews for the venue
      */
-    fun findByVenueIdAndIsModeratedFalse(venueId: Long, pageable: Pageable): Page<VenueReview>
+    fun findByVenueIdAndIsModeratedFalse(venueId: UUID, pageable: Pageable): Page<VenueReview>
 
     /**
      * Find review by venue and user.
@@ -44,7 +44,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param userId The user ID
      * @return Optional review by the user for the venue
      */
-    fun findByVenueIdAndUserId(venueId: Long, userId: Long): Optional<VenueReview>
+    fun findByVenueIdAndUserId(venueId: UUID, userId: UUID): Optional<VenueReview>
 
     /**
      * Find all reviews by a specific user.
@@ -52,7 +52,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param userId The user ID
      * @return List of reviews by the user
      */
-    fun findByUserId(userId: Long): List<VenueReview>
+    fun findByUserId(userId: UUID): List<VenueReview>
 
     /**
      * Check if a user has already reviewed a venue.
@@ -61,7 +61,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param userId The user ID
      * @return True if user has reviewed the venue
      */
-    fun existsByVenueIdAndUserId(venueId: Long, userId: Long): Boolean
+    fun existsByVenueIdAndUserId(venueId: UUID, userId: UUID): Boolean
 
     /**
      * Count total reviews for a venue.
@@ -69,7 +69,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param venueId The venue ID
      * @return Number of reviews for the venue
      */
-    fun countByVenueId(venueId: Long): Long
+    fun countByVenueId(venueId: UUID): Long
 
     /**
      * Count non-moderated reviews for a venue.
@@ -78,7 +78,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @param venueId The venue ID
      * @return Number of non-moderated reviews for the venue
      */
-    fun countByVenueIdAndIsModeratedFalse(venueId: Long): Long
+    fun countByVenueIdAndIsModeratedFalse(venueId: UUID): Long
 
     /**
      * Calculate average rating for a venue.
@@ -87,7 +87,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      * @return Average rating or null if no reviews
      */
     @Query("SELECT AVG(r.rating) FROM VenueReview r WHERE r.venue.id = :venueId AND r.isModerated = false")
-    fun findAverageRatingByVenueId(venueId: Long): Double?
+    fun findAverageRatingByVenueId(venueId: UUID): Double?
 
     /**
      * Find reviews that need moderation (moderated = false).
@@ -104,7 +104,7 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      *
      * @param venueId The venue ID
      */
-    fun deleteByVenueId(venueId: Long)
+    fun deleteByVenueId(venueId: UUID)
 
     /**
      * Delete all reviews by a user.
@@ -112,5 +112,5 @@ interface VenueReviewRepository : JpaRepository<VenueReview, Long> {
      *
      * @param userId The user ID
      */
-    fun deleteByUserId(userId: Long)
+    fun deleteByUserId(userId: UUID)
 }

@@ -1,69 +1,61 @@
 package app.venues.booking.domain
 
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 import java.util.*
 
 /**
- * Shopping cart session.
+ * Represents a temporary shopping cart session.
  *
- * Acts as a container for cart items with unified expiration.
- * All items in the cart expire together when the cart session expires.
+ * @param sessionId The [UUID] of the EventSession.
+ * @param expiresAt The absolute timestamp when the cart reservations expire.
+ * @param token A unique public token for API access.
+ * @param userId The [UUID] of the authenticated user (nullable).
  */
 @Entity
 @Table(
     name = "carts",
     indexes = [
         Index(name = "idx_cart_token", columnList = "token"),
-        Index(name = "idx_cart_user", columnList = "user_id"),
-        Index(name = "idx_cart_expires", columnList = "expires_at"),
-        Index(name = "idx_cart_session", columnList = "event_session_id")
+        Index(name = "idx_cart_user_id", columnList = "user_id"),
+        Index(name = "idx_cart_expires_at", columnList = "expires_at")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Cart(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    @Column(nullable = false, unique = true)
-    var token: UUID = UUID.randomUUID(),
-
-    @Column(name = "user_id")
-    var userId: Long? = null,
-
-    @Column(name = "guest_id")
-    var guestId: Long? = null,
-
+class Cart(
     @Column(name = "event_session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant,
 
+    @Column(name = "token", nullable = false, unique = true)
+    var token: UUID = UUID.randomUUID(),
+
+    @Column(name = "user_id")
+    var userId: UUID? = null,
+
+) : AbstractUuidEntity() {
+
     @Column(name = "last_activity_at", nullable = false)
-    var lastActivityAt: Instant = Instant.now(),
+    @Access(AccessType.FIELD)
+    var lastActivityAt: Instant = Instant.now()
+        protected set
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant? = null,
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant? = null
-) {
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
+    /**
+     * Extends the cart's expiration time and updates its activity.
+     */
     fun extendExpiration(minutes: Long) {
-        expiresAt = Instant.now().plusSeconds(minutes * 60)
-        lastActivityAt = Instant.now()
+        this.expiresAt = Instant.now().plusSeconds(minutes * 60)
+        this.lastActivityAt = Instant.now()
     }
 
+    /**
+     * Updates the last activity time without extending expiration.
+     */
     fun touch() {
-        lastActivityAt = Instant.now()
+        this.lastActivityAt = Instant.now()
     }
 }
-

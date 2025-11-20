@@ -11,6 +11,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.util.ContentCachingRequestWrapper
 import java.time.Duration
 import java.time.Instant
+import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -18,13 +19,10 @@ import javax.crypto.spec.SecretKeySpec
  * Filter to authenticate platform API requests using HMAC signature verification.
  *
  * Verifies:
- * 1. X-Platform-ID header is present and valid
+ * 1. X-Platform-ID header is present and valid (UUID)
  * 2. X-Platform-Signature header matches HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
  * 3. X-Platform-Timestamp is recent (within 5 minutes)
  * 4. X-Platform-Nonce is unique (prevents replay attacks via Redis)
- *
- * Authentication Flow:
- * Platform signs request: HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
  */
 @Component
 class PlatformAuthenticationFilter(
@@ -70,10 +68,10 @@ class PlatformAuthenticationFilter(
             val nonce = wrappedRequest.getHeader(NONCE_HEADER)
                 ?: throw VenuesException.AuthenticationFailure("Missing $NONCE_HEADER header")
 
-            // Parse platform ID
+            // Parse platform ID as UUID
             val platformId = try {
-                platformIdStr.toLong()
-            } catch (e: NumberFormatException) {
+                UUID.fromString(platformIdStr)
+            } catch (e: IllegalArgumentException) {
                 throw VenuesException.AuthenticationFailure("Invalid platform ID format")
             }
 
@@ -136,7 +134,7 @@ class PlatformAuthenticationFilter(
      * Verify nonce hasn't been used before (prevents replay attacks).
      * Uses Redis for distributed nonce tracking across multiple instances.
      */
-    private fun verifyNonce(nonce: String, platformId: Long) {
+    private fun verifyNonce(nonce: String, platformId: UUID) {
         val isUsed = nonceService.isNonceUsed(nonce, platformId)
         if (isUsed) {
             throw VenuesException.AuthenticationFailure("Nonce already used (replay attack detected)")
@@ -151,7 +149,7 @@ class PlatformAuthenticationFilter(
         providedSignature: String,
         timestamp: String,
         nonce: String,
-        platformId: Long,
+        platformId: UUID,
         sharedSecret: String
     ) {
         val data = "$platformId|$timestamp|$nonce"
@@ -173,4 +171,3 @@ class PlatformAuthenticationFilter(
         return hmac.joinToString("") { "%02x".format(it) }
     }
 }
-

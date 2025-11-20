@@ -6,12 +6,13 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for Platform entity operations.
  */
 @Repository
-interface PlatformRepository : JpaRepository<Platform, Long> {
+interface PlatformRepository : JpaRepository<Platform, UUID> {
 
     /**
      * Find platform by name

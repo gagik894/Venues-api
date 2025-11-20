@@ -1,83 +1,64 @@
 package app.venues.booking.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
- * Booking item entity - items within a booking.
+ * Represents a confirmed booking line item.
+ * Can be either an individual seat OR general admission tickets.
  *
- * Can be either:
- * - A seat (quantity = 1)
- * - GA tickets for a level (quantity > 0)
+ * Note: Tables are stored in cart but not yet implemented in bookings.
  *
- * One booking can have multiple seats AND multiple GA levels.
- *
- * Cross-module relationships:
- * - seatId references seating module
- * - levelId references seating module
- * - sessionSeatConfigId references event module
+ * @property booking The parent booking
+ * @property quantity Number of units (1 for seats, >=1 for GA tickets)
+ * @property unitPrice Price per unit at booking time (snapshot pricing)
+ * @property seatId Seat ID from seating module (for seat bookings)
+ * @property gaAreaId GA area ID from seating module (for GA bookings)
+ * @property priceTemplateName Price template name for display (e.g., "VIP", "Standard")
  */
 @Entity
-@Table(
-    name = "booking_items",
-    indexes = [
-        Index(name = "idx_booking_item_booking_id", columnList = "booking_id"),
-        Index(name = "idx_booking_item_seat_id", columnList = "seat_id"),
-        Index(name = "idx_booking_item_level_id", columnList = "level_id"),
-        Index(name = "idx_booking_item_config_id", columnList = "session_seat_config_id")
-    ]
-)
-@EntityListeners(AuditingEntityListener::class)
-data class BookingItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+@Table(name = "booking_items")
+class BookingItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "booking_id", nullable = false, columnDefinition = "UUID")
+    @JoinColumn(name = "booking_id", nullable = false)
     var booking: Booking,
 
-    /**
-     * Seat ID - references seating module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "seat_id")
-    var seatId: Long? = null,
-
-    /**
-     * Level ID - references seating module (for GA tickets)
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "level_id")
-    var levelId: Long? = null,
-
-    /**
-     * Session seat config ID - references event module
-     * Stored as ID to avoid cross-module entity dependencies
-     */
-    @Column(name = "session_seat_config_id")
-    var sessionSeatConfigId: Long? = null,
-
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)
     var quantity: Int = 1,
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,
 
-    @Column(name = "price_template_name", length = 100)
-    var priceTemplateName: String? = null,
+    /**
+     * Seat ID from seating module (populated for seat bookings).
+     */
+    @Column(name = "seat_id")
+    var seatId: Long? = null,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
+    /**
+     * GA area ID from seating module (populated for GA ticket bookings).
+     */
+    @Column(name = "ga_area_id")
+    var gaAreaId: Long? = null,
+
+    @Column(name = "price_template_name", length = 100)
+    var priceTemplateName: String? = null
+
+) : AbstractLongEntity() {
+
+    /**
+     * Calculate total price for this line item.
+     */
     fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
 
+    /**
+     * Check if this is a seat booking.
+     */
     fun isSeat(): Boolean = seatId != null
 
-    fun isGA(): Boolean = levelId != null
+    /**
+     * Check if this is a GA ticket booking.
+     */
+    fun isGA(): Boolean = gaAreaId != null && seatId == null
 }
-

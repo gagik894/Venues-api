@@ -1,16 +1,17 @@
 package app.venues.venue.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
- * Entity representing a user review and rating for a venue.
+ * A review for a Venue, written by a User (customer).
+ * This is a child entity, owned by the Venue.
  *
- * Reviews help other users make informed decisions about venues.
- * Each user can only have one review per venue (can be updated).
+ * @param venue The venue being reviewed.
+ * @param userId The `User.id` (customer) who wrote the review.
+ * @param rating The star rating from 1 to 5.
+ * @param comment An optional text comment.
  */
 @Entity
 @Table(
@@ -20,67 +21,34 @@ import java.time.Instant
             name = "uk_venue_review_user_venue",
             columnNames = ["venue_id", "user_id"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_venue_review_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_review_user_id", columnList = "user_id"),
-        Index(name = "idx_venue_review_rating", columnList = "rating"),
-        Index(name = "idx_venue_review_moderated", columnList = "is_moderated")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class VenueReview(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * The venue being reviewed
-     */
+class VenueReview(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
-    /**
-     * ID of the user who wrote this review
-     * References the user from the user module
-     */
     @Column(name = "user_id", nullable = false)
-    var userId: Long,
+    var userId: UUID,
 
-    /**
-     * Rating from 1 to 5 stars
-     */
     @Column(name = "rating", nullable = false)
     var rating: Int,
 
-    /**
-     * Optional written comment
-     */
     @Column(name = "comment", columnDefinition = "TEXT")
     var comment: String? = null,
 
-    /**
-     * Whether this review has been moderated/approved
-     * Used for content moderation in government applications
-     */
+    ) : AbstractLongEntity() {
+
     @Column(name = "is_moderated", nullable = false)
-    var isModerated: Boolean = false,
+    @Access(AccessType.FIELD)
+    var isModerated: Boolean = false
+        protected set
 
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
     init {
-        // Validate rating is between 1 and 5
         require(rating in 1..5) { "Rating must be between 1 and 5" }
+    }
+
+    fun approve() {
+        this.isModerated = true
     }
 }

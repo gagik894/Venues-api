@@ -5,6 +5,7 @@ import app.venues.booking.domain.CartTable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.*
 
 /**
  * Repository for CartTable entity operations.
@@ -30,7 +31,7 @@ interface CartTableRepository : JpaRepository<CartTable, Long> {
     /**
      * Check if cart has any tables from a specific session
      */
-    fun existsByCartAndSessionId(cart: Cart, sessionId: Long): Boolean
+    fun existsByCartAndSessionId(cart: Cart, sessionId: UUID): Boolean
 
     /**
      * Count tables in cart
@@ -40,7 +41,7 @@ interface CartTableRepository : JpaRepository<CartTable, Long> {
     /**
      * Find table by session and table ID
      */
-    fun findBySessionIdAndTableId(sessionId: Long, tableId: Long): CartTable?
+    fun findBySessionIdAndTableId(sessionId: UUID, tableId: Long): CartTable?
 
     /**
      * Check if a table is reserved by any cart

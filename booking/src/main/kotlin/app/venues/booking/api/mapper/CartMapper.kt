@@ -4,9 +4,6 @@ import app.venues.booking.api.dto.CartGAItemResponse
 import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.dto.CartTableResponse
-import app.venues.booking.domain.CartItem
-import app.venues.booking.domain.CartSeat
-import app.venues.booking.domain.CartTable
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
@@ -22,31 +19,26 @@ class CartMapper {
     /**
      * Convert CartSeat to response DTO
      *
-     * @param cartSeat The cart seat entity
-     * @param seatIdentifier Seat identifier (from seating module)
+     * @param code Seat identifier (from seating module)
      * @param seatNumber Seat number (from seating module)
      * @param rowLabel Row label (from seating module)
      * @param levelName Level name (from seating module)
-     * @param levelIdentifier Level identifier (from seating module)
      * @param price Seat price
      * @param priceTemplateName Price template name
      */
     fun toCartSeatResponse(
-        cartSeat: CartSeat,
-        seatIdentifier: String,
+        code: String,
         seatNumber: String?,
         rowLabel: String?,
         levelName: String,
-        levelIdentifier: String?,
         price: BigDecimal,
         priceTemplateName: String?
     ): CartSeatResponse {
         return CartSeatResponse(
-            seatIdentifier = seatIdentifier,
-            seatNumber = seatNumber,
+            code = code,
+            number = seatNumber,
             rowLabel = rowLabel,
             levelName = levelName,
-            levelIdentifier = levelIdentifier,
             price = price.toString(),
             priceTemplateName = priceTemplateName
         )
@@ -55,25 +47,24 @@ class CartMapper {
     /**
      * Convert CartItem to response DTO
      *
-     * @param cartItem The cart item entity
-     * @param levelIdentifier Level identifier (from seating module)
+     * @param code Level identifier (from seating module)
      * @param levelName Level name (from seating module)
      * @param unitPrice Unit price per ticket
      * @param priceTemplateName Price template name
      */
     fun toCartGAItemResponse(
-        cartItem: CartItem,
-        levelIdentifier: String?,
+        quantity: Int,
+        code: String?,
         levelName: String,
         unitPrice: BigDecimal,
         priceTemplateName: String?
     ): CartGAItemResponse {
-        val totalPrice = unitPrice.multiply(BigDecimal(cartItem.quantity))
+        val totalPrice = unitPrice.multiply(BigDecimal(quantity))
 
         return CartGAItemResponse(
-            levelIdentifier = levelIdentifier,
-            levelName = levelName,
-            quantity = cartItem.quantity,
+            code = code,
+            name = levelName,
+            quantity = quantity,
             unitPrice = unitPrice.toString(),
             totalPrice = totalPrice.toString(),
             priceTemplateName = priceTemplateName
@@ -83,21 +74,18 @@ class CartMapper {
     /**
      * Convert CartTable to response DTO
      *
-     * @param cartTable The cart table entity
+     * @param code Table code (from seating module)
      * @param tableName Table name (from seating module)
-     * @param seatCount Number of seats in the table
      * @param price Total table price
      */
     fun toCartTableResponse(
-        cartTable: CartTable,
+        code: String,
         tableName: String,
-        seatCount: Int,
         price: BigDecimal
     ): CartTableResponse {
         return CartTableResponse(
-            tableId = cartTable.tableId,
-            tableName = tableName,
-            seatCount = seatCount,
+            code = code,
+            number = tableName,
             price = price
         )
     }
@@ -113,7 +101,7 @@ class CartMapper {
         totalPrice: BigDecimal,
         currency: String,
         expiresAt: String,
-        sessionId: Long,
+        sessionId: UUID,
         eventTitle: String
     ): CartSummaryResponse {
         return CartSummaryResponse(

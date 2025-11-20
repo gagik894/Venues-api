@@ -1,85 +1,109 @@
 package app.venues.event.domain
 
+import app.venues.seating.api.TableBookingMode
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
- * Session table configuration.
+ * Configures a table for a specific EventSession.
+ * Tables are groups of seats that can be booked as a complete unit.
+ * High-volume child entity (uses AbstractLongEntity for performance).
  *
- * Manages table bookings - tracks whether a table is available as a whole unit.
- * A table (Level with isTable=true) contains multiple seats that can be:
- * - Booked individually (if allowed by tableBookingMode)
- * - Booked as a complete table (if allowed by tableBookingMode)
- *
- * Business Rules:
- * - If ANY seat in the table is RESERVED or SOLD → table status becomes BLOCKED
- * - If table is RESERVED or SOLD → all individual seats become BLOCKED
- * - Table has its own price (can differ from sum of seat prices)
- *
- * Cross-module relationships:
- * - tableId references Level entity in seating module (Level.isTable = true)
+ * @property session The session this config applies to
+ * @property tableId The table ID from seating module
+ * @property priceTemplate The price template for this table (whole table price)
+ * @property bookingMode How the table can be booked (TABLE_ONLY, SEATS_ONLY, FLEXIBLE)
  */
 @Entity
 @Table(
     name = "session_table_configs",
     uniqueConstraints = [
         UniqueConstraint(name = "uk_session_table_config", columnNames = ["session_id", "table_id"])
-    ],
-    indexes = [
-        Index(name = "idx_session_table_config_session", columnList = "session_id"),
-        Index(name = "idx_session_table_config_table", columnList = "table_id"),
-        Index(name = "idx_session_table_config_template", columnList = "price_template_id"),
-        Index(name = "idx_session_table_config_status", columnList = "status")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class SessionTableConfig(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+class SessionTableConfig(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     var session: EventSession,
 
-    /**
-     * Table ID - references Level entity with isTable = true
-     */
     @Column(name = "table_id", nullable = false)
     var tableId: Long,
 
-    /**
-     * Price template for booking the entire table
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")
     var priceTemplate: EventPriceTemplate? = null,
 
-    /**
-     * Table status
-     * - AVAILABLE: Table can be booked as a unit
-     * - RESERVED: Table is in someone's cart
-     * - SOLD: Table has been purchased
-     * - BLOCKED: One or more seats are reserved/sold, table unavailable
-     * - CLOSED: Manually closed by venue
-     */
-    @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    var status: ConfigStatus = ConfigStatus.AVAILABLE,
+    @Column(name = "booking_mode", length = 20, nullable = false)
+    var bookingMode: TableBookingMode = TableBookingMode.FLEXIBLE
+) : AbstractLongEntity() {
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
+    @Column(name = "status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Access(AccessType.FIELD)
+    var status: ConfigStatus = ConfigStatus.AVAILABLE
+        protected set
 
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-) {
+    /**
+     * Check if table is available for booking.
+     */
     fun isAvailable(): Boolean = status == ConfigStatus.AVAILABLE
-    fun isPriced(): Boolean = priceTemplate != null
-    fun isBlocked(): Boolean = status == ConfigStatus.BLOCKED
-}
 
+    /**
+     * Reserve an available table.
+     * @throws IllegalStateException if table is not available
+     */
+    fun reserve() {
+        if (status != ConfigStatus.AVAILABLE) {
+            throw IllegalStateException("Table $tableId cannot be reserved (current status: $status)")
+        }
+        this.status = ConfigStatus.RESERVED
+    }
+
+    /**
+     * Sell a reserved or available table.
+     * @throws IllegalStateException if table cannot be sold
+     */
+    fun sell() {
+        if (status != ConfigStatus.AVAILABLE && status != ConfigStatus.RESERVED) {
+            throw IllegalStateException("Table $tableId cannot be sold (current status: $status)")
+        }
+        this.status = ConfigStatus.SOLD
+    }
+
+    /**
+     * Release a reserved table back to available.
+     */
+    fun release() {
+        if (status == ConfigStatus.RESERVED) {
+            this.status = ConfigStatus.AVAILABLE
+        }
+    }
+
+    /**
+     * Block table from sales.
+     */
+    fun block() {
+        this.status = ConfigStatus.BLOCKED
+    }
+
+    /**
+     * Unblock table for sales.
+     */
+    fun unblock() {
+        if (status == ConfigStatus.BLOCKED) {
+            this.status = ConfigStatus.AVAILABLE
+        }
+    }
+
+    /**
+     * Check if table can only be booked as a complete unit.
+     */
+    fun isTableOnly(): Boolean = bookingMode == TableBookingMode.TABLE_ONLY
+
+    /**
+     * Check if individual seats can be booked.
+     */
+    fun allowsSeatBooking(): Boolean =
+        bookingMode == TableBookingMode.SEATS_ONLY || bookingMode == TableBookingMode.FLEXIBLE
+}

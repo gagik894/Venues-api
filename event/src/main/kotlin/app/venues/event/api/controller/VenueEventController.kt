@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Controller for venue owner event management.
@@ -64,7 +65,7 @@ class VenueEventController(
         description = "Update event details (Venue owners only)"
     )
     fun updateEvent(
-        @PathVariable eventId: Long,
+        @PathVariable eventId: UUID,
         @Valid @RequestBody request: EventRequest
     ): ApiResponse<EventResponse> {
         val venueId = securityUtil.getCurrentUserId()
@@ -87,7 +88,7 @@ class VenueEventController(
         description = "Delete an event (Venue owners only)"
     )
     fun deleteEvent(
-        @PathVariable eventId: Long
+        @PathVariable eventId: UUID
     ): ApiResponse<Unit> {
         val venueId = securityUtil.getCurrentUserId()
         logger.debug { "Deleting event: $eventId for venue: $venueId" }
@@ -113,7 +114,7 @@ class VenueEventController(
         description = "Add a new session to an event (Venue owners only)"
     )
     fun addSession(
-        @PathVariable eventId: Long,
+        @PathVariable eventId: UUID,
         @Valid @RequestBody request: EventSessionRequest
     ): ApiResponse<EventSessionResponse> {
         val venueId = securityUtil.getCurrentUserId()
@@ -137,8 +138,8 @@ class VenueEventController(
         description = "Update session details (Venue owners only)"
     )
     fun updateSession(
-        @PathVariable eventId: Long,
-        @PathVariable sessionId: Long,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
         @Valid @RequestBody request: EventSessionRequest
     ): ApiResponse<EventSessionResponse> {
         val venueId = securityUtil.getCurrentUserId()
@@ -161,8 +162,8 @@ class VenueEventController(
         description = "Delete a session (Venue owners only)"
     )
     fun deleteSession(
-        @PathVariable eventId: Long,
-        @PathVariable sessionId: Long
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID
     ): ApiResponse<Unit> {
         val venueId = securityUtil.getCurrentUserId()
         logger.debug { "Deleting session: $sessionId for venue: $venueId" }
@@ -188,7 +189,7 @@ class VenueEventController(
         description = "Add or update translation for an event (Venue owners only)"
     )
     fun setTranslation(
-        @PathVariable eventId: Long,
+        @PathVariable eventId: UUID,
         @Valid @RequestBody request: EventTranslationRequest
     ): ApiResponse<EventTranslationResponse> {
         val venueId = securityUtil.getCurrentUserId()

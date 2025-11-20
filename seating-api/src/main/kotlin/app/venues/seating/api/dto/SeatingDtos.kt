@@ -1,66 +1,46 @@
 package app.venues.seating.api.dto
 
 /**
- * Seat information DTO for cross-module communication.
+ * Information about a specific Seat (The atomic unit).
  */
 data class SeatInfoDto(
     val id: Long,
-    val seatIdentifier: String,
-    val seatNumber: String?,
-    val rowLabel: String?,
-    val levelId: Long,
-    val levelName: String
+    val code: String,        // "ORCH_ROW-A_SEAT-1"
+    val seatNumber: String,
+    val rowLabel: String,
+    val zoneId: Long,        // Link to parent Section
+    val zoneName: String,
+    val categoryKey: String
 )
 
 /**
- * Level information DTO for cross-module communication.
+ * Information about a Physical Table.
  */
-data class LevelInfoDto(
+data class TableInfoDto(
     val id: Long,
-    val levelName: String,
-    val levelIdentifier: String?,
-    val capacity: Int?,
-    val isGeneralAdmission: Boolean,
-    val tableBookingMode: String? = null
+    val code: String,        // "VIP_T-12"
+    val tableNumber: String,
+    val seatCapacity: Int,
+    val zoneId: Long,        // Tables live inside Zones
+    val zoneName: String
 )
 
 /**
- * Complete seating chart structure for bulk loading.
- * Contains all information needed to render and process a seating chart.
+ * Information about a Section/Zone (The container).
  */
-data class SeatingChartStructureDto(
-    val chartId: Long,
-    val chartName: String,
-    val levels: List<LevelDto>,
-    val seats: List<SeatDto>
-)
-
-/**
- * Level DTO with hierarchy information.
- */
-data class LevelDto(
+data class SectionInfoDto(
     val id: Long,
-    val levelName: String,
-    val levelIdentifier: String?,
-    val parentLevelId: Long?,
-    val capacity: Int?,
-    val positionX: Double?,
-    val positionY: Double?,
-    val isTable: Boolean? = null,
-    val tableBookingMode: String? = null
+    val code: String,        // "ORCH_C"
+    val name: String
 )
 
 /**
- * Seat DTO with position and level association.
+ * Information about a General Admission Area.
  */
-data class SeatDto(
+data class GaInfoDto(
     val id: Long,
-    val seatIdentifier: String,
-    val seatNumber: String?,
-    val rowLabel: String?,
-    val levelId: Long,
-    val positionX: Double?,
-    val positionY: Double?,
-    val seatType: String?
+    val code: String,        // "PIT_A"
+    val name: String,
+    val capacity: Int,
+    val zoneId: Long         // GA areas live inside Zones
 )
-

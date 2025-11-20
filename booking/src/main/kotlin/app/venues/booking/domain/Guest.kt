@@ -1,54 +1,31 @@
 package app.venues.booking.domain
 
-import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import app.venues.shared.persistence.domain.AbstractUuidEntity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 
 /**
- * Guest entity for unauthenticated bookings.
+ * Represents a guest user for non-authenticated bookings.
  *
- * Guests are identified by email and stored separately for reuse across multiple bookings.
- * This allows guests to view their booking history without creating an account.
+ * @param email The guest's email address.
+ * @param name The guest's full name.
+ * @param phone The guest's phone number (optional).
  */
 @Entity
 @Table(
     name = "guests",
-    indexes = [
-        Index(name = "idx_guest_email", columnList = "email")
-    ]
+    indexes = [Index(name = "idx_guest_email", columnList = "email", unique = true)]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class Guest(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * Guest email (unique identifier)
-     */
-    @Column(nullable = false, unique = true, length = 255)
+class Guest(
+    @Column(name = "email", nullable = false, unique = true, length = 255)
     var email: String,
 
-    /**
-     * Guest full name
-     */
-    @Column(nullable = false, length = 200)
+    @Column(name = "name", nullable = false, length = 200)
     var name: String,
 
-    /**
-     * Guest phone number (optional)
-     */
-    @Column(length = 20)
+    @Column(name = "phone", length = 20)
     var phone: String? = null,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
-
+    ) : AbstractUuidEntity()

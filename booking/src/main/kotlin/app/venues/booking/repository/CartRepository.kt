@@ -12,7 +12,7 @@ import java.util.*
  * Repository for Cart entity operations.
  */
 @Repository
-interface CartRepository : JpaRepository<Cart, Long> {
+interface CartRepository : JpaRepository<Cart, UUID> {
 
     /**
      * Find cart by token
@@ -22,7 +22,7 @@ interface CartRepository : JpaRepository<Cart, Long> {
     /**
      * Find all carts for a user
      */
-    fun findByUserId(userId: Long): List<Cart>
+    fun findByUserId(userId: UUID): List<Cart>
 
     /**
      * Find expired carts

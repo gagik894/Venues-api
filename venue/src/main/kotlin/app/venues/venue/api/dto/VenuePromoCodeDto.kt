@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*
 import kotlinx.serialization.Serializable
 import java.math.BigDecimal
 import java.time.Instant
+import java.util.*
 
 /**
  * Request DTO for creating venue promo code.
@@ -72,7 +73,7 @@ data class VenuePromoCodeRequest(
  */
 @Serializable
 data class VenuePromoCodeResponse(
-    val id: Long,
+    val id: UUID,
     val code: String,
     val description: String?,
     val discountType: DiscountType,

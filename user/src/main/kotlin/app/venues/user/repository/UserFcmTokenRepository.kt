@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.util.*
 
 /**
  * Repository for UserFcmToken entity operations.
@@ -22,7 +23,7 @@ interface UserFcmTokenRepository : JpaRepository<UserFcmToken, Long> {
      * @param userId ID of the user
      * @return List of FCM tokens belonging to the user
      */
-    fun findByUserId(userId: Long): List<UserFcmToken>
+    fun findByUserId(userId: UUID): List<UserFcmToken>
 
     /**
      * Finds all FCM tokens for a specific user and platform.
@@ -31,7 +32,7 @@ interface UserFcmTokenRepository : JpaRepository<UserFcmToken, Long> {
      * @param platform Platform name (e.g., "android", "ios")
      * @return List of FCM tokens for the user on the specified platform
      */
-    fun findByUserIdAndPlatform(userId: Long, platform: String): List<UserFcmToken>
+    fun findByUserIdAndPlatform(userId: UUID, platform: String): List<UserFcmToken>
 
     /**
      * Finds a specific FCM token.
@@ -57,8 +58,8 @@ interface UserFcmTokenRepository : JpaRepository<UserFcmToken, Long> {
      * @return Number of tokens deleted
      */
     @Modifying
-    @Query("DELETE FROM UserFcmToken t WHERE t.userId = :userId")
-    fun deleteByUserId(userId: Long): Int
+    @Query("DELETE FROM UserFcmToken t WHERE t.user.id = :userId")
+    fun deleteByUserId(userId: UUID): Int
 
     /**
      * Deletes a specific FCM token.
@@ -92,6 +93,6 @@ interface UserFcmTokenRepository : JpaRepository<UserFcmToken, Long> {
      * @param userId ID of the user
      * @return Number of tokens
      */
-    fun countByUserId(userId: Long): Int
+    fun countByUserId(userId: UUID): Int
 }
 

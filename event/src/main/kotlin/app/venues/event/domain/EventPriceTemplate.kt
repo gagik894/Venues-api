@@ -1,63 +1,31 @@
 package app.venues.event.domain
 
+import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
 
 /**
- * Price template for an event defining different ticket types/tiers.
+ * A "root" definition for a ticket price tier (e.g., "VIP", "Standard").
+ * This is referenced by sessions, so it must have a stable UUID.
  *
- * Examples: VIP, Standard, Balcony, Student, etc.
- * Each template has a name, color (for UI display), and price.
+ * @param event The event this template belongs to.
+ * @param templateName The display name (e.g., "VIP").
+ * @param price The price for this tier.
+ * @param color An optional color code (e.g., "#FFD700") for UI representation.
  */
 @Entity
-@Table(
-    name = "event_price_templates",
-    indexes = [
-        Index(name = "idx_price_template_event_id", columnList = "event_id")
-    ]
-)
-@EntityListeners(AuditingEntityListener::class)
-data class EventPriceTemplate(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * The event this price template belongs to
-     */
+@Table(name = "event_price_templates")
+class EventPriceTemplate(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "event_id", nullable = false)
     var event: Event,
 
-    /**
-     * Name of the ticket tier (e.g., "VIP", "Standard", "Student")
-     */
     @Column(name = "template_name", nullable = false, length = 100)
     var templateName: String,
 
-    /**
-     * Color code for UI display (hex: #FF5733)
-     */
-    @Column(length = 7)
-    var color: String? = null,
-
-    /**
-     * Price for this ticket tier
-     */
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "price", nullable = false, precision = 10, scale = 2)
     var price: BigDecimal,
 
-    /**
-     * Display order for sorting
-     */
-    @Column(name = "display_order", nullable = false)
-    var displayOrder: Int = 0,
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
-
+    @Column(name = "color", length = 7)
+    var color: String? = null,
+) : AbstractUuidEntity()

@@ -1,15 +1,15 @@
 package app.venues.event.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
- * Translation for event category names.
+ * A translation for an EventCategory's text fields.
+ * This is a child entity of EventCategory.
  *
- * Allows categories to be displayed in multiple languages.
+ * @param category The category this translation belongs to.
+ * @param language The language code.
+ * @param name The translated name.
  */
 @Entity
 @Table(
@@ -19,43 +19,17 @@ import java.time.Instant
             name = "uk_category_translation_category_language",
             columnNames = ["category_id", "language"]
         )
-    ],
-    indexes = [
-        Index(name = "idx_category_translation_category_id", columnList = "category_id"),
-        Index(name = "idx_category_translation_language", columnList = "language")
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class EventCategoryTranslation(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * The category this translation belongs to
-     */
+class EventCategoryTranslation(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     var category: EventCategory,
 
-    /**
-     * Language code (ISO 639-1: en, fr, es, hy, ru, etc.)
-     */
-    @Column(nullable = false, length = 10)
+    @Column(name = "language", nullable = false, length = 10)
     var language: String,
 
-    /**
-     * Translated category name
-     */
-    @Column(nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 100)
     var name: String,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
-
+    ) : AbstractLongEntity()

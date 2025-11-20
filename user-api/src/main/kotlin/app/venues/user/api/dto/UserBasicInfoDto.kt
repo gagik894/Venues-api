@@ -1,5 +1,7 @@
 package app.venues.user.api.dto
 
+import java.util.*
+
 /**
  * Basic user information DTO for cross-module communication.
  *
@@ -7,7 +9,7 @@ package app.venues.user.api.dto
  * Contains only essential fields needed by other modules.
  */
 data class UserBasicInfoDto(
-    val id: Long,
+    val id: UUID,
     val email: String,
     val firstName: String,
     val lastName: String,

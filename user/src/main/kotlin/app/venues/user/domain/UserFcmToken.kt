@@ -1,27 +1,17 @@
 package app.venues.user.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.Instant
 
 /**
- * Entity representing a Firebase Cloud Messaging (FCM) token for push notifications.
+ * Represents a single Firebase Cloud Messaging (FCM) token for a user's device.
+ * A user can have multiple tokens.
  *
- * A user can have multiple FCM tokens (one per device/platform).
- * This allows sending push notifications to all user's devices.
- *
- * Design:
- * - One user can have many tokens (one per device)
- * - Tokens are unique to prevent duplicates
- * - Tracks platform (Android, iOS, Web) for targeted notifications
- * - Includes last used timestamp for token cleanup
- *
- * Best Practices:
- * - Tokens should be refreshed periodically
- * - Remove stale tokens (not used for 90+ days)
- * - Handle token expiration gracefully
+ * @param user The user who this token belongs to.
+ * @param token The unique FCM token string.
+ * @param platform The device platform (e.g., "android", "ios", "web").
+ * @param deviceName Optional human-readable name for the device.
  */
 @Entity
 @Table(
@@ -31,85 +21,41 @@ import java.time.Instant
         Index(name = "idx_fcm_token", columnList = "token", unique = true)
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class UserFcmToken(
+class UserFcmToken(
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    val user: User,
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long? = null,
-
-    /**
-     * ID of the user who owns this FCM token.
-     * Foreign key reference to users table.
-     */
-    @Column(name = "user_id", nullable = false)
-    val userId: Long,
-
-    /**
-     * The FCM token string provided by Firebase SDK.
-     * Unique across all users and devices.
-     */
-    @Column(nullable = false, unique = true, length = 512)
+    @Column(name = "token", nullable = false, unique = true, length = 512)
     val token: String,
 
-    /**
-     * Platform/device type for this token.
-     * Examples: "android", "ios", "web"
-     * Used for platform-specific notifications.
-     */
-    @Column(nullable = false, length = 20)
+    @Column(name = "platform", nullable = false, length = 20)
     val platform: String,
 
-    /**
-     * Optional device identifier or name.
-     * Helps users manage their devices (e.g., "John's iPhone", "Work Laptop").
-     */
-    @Column(length = 100)
+    @Column(name = "device_name", length = 100)
     var deviceName: String? = null,
 
-    /**
-     * Timestamp when this token was last used successfully.
-     * Updated when a notification is successfully delivered.
-     * Used to identify and remove stale tokens.
-     */
-    @Column
-    var lastUsedAt: Instant? = null,
+    ) : AbstractLongEntity() {
+
+    @Column(name = "last_used_at")
+    @Access(AccessType.FIELD)
+    var lastUsedAt: Instant? = null
+        protected set
 
     /**
-     * Timestamp when this token was registered.
-     * Automatically managed by JPA Auditing.
+     * Checks if this token is stale and should be considered for deletion.
+     * @return true if the token hasn't been used in 90 days.
      */
-    @CreatedDate
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.now(),
-
-    /**
-     * Timestamp when this token was last modified.
-     * Automatically managed by JPA Auditing.
-     */
-    @LastModifiedDate
-    @Column(nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-
-) {
-    /**
-     * Checks if this token is stale and should be removed.
-     * Tokens not used for 90+ days are considered stale.
-     *
-     * @return true if token hasn't been used in 90 days
-     */
-    fun isStale(): Boolean {
+    fun isStale(staleDurationInDays: Long = 90): Boolean {
         val lastUsed = lastUsedAt ?: createdAt
-        val ninetyDaysAgo = Instant.now().minusSeconds(90 * 24 * 60 * 60)
-        return lastUsed.isBefore(ninetyDaysAgo)
+        val staleThreshold = Instant.now().minusSeconds(staleDurationInDays * 24 * 60 * 60)
+        return lastUsed.isBefore(staleThreshold)
     }
 
     /**
-     * Marks this token as recently used.
-     * Updates the lastUsedAt timestamp to now.
+     * Updates the last used timestamp to now.
      */
     fun markAsUsed() {
-        lastUsedAt = Instant.now()
+        this.lastUsedAt = Instant.now()
     }
 }
-

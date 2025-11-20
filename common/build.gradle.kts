@@ -2,6 +2,7 @@ plugins {
     `java-library`
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinPluginSerialization)
+    alias(libs.plugins.kotlinJpa)
     alias(libs.plugins.springBoot) apply false
     alias(libs.plugins.springDependencyManagement)
 }
@@ -31,21 +32,23 @@ dependencies {
     api("org.jetbrains.kotlin:kotlin-stdlib")
     api("org.jetbrains.kotlin:kotlin-reflect")
 
-    // Kotlin Serialization
+    // Kotlin Serialization (for framework-agnostic JSON handling)
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    // Kotlin DateTime
+    // Kotlin DateTime (for framework-agnostic date/time handling)
     api("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
 
-    // Logging (SLF4J API only - no implementation)
+    // Logging API only (no implementation - allows flexibility)
     api("org.slf4j:slf4j-api:2.0.16")
 
-    // Validation annotations (JSR 380)
+    // Jakarta Validation API (JSR 380 - standard, not Spring-specific)
     api("jakarta.validation:jakarta.validation-api:3.1.0")
 
-    // Spring Data Commons - provides Pageable, Sort, PageRequest
-    // Using spring-data-commons instead of full JPA starter since common is pure Kotlin
-    api("org.springframework.data:spring-data-commons")
+    // Jakarta Persistence API (JPA standard - not Spring-specific)
+    api("jakarta.persistence:jakarta.persistence-api:3.1.0")
+
+    // UUIDv7 generator for time-ordered UUIDs
+    implementation("com.github.f4b6a3:uuid-creator:5.3.3")
 
     // Testing
     testImplementation(kotlin("test"))

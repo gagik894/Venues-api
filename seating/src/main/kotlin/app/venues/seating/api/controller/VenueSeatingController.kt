@@ -1,9 +1,9 @@
 package app.venues.seating.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
-import app.venues.seating.api.dto.*
+import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -12,15 +12,11 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
- * Controller for venue owner seating chart management.
- *
- * Provides endpoints for venue owners to:
- * - Create and manage seating charts
- * - Define levels (sections/areas)
- * - Add seats
- * - Manage translations
+ * Venue seating chart management controller.
+ * Provides CRUD operations for venue owners to manage their seating charts.
  */
 @RestController
 @RequestMapping("/api/v1/venues/{venueId}/seating-charts")
@@ -33,329 +29,134 @@ class VenueSeatingController(
     private val logger = KotlinLogging.logger {}
 
     // ===========================================
-    // SEATING CHART MANAGEMENT
+    // SEATING CHART
     // ===========================================
 
-    /**
-     * Create seating chart for venue.
-     */
     @PostMapping
-    @Operation(
-        summary = "Create seating chart",
-        description = "Create a new seating chart template for the venue (Venue owners only)"
-    )
+    @Operation(summary = "Create seating chart")
     fun createSeatingChart(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
-        logger.debug { "Creating seating chart for venue: $venueId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         val chart = seatingService.createSeatingChart(venueId, request)
-
-        return ApiResponse.success(
-            data = chart,
-            message = "Seating chart created successfully"
-        )
+        return ApiResponse.success(chart, "Created successfully")
     }
 
-    /**
-     * Get seating charts for venue.
-     */
     @GetMapping
-    @Operation(
-        summary = "Get seating charts",
-        description = "Get all seating charts for the venue (Venue owners only)"
-    )
+    @Operation(summary = "Get venue charts")
     fun getSeatingCharts(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<SeatingChartResponse>> {
-        logger.debug { "Fetching seating charts for venue: $venueId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val charts = seatingService.getSeatingChartsByVenue(venueId, pageable)
-
-        return ApiResponse.success(
-            data = charts,
-            message = "Seating charts retrieved successfully"
-        )
+        return ApiResponse.success(charts, "Retrieved successfully")
     }
 
-    /**
-     * Get seating chart by ID.
-     */
     @GetMapping("/{chartId}")
-    @Operation(
-        summary = "Get seating chart",
-        description = "Get detailed seating chart with levels and seats (Venue owners only)"
-    )
+    @Operation(summary = "Get detailed chart")
     fun getSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID
     ): ApiResponse<SeatingChartDetailedResponse> {
-        logger.debug { "Fetching seating chart: $chartId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         val chart = seatingService.getSeatingChartDetailed(chartId)
-
-        return ApiResponse.success(
-            data = chart,
-            message = "Seating chart retrieved successfully"
-        )
+        return ApiResponse.success(chart, "Retrieved successfully")
     }
 
-    /**
-     * Update seating chart.
-     */
     @PutMapping("/{chartId}")
-    @Operation(
-        summary = "Update seating chart",
-        description = "Update seating chart details (Venue owners only)"
-    )
+    @Operation(summary = "Update chart details")
     fun updateSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
-        logger.debug { "Updating seating chart: $chartId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         val chart = seatingService.updateSeatingChart(chartId, venueId, request)
-
-        return ApiResponse.success(
-            data = chart,
-            message = "Seating chart updated successfully"
-        )
+        return ApiResponse.success(chart, "Updated successfully")
     }
 
-    /**
-     * Delete seating chart.
-     */
     @DeleteMapping("/{chartId}")
-    @Operation(
-        summary = "Delete seating chart",
-        description = "Delete a seating chart (Venue owners only)"
-    )
+    @Operation(summary = "Delete chart")
     fun deleteSeatingChart(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID
     ): ApiResponse<Unit> {
-        logger.debug { "Deleting seating chart: $chartId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         seatingService.deleteSeatingChart(chartId, venueId)
-
-        return ApiResponse.success(
-            data = Unit,
-            message = "Seating chart deleted successfully"
-        )
+        return ApiResponse.success(Unit, "Deleted successfully")
     }
 
     // ===========================================
-    // LEVEL MANAGEMENT
+    // COMPONENTS (ZONES, TABLES, GA, SEATS)
     // ===========================================
 
-    /**
-     * Add level to seating chart.
-     */
-    @PostMapping("/{chartId}/levels")
-    @Operation(
-        summary = "Add level",
-        description = "Add a section/area to the seating chart (Venue owners only)"
-    )
-    fun addLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
-        @Valid @RequestBody request: LevelRequest
-    ): ApiResponse<LevelResponse> {
-        logger.debug { "Adding level to chart: $chartId" }
-
-        // Verify venue ownership
+    @PostMapping("/{chartId}/zones")
+    fun addZone(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @Valid @RequestBody request: ZoneRequest
+    ): ApiResponse<ZoneResponse> {
         securityUtil.requireVenueOwnership(venueId)
-
-        val level = seatingService.addLevel(chartId, request)
-
-        return ApiResponse.success(
-            data = level,
-            message = "Level added successfully"
-        )
+        val zone = seatingService.addZone(chartId, request)
+        return ApiResponse.success(zone, "Zone added")
     }
 
-    /**
-     * Update level.
-     */
-    @PutMapping("/{chartId}/levels/{levelId}")
-    @Operation(
-        summary = "Update level",
-        description = "Update level details (Venue owners only)"
-    )
-    fun updateLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
-        @PathVariable levelId: Long,
-        @Valid @RequestBody request: LevelRequest
-    ): ApiResponse<LevelResponse> {
-        logger.debug { "Updating level: $levelId" }
-
-        // Verify venue ownership
+    @PostMapping("/{chartId}/tables")
+    fun addTable(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @Valid @RequestBody request: TableRequest
+    ): ApiResponse<TableResponse> {
         securityUtil.requireVenueOwnership(venueId)
-
-        val level = seatingService.updateLevel(levelId, request)
-
-        return ApiResponse.success(
-            data = level,
-            message = "Level updated successfully"
-        )
+        val table = seatingService.addTable(chartId, request)
+        return ApiResponse.success(table, "Table added")
     }
 
-    /**
-     * Delete level.
-     */
-    @DeleteMapping("/{chartId}/levels/{levelId}")
-    @Operation(
-        summary = "Delete level",
-        description = "Delete a level (Venue owners only)"
-    )
-    fun deleteLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
-        @PathVariable levelId: Long
-    ): ApiResponse<Unit> {
-        logger.debug { "Deleting level: $levelId" }
-
-        // Verify venue ownership
+    @PostMapping("/{chartId}/ga-areas")
+    fun addGaArea(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @Valid @RequestBody request: GaAreaRequest
+    ): ApiResponse<GaAreaResponse> {
         securityUtil.requireVenueOwnership(venueId)
-
-        seatingService.deleteLevel(levelId)
-
-        return ApiResponse.success(
-            data = Unit,
-            message = "Level deleted successfully"
-        )
+        val ga = seatingService.addGaArea(chartId, request)
+        return ApiResponse.success(ga, "GA Area added")
     }
 
-    // ===========================================
-    // SEAT MANAGEMENT
-    // ===========================================
-
-    /**
-     * Add seat to chart.
-     */
     @PostMapping("/{chartId}/seats")
-    @Operation(
-        summary = "Add seat",
-        description = "Add a single seat to the chart (Venue owners only)"
-    )
     fun addSeat(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: SeatRequest
     ): ApiResponse<SeatResponse> {
-        logger.debug { "Adding seat to chart: $chartId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         val seat = seatingService.addSeat(chartId, request)
-
-        return ApiResponse.success(
-            data = seat,
-            message = "Seat added successfully"
-        )
+        return ApiResponse.success(seat, "Seat added")
     }
 
-    /**
-     * Batch add seats.
-     */
     @PostMapping("/{chartId}/seats/batch")
-    @Operation(
-        summary = "Batch add seats",
-        description = "Add multiple seats at once (Venue owners only)"
-    )
-    fun addSeats(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+    fun addSeatsBatch(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @Valid @RequestBody request: BatchSeatRequest
     ): ApiResponse<List<SeatResponse>> {
-        logger.debug { "Batch adding ${request.seats.size} seats to chart: $chartId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
-        val seats = seatingService.addSeats(chartId, request)
-
-        return ApiResponse.success(
-            data = seats,
-            message = "${seats.size} seats added successfully"
-        )
+        val seats = seatingService.addSeatsBatch(chartId, request)
+        return ApiResponse.success(seats, "${seats.size} seats added")
     }
 
-    /**
-     * Get seats for a level.
-     */
-    @GetMapping("/{chartId}/levels/{levelId}/seats")
-    @Operation(
-        summary = "Get level seats",
-        description = "Get all seats in a level (Venue owners only)"
-    )
-    fun getSeatsByLevel(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
-        @PathVariable levelId: Long,
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?
-    ): ApiResponse<Page<SeatResponse>> {
-        logger.debug { "Fetching seats for level: $levelId" }
-
-        // Verify venue ownership
-        securityUtil.requireVenueOwnership(venueId)
-
-        val pageable = PaginationUtil.createPageable(limit, offset)
-        val seats = seatingService.getSeatsByLevel(levelId, pageable)
-
-        return ApiResponse.success(
-            data = seats,
-            message = "Seats retrieved successfully"
-        )
-    }
-
-    /**
-     * Delete seat.
-     */
     @DeleteMapping("/{chartId}/seats/{seatId}")
-    @Operation(
-        summary = "Delete seat",
-        description = "Delete a seat (Venue owners only)"
-    )
     fun deleteSeat(
-        @PathVariable venueId: Long,
-        @PathVariable chartId: Long,
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
         @PathVariable seatId: Long
     ): ApiResponse<Unit> {
-        logger.debug { "Deleting seat: $seatId" }
-
-        // Verify venue ownership
         securityUtil.requireVenueOwnership(venueId)
-
         seatingService.deleteSeat(seatId)
-
-        return ApiResponse.success(
-            data = Unit,
-            message = "Seat deleted successfully"
-        )
+        return ApiResponse.success(Unit, "Deleted successfully")
     }
 }
-

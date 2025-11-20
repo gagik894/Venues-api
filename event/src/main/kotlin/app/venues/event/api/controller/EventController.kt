@@ -1,15 +1,16 @@
 package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.common.util.PaginationUtil
 import app.venues.event.api.dto.EventResponse
 import app.venues.event.api.dto.EventSessionResponse
 import app.venues.event.service.EventService
+import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Public controller for event operations.
@@ -46,7 +47,7 @@ class EventController(
         logger.debug { "Fetching all events, language: $lang" }
 
         val allowedSortFields = setOf("createdAt", "title", "id")
-        val pageable = PaginationUtil.createPageable(limit, offset, sortBy, sortDirection, allowedSortFields)
+        val pageable = PageableMapper.createPageable(limit, offset, sortBy, sortDirection, allowedSortFields)
 
         val events = eventService.getAllEvents(pageable, language = lang)
 
@@ -65,7 +66,7 @@ class EventController(
         description = "Get detailed information about a specific event. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
     )
     fun getEventById(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) lang: String?
     ): ApiResponse<EventResponse> {
         logger.debug { "Fetching event: $id, language: $lang" }
@@ -94,7 +95,7 @@ class EventController(
     ): ApiResponse<Page<EventResponse>> {
         logger.debug { "Searching events: $searchTerm, language: $lang" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.searchEvents(searchTerm, pageable, language = lang)
 
         return ApiResponse.success(
@@ -112,14 +113,14 @@ class EventController(
         description = "Get all events for a specific venue. Use 'lang' parameter for translations"
     )
     fun getEventsByVenue(
-        @PathVariable venueId: Long,
+        @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
     ): ApiResponse<Page<EventResponse>> {
         logger.debug { "Fetching events for venue: $venueId, language: $lang" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByVenue(venueId, pageable, language = lang)
 
         return ApiResponse.success(
@@ -144,7 +145,7 @@ class EventController(
     ): ApiResponse<Page<EventResponse>> {
         logger.debug { "Fetching events for category: $categoryId, language: $lang" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByCategory(categoryId, pageable, language = lang)
 
         return ApiResponse.success(
@@ -169,7 +170,7 @@ class EventController(
     ): ApiResponse<Page<EventResponse>> {
         logger.debug { "Fetching events for tag: $tag, language: $lang" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByTag(tag, pageable, language = lang)
 
         return ApiResponse.success(
@@ -187,13 +188,13 @@ class EventController(
         description = "Get all sessions (time slots) for an event"
     )
     fun getEventSessions(
-        @PathVariable id: Long,
+        @PathVariable id: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<EventSessionResponse>> {
         logger.debug { "Fetching sessions for event: $id" }
 
-        val pageable = PaginationUtil.createPageable(limit, offset)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val sessions = eventService.getEventSessions(id, pageable)
 
         return ApiResponse.success(
@@ -210,7 +211,7 @@ class EventController(
         summary = "Get bookable sessions",
         description = "Get all bookable sessions for an event (upcoming with available tickets)"
     )
-    fun getBookableSessions(@PathVariable id: Long): ApiResponse<List<EventSessionResponse>> {
+    fun getBookableSessions(@PathVariable id: UUID): ApiResponse<List<EventSessionResponse>> {
         logger.debug { "Fetching bookable sessions for event: $id" }
 
         val sessions = eventService.getBookableSessions(id)

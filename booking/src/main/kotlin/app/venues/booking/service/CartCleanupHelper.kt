@@ -13,7 +13,11 @@ import org.springframework.transaction.annotation.Transactional
 
 /**
  * Helper component for cart cleanup operations.
- * Separated to ensure proper transaction boundary management.
+ *
+ * This class is separated from `CartCleanupService` to solve the
+ * Spring AOP self-invocation problem. By placing the @Transactional
+ * method in its own bean, we ensure that it is proxied correctly
+ * when called from another service.
  */
 @Component
 class CartCleanupHelper(
@@ -28,7 +32,11 @@ class CartCleanupHelper(
 
     /**
      * Deletes a single expired cart in its own independent transaction.
-     * Uses REQUIRES_NEW to ensure isolation from calling transaction.
+     * Uses REQUIRES_NEW to ensure isolation from the main cleanup loop.
+     * If one cart fails to delete, it will not roll back the others.
+     *
+     * This method MUST be in a separate class from the service that calls it
+     * for the @Transactional proxy to work.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun deleteSingleCart(cart: Cart): DeletionResult? {
@@ -49,9 +57,9 @@ class CartCleanupHelper(
             // Release GA capacity
             gaItems.forEach { cartItem ->
                 try {
-                    inventoryReservation.releaseGATickets(cart.sessionId, cartItem.levelId, cartItem.quantity)
+                    inventoryReservation.releaseGATickets(cart.sessionId, cartItem.gaAreaId, cartItem.quantity)
                 } catch (e: Exception) {
-                    logger.warn { "Failed to release GA for level ${cartItem.levelId} from cart ${cart.token}: ${e.message}" }
+                    logger.warn { "Failed to release GA for level ${cartItem.gaAreaId} from cart ${cart.token}: ${e.message}" }
                 }
             }
 
@@ -64,7 +72,7 @@ class CartCleanupHelper(
                 }
             }
 
-            val itemsReleased = seats.size + gaItems.size + tables.sumOf { it.seatCount }
+            val itemsReleased = seats.size + gaItems.size + tables.size
 
             // Delete cart (CASCADE deletes items)
             cartRepository.delete(cart)
@@ -80,4 +88,3 @@ class CartCleanupHelper(
 
     data class DeletionResult(val itemsReleased: Int)
 }
-

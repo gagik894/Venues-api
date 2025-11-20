@@ -1,53 +1,39 @@
 package app.venues.booking.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
-import java.time.Instant
+import java.util.*
 
 /**
- * GA ticket in shopping cart.
+ * Represents General Admission (GA) ticket selections in a shopping cart.
  *
- * Prices are snapshotted at add-to-cart time.
- * Expires when the parent Cart session expires.
+ * GA areas are standing/general admission zones from the seating module
+ * with capacity tracking (e.g., "Pit A", "Standing Area").
+ *
+ * @property cart The parent cart
+ * @property sessionId Event session ID
+ * @property gaAreaId GA area ID from seating module
+ * @property unitPrice Snapshotted price per ticket (captured at add-to-cart time)
+ * @property quantity Number of tickets selected
  */
 @Entity
-@Table(
-    name = "cart_items",
-    indexes = [
-        Index(name = "idx_cart_item_session_id", columnList = "session_id"),
-        Index(name = "idx_cart_item_cart", columnList = "cart_id")
-    ]
-)
-@EntityListeners(AuditingEntityListener::class)
-data class CartItem(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
+@Table(name = "cart_ga_item")
+class CartItem(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cart_id", nullable = false)
     var cart: Cart,
 
     @Column(name = "session_id", nullable = false)
-    var sessionId: Long,
+    var sessionId: UUID,
 
-    @Column(name = "level_id", nullable = false)
-    var levelId: Long,
+    @Column(name = "ga_area_id", nullable = false)
+    var gaAreaId: Long,
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     var unitPrice: BigDecimal,
 
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)
     var quantity: Int,
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-) {
-    fun getTotalPrice(): BigDecimal = unitPrice.multiply(BigDecimal(quantity))
-}
-
-
-
+    ) : AbstractLongEntity()

@@ -1,16 +1,17 @@
 package app.venues.venue.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.annotation.LastModifiedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
 
 /**
- * Entity representing a venue schedule for a specific day of the week.
+ * An operating schedule entry for a Venue (e.g., "Monday: 9am-5pm").
+ * This is a child entity of Venue.
  *
- * Each venue can have different operating hours for each day of the week.
- * This allows flexible scheduling including closed days, different weekend hours, etc.
+ * @param venue The venue this schedule belongs to.
+ * @param dayOfWeek The day of the week.
+ * @param openTime The opening time (nullable if closed).
+ * @param closeTime The closing time (nullable if closed).
+ * @param isClosed Whether the venue is closed on this day.
  */
 @Entity
 @Table(
@@ -22,56 +23,25 @@ import java.time.Instant
         )
     ]
 )
-@EntityListeners(AuditingEntityListener::class)
-data class VenueSchedule(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * The venue this schedule belongs to
-     */
+class VenueSchedule(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
-    /**
-     * Day of the week (MONDAY, TUESDAY, etc.)
-     */
     @Column(name = "day_of_week", nullable = false, length = 10)
     @Enumerated(EnumType.STRING)
     var dayOfWeek: DayOfWeek,
 
-    /**
-     * Opening time (null if closed)
-     */
     @Column(name = "open_time")
     var openTime: java.time.LocalTime? = null,
 
-    /**
-     * Closing time (null if closed)
-     */
     @Column(name = "close_time")
     var closeTime: java.time.LocalTime? = null,
 
-    /**
-     * Whether the venue is closed on this day
-     */
     @Column(name = "is_closed", nullable = false)
     var isClosed: Boolean = false,
 
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now(),
-
-    @LastModifiedDate
-    @Column(name = "last_modified_at", nullable = false)
-    var lastModifiedAt: Instant = Instant.now()
-)
+    ) : AbstractLongEntity()
 
 /**
  * Days of the week enum for venue schedules

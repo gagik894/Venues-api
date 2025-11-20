@@ -11,7 +11,7 @@ import java.util.*
  * Repository for CartSeat entity operations.
  */
 @Repository
-interface CartSeatRepository : JpaRepository<CartSeat, Long> {
+interface CartSeatRepository : JpaRepository<CartSeat, UUID> {
 
     /**
      * Find all seats in a cart
@@ -27,7 +27,7 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
     /**
      * Check if seat already in cart for session
      */
-    fun existsBySessionIdAndSeatId(sessionId: Long, seatId: Long): Boolean
+    fun existsBySessionIdAndSeatId(sessionId: UUID, seatId: Long): Boolean
 
     /**
      * Get reserved seat IDs for session
@@ -38,7 +38,7 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
         WHERE cs.sessionId = :sessionId
     """
     )
-    fun findReservedSeatIdsBySession(sessionId: Long): List<Long>
+    fun findReservedSeatIdsBySession(sessionId: UUID): List<Long>
 
     /**
      * Get active (non-expired) reserved seat IDs for session
@@ -51,7 +51,7 @@ interface CartSeatRepository : JpaRepository<CartSeat, Long> {
         AND c.expiresAt > CURRENT_TIMESTAMP
     """
     )
-    fun findActiveReservedSeatIdsBySession(sessionId: Long): List<Long>
+    fun findActiveReservedSeatIdsBySession(sessionId: UUID): List<Long>
 
     /**
      * Delete all seats in a cart

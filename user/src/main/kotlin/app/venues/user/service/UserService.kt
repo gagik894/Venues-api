@@ -6,13 +6,12 @@ import app.venues.user.api.dto.UserBasicInfoDto
 import app.venues.user.api.dto.UserRegistrationRequest
 import app.venues.user.api.dto.UserUpdateRequest
 import app.venues.user.domain.User
-import app.venues.user.domain.UserRole
-import app.venues.user.domain.UserStatus
 import app.venues.user.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Service class for User domain business logic.
@@ -40,11 +39,11 @@ class UserService(
     // PUBLIC API IMPLEMENTATION (UserApi Port)
     // ===========================================
 
-    override fun getUserBasicInfo(userId: Long): UserBasicInfoDto? {
+    override fun getUserBasicInfo(userId: UUID): UserBasicInfoDto? {
         return userRepository.findById(userId)
             .map { user ->
                 UserBasicInfoDto(
-                    id = user.id!!,
+                    id = user.id,
                     email = user.email,
                     firstName = user.firstName,
                     lastName = user.lastName,
@@ -54,19 +53,19 @@ class UserService(
             .orElse(null)
     }
 
-    override fun getUserEmail(userId: Long): String? {
+    override fun getUserEmail(userId: UUID): String? {
         return userRepository.findById(userId)
             .map { it.email }
             .orElse(null)
     }
 
-    override fun getUserFullName(userId: Long): String? {
+    override fun getUserFullName(userId: UUID): String? {
         return userRepository.findById(userId)
             .map { "${it.firstName} ${it.lastName}" }
             .orElse(null)
     }
 
-    override fun userExists(userId: Long): Boolean {
+    override fun userExists(userId: UUID): Boolean {
         return userRepository.existsById(userId)
     }
 
@@ -107,10 +106,7 @@ class UserService(
             passwordHash = passwordEncoder.encode(request.password),
             firstName = request.firstName.trim(),
             lastName = request.lastName.trim(),
-            phoneNumber = request.phoneNumber?.trim(),
-            role = UserRole.USER,
-            status = UserStatus.PENDING_VERIFICATION,
-            emailVerified = false
+            phoneNumber = request.phoneNumber?.trim()
         )
 
         // Save to database
@@ -130,7 +126,7 @@ class UserService(
      * @return User entity
      * @throws VenuesException.ResourceNotFound if user doesn't exist
      */
-    fun getUserById(userId: Long): User {
+    fun getUserById(userId: UUID): User {
         return userRepository.findById(userId)
             .orElseThrow {
                 logger.warn { "User not found: ID=$userId" }
@@ -170,7 +166,7 @@ class UserService(
      * @throws VenuesException.ResourceNotFound if user doesn't exist
      */
     @Transactional
-    fun updateUserProfile(userId: Long, request: UserUpdateRequest): User {
+    fun updateUserProfile(userId: UUID, request: UserUpdateRequest): User {
         logger.info { "Updating profile for user: ID=$userId" }
 
         val user = getUserById(userId)
@@ -199,7 +195,7 @@ class UserService(
      * @throws VenuesException.BusinessRuleViolation if new password same as current
      */
     @Transactional
-    fun changePassword(userId: Long, currentPassword: String, newPassword: String) {
+    fun changePassword(userId: UUID, currentPassword: String, newPassword: String) {
         logger.info { "Changing password for user: ID=$userId" }
 
         val user = getUserById(userId)
@@ -234,11 +230,11 @@ class UserService(
      * @param userId ID of user to deactivate
      */
     @Transactional
-    fun deactivateUser(userId: Long) {
+    fun deactivateUser(userId: UUID) {
         logger.info { "Deactivating user: ID=$userId" }
 
         val user = getUserById(userId)
-        user.status = UserStatus.DELETED
+        user.deactivateAccount()
         userRepository.save(user)
 
         logger.info { "User deactivated: ID=$userId" }
@@ -252,12 +248,11 @@ class UserService(
      * @param userId ID of user to verify
      */
     @Transactional
-    fun verifyEmail(userId: Long) {
+    fun verifyEmail(userId: UUID) {
         logger.info { "Verifying email for user: ID=$userId" }
 
         val user = getUserById(userId)
-        user.emailVerified = true
-        user.status = UserStatus.ACTIVE
+        user.verifyEmail()
         userRepository.save(user)
 
         logger.info { "Email verified for user: ID=$userId" }

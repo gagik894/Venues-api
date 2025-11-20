@@ -101,7 +101,7 @@ class UserAuthService(
         // Generate JWT token
         val token = jwtService.generateToken(
             email = user.email,
-            id = user.id!!,
+            id = user.id,
             role = user.role.name
         )
 

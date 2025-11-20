@@ -1,68 +1,34 @@
 package app.venues.venue.domain
 
+import app.venues.shared.persistence.domain.AbstractLongEntity
 import jakarta.persistence.*
-import org.springframework.data.annotation.CreatedDate
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.time.Instant
+import java.util.*
 
 /**
- * Entity representing a photo uploaded for a venue.
+ * A photo belonging to a venue.
  *
- * Photos can be uploaded by venue owners or users who have visited the venue.
- * This allows for crowd-sourced venue imagery while maintaining attribution.
+ * @param venue The venue this photo is for.
+ * @param userId The `User.id` (customer) who uploaded it.
+ * @param url The URL of the image.
+ * @param caption An optional caption for the photo.
+ * @param displayOrder The order in which the photo should be displayed.
  */
 @Entity
-@Table(
-    name = "venue_photos",
-    indexes = [
-        Index(name = "idx_venue_photo_venue_id", columnList = "venue_id"),
-        Index(name = "idx_venue_photo_user_id", columnList = "user_id"),
-        Index(name = "idx_venue_photo_display_order", columnList = "venue_id, display_order")
-    ]
-)
-@EntityListeners(AuditingEntityListener::class)
-data class VenuePhoto(
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long? = null,
-
-    /**
-     * The venue this photo belongs to
-     */
+@Table(name = "venue_photos")
+class VenuePhoto(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "venue_id", nullable = false)
     var venue: Venue,
 
-    /**
-     * ID of the user who uploaded this photo
-     * References the user from the user module
-     */
     @Column(name = "user_id", nullable = false)
-    var userId: Long,
+    var userId: UUID,
 
-    /**
-     * URL/path to the photo file
-     */
     @Column(name = "url", nullable = false, length = 500)
     var url: String,
 
-    /**
-     * Optional caption for the photo
-     */
     @Column(name = "caption", length = 500)
     var caption: String? = null,
 
-    /**
-     * Display order for sorting photos (lower numbers first)
-     */
     @Column(name = "display_order", nullable = false)
     var displayOrder: Int = 0,
-
-    // ===========================================
-    // Audit Fields
-    // ===========================================
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    var createdAt: Instant = Instant.now()
-)
+) : AbstractLongEntity()

@@ -73,7 +73,7 @@ class CartLimitValidator(
     fun calculateCurrentTotalTickets(cart: Cart): Int {
         val seatCount = cartSeatRepository.findByCart(cart).size
         val gaTicketCount = cartItemRepository.findByCart(cart).sumOf { it.quantity }
-        val tableSeatCount = cartTableRepository.findByCart(cart).sumOf { it.seatCount }
+        val tableSeatCount = cartTableRepository.findByCart(cart).size
         return seatCount + gaTicketCount + tableSeatCount
     }
 }

@@ -11,42 +11,97 @@ import org.springframework.stereotype.Repository
 import java.util.*
 
 /**
- * Repository for Venue entity.
- *
- * Provides data access methods for venue management.
+ * Repository for Venue entity operations.
+ * Uses slug-based lookups for public APIs (never exposes UUIDs).
  */
 @Repository
-interface VenueRepository : JpaRepository<Venue, Long> {
+interface VenueRepository : JpaRepository<Venue, UUID> {
 
     /**
-     * Find venue by email (for authentication)
+     * Finds venue by slug (primary public lookup).
+     *
+     * @param slug URL-friendly venue identifier
+     * @return Venue if found
      */
-    fun findByEmail(email: String): Optional<Venue>
+    fun findBySlug(slug: String): Venue?
 
     /**
-     * Check if email already exists
+     * Checks if slug exists (for validation).
+     *
+     * @param slug Venue slug
+     * @return true if exists
      */
-    fun existsByEmail(email: String): Boolean
+    fun existsBySlug(slug: String): Boolean
 
     /**
-     * Find active venues (for public listing)
+     * Finds venues by status with pagination.
+     *
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues
      */
     fun findByStatus(status: VenueStatus, pageable: Pageable): Page<Venue>
 
     /**
-     * Find venues by city
+     * Finds venues by city slug and status.
+     *
+     * @param citySlug City slug filter
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the specified city
      */
-    fun findByCityAndStatus(city: String, status: VenueStatus, pageable: Pageable): Page<Venue>
+    @Query("SELECT v FROM Venue v WHERE v.city.slug = :citySlug AND v.status = :status")
+    fun findByCitySlugAndStatus(
+        @Param("citySlug") citySlug: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
 
     /**
-     * Find venues by category
+     * Finds venues by region code and status.
+     *
+     * @param regionCode ISO region code (e.g., "AM-ER")
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the region
      */
-    fun findByCategoryAndStatus(category: String, status: VenueStatus, pageable: Pageable): Page<Venue>
+    @Query("SELECT v FROM Venue v WHERE v.city.region.code = :regionCode AND v.status = :status")
+    fun findByRegionCodeAndStatus(
+        @Param("regionCode") regionCode: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
 
     /**
-     * Search venues by name (case-insensitive)
+     * Finds venues by category code and status.
+     *
+     * @param categoryCode Category code (e.g., "OPERA")
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues in the category
      */
-    @Query("SELECT v FROM Venue v WHERE LOWER(v.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) AND v.status = :status")
+    @Query("SELECT v FROM Venue v WHERE v.category.code = :categoryCode AND v.status = :status")
+    fun findByCategoryCodeAndStatus(
+        @Param("categoryCode") categoryCode: String,
+        @Param("status") status: VenueStatus,
+        pageable: Pageable
+    ): Page<Venue>
+
+    /**
+     * Searches venues by name (case-insensitive).
+     *
+     * @param searchTerm Search string
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of matching venues
+     */
+    @Query(
+        """
+        SELECT v FROM Venue v 
+        WHERE LOWER(v.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) 
+        AND v.status = :status
+    """
+    )
     fun searchByName(
         @Param("searchTerm") searchTerm: String,
         @Param("status") status: VenueStatus,
@@ -54,13 +109,16 @@ interface VenueRepository : JpaRepository<Venue, Long> {
     ): Page<Venue>
 
     /**
-     * Find verified venues
-     */
-    fun findByVerifiedAndStatus(verified: Boolean, status: VenueStatus, pageable: Pageable): Page<Venue>
-
-    /**
-     * Find venues near a location (simplified - using bounding box)
-     * For production, consider using PostGIS spatial queries
+     * Finds venues within geographic bounds.
+     * Simple bounding box approach (for PostGIS, use spatial queries).
+     *
+     * @param minLat Minimum latitude
+     * @param maxLat Maximum latitude
+     * @param minLon Minimum longitude
+     * @param maxLon Maximum longitude
+     * @param status Venue status filter
+     * @param pageable Pagination parameters
+     * @return Page of venues within bounds
      */
     @Query(
         """
@@ -68,7 +126,7 @@ interface VenueRepository : JpaRepository<Venue, Long> {
         WHERE v.latitude BETWEEN :minLat AND :maxLat 
         AND v.longitude BETWEEN :minLon AND :maxLon
         AND v.status = :status
-        """
+    """
     )
     fun findNearLocation(
         @Param("minLat") minLat: Double,
@@ -80,14 +138,33 @@ interface VenueRepository : JpaRepository<Venue, Long> {
     ): Page<Venue>
 
     /**
-     * Count venues by status
+     * Counts venues by status.
+     *
+     * @param status Venue status
+     * @return Number of venues
      */
     fun countByStatus(status: VenueStatus): Long
 
     /**
-     * Find all venues with status NOT DELETED
+     * Counts venues by city.
+     *
+     * @param citySlug City slug
+     * @param status Venue status filter
+     * @return Number of venues in city
+     */
+    @Query("SELECT COUNT(v) FROM Venue v WHERE v.city.slug = :citySlug AND v.status = :status")
+    fun countByCitySlugAndStatus(
+        @Param("citySlug") citySlug: String,
+        @Param("status") status: VenueStatus
+    ): Long
+
+    /**
+     * Finds all non-deleted venues (admin view).
+     *
+     * @param pageable Pagination parameters
+     * @return Page of venues
      */
     @Query("SELECT v FROM Venue v WHERE v.status != 'DELETED'")
-    fun findAllActive(pageable: Pageable): Page<Venue>
+    fun findAllNonDeleted(pageable: Pageable): Page<Venue>
 }
 

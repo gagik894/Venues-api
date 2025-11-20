@@ -1,13 +1,13 @@
 package app.venues.platform.service
 
+import app.venues.booking.api.BookingApi
+import app.venues.booking.api.CartApi
+import app.venues.booking.api.CartQueryApi
 import app.venues.booking.api.dto.AddGAToCartRequest
 import app.venues.booking.api.dto.AddSeatToCartRequest
-import app.venues.booking.service.BookingService
-import app.venues.booking.service.CartService
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
 import app.venues.platform.domain.Platform
-import app.venues.platform.domain.PlatformStatus
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
 import app.venues.seating.api.SeatingApi
@@ -22,15 +22,17 @@ import java.util.*
 /**
  * Service for platform management and API operations.
  *
- * Uses SeatingApi for cross-module communication (Hexagonal Architecture).
+ * This service is a "Consumer" of the `BookingApi`, `CartApi`,
+ * and `SeatingApi` Ports, following Hexagonal Architecture.
  */
 @Service
 @Transactional
 class PlatformService(
     private val platformRepository: PlatformRepository,
     private val webhookEventRepository: WebhookEventRepository,
-    private val cartService: CartService,
-    private val bookingService: BookingService,
+    private val cartApi: CartApi,
+    private val cartQueryApi: CartQueryApi,
+    private val bookingApi: BookingApi,
     private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
@@ -62,8 +64,6 @@ class PlatformService(
             name = request.name,
             apiUrl = request.apiUrl,
             sharedSecret = sharedSecret,
-            status = PlatformStatus.ACTIVE,
-            webhookEnabled = request.webhookEnabled,
             description = request.description,
             contactEmail = request.contactEmail,
             rateLimit = request.rateLimit
@@ -78,7 +78,7 @@ class PlatformService(
     /**
      * Update platform
      */
-    fun updatePlatform(id: Long, request: UpdatePlatformRequest): PlatformResponse {
+    fun updatePlatform(id: UUID, request: UpdatePlatformRequest): PlatformResponse {
         logger.debug { "Updating platform: $id" }
 
         val platform = platformRepository.findById(id)
@@ -86,8 +86,6 @@ class PlatformService(
 
         // Update fields
         request.apiUrl?.let { platform.apiUrl = it }
-        request.status?.let { platform.status = it }
-        request.webhookEnabled?.let { platform.webhookEnabled = it }
         request.description?.let { platform.description = it }
         request.contactEmail?.let { platform.contactEmail = it }
         request.rateLimit?.let { platform.rateLimit = it }
@@ -101,7 +99,7 @@ class PlatformService(
     /**
      * Regenerate platform shared secret
      */
-    fun regenerateSharedSecret(id: Long, request: RegenerateSecretRequest): PlatformWithSecretResponse {
+    fun regenerateSharedSecret(id: UUID, request: RegenerateSecretRequest): PlatformWithSecretResponse {
         logger.debug { "Regenerating shared secret for platform: $id" }
 
         if (!request.confirm) {
@@ -124,7 +122,7 @@ class PlatformService(
      * Get platform by ID
      */
     @Transactional(readOnly = true)
-    fun getPlatformById(id: Long): PlatformResponse {
+    fun getPlatformById(id: UUID): PlatformResponse {
         val platform = platformRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
         return toPlatformResponse(platform)
@@ -141,12 +139,10 @@ class PlatformService(
     /**
      * Delete platform
      */
-    fun deletePlatform(id: Long) {
+    fun deletePlatform(id: UUID) {
         logger.debug { "Deleting platform: $id" }
-
         val platform = platformRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
-
         platformRepository.delete(platform)
         logger.info { "Platform deleted: ${platform.name}" }
     }
@@ -159,7 +155,7 @@ class PlatformService(
      * Reserve seats for external platform
      */
     fun reserveSeats(
-        platformId: Long,
+        platformId: UUID,
         request: PlatformReservationRequest
     ): PlatformReservationResponse {
         logger.debug { "Platform $platformId reserving seats for session ${request.sessionId}" }
@@ -177,43 +173,38 @@ class PlatformService(
             throw VenuesException.ValidationFailure("Must specify either seats or GA tickets")
         }
 
-        // Create a reservation token for this platform reservation
         val reservationToken = UUID.randomUUID()
         var expiresAt: String? = null
 
-        // Reserve individual seats
         request.seatIdentifiers?.forEach { seatIdentifier ->
             val cartRequest = AddSeatToCartRequest(
                 sessionId = request.sessionId,
-                seatIdentifier = seatIdentifier
+                code = seatIdentifier
             )
-            val result = cartService.addSeatToCart(cartRequest, reservationToken)
+            val result = cartApi.addSeatToCart(cartRequest, reservationToken)
             expiresAt = result.expiresAt
         }
 
-        // Reserve GA tickets
         request.gaReservations?.forEach { ga ->
             val cartRequest = AddGAToCartRequest(
                 sessionId = request.sessionId,
-                levelIdentifier = ga.levelIdentifier,
+                code = ga.levelIdentifier,
                 quantity = ga.quantity
             )
-            val result = cartService.addGAToCart(cartRequest, reservationToken)
+            val result = cartApi.addGAToCart(cartRequest, reservationToken)
             expiresAt = result.expiresAt
         }
 
-        // Get actual cart details after all reservations are made
-        val cartSummary = cartService.getCartSummary(reservationToken)
-
-        logger.info { "Platform ${platform.name} reserved ${cartSummary.seats.size} seats and ${cartSummary.gaItems.size} GA tickets" }
+        val cartSummary = cartQueryApi.getCartSummary(reservationToken)
+        logger.info { "Platform ${platform.name} reserved ${cartSummary.seats.size} seats and ${cartSummary.gaItems.size} GA items" }
 
 
         // Map cart seats to response with actual details
         val actualSeats = cartSummary.seats.map { seat ->
             ReservedSeatInfo(
-                seatIdentifier = seat.seatIdentifier,
+                seatIdentifier = seat.code,
                 levelName = seat.levelName,
-                seatNumber = seat.seatNumber,
+                seatNumber = seat.number,
                 rowLabel = seat.rowLabel
             )
         }
@@ -221,8 +212,8 @@ class PlatformService(
         // Map GA items to response with actual details
         val actualGA = cartSummary.gaItems.map { ga ->
             ReservedGAInfo(
-                levelIdentifier = ga.levelIdentifier ?: "",
-                levelName = ga.levelName,
+                levelIdentifier = ga.code ?: "",
+                levelName = ga.name,
                 quantity = ga.quantity
             )
         }
@@ -240,12 +231,11 @@ class PlatformService(
      * Release seats for external platform
      */
     fun releaseSeats(
-        platformId: Long,
+        platformId: UUID,
         request: PlatformReleaseRequest
     ): PlatformReleaseResponse {
         logger.debug { "Platform $platformId releasing reservation ${request.reservationToken}" }
 
-        // Verify platform is active
         val platform = platformRepository.findById(platformId)
             .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
 
@@ -253,11 +243,9 @@ class PlatformService(
             throw VenuesException.ValidationFailure("Platform is not active")
         }
 
-        // Get cart summary before clearing to track counts
         val cartSummary = try {
-            cartService.getCartSummary(request.reservationToken)
+            cartQueryApi.getCartSummary(request.reservationToken)
         } catch (e: VenuesException) {
-            // Cart not found or already expired
             return PlatformReleaseResponse(
                 message = "Reservation not found or already expired",
                 releasedSeats = 0,
@@ -268,9 +256,7 @@ class PlatformService(
         val seatCount = cartSummary.seats.size
         val gaCount = cartSummary.gaItems.sumOf { it.quantity }
 
-        // Clear the cart by token
-        cartService.clearCart(request.reservationToken)
-
+        cartApi.clearCart(request.reservationToken)
         logger.info { "Platform ${platform.name} released $seatCount seats and $gaCount GA tickets" }
 
         return PlatformReleaseResponse(
@@ -288,77 +274,53 @@ class PlatformService(
         request: PlatformSellRequest
     ): PlatformSellResponse {
         logger.debug { "Platform $platformId selling reservation ${request.reservationToken}" }
-
-        // Verify platform is active
-        val platform = platformRepository.findById(platformId)
-            .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
-
-        if (!platform.isActive()) {
-            throw VenuesException.ValidationFailure("Platform is not active")
-        }
-
-        // Create booking from cart
-        val booking = bookingService.createBookingFromCart(
-            cartToken = request.reservationToken,
-            platformId = platformId,
-            paymentMethod = request.paymentMethod,
-            paymentReference = request.paymentReference,
-            guestEmail = request.guestEmail,
-            guestName = request.guestName,
-            guestPhone = request.guestPhone
-        )
-
-        logger.info { "Platform ${platform.name} completed sale: bookingId=${booking.id}, total=${booking.totalPrice}" }
-
-        // Batch fetch seat and level information via SeatingApi (Hexagonal Architecture)
-        val seatIds = booking.items.mapNotNull { it.seatId }.toSet()
-        val levelIds = booking.items.mapNotNull { it.levelId }.toSet()
-
-        val seatInfoMap = seatIds.associateWith { seatId ->
-            seatingApi.getSeatInfo(seatId)
-        }
-
-        val levelInfoMap = levelIds.associateWith { levelId ->
-            seatingApi.getLevelInfo(levelId)
-        }
-
-        // Map booking items to response with fetched data
-        val seats = booking.items
-            .filter { it.seatId != null }
-            .mapNotNull { item ->
-                val seatInfo = seatInfoMap[item.seatId]
-                if (seatInfo != null) {
-                    ReservedSeatInfo(
-                        seatIdentifier = seatInfo.seatIdentifier,
-                        levelName = seatInfo.levelName,
-                        seatNumber = seatInfo.seatNumber,
-                        rowLabel = seatInfo.rowLabel
-                    )
-                } else null
-            }
-
-        val gaTickets = booking.items
-            .filter { it.levelId != null }
-            .mapNotNull { item ->
-                val levelInfo = levelInfoMap[item.levelId]
-                if (levelInfo != null) {
-                    ReservedGAInfo(
-                        levelIdentifier = levelInfo.levelIdentifier ?: item.levelId.toString(),
-                        levelName = levelInfo.levelName,
-                        quantity = item.quantity
-                    )
-                } else null
-            }
-
-        return PlatformSellResponse(
-            bookingId = booking.id.toString(),
-            bookingReference = booking.id.toString(), // Can be enhanced with human-readable reference
-            message = "Booking confirmed successfully",
-            totalAmount = booking.totalPrice.toString(),
-            currency = booking.currency,
-            seats = seats.takeIf { it.isNotEmpty() },
-            gaTickets = gaTickets.takeIf { it.isNotEmpty() }
-        )
+        // TODO: Implement sellSeats logic
+//        val platform = platformRepository.findById(platformId)
+//            .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
+//
+//        if (!platform.isActive()) {
+//            throw VenuesException.ValidationFailure("Platform is not active")
+//        }
+//
+//        // 1. Create the API Port DTO
+//        val createBookingRequest = CreateBookingRequest(
+//            cartToken = request.reservationToken,
+//            platformId = platformId,
+//            customer = CustomerDetailsDto(
+//                guestName = request.guestName ?: "Guest",
+//                guestEmail = request.guestEmail ?: "noemail@empty.com",
+//                guestPhone = request.guestPhone
+//            ),
+//            payment = PlatformPaymentDto(
+//                paymentMethod = request.paymentMethod,
+//                paymentReference = request.paymentReference
+//            )
+//        )
+//
+//        // 2. Call the BookingApi Port
+//        val bookingDto: BookingDto = bookingApi.createBookingFromCart(createBookingRequest)
+//
+//        logger.info { "Platform ${platform.name} completed sale: bookingId=${bookingDto.id}, total=${bookingDto.totalPrice}" }
+//
+//        // 3. Map the internal DTO to the external PlatformSellResponse
+//        val seats = bookingDto.items
+//            .filter { it.type == "SEAT" }
+//            .map { mapBookingItemToReservedSeat(it) }
+//
+//        val gaTickets = bookingDto.items
+//            .filter { it.type == "GA" || it.type == "TABLE" }
+//            .map { mapBookingItemToReservedGA(it) }
+//
+//        return PlatformSellResponse(
+//            bookingId = bookingDto.id.toString(),
+//            bookingReference = bookingDto.id.toString(),
+//            message = "Booking confirmed successfully",
+//            totalAmount = bookingDto.totalPrice.toString(),
+//            currency = bookingDto.currency,
+//            seats = seats.takeIf { it.isNotEmpty() },
+//            gaTickets = gaTickets.takeIf { it.isNotEmpty() }
+//        )
+        return TODO()
     }
 
     // ===========================================
@@ -380,7 +342,7 @@ class PlatformService(
      */
     private fun toPlatformResponse(platform: Platform): PlatformResponse {
         return PlatformResponse(
-            id = platform.id!!,
+            id = platform.id,
             name = platform.name,
             apiUrl = platform.apiUrl,
             status = platform.status,
@@ -415,4 +377,3 @@ class PlatformService(
         )
     }
 }
-

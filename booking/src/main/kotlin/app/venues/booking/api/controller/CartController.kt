@@ -1,6 +1,7 @@
 package app.venues.booking.api.controller
 
 import app.venues.booking.api.dto.*
+import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
 import app.venues.common.model.ApiResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -14,13 +15,15 @@ import java.util.*
  * Controller for cart operations.
  *
  * Provides endpoints for managing shopping cart (seats + GA tickets).
- * No authentication required - cart is token-based.
+ * Delegates write operations (Commands) to `CartService`.
+ * Delegates read operations (Queries) to `CartQueryService`.
  */
 @RestController
 @RequestMapping("/api/v1/cart")
 @Tag(name = "Cart", description = "Shopping cart management")
 class CartController(
-    private val cartService: CartService
+    private val cartService: CartService,
+    private val cartQueryService: CartQueryService // NEW: Inject query service
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -102,7 +105,8 @@ class CartController(
     fun getCartSummary(@PathVariable token: UUID): ApiResponse<CartSummaryResponse> {
         logger.debug { "Fetching cart: $token" }
 
-        val cart = cartService.getCartSummary(token)
+        // DELEGATE TO THE NEW QUERY SERVICE
+        val cart = cartQueryService.getCartSummary(token)
 
         return ApiResponse.success(
             data = cart,
@@ -132,43 +136,43 @@ class CartController(
         )
     }
 
-    // FIX: (Fix 6) Added new endpoint to update GA quantity
     /**
      * Update GA ticket quantity in cart.
      */
+    // FIX: Changed to a consistent RESTful URL
     @PutMapping("/{token}/ga/{levelIdentifier}")
     @Operation(
-        summary = "Update GA ticket quantity in cart",
-        description = "Update the quantity of GA tickets for a specific level"
+        summary = "Update GA quantity",
+        description = "Update quantity of GA tickets for a level. Setting quantity to 0 removes the item."
     )
     fun updateGAQuantity(
         @PathVariable token: UUID,
-        @PathVariable levelIdentifier: String,
-        @Valid @RequestBody request: UpdateGATicketRequest
+        @PathVariable levelIdentifier: String, // ID is now in the path
+        @Valid @RequestBody request: UpdateGAQuantityRequest // DTO only contains quantity
     ): ApiResponse<Unit> {
         logger.debug { "Updating GA quantity: token=$token, level=$levelIdentifier, qty=${request.quantity}" }
 
-        cartService.updateGAQuantity(token, levelIdentifier, request.quantity)
+        cartService.updateGAQuantity(token, levelIdentifier, request)
 
         return ApiResponse.success(
             data = Unit,
-            message = "GA ticket quantity updated"
+            message = "GA quantity updated successfully"
         )
     }
 
     /**
-     * Remove all GA tickets for a level from cart.
+     * Remove GA item from cart.
      */
     @DeleteMapping("/{token}/ga/{levelIdentifier}")
     @Operation(
         summary = "Remove GA item from cart",
-        description = "Remove all GA tickets for a specific level from cart"
+        description = "Remove all GA tickets for a specific level from cart."
     )
     fun removeGAFromCart(
         @PathVariable token: UUID,
         @PathVariable levelIdentifier: String
     ): ApiResponse<Unit> {
-        logger.debug { "Removing GA item from cart: token=$token, level=$levelIdentifier" }
+        logger.debug { "Removing GA item: token=$token, level=$levelIdentifier" }
 
         cartService.removeGAFromCart(token, levelIdentifier)
 
@@ -184,13 +188,13 @@ class CartController(
     @DeleteMapping("/{token}/tables/{tableIdentifier}")
     @Operation(
         summary = "Remove table from cart",
-        description = "Remove a specific table from cart"
+        description = "Remove a specific table from cart."
     )
     fun removeTableFromCart(
         @PathVariable token: UUID,
         @PathVariable tableIdentifier: String
     ): ApiResponse<Unit> {
-        logger.debug { "Removing table from cart: token=$token, tableIdentifier=$tableIdentifier" }
+        logger.debug { "Removing table: token=$token, table=$tableIdentifier" }
 
         cartService.removeTableFromCart(token, tableIdentifier)
 

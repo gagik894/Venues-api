@@ -1,5 +1,6 @@
 package app.venues.staff.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.staff.api.dto.OrganizationMembershipDto
 import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.VenuePermissionDto
@@ -7,11 +8,18 @@ import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.repository.StaffIdentityRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 /**
  * Builds the staff global context (organizations and venues hierarchy).
  *
- * Used by auth and management services to construct the frontend navigation data.
+ * This service constructs the organizational hierarchy that determines
+ * which organizations and specific venues a staff member can access.
+ *
+ * Used by:
+ * - Auth services to build context during login/registration
+ * - Management services to refresh context after membership changes
+ * - Frontend to build navigation menus and permission checks
  */
 @Service
 @Transactional(readOnly = true)
@@ -23,16 +31,15 @@ class StaffContextBuilder(
      * Builds the complete organizational context for a staff member.
      *
      * Returns:
-     * - All organizations they belong to
-     * - Their role in each organization
+     * - All active organizations they belong to
+     * - Their role in each organization (OWNER, ADMIN, MEMBER)
      * - Specific venue permissions within each organization
+     *
+     * @param staff The staff identity entity (must be managed)
+     * @return StaffGlobalContextDto with full hierarchy
      */
     fun buildContext(staff: StaffIdentity): StaffGlobalContextDto {
-        // Reload with memberships
-        val staffWithMemberships = staffRepository.findById(staff.id)
-            .orElseThrow { IllegalStateException("Staff not found: ${staff.id}") }
-
-        val memberships = staffWithMemberships.memberships
+        val memberships = staff.memberships
             .filter { it.isActive }
             .map { membership ->
                 OrganizationMembershipDto(
@@ -53,11 +60,17 @@ class StaffContextBuilder(
 
     /**
      * Builds context by staff ID.
+     *
+     * Loads the staff entity from database and builds the context.
+     *
+     * @param staffId Staff member UUID
+     * @return StaffGlobalContextDto with full hierarchy
+     * @throws VenuesException.ResourceNotFound if staff not found
      */
-    fun buildContextById(staffId: java.util.UUID): StaffGlobalContextDto {
+    fun buildContextById(staffId: UUID): StaffGlobalContextDto {
         val staff = staffRepository.findById(staffId)
             .orElseThrow {
-                app.venues.common.exception.VenuesException.ResourceNotFound(
+                VenuesException.ResourceNotFound(
                     "Staff not found",
                     "STAFF_NOT_FOUND"
                 )

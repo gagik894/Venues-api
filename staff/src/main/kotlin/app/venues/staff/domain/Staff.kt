@@ -1,6 +1,7 @@
 package app.venues.staff.domain
 
 import app.venues.shared.persistence.domain.AbstractUuidEntity
+import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.persistence.*
 import java.time.Instant
 
@@ -62,38 +63,99 @@ class StaffIdentity(
 
 ) : AbstractUuidEntity() {
 
+    companion object {
+        private val logger = KotlinLogging.logger {}
+    }
+
     @OneToMany(mappedBy = "staff", cascade = [CascadeType.ALL], orphanRemoval = true)
     var memberships: MutableSet<StaffMembership> = mutableSetOf()
 
-    fun isAccountLocked(): Boolean =
-        accountLockedUntil?.isAfter(Instant.now()) ?: false
+    // ===========================================
+    // Public Behaviors
+    // ===========================================
 
-    fun recordSuccessfulLogin() {
-        failedLoginAttempts = 0
-        accountLockedUntil = null
-        lastLoginAt = Instant.now()
-    }
-
-    fun recordFailedLoginAttempt(maxAttempts: Int = 5, lockMinutes: Long = 15) {
-        failedLoginAttempts++
-        if (failedLoginAttempts >= maxAttempts) {
-            accountLockedUntil = Instant.now().plusSeconds(lockMinutes * 60)
+    /**
+     * Gets the full name of the staff member.
+     * @return Full name or null if either first or last name is missing
+     */
+    fun getFullName(): String? {
+        return if (firstName != null && lastName != null) {
+            "$firstName $lastName"
+        } else {
+            null
         }
     }
 
+    /**
+     * Checks if the account is currently locked due to failed login attempts.
+     * @return true if account is locked
+     */
+    fun isAccountLocked(): Boolean {
+        return accountLockedUntil?.isAfter(Instant.now()) ?: false
+    }
+
+    /**
+     * Checks if the account is active and can authenticate.
+     *
+     * Business logic for authentication:
+     * - Status must be ACTIVE or PENDING_VERIFICATION
+     * - Account must not be locked
+     *
+     * @return true if staff can authenticate
+     */
+    fun canAuthenticate(): Boolean {
+        return status in listOf(StaffStatus.ACTIVE, StaffStatus.PENDING_VERIFICATION) &&
+                !isAccountLocked()
+    }
+
+    /**
+     * Call on a successful login. Resets lockout state and updates last login time.
+     */
+    fun recordSuccessfulLogin() {
+        this.failedLoginAttempts = 0
+        this.accountLockedUntil = null
+        this.lastLoginAt = Instant.now()
+    }
+
+    /**
+     * Call on a failed login. Increments the attempt counter and locks the
+     * account if the threshold is breached.
+     *
+     * @param maxAttempts The configured maximum number of attempts
+     * @param lockoutMinutes The configured duration for the lockout
+     */
+    fun recordFailedLogin(maxAttempts: Int, lockoutMinutes: Long) {
+        this.failedLoginAttempts++
+        if (this.failedLoginAttempts >= maxAttempts) {
+            this.accountLockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)
+            logger.warn { "Staff account locked: $id (email: $email)" }
+        }
+    }
+
+    /**
+     * Marks the staff member's email as verified and activates account.
+     */
     fun verifyEmail() {
-        status = StaffStatus.ACTIVE
-        verificationToken = null
-        verificationTokenExpiresAt = null
+        this.status = StaffStatus.ACTIVE
+        this.verificationToken = null
+        this.verificationTokenExpiresAt = null
     }
 
+    /**
+     * Suspends the staff account.
+     */
     fun suspend() {
-        status = StaffStatus.SUSPENDED
+        this.status = StaffStatus.SUSPENDED
     }
 
+    /**
+     * Reactivates a suspended staff account.
+     */
     fun reactivate() {
-        status = StaffStatus.ACTIVE
-        failedLoginAttempts = 0
-        accountLockedUntil = null
+        if (this.status == StaffStatus.SUSPENDED) {
+            this.status = StaffStatus.ACTIVE
+        }
+        this.failedLoginAttempts = 0
+        this.accountLockedUntil = null
     }
 }

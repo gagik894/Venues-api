@@ -36,3 +36,15 @@ data class VenuePermissionDto(
     val venueId: UUID,
     val role: VenueRole // MANAGER, SCANNER, etc.
 )
+
+/**
+ * Response DTO for successful staff authentication.
+ *
+ * Contains JWT token, user profile, and organizational context.
+ */
+data class StaffAuthResponse(
+    val token: String,
+    val expiresIn: Long,
+    val profile: StaffProfileDto,
+    val context: StaffGlobalContextDto
+)

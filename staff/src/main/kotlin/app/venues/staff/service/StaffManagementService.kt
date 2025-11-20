@@ -5,7 +5,7 @@ import app.venues.staff.api.dto.InviteStaffRequest
 import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.StaffProfileDto
 import app.venues.staff.api.dto.UpdateStaffStatusRequest
-import app.venues.staff.domain.StaffIdentity
+import app.venues.staff.api.mapper.StaffMapper
 import app.venues.staff.domain.StaffMembership
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.repository.StaffIdentityRepository
@@ -19,9 +19,9 @@ import java.util.*
  *
  * Responsibilities:
  * - Staff context/hierarchy retrieval
- * - Staff invitations
+ * - Staff invitations to organizations
  * - Membership management
- * - Status updates
+ * - Status updates (suspend/reactivate)
  */
 @Service
 @Transactional
@@ -36,42 +36,45 @@ class StaffManagementService(
      *
      * Returns which organizations and venues they can access.
      * Used by the frontend to build navigation/sidebar.
+     *
+     * @param staffId Staff member ID
+     * @return StaffGlobalContextDto with organizations and venues hierarchy
      */
+    @Transactional(readOnly = true)
     fun getStaffContext(staffId: UUID): StaffGlobalContextDto {
         logger.debug { "Fetching context for staff: $staffId" }
         return staffContextBuilder.buildContextById(staffId)
     }
 
     /**
-     * Invites a user to an organization.
+     * Invites a staff member to an organization.
      *
      * Process:
-     * 1. Check if email already exists (find or create staff identity)
-     * 2. Create or update membership
-     * 3. Return profile
+     * 1. Validate staff identity exists
+     * 2. Check if membership already exists
+     * 3. Create or update membership with specified role
+     * 4. Return profile
      *
-     * Note: For new users, this only creates the membership.
-     *       They still need to register/verify to actually log in.
+     * Note: This only manages membership. The staff member must already have
+     * a registered account (via register endpoint). If they don't have an account,
+     * they should be directed to register first.
+     *
+     * Security: Caller must be verified as OWNER or ADMIN of the organization.
+     * This validation should be done at the controller/security layer.
+     *
+     * @param request Invitation request with email, organizationId, and role
+     * @return StaffProfileDto of the invited staff member
+     * @throws VenuesException.ResourceNotFound if staff identity doesn't exist
      */
     fun inviteStaff(request: InviteStaffRequest): StaffProfileDto {
         logger.info { "Inviting ${request.email} to org ${request.organizationId} as ${request.role}" }
 
-        // TODO: Security check - verify current user is ADMIN of request.organizationId
-
-        // Find or create staff identity
-        var staff = staffRepository.findByEmail(request.email.lowercase().trim())
-
-        if (staff == null) {
-            // Create placeholder identity (they'll complete registration later)
-            staff = StaffIdentity(
-                email = request.email.lowercase().trim(),
-                passwordHash = "", // Empty - will be set during registration
-                status = StaffStatus.PENDING_VERIFICATION,
-                isPlatformSuperAdmin = false
+        // Find existing staff identity
+        val staff = staffRepository.findByEmail(request.email.lowercase().trim())
+            ?: throw VenuesException.ResourceNotFound(
+                "No staff account found with email: ${request.email}. They must register first.",
+                "STAFF_NOT_FOUND"
             )
-            staff = staffRepository.save(staff)
-            logger.info { "Created new staff identity for invitation: ${staff.email}" }
-        }
 
         // Check if membership already exists
         val existingMembership = staff.memberships.firstOrNull {
@@ -82,7 +85,7 @@ class StaffManagementService(
             // Update existing membership
             existingMembership.orgRole = request.role
             existingMembership.isActive = true
-            logger.info { "Updated existing membership for ${staff.email}" }
+            logger.info { "Updated existing membership for ${staff.email} in org ${request.organizationId}" }
         } else {
             // Create new membership
             val membership = StaffMembership(
@@ -92,25 +95,26 @@ class StaffManagementService(
                 isActive = true
             )
             staff.memberships.add(membership)
-            logger.info { "Created new membership for ${staff.email}" }
+            logger.info { "Created new membership for ${staff.email} in org ${request.organizationId}" }
         }
 
         staffRepository.save(staff)
 
-        return StaffProfileDto(
-            id = staff.id,
-            email = staff.email,
-            firstName = staff.firstName,
-            lastName = staff.lastName,
-            status = staff.status,
-            isPlatformSuperAdmin = staff.isPlatformSuperAdmin
-        )
+        // TODO: Send invitation email notifying staff of new organization access
+
+        return StaffMapper.toProfileDto(staff)
     }
 
     /**
      * Updates staff status (suspend/reactivate/etc).
      *
-     * Note: This is a system admin operation.
+     * This is a privileged operation typically restricted to system administrators.
+     *
+     * Security: Caller must be verified as SUPER_ADMIN.
+     * This validation should be done at the controller/security layer.
+     *
+     * @param request Status update request
+     * @throws VenuesException.ResourceNotFound if staff not found
      */
     fun updateStatus(request: UpdateStaffStatusRequest) {
         logger.warn { "Updating status of staff ${request.staffId} to ${request.status}" }

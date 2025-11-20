@@ -22,6 +22,7 @@ import java.time.Instant
         UniqueConstraint(columnNames = ["email"])
     ]
 )
+@org.hibernate.annotations.Check(constraints = "failed_login_attempts >= 0")
 class StaffIdentity(
 
     @Column(name = "email", nullable = false, unique = true)

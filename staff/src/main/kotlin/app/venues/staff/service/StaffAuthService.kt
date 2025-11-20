@@ -35,7 +35,6 @@ import java.util.*
  * - Password verification with BCrypt
  */
 @Service
-@Transactional
 class StaffAuthService(
     private val staffRepository: StaffIdentityRepository,
     private val passwordEncoder: PasswordEncoder,
@@ -60,6 +59,7 @@ class StaffAuthService(
      * @return StaffAuthResponse with JWT token and empty context
      * @throws VenuesException.ResourceConflict if email already exists
      */
+    @Transactional
     fun register(request: StaffRegisterRequest): StaffAuthResponse {
         logger.info { "Registering new staff: ${request.email}" }
 
@@ -219,6 +219,7 @@ class StaffAuthService(
      * @throws VenuesException.ResourceNotFound if token is invalid
      * @throws VenuesException.BusinessRuleViolation if token is expired
      */
+    @Transactional
     fun verifyEmail(request: VerifyEmailRequest) {
         logger.info { "Verifying email with token" }
 

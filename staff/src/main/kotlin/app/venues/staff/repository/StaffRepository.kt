@@ -21,6 +21,7 @@ interface StaffIdentityRepository : JpaRepository<StaffIdentity, UUID> {
      * Finds staff by email (case-insensitive).
      * Uses LOWER() function to ensure case-insensitive matching across all databases.
      */
+    @EntityGraph(attributePaths = ["memberships", "memberships.venuePermissions"])
     @Query("SELECT s FROM StaffIdentity s WHERE LOWER(s.email) = LOWER(:email)")
     fun findByEmail(email: String): StaffIdentity?
 

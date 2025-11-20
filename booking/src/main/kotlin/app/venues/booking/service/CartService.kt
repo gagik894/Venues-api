@@ -9,7 +9,7 @@ import app.venues.booking.persistence.InventoryReservationHandler
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.validation.CartLimitValidator
 import app.venues.common.exception.VenuesException
-import app.venues.event.repository.EventSessionRepository
+import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.validation.ConstraintViolationException
@@ -36,7 +36,7 @@ class CartService(
     private val cartItemPersistence: CartItemPersistence,
     private val cartTablePersistence: CartTablePersistence,
     private val tableReservationService: TableReservationService,
-    private val eventSessionRepository: EventSessionRepository,
+    private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
     private val validator: Validator
 ) : CartApi {
@@ -47,8 +47,8 @@ class CartService(
      * @throws VenuesException.ResourceNotFound if session doesn't exist
      */
     private fun validateSessionExists(sessionId: UUID) {
-        eventSessionRepository.findById(sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        eventApi.getEventSessionInfo(sessionId)
+            ?: throw VenuesException.ResourceNotFound("Session not found")
     }
 
     /**

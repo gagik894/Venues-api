@@ -8,12 +8,10 @@ import app.venues.booking.domain.Booking
 import app.venues.booking.domain.Guest
 import app.venues.booking.repository.*
 import app.venues.common.exception.VenuesException
-import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionGAConfigRepository
-import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.event.api.EventApi
+import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
-import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -43,14 +41,11 @@ class BookingService(
     private val cartRepository: CartRepository,
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
-    private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionGAConfigRepository: SessionGAConfigRepository,
-    private val eventSessionRepository: EventSessionRepository,
     private val guestService: GuestService,
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
-    private val venueApi: VenueApi,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val eventApi: EventApi
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -201,10 +196,8 @@ class BookingService(
      */
     private fun prepareBookingResponse(booking: Booking): BookingResponse {
         // Fetch session from event module
-        val session = eventSessionRepository.findById(booking.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
-
-        val event = session.event
+        val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
 
         // Get customer info using UserApi (Hexagonal Architecture)
         val customerEmail = booking.userId?.let {
@@ -242,15 +235,14 @@ class BookingService(
             )
         }
 
-        val venueName = venueApi.getVenueName(event.venueId)
 
         return bookingMapper.toResponse(
             booking = booking,
-            eventTitle = event.title,
-            eventDescription = event.description,
-            venueName = venueName,
-            sessionStartTime = session.startTime.toString(),
-            sessionEndTime = session.endTime.toString(),
+            eventTitle = sessionDto.eventTitle,
+            eventDescription = sessionDto.eventDescription,
+            venueName = "venueName", // TODO: fetch venue name if needed
+            sessionStartTime = sessionDto.startTime.toString(),
+            sessionEndTime = sessionDto.endTime.toString(),
             customerEmail = customerEmail,
             customerName = customerName,
             itemsData = itemsData
@@ -268,8 +260,7 @@ class BookingService(
         val cart: app.venues.booking.domain.Cart,
         val cartSeats: List<app.venues.booking.domain.CartSeat>,
         val cartItems: List<app.venues.booking.domain.CartItem>,
-        val session: app.venues.event.domain.EventSession,
-        val event: app.venues.event.domain.Event
+        val sessionDto: EventSessionDto
     )
 
     /**
@@ -299,17 +290,14 @@ class BookingService(
         }
 
         // Fetch session from event module
-        val session = eventSessionRepository.findById(cart.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
-
-        val event = session.event
+        val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
 
         return CartData(
             cart = cart,
             cartSeats = cartSeats,
             cartItems = cartItems,
-            session = session,
-            event = event
+            sessionDto = sessionDto
         )
     }
 

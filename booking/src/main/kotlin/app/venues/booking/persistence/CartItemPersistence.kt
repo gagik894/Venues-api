@@ -9,7 +9,7 @@ import app.venues.booking.event.SeatReservedEvent
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartSeatRepository
 import app.venues.common.exception.VenuesException
-import app.venues.event.repository.SessionGAConfigRepository
+import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
@@ -25,7 +25,7 @@ import java.util.*
 class CartItemPersistence(
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
-    private val sessionGAConfigRepository: SessionGAConfigRepository,
+    private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
     private val eventPublisher: ApplicationEventPublisher
 ) {
@@ -185,9 +185,9 @@ class CartItemPersistence(
         levelIdentifier: String,
         levelName: String
     ) {
-        val gaConfig = sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, gaAreaId)
-        val capacity = gaConfig?.capacity ?: 0
-        val availableTickets = capacity - (gaConfig?.soldCount ?: 0)
+        val gaAvailability = eventApi.getGaAvailability(sessionId, gaAreaId)
+        val capacity = gaAvailability?.capacity ?: 0
+        val availableTickets = capacity - (gaAvailability?.soldCount ?: 0)
 
         eventPublisher.publishEvent(
             GAAvailabilityChangedEvent(

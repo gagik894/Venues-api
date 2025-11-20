@@ -5,9 +5,7 @@ import app.venues.booking.event.TableReleasedEvent
 import app.venues.booking.event.TableReservedEvent
 import app.venues.booking.repository.CartTableRepository
 import app.venues.common.exception.VenuesException
-import app.venues.event.domain.ConfigStatus
-import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.event.repository.SessionTableConfigRepository
+import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.TableBookingMode
 import app.venues.seating.api.dto.SeatInfoDto
@@ -27,8 +25,7 @@ import java.util.*
 @Service
 @Transactional
 class TableReservationService(
-    private val sessionTableConfigRepository: SessionTableConfigRepository,
-    private val sessionSeatConfigRepository: SessionSeatConfigRepository,
+    private val eventApi: EventApi,
     private val cartTableRepository: CartTableRepository,
     private val seatingApi: SeatingApi,
     private val eventPublisher: ApplicationEventPublisher
@@ -54,10 +51,18 @@ class TableReservationService(
             ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
         val tableId = tableInfo.id
-        val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
+
+        // Validate table booking mode
+        val bookingModeName = eventApi.getTableBookingMode(sessionId, tableId)
             ?: throw VenuesException.ValidationFailure(
                 "Table '${tableInfo.tableNumber}' is not configured for this session."
             )
+
+        val bookingMode = try {
+            TableBookingMode.valueOf(bookingModeName)
+        } catch (e: IllegalArgumentException) {
+            TableBookingMode.FLEXIBLE // Default fallback
+        }
 
         // Get the seats for this table
         val seats = seatingApi.getSeatsForTable(tableId)
@@ -70,8 +75,7 @@ class TableReservationService(
             )
         }
 
-        // Validate table booking mode
-        if (tableConfig.bookingMode == TableBookingMode.SEATS_ONLY) {
+        if (bookingMode == TableBookingMode.SEATS_ONLY) {
             throw VenuesException.ValidationFailure(
                 "Table '${tableInfo.tableNumber}' is configured for SEATS_ONLY booking in this session."
             )
@@ -82,19 +86,11 @@ class TableReservationService(
             throw VenuesException.ResourceConflict("Table '${tableInfo.tableNumber}' is already in your cart")
         }
 
-        // Get table price
-        val price = sessionTableConfigRepository.getTablePriceIfAvailable(sessionId, tableId)
-            ?: throw VenuesException.ValidationFailure(
-                "Table '${tableInfo.tableNumber}' is not available or not priced"
+        // Atomically reserve the table and get price
+        val price = eventApi.reserveTable(sessionId, tableId)
+            ?: throw VenuesException.ResourceConflict(
+                "Table '${tableInfo.tableNumber}' is not available for reservation or not priced"
             )
-
-        // Atomically reserve the table
-        val rowsAffected = sessionTableConfigRepository.reserveTableIfAvailable(sessionId, tableId)
-        if (rowsAffected == 0) {
-            throw VenuesException.ResourceConflict(
-                "Table '${tableInfo.tableNumber}' is not available for reservation"
-            )
-        }
 
         // Block all individual seats
         blockAllSeatsInTable(sessionId, tableId, seats)
@@ -125,21 +121,20 @@ class TableReservationService(
     fun releaseTable(sessionId: UUID, tableId: Long) {
         logger.debug { "Releasing table $tableId for session $sessionId" }
 
-        val tableConfig = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
-            ?: return
+        // We need to check booking mode before releasing to know if we should unblock seats
+        val bookingModeName = eventApi.getTableBookingMode(sessionId, tableId)
+        val bookingMode = if (bookingModeName != null) {
+            try {
+                TableBookingMode.valueOf(bookingModeName)
+            } catch (e: IllegalArgumentException) {
+                TableBookingMode.FLEXIBLE
+            }
+        } else null
 
-        // Only release if it's RESERVED
-        if (tableConfig.status != ConfigStatus.RESERVED) {
-            logger.warn { "Attempted to release table $tableId with status ${tableConfig.status}" }
-            if (tableConfig.status != ConfigStatus.AVAILABLE) return
-        }
+        // Release table
+        eventApi.releaseTable(sessionId, tableId)
 
-        // Update table status to AVAILABLE
-        tableConfig.release()
-        sessionTableConfigRepository.save(tableConfig)
-
-
-        if (tableConfig.bookingMode != TableBookingMode.TABLE_ONLY) {
+        if (bookingMode != null && bookingMode != TableBookingMode.TABLE_ONLY) {
             unblockAllSeatsInTable(sessionId, tableId)
         }
 
@@ -168,7 +163,7 @@ class TableReservationService(
         }
 
         val seatIds = seats.map { it.id }
-        val blockedCount = sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+        val blockedCount = eventApi.blockSeats(sessionId, seatIds)
 
         logger.debug { "Blocked $blockedCount/${seatIds.size} seats in table $tableId" }
 
@@ -190,7 +185,7 @@ class TableReservationService(
         }
 
         val seatIds = seats.map { it.id }
-        val unblockedCount = sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+        val unblockedCount = eventApi.unblockSeats(sessionId, seatIds)
 
         logger.debug { "Unblocked $unblockedCount/${seatIds.size} seats in table $tableId" }
     }
@@ -210,7 +205,7 @@ class TableReservationService(
         logger.debug { "Batch releasing ${tableIds.size} tables for session $sessionId" }
 
         // 1. Release all tables in one UPDATE
-        val releasedTables = sessionTableConfigRepository.releaseTables(sessionId, tableIds)
+        eventApi.releaseTablesBatch(sessionId, tableIds)
 
         // 2. Unblock all seats for these tables (batch operation)
         // Get all seat IDs for all tables
@@ -219,11 +214,12 @@ class TableReservationService(
         }
 
         if (allSeatIds.isNotEmpty()) {
-            val unblockedSeats = sessionSeatConfigRepository.unblockSeats(sessionId, allSeatIds)
-            logger.debug { "Unblocked $unblockedSeats seats from $releasedTables tables" }
+            val unblockedSeats = eventApi.unblockSeats(sessionId, allSeatIds)
+            logger.debug { "Unblocked $unblockedSeats seats from ${tableIds.size} tables" }
         }
 
-        logger.info { "Batch released $releasedTables tables with ${allSeatIds.size} seats for session $sessionId" }
+        logger.info { "Batch released tables with ${allSeatIds.size} seats for session $sessionId" }
     }
 }
+
 

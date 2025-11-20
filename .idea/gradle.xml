@@ -14,6 +14,7 @@
             <option value="$PROJECT_DIR$/booking-api" />
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/event" />
+            <option value="$PROJECT_DIR$/event-api" />
             <option value="$PROJECT_DIR$/finance" />
             <option value="$PROJECT_DIR$/finance-api" />
             <option value="$PROJECT_DIR$/location" />

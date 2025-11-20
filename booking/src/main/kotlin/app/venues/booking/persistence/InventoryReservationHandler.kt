@@ -142,18 +142,19 @@ class InventoryReservationHandler(
         // Publish GA availability changed event
         val gaInfo = seatingApi.getGaInfo(gaAreaId)
         if (gaInfo != null) {
-            // Note: We don't have easy access to capacity/soldCount here anymore without querying EventApi again.
-            // For now, we might skip publishing detailed availability stats or fetch them if needed.
-            // Assuming we just notify that availability changed.
-            eventPublisher.publishEvent(
-                GAAvailabilityChangedEvent(
-                    sessionId = sessionId,
-                    levelIdentifier = gaInfo.code,
-                    levelName = gaInfo.name,
-                    availableTickets = 0, // Placeholder or need to fetch
-                    totalCapacity = 0 // Placeholder
+            // Fetch actual GA availability from EventApi before publishing event.
+            val gaAvailability = eventApi.getGaAvailability(sessionId, gaAreaId)
+            if (gaAvailability != null) {
+                eventPublisher.publishEvent(
+                    GAAvailabilityChangedEvent(
+                        sessionId = sessionId,
+                        levelIdentifier = gaInfo.code,
+                        levelName = gaInfo.name,
+                        availableTickets = gaAvailability.availableTickets,
+                        totalCapacity = gaAvailability.totalCapacity
+                    )
                 )
-            )
+            }
         }
     }
 

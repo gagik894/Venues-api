@@ -36,6 +36,14 @@ interface VenueApi {
     fun venueExists(venueId: UUID): Boolean
 
     /**
+     * Get venue's organization ID for permission checking.
+     *
+     * @param venueId Venue UUID
+     * @return Organization UUID or null if venue has no organization
+     */
+    fun getVenueOrganizationId(venueId: UUID): UUID?
+
+    /**
      * Get venue names in batch (for performance optimization).
      * Returns a map of venueId to venue name.
      *

@@ -190,7 +190,7 @@ class VenueAdminController(
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('VENUE_OWNER')")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('VENUE_OWNER')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Update venue",

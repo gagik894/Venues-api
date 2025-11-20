@@ -446,6 +446,18 @@ class VenueService(
     }
 
     /**
+     * Get venue's organization ID for permission checking.
+     *
+     * @param venueId Venue UUID
+     * @return Organization UUID or null if venue has no organization
+     */
+    override fun getVenueOrganizationId(venueId: UUID): UUID? {
+        return venueRepository.findById(venueId)
+            .map { it.organizationId }
+            .orElse(null)
+    }
+
+    /**
      * Get venue names in batch (implements VenueApi interface).
      */
     override fun getVenueNamesBatch(venueIds: Set<UUID>, language: String?): Map<UUID, String> {

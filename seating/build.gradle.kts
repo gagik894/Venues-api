@@ -30,7 +30,7 @@ dependencyManagement {
 dependencies {
     // API Contract Module - this module implements the SeatingApi interface
     api(project(":seating-api"))
-
+    api(project(":staff-api"))
     // Expose shared module as part of public API
     api(project(":shared"))
 

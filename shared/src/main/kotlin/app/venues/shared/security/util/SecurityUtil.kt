@@ -1,10 +1,3 @@
-/*
- * Venues API - Government-Sponsored Cultural Venues Portal
- * Copyright (c) 2025 Government Cultural Department
- *
- * Security utility for extracting authenticated user information.
- */
-
 package app.venues.shared.security.util
 
 import app.venues.common.exception.VenuesException
@@ -16,10 +9,12 @@ import org.springframework.stereotype.Component
 import java.util.*
 
 /**
- * Utility class for extracting authenticated user information from Spring Security Context.
+ * Utility for extracting authenticated principal information from Spring Security Context.
  *
- * This class provides convenient methods to access the current user's information
- * from the SecurityContext without manually extracting it in each controller.
+ * Role System:
+ * - SUPER_ADMIN: Platform administrator (full system access)
+ * - STAFF: Staff member (permissions via organization/venue membership)
+ * - USER: Regular customer (self-service only)
  *
  * Thread Safety:
  * - SecurityContextHolder uses ThreadLocal storage
@@ -31,9 +26,10 @@ import java.util.*
  * @RestController
  * class MyController(private val securityUtil: SecurityUtil) {
  *     @GetMapping("/me")
- *     fun getCurrentUser() {
- *         val userId = securityUtil.getCurrentUserId()
- *         // Use userId...
+ *     fun getMyProfile() {
+ *         val principalId = securityUtil.getCurrentPrincipalId()
+ *         val role = securityUtil.getCurrentRole()
+ *         // Use principalId and role...
  *     }
  * }
  * ```
@@ -44,58 +40,108 @@ class SecurityUtil {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Gets the current authenticated user's ID from the SecurityContext.
+     * Gets the current authenticated principal's ID from SecurityContext.
      *
-     * The user ID is stored in the JWT token as a custom claim and is extracted
-     * during authentication. This method retrieves it from the Authentication principal.
+     * Works for all principal types (SUPER_ADMIN, STAFF, USER).
+     * The ID is stored in the JWT token and extracted during authentication.
      *
-     * @return Current user's ID
-     * @throws VenuesException.AuthenticationFailure if user is not authenticated
-     * @throws VenuesException.InternalError if user ID cannot be extracted
+     * @return Current principal's UUID
+     * @throws VenuesException.AuthenticationFailure if not authenticated
+     * @throws VenuesException.InternalError if ID cannot be extracted
      */
-    fun getCurrentUserId(): UUID {
+    fun getCurrentPrincipalId(): UUID {
         val authentication = getAuthentication()
-            ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
+            ?: throw VenuesException.AuthenticationFailure(
+                "User is not authenticated",
+                "NOT_AUTHENTICATED"
+            )
 
-        // Extract user ID from the principal
-        // The principal can be either UserDetails or a Map containing user info
         return when (val principal = authentication.principal) {
-            is UserDetails -> {
-                // If UserDetails, the username should be the email
-                // We need to extract userId from authorities or additional details
-                extractUserIdFromAuthentication(authentication)
-            }
-
             is Map<*, *> -> {
-                // If Map (from JWT), id should be directly available
+                // JWT authentication - principal is a Map
                 @Suppress("UNCHECKED_CAST")
                 val principalMap = principal as? Map<String, Any>
-                val id = principalMap?.get("id")?.toString()?.let { UUID.fromString(it) }
+                when (val id = principalMap?.get("id")) {
+                    is UUID -> id
+                    is String -> try {
+                        UUID.fromString(id)
+                    } catch (e: IllegalArgumentException) {
+                        logger.error { "Invalid UUID format in principal: $id" }
+                        throw VenuesException.InternalError(
+                            "Invalid principal ID format",
+                            "INVALID_PRINCIPAL_ID"
+                        )
+                    }
 
-                if (id == null) {
-                    logger.error { "ID not found in principal Map. Map contents: $principalMap" }
-                    throw VenuesException.InternalError("ID not found in authentication token. Available keys: ${principalMap?.keys}")
+                    else -> {
+                        logger.error { "ID not found in principal Map. Contents: $principalMap" }
+                        throw VenuesException.InternalError(
+                            "Principal ID not found in token",
+                            "PRINCIPAL_ID_NOT_FOUND"
+                        )
+                    }
                 }
-
-                id
             }
 
+            is UserDetails -> {
+                // Fallback: try to extract from authentication
+                extractPrincipalIdFromAuthentication(authentication)
+            }
             else -> {
-                // Try to extract from authentication details
-                extractUserIdFromAuthentication(authentication)
+                logger.error { "Unexpected principal type: ${principal?.javaClass?.name}" }
+                extractPrincipalIdFromAuthentication(authentication)
             }
         }
     }
 
     /**
-     * Gets the current authenticated user's email from the SecurityContext.
+     * Gets current principal ID for STAFF members.
+     * Alias for getCurrentPrincipalId() with role validation.
      *
-     * @return Current user's email
-     * @throws VenuesException.AuthenticationFailure if user is not authenticated
+     * @return Staff UUID
+     * @throws VenuesException.AuthorizationFailure if not a staff member
      */
-    fun getCurrentUserEmail(): String {
+    fun getCurrentStaffId(): UUID {
+        val role = getCurrentRole()
+        if (role !in listOf("SUPER_ADMIN", "STAFF")) {
+            throw VenuesException.AuthorizationFailure(
+                "This action requires staff privileges",
+                "STAFF_ROLE_REQUIRED"
+            )
+        }
+        return getCurrentPrincipalId()
+    }
+
+    /**
+     * Gets current principal ID for regular USER members.
+     * Alias for getCurrentPrincipalId() with role validation.
+     *
+     * @return User UUID
+     * @throws VenuesException.AuthorizationFailure if not a regular user
+     */
+    fun getCurrentUserId(): UUID {
+        val role = getCurrentRole()
+        if (role != "USER") {
+            throw VenuesException.AuthorizationFailure(
+                "This action requires user role",
+                "USER_ROLE_REQUIRED"
+            )
+        }
+        return getCurrentPrincipalId()
+    }
+
+    /**
+     * Gets the current authenticated principal's email from SecurityContext.
+     *
+     * @return Current principal's email
+     * @throws VenuesException.AuthenticationFailure if not authenticated
+     */
+    fun getCurrentEmail(): String {
         val authentication = getAuthentication()
-            ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
+            ?: throw VenuesException.AuthenticationFailure(
+                "User is not authenticated",
+                "NOT_AUTHENTICATED"
+            )
 
         return when (val principal = authentication.principal) {
             is UserDetails -> principal.username
@@ -106,113 +152,90 @@ class SecurityUtil {
                 val email = principalMap?.get("email")?.toString()
 
                 if (email == null) {
-                    logger.error { "Email not found in principal Map. Map contents: $principalMap" }
-                    throw VenuesException.InternalError("Email not found in authentication token. Available keys: ${principalMap?.keys}")
+                    logger.error { "Email not found in principal Map. Contents: $principalMap" }
+                    throw VenuesException.InternalError(
+                        "Email not found in authentication token",
+                        "EMAIL_NOT_FOUND"
+                    )
                 }
 
                 email
             }
 
-            else -> throw VenuesException.InternalError("Unable to extract email from authentication")
+            else -> throw VenuesException.InternalError(
+                "Unable to extract email from authentication",
+                "EMAIL_EXTRACTION_FAILED"
+            )
         }
     }
 
     /**
-     * Gets the current authenticated user's role from the SecurityContext.
+     * Gets the current authenticated principal's role from SecurityContext.
      *
-     * @return Current user's role (e.g., "USER", "ADMIN")
-     * @throws VenuesException.AuthenticationFailure if user is not authenticated
+     * Returns the platform-level role:
+     * - SUPER_ADMIN: Platform administrator
+     * - STAFF: Staff member
+     * - USER: Regular customer
+     *
+     * @return Current principal's role (without ROLE_ prefix)
+     * @throws VenuesException.AuthenticationFailure if not authenticated
      */
-    fun getCurrentUserRole(): String {
+    fun getCurrentRole(): String {
         val authentication = getAuthentication()
-            ?: throw VenuesException.AuthenticationFailure("User is not authenticated")
+            ?: throw VenuesException.AuthenticationFailure(
+                "User is not authenticated",
+                "NOT_AUTHENTICATED"
+            )
 
-        // Extract role from authorities
+        // Extract role from authorities (Spring Security adds ROLE_ prefix)
         val authorities = authentication.authorities
         return authorities.firstOrNull()?.authority?.removePrefix("ROLE_")
-            ?: throw VenuesException.InternalError("User role not found in authentication")
+            ?: throw VenuesException.InternalError(
+                "User role not found in authentication",
+                "ROLE_NOT_FOUND"
+            )
     }
 
     /**
-     * Checks if the current user has a specific role.
+     * Checks if the current principal has a specific platform role.
      *
-     * @param role Role to check (e.g., "ADMIN")
-     * @return true if user has the role
+     * @param role Role to check (SUPER_ADMIN, STAFF, USER)
+     * @return true if principal has the role
      */
     fun hasRole(role: String): Boolean {
         return try {
-            val userRole = getCurrentUserRole()
-            userRole.equals(role, ignoreCase = true)
+            val currentRole = getCurrentRole()
+            currentRole.equals(role, ignoreCase = true)
         } catch (_: Exception) {
             false
         }
     }
 
     /**
-     * Checks if the current user is an admin.
+     * Checks if the current principal is a super admin.
      *
-     * @return true if user has ADMIN role
+     * @return true if principal has SUPER_ADMIN role
      */
-    fun isAdmin(): Boolean {
-        return hasRole("ADMIN")
+    fun isSuperAdmin(): Boolean {
+        return hasRole("SUPER_ADMIN")
     }
 
     /**
-     * Requires that the current authenticated user owns the specified venue.
+     * Checks if the current principal is staff (SUPER_ADMIN or STAFF).
      *
-     * This method verifies that:
-     * 1. User is authenticated
-     * 2. User has VENUE role
-     * 3. User's ID matches the specified venueId
-     *
-     * @param venueId The venue ID to verify ownership for
-     * @throws VenuesException.AuthorizationFailure if user doesn't own the venue
+     * @return true if principal is staff member
      */
-    fun requireVenueOwnership(venueId: UUID) {
-        val currentUserId = getCurrentUserId()
-        val currentRole = getCurrentUserRole()
-
-        // Verify user has VENUE role
-        if (currentRole != "VENUE") {
-            throw VenuesException.AuthorizationFailure(
-                "Only venue owners can perform this action",
-                "INSUFFICIENT_PERMISSIONS"
-            )
-        }
-
-        // Verify venue ownership (user ID should match venue ID)
-        if (currentUserId != venueId) {
-            throw VenuesException.AuthorizationFailure(
-                "You can only manage your own venue",
-                "VENUE_OWNERSHIP_REQUIRED"
-            )
-        }
+    fun isStaff(): Boolean {
+        return hasRole("SUPER_ADMIN") || hasRole("STAFF")
     }
 
     /**
-     * Requires that the current authenticated user owns the specified user account.
+     * Checks if the current principal is a regular user.
      *
-     * This method verifies that the current user's ID matches the specified userId.
-     * Admins bypass this check.
-     *
-     * @param userId The user ID to verify ownership for
-     * @throws VenuesException.AuthorizationFailure if user doesn't own the account
+     * @return true if principal has USER role
      */
-    fun requireUserOwnership(userId: UUID) {
-        // Admins can access any user
-        if (isAdmin()) {
-            return
-        }
-
-        val currentUserId = getCurrentUserId()
-
-        // Verify user ownership
-        if (currentUserId != userId) {
-            throw VenuesException.AuthorizationFailure(
-                "You can only access your own account",
-                "USER_OWNERSHIP_REQUIRED"
-            )
-        }
+    fun isUser(): Boolean {
+        return hasRole("USER")
     }
 
     /**
@@ -235,23 +258,23 @@ class SecurityUtil {
     }
 
     /**
-     * Extracts user ID from Authentication object.
+     * Extracts principal ID from Authentication object.
      *
-     * This method tries multiple approaches to extract the user ID:
+     * This method tries multiple approaches to extract the principal ID:
      * 1. From authentication details (if it's a Map)
-     * 2. From authentication name (if it's a number)
-     * 3. From custom attributes
+     * 2. From authentication name (if it's a UUID string)
+     * 3. From credentials map
      *
      * @param authentication Authentication object
-     * @return User ID
-     * @throws VenuesException.InternalError if user ID cannot be extracted
+     * @return Principal UUID
+     * @throws VenuesException.InternalError if principal ID cannot be extracted
      */
-    private fun extractUserIdFromAuthentication(authentication: Authentication): UUID {
+    private fun extractPrincipalIdFromAuthentication(authentication: Authentication): UUID {
         // Try to get from details map (accept UUID or String)
         (authentication.details as? Map<*, *>)?.let { details ->
             @Suppress("UNCHECKED_CAST")
             val map = details as? Map<String, Any>
-            listOf("userId", "id").forEach { key ->
+            listOf("id", "principalId", "userId", "staffId").forEach { key ->
                 map?.get(key)?.let { raw ->
                     when (raw) {
                         is UUID -> return raw
@@ -280,7 +303,7 @@ class SecurityUtil {
         (authentication.credentials as? Map<*, *>)?.let { creds ->
             @Suppress("UNCHECKED_CAST")
             val map = creds as? Map<String, Any>
-            listOf("userId", "id").forEach { key ->
+            listOf("id", "principalId", "userId", "staffId").forEach { key ->
                 map?.get(key)?.let { raw ->
                     when (raw) {
                         is UUID -> return raw
@@ -296,7 +319,10 @@ class SecurityUtil {
             }
         }
 
-        throw VenuesException.InternalError("Unable to extract user ID (UUID) from authentication context")
+        throw VenuesException.InternalError(
+            "Unable to extract principal ID from authentication context",
+            "PRINCIPAL_ID_EXTRACTION_FAILED"
+        )
     }
 }
 

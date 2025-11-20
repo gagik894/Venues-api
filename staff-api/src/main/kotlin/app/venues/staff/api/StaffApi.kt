@@ -3,12 +3,18 @@ package app.venues.staff.api
 import java.util.*
 
 /**
- * Public API for Staff module.
+ * API Facade for Staff Security.
+ * Other modules (Venue, Organization) use this to check permissions without touching the DB.
  */
-interface StaffApi {
+interface StaffSecurityFacade {
+    /**
+     * Checks if a specific StaffIdentity has permission to manage a specific Venue.
+     * logic: SuperAdmin -> OrgAdmin -> VenueManager
+     */
+    fun canManageVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean
 
     /**
-     * Check if a user has a specific permission.
+     * Checks if a staff member has high-level administrative rights for an Organization.
      */
-    fun hasPermission(userId: UUID, permission: String): Boolean
+    fun isOrganizationAdmin(staffId: UUID, organizationId: UUID): Boolean
 }

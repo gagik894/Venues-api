@@ -1,43 +1,28 @@
 package app.venues.staff.domain
 
 /**
- * DEFINES SCOPE: Where does this user have power?
+ * Organization-wide role.
  */
-enum class StaffRoleLevel {
-    /** * Platform Super Admin.
-     * Access: GLOBAL.
-     * Organization ID: NULL.
-     * Can manage Organizations, Billing, and System Settings.
-     */
-    SYSTEM,
-
-    /** * Ministry/Company Admin.
-     * Access: All Venues belonging to their Organization.
-     * Organization ID: MANDATORY.
-     */
-    ORGANIZATION,
-
-    /** * Venue-specific staff.
-     * Access: Defined by entries in the 'staff_venue_scopes' table.
-     * Organization ID: Usually NULL (unless they also have a loose affiliation).
-     */
-    VENUE
+enum class OrganizationRole {
+    OWNER,      // Full access + finance
+    ADMIN,      // Full venue access
+    MEMBER      // Needs venue permissions
 }
 
 /**
- * DEFINES PERMISSIONS: What can they do inside a specific venue?
+ * Venue-level permissions.
  */
-enum class StaffVenueRole {
-    OWNER,      // Can edit venue settings, finance, and manage other staff
-    MANAGER,    // Can create/edit events, scan tickets, view reports
-    EDITOR,     // Can create/edit events content only
-    VIEWER      // Read-only access (e.g., financial auditors)
+enum class VenueRole {
+    MANAGER,    // Full venue management
+    EDITOR,     // Create/update events
+    SCANNER,    // Ticket scanning only
+    VIEWER      // Read-only
 }
 
 enum class StaffStatus {
     PENDING_VERIFICATION,
     ACTIVE,
-    SUSPENDED, // By Admin
-    LOCKED,    // Too many login attempts
+    SUSPENDED,
+    LOCKED,
     DELETED
 }

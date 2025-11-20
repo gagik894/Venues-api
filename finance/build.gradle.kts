@@ -30,10 +30,11 @@ dependencyManagement {
 dependencies {
     // Shared module
     api(project(":shared"))
+    api(project(":finance-api"))
 
-    // Dependencies for Waterfall Logic (Reading other modules)
-    implementation(project(":venue"))
-    implementation(project(":organization"))
+    // API dependencies - depend on contracts, not implementations
+    implementation(project(":venue-api"))
+    implementation(project(":organization-api"))
     // implementation(project(":event")) // Future proofing
 
     // Spring Boot starters

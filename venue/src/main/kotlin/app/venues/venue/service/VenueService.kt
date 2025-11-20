@@ -2,6 +2,7 @@ package app.venues.venue.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.location.repository.CityRepository
+import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueMapper
 import app.venues.venue.domain.VenueStatus
@@ -31,7 +32,7 @@ class VenueService(
     private val cityRepository: CityRepository,
     private val categoryRepository: VenueCategoryRepository,
     private val venueMapper: VenueMapper
-) {
+) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
     // ===========================================
@@ -394,5 +395,64 @@ class VenueService(
                 errorCode = "VENUE_NOT_FOUND"
             )
         }
+
+    // ===========================================
+    // VenueApi IMPLEMENTATION
+    // ===========================================
+
+    /**
+     * Get basic venue information by ID (implements VenueApi interface).
+     */
+    override fun getVenueBasicInfo(venueId: UUID): VenueBasicInfoDto? {
+        val venue = venueRepository.findById(venueId).orElse(null) ?: return null
+        return VenueBasicInfoDto(
+            id = venue.id,
+            name = venue.name,
+            address = venue.address,
+            latitude = venue.latitude,
+            longitude = venue.longitude,
+            organizationId = venue.organizationId,
+            merchantProfileId = venue.merchantProfileId
+        )
+    }
+
+    /**
+     * Get venue name by ID (implements VenueApi interface).
+     */
+    override fun getVenueName(venueId: UUID): String {
+        return venueRepository.findById(venueId)
+            .map { it.name }
+            .orElseThrow {
+                VenuesException.ResourceNotFound(
+                    message = "Venue not found",
+                    errorCode = "VENUE_NOT_FOUND"
+                )
+            }
+    }
+
+    /**
+     * Get venue name with translation support (implements VenueApi interface).
+     */
+    override fun getVenueNameTranslated(venueId: UUID, language: String?): String? {
+        val venue = venueRepository.findById(venueId).orElse(null) ?: return null
+        return language?.let { lang -> venue.getName(lang) } ?: venue.name
+    }
+
+    /**
+     * Check if venue exists (implements VenueApi interface).
+     */
+    override fun venueExists(venueId: UUID): Boolean {
+        return venueRepository.existsById(venueId)
+    }
+
+    /**
+     * Get venue names in batch (implements VenueApi interface).
+     */
+    override fun getVenueNamesBatch(venueIds: Set<UUID>, language: String?): Map<UUID, String> {
+        val venues = venueRepository.findAllById(venueIds)
+        return venues.associate { venue ->
+            venue.id to (language?.let { lang -> venue.getName(lang) } ?: venue.name)
+        }
+    }
 }
 

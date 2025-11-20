@@ -20,13 +20,17 @@ repositories {
 }
 
 dependencies {
-    // Feature modules
+    // Feature modules - app needs implementations for Spring Boot component scanning
+    // The app module is the "outer layer" that wires everything together
     implementation(project(":user"))
     implementation(project(":venue"))
     implementation(project(":seating"))
     implementation(project(":event"))
     implementation(project(":booking"))
     implementation(project(":platform"))
+    implementation(project(":finance"))
+    implementation(project(":organization"))
+    implementation(project(":staff"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))

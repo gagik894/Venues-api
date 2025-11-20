@@ -28,8 +28,8 @@ dependencyManagement {
 }
 
 dependencies {
-    // API Contract Module - this module implements the VenueApi interface
-    api(project(":venue-api"))
+    // API Contract Module - this module implements the StaffApi interface
+    api(project(":staff-api"))
 
     // Expose shared module as part of public API
     api(project(":shared"))
@@ -37,7 +37,8 @@ dependencies {
     // Location module for city/region reference data
     implementation(project(":location"))
 
-    implementation(project(":organization"))
+    // Organization API for cross-module communication
+    implementation(project(":organization-api"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

@@ -48,6 +48,7 @@ include(":finance")
 include(":finance-api")
 include(":organization-api")
 include(":staff-api")
+include(":event-api")
 
 
 rootProject.name = "Venues-api"

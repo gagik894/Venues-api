@@ -33,6 +33,7 @@ dependencies {
 
     // API Contract Modules - depend on interfaces, not implementations
     // This enforces Hexagonal Architecture boundaries
+    api(project(":event-api"))    // EventApi implementation
     api(project(":venue-api"))    // VenueApi for venue information
     api(project(":seating-api"))  // SeatingApi for seating chart information
 

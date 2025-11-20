@@ -7,9 +7,7 @@ import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
 import app.venues.common.exception.VenuesException
-import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionGAConfigRepository
-import app.venues.event.repository.SessionSeatConfigRepository
+import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -31,9 +29,7 @@ class CartQueryService(
     private val cartSessionManager: CartSessionManager,
     private val cartItemPersistence: CartItemPersistence,
     private val cartTablePersistence: CartTablePersistence,
-    private val eventSessionRepository: EventSessionRepository,
-    private val sessionSeatConfigRepository: SessionSeatConfigRepository,
-    private val sessionGAConfigRepository: SessionGAConfigRepository,
+    private val eventApi: EventApi,
     private val cartMapper: CartMapper,
     private val seatingApi: SeatingApi
 ) : CartQueryApi {
@@ -49,8 +45,8 @@ class CartQueryService(
         val cart = cartSessionManager.getActiveCart(token)
         cartSessionManager.touchCart(cart) // 'touch' is a write, but on the session, so OK
 
-        val session = eventSessionRepository.findById(cart.sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found") }
+        val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Session not found")
 
         // 1. Get all cart items from local DB
         val seats = cartItemPersistence.getAllSeats(cart)
@@ -67,10 +63,8 @@ class CartQueryService(
         val tableIds = tables.map { it.tableId }.distinct()
 
         // 3. Make batch calls to repositories and APIs
-        val seatConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(cart.sessionId, seatIds)
-            .associateBy { it.seatId }
-        val gaConfigs = sessionGAConfigRepository.findBySessionIdAndGaAreaIdIn(cart.sessionId, gaLevelIds)
-            .associateBy { it.gaAreaId }
+        val seatTemplateNames = eventApi.getSeatPriceTemplateNames(cart.sessionId, seatIds)
+        val gaTemplateNames = eventApi.getGaPriceTemplateNames(cart.sessionId, gaLevelIds)
 
         // Batch fetch seat info from seating API
         val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
@@ -87,10 +81,10 @@ class CartQueryService(
 
         // 4. Map results in memory (no more calls inside loops)
         val seatResponses = seats.mapNotNull { cartSeat ->
-            val config = seatConfigs[cartSeat.seatId]
+            val templateName = seatTemplateNames[cartSeat.seatId]
             val seatInfo = seatInfoMap[cartSeat.seatId]
 
-            if (config == null || seatInfo == null) {
+            if (seatInfo == null) {
                 logger.warn { "Missing data for cart seat: ${cartSeat.seatId}" }
                 null // Skip item if data is inconsistent
             } else {
@@ -100,16 +94,16 @@ class CartQueryService(
                     rowLabel = seatInfo.rowLabel,
                     levelName = seatInfo.zoneName,
                     price = cartSeat.unitPrice,
-                    priceTemplateName = config.priceTemplate?.templateName
+                    priceTemplateName = templateName
                 )
             }
         }
 
         val gaItemResponses = gaItems.mapNotNull { cartItem ->
-            val config = gaConfigs[cartItem.gaAreaId]
+            val templateName = gaTemplateNames[cartItem.gaAreaId]
             val gaInfo = gaInfoMap[cartItem.gaAreaId]
 
-            if (config == null || gaInfo == null) {
+            if (gaInfo == null) {
                 logger.warn { "Missing data for cart GA item: ${cartItem.gaAreaId}" }
                 null
             } else {
@@ -118,7 +112,7 @@ class CartQueryService(
                     code = gaInfo.code,
                     levelName = gaInfo.name,
                     unitPrice = cartItem.unitPrice,
-                    priceTemplateName = config.priceTemplate?.templateName
+                    priceTemplateName = templateName
                 )
             }
         }
@@ -147,10 +141,11 @@ class CartQueryService(
             gaItems = gaItemResponses,
             tables = tableResponses,
             totalPrice = total,
-            currency = session.event.currency,
+            currency = sessionDto.currency,
             expiresAt = cart.expiresAt.toString(),
             sessionId = cart.sessionId,
-            eventTitle = session.event.title
+            eventTitle = sessionDto.eventTitle
         )
     }
 }
+

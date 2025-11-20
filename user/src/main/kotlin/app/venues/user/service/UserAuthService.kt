@@ -102,7 +102,7 @@ class UserAuthService(
         val token = jwtService.generateToken(
             email = user.email,
             id = user.id,
-            role = user.role.name
+            role = "USER"  // All users are customers with USER role
         )
 
         logger.info { "Login successful for user: ${user.email}, ID=${user.id}" }

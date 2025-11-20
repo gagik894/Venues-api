@@ -13,34 +13,31 @@ import java.util.*
  * Spring Data JPA automatically implements this interface at runtime.
  * Provides standard CRUD operations plus custom query methods.
  *
- * Query Methods:
- * - Spring Data JPA derives queries from method names
- * - No implementation code required
- * - Type-safe and compile-time checked
- *
- * Custom Queries:
- * - Use @Query annotation for complex queries
- * - JPQL (Java Persistence Query Language) for database-agnostic queries
+ * Performance Optimizations:
+ * - Email queries use LOWER() for case-insensitive matching
+ * - Indexes defined on User entity for fast lookups
  */
 @Repository
 interface UserRepository : JpaRepository<User, UUID> {
 
     /**
-     * Finds a user by email address.
+     * Finds a user by email address (case-insensitive).
      * Used for authentication and uniqueness checks.
      *
      * @param email The email address to search for
      * @return Optional containing the user if found, empty otherwise
      */
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     fun findByEmail(email: String): Optional<User>
 
     /**
-     * Checks if a user exists with the given email.
+     * Checks if a user exists with the given email (case-insensitive).
      * More efficient than findByEmail when only checking existence.
      *
      * @param email The email address to check
      * @return true if a user with this email exists
      */
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     fun existsByEmail(email: String): Boolean
 
     /**
@@ -121,4 +118,3 @@ interface UserRepository : JpaRepository<User, UUID> {
      */
     fun countByReferrerId(referrerId: UUID): Long
 }
-

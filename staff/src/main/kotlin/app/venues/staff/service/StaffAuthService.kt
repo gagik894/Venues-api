@@ -108,23 +108,28 @@ class StaffAuthService(
      * Authenticates a staff member and generates JWT token.
      *
      * Process:
-     * 1. Find staff by email
+     * 1. Find staff by email (READ-ONLY transaction)
      * 2. Check account status (active, not locked)
      * 3. Verify password
-     * 4. Update login tracking
+     * 4. Update login tracking (WRITE transaction)
      * 5. Load organizational context
      * 6. Generate JWT token
      * 7. Return token and context
+     *
+     * Performance Optimization:
+     * - Uses @Transactional(readOnly = true) for initial lookup to reduce lock contention
+     * - Only opens write transaction after successful authentication
      *
      * @param request Login credentials
      * @return StaffAuthResponse with JWT token and organizational context
      * @throws VenuesException.AuthenticationFailure if authentication fails
      * @throws VenuesException.AuthorizationFailure if account cannot authenticate
      */
+    @Transactional(readOnly = true)
     fun login(request: StaffLoginRequest): StaffAuthResponse {
         logger.info { "Login attempt for staff: ${request.email}" }
 
-        // Find staff by email
+        // Find staff by email (read-only)
         val staff = staffRepository.findByEmail(request.email.lowercase().trim())
             ?: run {
                 logger.warn { "Login failed: Staff not found: ${request.email}" }
@@ -150,7 +155,7 @@ class StaffAuthService(
             throw VenuesException.AuthorizationFailure(message, "ACCOUNT_NOT_ACTIVE")
         }
 
-        // Verify password
+        // Verify password (still in read-only transaction)
         if (!passwordEncoder.matches(request.password, staff.passwordHash)) {
             logger.warn { "Login failed: Invalid password for staff: ${staff.email}" }
 
@@ -163,9 +168,8 @@ class StaffAuthService(
             )
         }
 
-        // Successful authentication
-        staff.recordSuccessfulLogin()
-        staffRepository.save(staff)
+        // Successful authentication - now record it in write transaction
+        recordSuccessfulLoginInWriteTransaction(staff.id!!)
 
         // Generate JWT token
         val token = jwtService.generateToken(
@@ -174,7 +178,7 @@ class StaffAuthService(
             role = if (staff.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
         )
 
-        // Load organizational context
+        // Load organizational context (uses @EntityGraph for efficiency)
         val context = staffContextBuilder.buildContext(staff)
 
         logger.info { "Login successful for staff: ${staff.email}, ID=${staff.id}" }
@@ -185,6 +189,21 @@ class StaffAuthService(
             token = token,
             expiresIn = jwtService.getExpirationMs()
         )
+    }
+
+    /**
+     * Records successful login in a separate write transaction.
+     * This method is called after password verification succeeds.
+     *
+     * @param staffId Staff member ID
+     */
+    @Transactional
+    protected fun recordSuccessfulLoginInWriteTransaction(staffId: UUID) {
+        val staff = staffRepository.findById(staffId).orElseThrow {
+            VenuesException.InternalError("Staff not found after successful auth", "STAFF_NOT_FOUND")
+        }
+        staff.recordSuccessfulLogin()
+        staffRepository.save(staff)
     }
 
     /**

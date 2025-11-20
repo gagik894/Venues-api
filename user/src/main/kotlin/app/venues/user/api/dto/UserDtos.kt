@@ -1,7 +1,6 @@
 package app.venues.user.api.dto
 
 import app.venues.common.constants.AppConstants
-import app.venues.user.domain.UserRole
 import app.venues.user.domain.UserStatus
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -141,7 +140,6 @@ data class UserResponse(
     val lastName: String,
     val fullName: String,
     val phoneNumber: String?,
-    val role: UserRole,
     val status: UserStatus,
     val emailVerified: Boolean,
     val lastLoginAt: Instant?,

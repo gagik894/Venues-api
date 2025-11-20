@@ -37,7 +37,6 @@ object UserMapper {
             lastName = user.lastName,
             fullName = user.getFullName(),
             phoneNumber = user.phoneNumber,
-            role = user.role,
             status = user.status,
             emailVerified = user.emailVerified,
             lastLoginAt = user.lastLoginAt,

@@ -1,10 +1,3 @@
-/*
- * Venues API - Government-Sponsored Cultural Venues Portal
- * Copyright (c) 2025 Government Cultural Department
- *
- * JWT Authentication Filter for processing JWT tokens in requests.
- */
-
 package app.venues.shared.security.jwt
 
 import io.github.oshai.kotlinlogging.KotlinLogging

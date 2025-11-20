@@ -90,8 +90,19 @@ class UserAuthService(
         if (!passwordEncoder.matches(request.password, user.passwordHash)) {
             logger.warn { "Login failed: Invalid password for user: ${user.email}" }
 
-            // Record failed login attempt in separate transaction
-            failedLoginService.recordFailedLoginAttempt(user.id!!)
+            // Record failed login attempt in separate transaction with retry logic
+            var attempts = 0
+            while (attempts < 3) {
+                try {
+                    failedLoginService.recordFailedLoginAttempt(user.id)
+                    break
+                } catch (e: org.springframework.dao.OptimisticLockingFailureException) {
+                    attempts++
+                    if (attempts >= 3) {
+                        logger.error(e) { "Failed to record login attempt after 3 retries for user ${user.id}" }
+                    }
+                }
+            }
 
             throw VenuesException.AuthenticationFailure(
                 "Invalid email or password",
@@ -100,7 +111,7 @@ class UserAuthService(
         }
 
         // Successful authentication - now record it in write transaction
-        recordSuccessfulLoginInWriteTransaction(user.id!!)
+        recordSuccessfulLoginInWriteTransaction(user.id)
 
         // Generate JWT token
         val token = jwtService.generateToken(

@@ -79,6 +79,10 @@ class User(
     var failedLoginAttempts: Int = 0
         protected set
 
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
+
     @Column(name = "locked_until")
     @Access(AccessType.FIELD)
     var lockedUntil: Instant? = null

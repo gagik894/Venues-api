@@ -50,6 +50,10 @@ class StaffIdentity(
     @Column(name = "failed_login_attempts", nullable = false)
     var failedLoginAttempts: Int = 0,
 
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0,
+
     @Column(name = "account_locked_until")
     var accountLockedUntil: Instant? = null,
 

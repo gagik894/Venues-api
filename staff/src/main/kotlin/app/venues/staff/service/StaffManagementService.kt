@@ -24,7 +24,6 @@ import java.util.*
  * - Status updates (suspend/reactivate)
  */
 @Service
-@Transactional
 class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
     private val staffContextBuilder: StaffContextBuilder
@@ -66,6 +65,7 @@ class StaffManagementService(
      * @return StaffProfileDto of the invited staff member
      * @throws VenuesException.ResourceNotFound if staff identity doesn't exist
      */
+    @Transactional
     fun inviteStaff(request: InviteStaffRequest): StaffProfileDto {
         logger.info { "Inviting ${request.email} to org ${request.organizationId} as ${request.role}" }
 
@@ -116,6 +116,7 @@ class StaffManagementService(
      * @param request Status update request
      * @throws VenuesException.ResourceNotFound if staff not found
      */
+    @Transactional
     fun updateStatus(request: UpdateStaffStatusRequest) {
         logger.warn { "Updating status of staff ${request.staffId} to ${request.status}" }
 

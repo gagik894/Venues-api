@@ -10,6 +10,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
@@ -30,7 +31,7 @@ class StaffAdminController(
         summary = "Get User Context",
         description = "Returns the hierarchy of Organizations and Venues this user can access"
     )
-    fun getMyContext(@RequestAttribute("staffId") staffId: UUID): ApiResponse<StaffGlobalContextDto> {
+    fun getMyContext(@RequestAttribute("principalId") staffId: UUID): ApiResponse<StaffGlobalContextDto> {
         // Note: "staffId" usually comes from a JWT Filter/Interceptor
         logger.debug { "Fetching context for staff: $staffId" }
 
@@ -57,6 +58,7 @@ class StaffAdminController(
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Status", description = "Suspend or Reactivate a staff member (System Admin only)")
     fun updateStatus(
         @PathVariable id: UUID,

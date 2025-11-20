@@ -150,8 +150,8 @@ class InventoryReservationHandler(
                         sessionId = sessionId,
                         levelIdentifier = gaInfo.code,
                         levelName = gaInfo.name,
-                        availableTickets = gaAvailability.availableTickets,
-                        totalCapacity = gaAvailability.totalCapacity
+                        availableTickets = gaAvailability.capacity - gaAvailability.soldCount,
+                        totalCapacity = gaAvailability.capacity
                     )
                 )
             }

@@ -175,7 +175,7 @@ class VenueAdminController(
 ) {
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(
@@ -205,7 +205,7 @@ class VenueAdminController(
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "List all venues",
@@ -222,7 +222,7 @@ class VenueAdminController(
     }
 
     @PostMapping("/{id}/activate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Activate venue",
@@ -236,7 +236,7 @@ class VenueAdminController(
     }
 
     @PostMapping("/{id}/suspend")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Suspend venue",
@@ -250,7 +250,7 @@ class VenueAdminController(
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(

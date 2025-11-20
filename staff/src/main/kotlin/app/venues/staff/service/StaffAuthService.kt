@@ -11,6 +11,7 @@ import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.repository.StaffIdentityRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -89,11 +90,21 @@ class StaffAuthService(
 
         // TODO: Send verification email
 
-        // Generate JWT token
+        // Generate JWT token with appropriate role
+        // Role mapping:
+        // - Super admin → SUPER_ADMIN (platform-level access)
+        // - Organization OWNER/ADMIN → ADMIN (organization/venue management)
+        // - Organization MEMBER → STAFF (basic access)
+        val role = when {
+            saved.isPlatformSuperAdmin -> "SUPER_ADMIN"
+            // For new registrations, default to STAFF until they join an organization
+            else -> "STAFF"
+        }
+
         val token = jwtService.generateToken(
             email = saved.email,
             id = saved.id,
-            role = if (saved.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
+            role = role
         )
 
         return StaffMapper.toAuthResponse(
@@ -165,7 +176,7 @@ class StaffAuthService(
                 try {
                     failedLoginService.recordFailedLoginAttempt(staff.id)
                     break
-                } catch (e: org.springframework.dao.OptimisticLockingFailureException) {
+                } catch (e: OptimisticLockingFailureException) {
                     attempts++
                     if (attempts >= 3) {
                         logger.error(e) { "Failed to record login attempt after 3 retries for staff ${staff.id}" }
@@ -182,15 +193,24 @@ class StaffAuthService(
         // Successful authentication - now record it in write transaction
         recordSuccessfulLoginInWriteTransaction(staff.id)
 
-        // Generate JWT token
+        // Load organizational context (uses @EntityGraph for efficiency)
+        val context = staffContextBuilder.buildContext(staff)
+
+        // Determine JWT role - PLATFORM LEVEL ONLY
+        // JWT roles represent system-wide permissions, not organization-specific roles.
+        // Organization/venue permissions are checked separately via context in service layer.
+        //
+        // Role assignment:
+        // - SUPER_ADMIN: Platform administrator (can manage all organizations/venues)
+        // - STAFF: Regular staff member (permissions determined by organization/venue membership)
+        val role = if (staff.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
+
+        // Generate JWT token with platform-level role
         val token = jwtService.generateToken(
             email = staff.email,
             id = staff.id,
-            role = if (staff.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
+            role = role
         )
-
-        // Load organizational context (uses @EntityGraph for efficiency)
-        val context = staffContextBuilder.buildContext(staff)
 
         logger.info { "Login successful for staff: ${staff.email}, ID=${staff.id}" }
 

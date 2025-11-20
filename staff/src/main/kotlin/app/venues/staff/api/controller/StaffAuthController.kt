@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/v1/staff/auth")
+@RequestMapping("/api/v1/auth/staff")
 @Tag(name = "Staff Auth", description = "Authentication and Registration for Staff/Admins")
 class StaffAuthController(
     private val authService: StaffAuthService

@@ -102,17 +102,28 @@ interface CityRepository : JpaRepository<City, Long> {
      * @return Page of matching cities
      */
     @Query(
-        """
-        SELECT c FROM City c 
-        WHERE c.isActive = true 
+        value = """
+        SELECT * FROM ref_cities c 
+        WHERE c.is_active = true 
         AND (
-            LOWER(c.slug) LIKE LOWER(CONCAT('%', :searchTerm, '%'))
-            OR FUNCTION('jsonb_extract_path_text', c.names, 'hy') LIKE CONCAT('%', :searchTerm, '%')
-            OR FUNCTION('jsonb_extract_path_text', c.names, 'en') LIKE LOWER(CONCAT('%', :searchTerm, '%'))
-            OR FUNCTION('jsonb_extract_path_text', c.names, 'ru') LIKE CONCAT('%', :searchTerm, '%')
+            c.slug ILIKE CONCAT('%', :searchTerm, '%') 
+            OR c.names ->> 'hy' ILIKE CONCAT('%', :searchTerm, '%')
+            OR c.names ->> 'en' ILIKE CONCAT('%', :searchTerm, '%')
+            OR c.names ->> 'ru' ILIKE CONCAT('%', :searchTerm, '%')
+        ) 
+        ORDER BY c.display_order ASC NULLS LAST, c.slug ASC
+        """,
+        countQuery = """
+        SELECT count(*) FROM ref_cities c 
+        WHERE c.is_active = true 
+        AND (
+            c.slug ILIKE CONCAT('%', :searchTerm, '%') 
+            OR c.names ->> 'hy' ILIKE CONCAT('%', :searchTerm, '%')
+            OR c.names ->> 'en' ILIKE CONCAT('%', :searchTerm, '%')
+            OR c.names ->> 'ru' ILIKE CONCAT('%', :searchTerm, '%')
         )
-        ORDER BY c.displayOrder NULLS LAST, c.slug ASC
-    """
+        """,
+        nativeQuery = true
     )
     fun searchByName(@Param("searchTerm") searchTerm: String, pageable: Pageable): Page<City>
 

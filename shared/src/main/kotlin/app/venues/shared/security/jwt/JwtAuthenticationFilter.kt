@@ -150,6 +150,10 @@ class JwtAuthenticationFilter(
             // Set authentication in SecurityContext
             SecurityContextHolder.getContext().authentication = authentication
 
+            // Set principal ID as request attributes for controller access via @RequestAttribute
+            // Support both "staffId" and "userId" for different entity types
+            request.setAttribute("principalId", principalId)
+
             log.debug { "Principal authenticated successfully: principalId=$principalId, email=$email, role=$role" }
 
         } catch (e: ExpiredJwtException) {

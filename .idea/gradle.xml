@@ -15,6 +15,7 @@
             <option value="$PROJECT_DIR$/common" />
             <option value="$PROJECT_DIR$/event" />
             <option value="$PROJECT_DIR$/location" />
+            <option value="$PROJECT_DIR$/organization" />
             <option value="$PROJECT_DIR$/platform" />
             <option value="$PROJECT_DIR$/seating" />
             <option value="$PROJECT_DIR$/seating-api" />

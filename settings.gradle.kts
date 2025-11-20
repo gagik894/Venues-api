@@ -40,8 +40,9 @@ include(":event")
 include(":booking")
 include(":platform")
 include(":location")
+include(":staff")
+include(":organization")
 
 
 rootProject.name = "Venues-api"
 include("booking-api")
-include("staff")

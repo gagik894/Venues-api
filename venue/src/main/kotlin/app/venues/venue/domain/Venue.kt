@@ -5,6 +5,7 @@ import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
+import java.util.*
 
 /**
  * Represents a Venue (the "place").
@@ -46,6 +47,14 @@ class Venue(
     var slug: String,
 
     // --- Legal ---
+
+    /**
+     * The Parent Organization ID.
+     * Allows efficient "Get all venues for Ministry X" queries.
+     */
+    @Column(name = "organization_id", nullable = false)
+    var organizationId: UUID,
+
     @Column(name = "legal_name", length = 255)
     var legalName: String? = null,
 
@@ -133,6 +142,14 @@ class Venue(
 
     @OneToOne(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
     var settings: VenueSettings? = null // The Secrets (Stripe/SMTP)
+
+    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OrderBy("dayOfWeek ASC")
+    var schedules: MutableList<VenueSchedule> = mutableListOf()
+
+    @OneToMany(mappedBy = "venue", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OrderBy("displayOrder ASC")
+    var photos: MutableList<VenuePhoto> = mutableListOf()
 
     // Helper
     fun getName(lang: String): String =

@@ -88,10 +88,11 @@ class SeatingChart(
      * @throws IllegalArgumentException if the zone is already attached to another chart.
      */
     fun addZone(zone: ChartZone) {
-        if (zone.chart != this) {
+        if (zone.chart != null && zone.chart != this) {
             throw IllegalArgumentException("Zone belongs to a different chart")
         }
         if (!_zones.contains(zone)) {
+            zone.chart = this
             _zones.add(zone)
         }
     }

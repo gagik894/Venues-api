@@ -68,7 +68,7 @@ class SeatingResponseMapper {
      */
     fun toZoneResponse(zone: ChartZone): ZoneResponse {
         return ZoneResponse(
-            id = zone.id ?: error("Zone ID cannot be null"),
+            id = zone.id ?: throw IllegalStateException("Zone ID is required but was null when mapping to ZoneResponse"),
             parentZoneId = zone.parentZone?.id,
             name = zone.name,
             code = zone.code,

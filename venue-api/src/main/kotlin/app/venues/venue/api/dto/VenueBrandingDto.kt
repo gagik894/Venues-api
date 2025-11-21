@@ -14,6 +14,7 @@ data class VenueBrandingDto(
 
 data class HeroConfigDto(
     val title: Map<String, String>,
+    val imageUrl: String,
     val subtitle: Map<String, String>?,
     val ctaText: Map<String, String>?,
     val ctaLink: String?

@@ -46,6 +46,7 @@ class VenueBranding(
 
 data class HeroConfig(
     val title: Map<String, String>, // Multilingual
+    val imageUrl: String,
     val subtitle: Map<String, String>?,
     val ctaText: Map<String, String>?,
     val ctaLink: String?

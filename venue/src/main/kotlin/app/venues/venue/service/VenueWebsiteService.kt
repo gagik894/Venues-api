@@ -1,10 +1,7 @@
 package app.venues.venue.service
 
 import app.venues.common.exception.VenuesException
-import app.venues.venue.api.dto.LocalizedVenueWebsiteDto
-import app.venues.venue.api.dto.UpdateVenueBrandingRequest
-import app.venues.venue.api.dto.VenueBrandingDto
-import app.venues.venue.api.dto.VenueWebsiteDataDto
+import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueWebsiteMapper
 import app.venues.venue.domain.VenueBranding
 import app.venues.venue.repository.VenueBrandingRepository
@@ -30,24 +27,31 @@ class VenueWebsiteService(
     }
 
     @Transactional(readOnly = true)
-    fun getVenueWebsiteData(venueId: UUID): VenueWebsiteDataDto {
-        val venue = venueRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
-
-        return venueWebsiteMapper.toWebsiteData(venue)
+    fun getWebsiteLayout(venueId: UUID, lang: String): WebsiteLayoutDto {
+        val venue = getVenueOrThrow(venueId)
+        return venueWebsiteMapper.toLayoutDto(venue, lang)
     }
 
     @Transactional(readOnly = true)
-    fun getLocalizedVenueWebsiteData(venueId: UUID, lang: String): LocalizedVenueWebsiteDto {
-        val venue = venueRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
+    fun getHomePage(venueId: UUID, lang: String): HomePageDto {
+        val venue = getVenueOrThrow(venueId)
+        return venueWebsiteMapper.toHomePageDto(venue, lang)
+    }
 
-        return venueWebsiteMapper.toLocalizedWebsiteData(venue, lang)
+    @Transactional(readOnly = true)
+    fun getAboutPage(venueId: UUID, lang: String): AboutPageDto {
+        val venue = getVenueOrThrow(venueId)
+        return venueWebsiteMapper.toAboutPageDto(venue, lang)
+    }
+
+    @Transactional(readOnly = true)
+    fun getContactPage(venueId: UUID, lang: String): ContactPageDto {
+        val venue = getVenueOrThrow(venueId)
+        return venueWebsiteMapper.toContactPageDto(venue, lang)
     }
 
     fun updateVenueBranding(venueId: UUID, request: UpdateVenueBrandingRequest): VenueBrandingDto {
-        val venue = venueRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
+        val venue = getVenueOrThrow(venueId)
 
         val branding = venueBrandingRepository.findById(venueId)
             .orElse(VenueBranding(id = venueId, venue = venue))
@@ -62,4 +66,7 @@ class VenueWebsiteService(
         val saved = venueBrandingRepository.save(branding)
         return venueWebsiteMapper.toDto(saved)
     }
+
+    private fun getVenueOrThrow(venueId: UUID) = venueRepository.findById(venueId)
+        .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
 }

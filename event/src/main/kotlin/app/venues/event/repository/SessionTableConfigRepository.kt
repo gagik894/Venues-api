@@ -177,6 +177,25 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     ): Int
 
     /**
+     * BATCH operation: Sell multiple tables atomically (RESERVED -> SOLD).
+     *
+     * @param sessionId Event session ID
+     * @param tableIds List of table IDs to sell
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = app.venues.event.domain.ConfigStatus.SOLD
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status = app.venues.event.domain.ConfigStatus.RESERVED
+    """
+    )
+    fun sellTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
      * Check if any configs exist for the session.
      */
     fun existsBySessionId(sessionId: UUID): Boolean

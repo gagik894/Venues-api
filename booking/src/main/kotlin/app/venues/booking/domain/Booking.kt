@@ -4,6 +4,7 @@ import app.venues.booking.api.domain.BookingStatus
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.util.*
 
@@ -57,9 +58,19 @@ class Booking(
     var venueId: UUID?,
 
     @Column(name = "external_order_number", length = 100, unique = true)
-    var externalOrderNumber: String? = null
+    var externalOrderNumber: String? = null,
+
+    @Column(name = "service_fee_amount", nullable = false, precision = 10, scale = 2)
+    var serviceFeeAmount: BigDecimal = BigDecimal.ZERO
 
 ) : AbstractUuidEntity() {
+
+    init {
+        require(serviceFeeAmount.signum() >= 0) { "serviceFeeAmount must be >= 0" }
+        require(totalPrice.compareTo(serviceFeeAmount) >= 0) {
+            "totalPrice must be greater than or equal to serviceFeeAmount"
+        }
+    }
 
     // --- Internal State (Encapsulated) ---
     @Column(name = "status", nullable = false, length = 20)
@@ -98,6 +109,25 @@ class Booking(
     }
 
     /**
+     * Apply a service fee given as a percentage of a provided base amount.
+     * Percent is expected as a decimal percentage (e.g. 2.5 for 2.5\%).
+     * Updates `serviceFeeAmount` and `totalPrice` (baseAmount + fee).
+     *
+     * @throws IllegalArgumentException when percent is negative or baseAmount is negative.
+     */
+    fun applyServiceFeePercent(baseAmount: BigDecimal, percent: BigDecimal) {
+        require(percent.signum() >= 0) { "percent must be >= 0" }
+        require(baseAmount.signum() >= 0) { "baseAmount must be >= 0" }
+
+        val fee = baseAmount.multiply(percent)
+            .divide(BigDecimal(100))
+            .setScale(2, RoundingMode.HALF_UP)
+
+        serviceFeeAmount = fee
+        totalPrice = baseAmount.add(serviceFeeAmount)
+    }
+
+    /**
      * Confirms the booking, moving it to a confirmed state
      * and recording the payment.
      *
@@ -127,6 +157,11 @@ class Booking(
         this.cancellationReason = reason
     }
 
+    /**
+     * Adds a [BookingItem] to this booking.
+     * Also sets the item's `booking` reference to this booking.
+     * @param item The [BookingItem] to add.
+     */
     fun addItem(item: BookingItem) {
         items.add(item)
         item.booking = this

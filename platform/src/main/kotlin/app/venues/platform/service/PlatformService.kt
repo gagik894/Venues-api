@@ -270,57 +270,62 @@ class PlatformService(
      * Sell seats (convert reservation to booking) for external platform
      */
     fun sellSeats(
-        platformId: Long,
+        platformId: UUID,
         request: PlatformSellRequest
     ): PlatformSellResponse {
         logger.debug { "Platform $platformId selling reservation ${request.reservationToken}" }
-        // TODO: Implement sellSeats logic
-//        val platform = platformRepository.findById(platformId)
-//            .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
-//
-//        if (!platform.isActive()) {
-//            throw VenuesException.ValidationFailure("Platform is not active")
-//        }
-//
-//        // 1. Create the API Port DTO
-//        val createBookingRequest = CreateBookingRequest(
-//            cartToken = request.reservationToken,
-//            platformId = platformId,
-//            customer = CustomerDetailsDto(
-//                guestName = request.guestName ?: "Guest",
-//                guestEmail = request.guestEmail ?: "noemail@empty.com",
-//                guestPhone = request.guestPhone
-//            ),
-//            payment = PlatformPaymentDto(
-//                paymentMethod = request.paymentMethod,
-//                paymentReference = request.paymentReference
-//            )
-//        )
-//
-//        // 2. Call the BookingApi Port
-//        val bookingDto: BookingDto = bookingApi.createBookingFromCart(createBookingRequest)
-//
-//        logger.info { "Platform ${platform.name} completed sale: bookingId=${bookingDto.id}, total=${bookingDto.totalPrice}" }
-//
-//        // 3. Map the internal DTO to the external PlatformSellResponse
-//        val seats = bookingDto.items
-//            .filter { it.type == "SEAT" }
-//            .map { mapBookingItemToReservedSeat(it) }
-//
-//        val gaTickets = bookingDto.items
-//            .filter { it.type == "GA" || it.type == "TABLE" }
-//            .map { mapBookingItemToReservedGA(it) }
-//
-//        return PlatformSellResponse(
-//            bookingId = bookingDto.id.toString(),
-//            bookingReference = bookingDto.id.toString(),
-//            message = "Booking confirmed successfully",
-//            totalAmount = bookingDto.totalPrice.toString(),
-//            currency = bookingDto.currency,
-//            seats = seats.takeIf { it.isNotEmpty() },
-//            gaTickets = gaTickets.takeIf { it.isNotEmpty() }
-//        )
-        return TODO()
+
+        val platform = platformRepository.findById(platformId)
+            .orElseThrow { VenuesException.ResourceNotFound("Platform not found") }
+
+        if (!platform.isActive()) {
+            throw VenuesException.ValidationFailure("Platform is not active")
+        }
+
+        // Call the BookingApi Port
+        val bookingDto = bookingApi.createBookingFromCart(
+            cartToken = request.reservationToken,
+            platformId = platformId,
+            paymentMethod = request.paymentMethod,
+            paymentReference = request.paymentReference,
+            guestEmail = request.guestEmail ?: "noemail@empty.com",
+            guestName = request.guestName ?: "Guest",
+            guestPhone = request.guestPhone
+        )
+
+        logger.info { "Platform ${platform.name} completed sale: bookingId=${bookingDto.id}, total=${bookingDto.totalPrice}" }
+
+        // Map the internal DTO to the external PlatformSellResponse
+        val seats = bookingDto.items
+            .filter { it.seatId != null }
+            .map { item ->
+                ReservedSeatInfo(
+                    seatIdentifier = item.seatIdentifier ?: "",
+                    levelName = item.levelName ?: "",
+                    seatNumber = null,
+                    rowLabel = null
+                )
+            }
+
+        val gaTickets = bookingDto.items
+            .filter { it.levelId != null }
+            .map { item ->
+                ReservedGAInfo(
+                    levelIdentifier = item.levelName ?: item.levelId.toString(),
+                    levelName = item.levelName ?: "",
+                    quantity = item.quantity
+                )
+            }
+
+        return PlatformSellResponse(
+            bookingId = bookingDto.id.toString(),
+            bookingReference = bookingDto.id.toString(),
+            message = "Booking confirmed successfully",
+            totalAmount = bookingDto.totalPrice.toString(),
+            currency = bookingDto.currency,
+            seats = seats.takeIf { it.isNotEmpty() },
+            gaTickets = gaTickets.takeIf { it.isNotEmpty() }
+        )
     }
 
     // ===========================================

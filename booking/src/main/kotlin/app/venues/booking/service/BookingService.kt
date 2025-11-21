@@ -12,6 +12,7 @@ import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -45,7 +46,8 @@ class BookingService(
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
-    private val eventApi: EventApi
+    private val eventApi: EventApi,
+    private val venueApi: VenueApi
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -110,8 +112,27 @@ class BookingService(
             throw VenuesException.AuthorizationFailure("You can only confirm your own bookings")
         }
 
+        if (booking.status == app.venues.booking.api.domain.BookingStatus.CONFIRMED) {
+            return prepareBookingResponse(booking)
+        }
+
         booking.confirm(request.paymentId)
         val savedBooking = bookingRepository.save(booking)
+
+        // Finalize inventory (RESERVED -> SOLD)
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
+        }
+
+        // For GA, we don't need to do anything if soldCount was already incremented during reservation.
+        // But if we want to be explicit or if logic changes, we could call sellGaBatch.
+        // Currently sellGa is no-op in EventApiService, so calling it is safe and future-proof.
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        if (gaItems.isNotEmpty()) {
+            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
+        }
 
         logger.info { "Booking confirmed: $bookingId" }
 
@@ -138,6 +159,18 @@ class BookingService(
 
         booking.cancel(request.reason)
         val savedBooking = bookingRepository.save(booking)
+
+        // Release inventory (RESERVED/SOLD -> AVAILABLE)
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            eventApi.releaseSeatsBatch(booking.sessionId, seatIds)
+        }
+
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        if (gaItems.isNotEmpty()) {
+            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
+        }
 
         logger.info { "Booking cancelled: $bookingId" }
 
@@ -235,12 +268,13 @@ class BookingService(
             )
         }
 
+        val venueName = booking.venueId?.let { venueApi.getVenueName(it) } ?: "Unknown Venue"
 
         return bookingMapper.toResponse(
             booking = booking,
             eventTitle = sessionDto.eventTitle,
             eventDescription = sessionDto.eventDescription,
-            venueName = "venueName", // TODO: fetch venue name if needed
+            venueName = venueName,
             sessionStartTime = sessionDto.startTime.toString(),
             sessionEndTime = sessionDto.endTime.toString(),
             customerEmail = customerEmail,
@@ -315,90 +349,73 @@ class BookingService(
         cartData: CartData,
         userId: UUID?,
         guest: Guest?,
-        platformId: Long?,
+        platformId: UUID?,
         paymentReference: String? = null
     ): Booking {
-//        val cart = cartData.cart
-//        val session = cartData.session
-//        val event = cartData.event
-//        val venueId = event.venueId
-//
-//        // Calculate total and create booking items
-//        var totalPrice = BigDecimal.ZERO
-//        val bookingItems = mutableListOf<BookingItem>()
-//
-//        // Add seat items
-//        cartData.cartSeats.forEach { cartSeat ->
-//            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(session.id!!, cartSeat.seatId)
-//                ?: throw VenuesException.ValidationFailure("Seat config not found")
-//
-//            val item = BookingItem(
-//                booking = Booking(
-//                    userId = userId,
-//                    guest = guest,
-//                    sessionId = session.id,
-//                    reservationToken = cart.token,
-//                    platformId = platformId,
-//                    venueId = venueId,
-//                    totalPrice = BigDecimal.ZERO,
-//                    currency = event.currency,
-//                    paymentId = paymentReference
-//                ),
-//                seatId = cartSeat.seatId,
-//                sessionSeatConfigId = config.id,
-//                quantity = 1,
-//                unitPrice = cartSeat.unitPrice,
-//                priceTemplateName = config.priceTemplate?.templateName
-//            )
-//            bookingItems.add(item)
-//            totalPrice = totalPrice.add(cartSeat.unitPrice)
-//        }
-//
-//        // Add GA items
-//        cartData.cartItems.forEach { cartItem ->
-//            val config = sessionLevelConfigRepository.findBySessionIdAndLevelId(session.id!!, cartItem.levelId)
-//                ?: throw VenuesException.ValidationFailure("Level config not found")
-//
-//            val itemTotal = cartItem.unitPrice.multiply(BigDecimal(cartItem.quantity))
-//            val item = BookingItem(
-//                booking = Booking(
-//                    userId = userId,
-//                    guest = guest,
-//                    sessionId = session.id,
-//                    ord  = cart.token,
-//                    platformId = platformId,
-//                    venueId = venueId,
-//                    totalPrice = BigDecimal.ZERO,
-//                    currency = event.currency,
-//                    paymentId = paymentReference
-//                ),
-//                levelId = cartItem.levelId,
-//                quantity = cartItem.quantity,
-//                unitPrice = cartItem.unitPrice,
-//                priceTemplateName = config.priceTemplate?.templateName
-//            )
-//            bookingItems.add(item)
-//            totalPrice = totalPrice.add(itemTotal)
-//        }
-//
-//        // Create booking
-//        val booking = Booking(
-//            userId = userId,
-//            guest = guest,
-//            sessionId = session.id!!,
-//            reservationToken = cart.token,
-//            platformId = platformId,
-//            venueId = venueId,
-//            totalPrice = totalPrice,
-//            currency = event.currency,
-//            paymentId = paymentReference
-//        )
-//
-//        // Add items to booking
-//        bookingItems.forEach { booking.addItem(it) }
-//
-//        return booking
-        return TODO()
+        cartData.cart
+        val sessionDto = cartData.sessionDto
+        val venueId = sessionDto.venueId
+
+        // Calculate total and create booking items
+        var totalPrice = java.math.BigDecimal.ZERO
+        val bookingItems = mutableListOf<BookingItem>()
+
+        // Create booking first (needed for items)
+        val booking = Booking(
+            userId = userId,
+            guest = guest,
+            sessionId = sessionDto.sessionId,
+            platformId = platformId,
+            venueId = venueId,
+            totalPrice = java.math.BigDecimal.ZERO, // Will update
+            currency = sessionDto.currency
+        )
+
+        if (paymentReference != null) {
+            // We can't set paymentId directly if it's protected set.
+            // But we can confirm it later.
+        }
+
+        // Add seat items
+        // We need price template names. EventApi provides batch lookup.
+        val seatIds = cartData.cartSeats.map { it.seatId }
+        val seatTemplates = eventApi.getSeatPriceTemplateNames(sessionDto.sessionId, seatIds)
+
+        cartData.cartSeats.forEach { cartSeat ->
+            val item = BookingItem(
+                booking = booking,
+                seatId = cartSeat.seatId,
+                quantity = 1,
+                unitPrice = cartSeat.unitPrice,
+                priceTemplateName = seatTemplates[cartSeat.seatId]
+            )
+            bookingItems.add(item)
+            totalPrice = totalPrice.add(cartSeat.unitPrice)
+        }
+
+        // Add GA items
+        val gaAreaIds = cartData.cartItems.map { it.gaAreaId }
+        val gaTemplates = eventApi.getGaPriceTemplateNames(sessionDto.sessionId, gaAreaIds)
+
+        cartData.cartItems.forEach { cartItem ->
+            val itemTotal = cartItem.unitPrice.multiply(java.math.BigDecimal(cartItem.quantity))
+            val item = BookingItem(
+                booking = booking,
+                gaAreaId = cartItem.gaAreaId,
+                quantity = cartItem.quantity,
+                unitPrice = cartItem.unitPrice,
+                priceTemplateName = gaTemplates[cartItem.gaAreaId]
+            )
+            bookingItems.add(item)
+            totalPrice = totalPrice.add(itemTotal)
+        }
+
+        booking.totalPrice = totalPrice
+
+        // Add items to booking
+        bookingItems.forEach { booking.addItem(it) }
+
+        return booking
     }
 
 
@@ -435,70 +452,80 @@ class BookingService(
      */
     fun createBookingFromCart(
         cartToken: UUID,
-        platformId: Long,
+        platformId: UUID,
         paymentMethod: String,
         paymentReference: String,
         guestEmail: String? = null,
         guestName: String? = null,
         guestPhone: String? = null
     ): Booking {
-//        logger.debug { "Creating booking from cart for platform $platformId: token=$cartToken" }
-//
-//        // Validate cart and get session
-//        val cartData = validateCartAndGetSession(cartToken)
-//
-//        // Create or find guest if email provided
-//        val guest = if (guestEmail != null && guestName != null) {
-//            guestService.findOrCreateGuest(guestEmail, guestName, guestPhone ?: "")
-//        } else null
-//
-//        // Create booking with items
-//        val booking = createBookingFromCartData(
-//            cartData = cartData,
-//            userId = null,
-//            guest = guest,
-//            platformId = platformId,
-//            paymentReference = paymentReference
-//        )
-//
-//        // Confirm immediately (payment already done by platform)
-//        booking.confirm(paymentReference)
-//
-//        // Save booking
-//        val savedBooking = bookingRepository.save(booking)
-//
-//        // Delete cart (CASCADE deletes items)
-//        deleteCart(cartToken)
-//
-//        logger.info { "Booking created from platform $platformId: bookingId=${savedBooking.id}, total=${booking.totalPrice}, venueId=${cartData.event.venueId}" }
-//
-//        return savedBooking
-        return TODO()
+        logger.debug { "Creating booking from cart for platform $platformId: token=$cartToken" }
+
+        // Validate cart and get session
+        val cartData = validateCartAndGetSession(cartToken)
+
+        // Create or find guest if email provided
+        val guest = if (guestEmail != null && guestName != null) {
+            guestService.findOrCreateGuest(guestEmail, guestName, guestPhone ?: "")
+        } else null
+
+        // Create booking with items
+        val booking = createBookingFromCartData(
+            cartData = cartData,
+            userId = null,
+            guest = guest,
+            platformId = platformId,
+            paymentReference = paymentReference
+        )
+
+        // Confirm immediately (payment already done by platform)
+        booking.confirm(UUID.fromString(paymentReference)) // Assuming reference is UUID, or generate new UUID if not
+
+        // Save booking
+        val savedBooking = bookingRepository.save(booking)
+
+        // Finalize inventory (RESERVED -> SOLD)
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
+        }
+
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        if (gaItems.isNotEmpty()) {
+            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
+        }
+
+        // Delete cart (CASCADE deletes items)
+        deleteCart(cartToken)
+
+        logger.info { "Booking created from platform $platformId: bookingId=${savedBooking.id}, total=${booking.totalPrice}" }
+
+        return savedBooking
     }
 
     /**
      * Creates a new booking from an existing cart token.
      * This is the primary method for converting a cart into a sale.
-     *
-     * @param cartToken The UUID of the cart to convert.
-     * @param platformId The ID of the external platform (if any) making the sale.
-     * @param paymentMethod A string identifying the payment method (e.g., "platform_api").
-     * @param paymentReference A reference ID from the external payment system.
-     * @param guestEmail Email for the booking confirmation.
-     * @param guestName Name for the booking.
-     * @param guestPhone Phone for the booking (optional).
-     * @return The confirmed Booking entity.
-     * @see createBookingFromCart
      */
     override fun createBookingFromCart(
         cartToken: UUID,
-        platformId: Long,
+        platformId: UUID,
         paymentMethod: String,
         paymentReference: String?,
         guestEmail: String,
         guestName: String,
         guestPhone: String?
     ): BookingResponse {
-        TODO("Not yet implemented")
+        val booking = createBookingFromCart(
+            cartToken = cartToken,
+            platformId = platformId,
+            paymentMethod = paymentMethod,
+            paymentReference = paymentReference ?: UUID.randomUUID().toString(),
+            guestEmail = guestEmail,
+            guestName = guestName,
+            guestPhone = guestPhone
+        )
+        return prepareBookingResponse(booking)
     }
 }

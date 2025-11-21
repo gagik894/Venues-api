@@ -30,7 +30,7 @@ interface BookingApi {
      */
     fun createBookingFromCart(
         cartToken: UUID,
-        platformId: Long,
+        platformId: UUID,
         paymentMethod: String,
         paymentReference: String?,
         guestEmail: String,

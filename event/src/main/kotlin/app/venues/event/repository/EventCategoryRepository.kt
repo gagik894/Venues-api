@@ -12,23 +12,22 @@ import org.springframework.stereotype.Repository
 interface EventCategoryRepository : JpaRepository<EventCategory, Long> {
 
     /**
-     * Find category by unique key
+     * Find category by unique code (previously categoryKey).
      */
-    fun findByCategoryKey(categoryKey: String): EventCategory?
+    fun findByCode(code: String): EventCategory?
 
     /**
-     * Find all active categories ordered by display order
+     * Find all active categories ordered by display order.
      */
     fun findByIsActiveTrueOrderByDisplayOrderAsc(): List<EventCategory>
 
     /**
-     * Find all categories with sorting
+     * Find all categories with sorting.
      */
     fun findByIsActiveTrue(sort: Sort): List<EventCategory>
 
     /**
-     * Check if category key exists
+     * Check if category code exists.
      */
-    fun existsByCategoryKey(categoryKey: String): Boolean
+    fun existsByCode(code: String): Boolean
 }
-

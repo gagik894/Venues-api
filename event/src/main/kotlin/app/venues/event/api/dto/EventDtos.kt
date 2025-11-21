@@ -215,11 +215,10 @@ data class EventTranslationResponse(
  */
 data class EventCategoryResponse(
     val id: Long,
-    val categoryKey: String,
-    val name: String,
+    val code: String,
+    val names: Map<String, String>,
     val color: String?,
     val icon: String?,
     val displayOrder: Int,
-    val translations: Map<String, String> = emptyMap()
 )
 

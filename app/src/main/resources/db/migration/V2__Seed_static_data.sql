@@ -125,7 +125,6 @@ ON CONFLICT (code) DO NOTHING;
 
 -- ==================================================================
 -- 4. CITIES (ref_cities)
--- Note: We select the region_id dynamically to ensure safety
 -- ==================================================================
 INSERT INTO ref_cities (region_id, slug, names, display_order, is_active, created_at, last_modified_at)
 SELECT id, 'yerevan', '{"en": "Yerevan", "hy": "Երևան", "ru": "Ереван"}', 10, true, NOW(), NOW()
@@ -164,92 +163,32 @@ WHERE code = 'AM-SU'
 ON CONFLICT (slug) DO NOTHING;
 
 -- ==================================================================
--- 5. EVENT CATEGORIES (Parents)
+-- 5. EVENT CATEGORIES (Modified to match Venue Category Style)
 -- ==================================================================
-INSERT INTO event_categories (category_key, name, icon, color, display_order, is_active, created_at, last_modified_at)
-VALUES ('concert', 'Concerts', 'music', '#FF5733', 10, true, NOW(), NOW()),
-       ('theater', 'Theater', 'masks', '#3357FF', 20, true, NOW(), NOW()),
-       ('sport', 'Sports', 'trophy', '#33FF57', 30, true, NOW(), NOW()),
-       ('standup', 'Stand Up', 'microphone', '#FFC300', 40, true, NOW(), NOW()),
-       ('festival', 'Festivals', 'flag', '#DAF7A6', 50, true, NOW(), NOW())
-ON CONFLICT (category_key) DO NOTHING;
-
--- ==================================================================
--- 6. EVENT CATEGORY TRANSLATIONS (Children)
--- Use sub-select to map keys to IDs safely
--- ==================================================================
-
--- Concert Translations
-INSERT INTO event_category_translations (category_id, language, name, created_at, last_modified_at)
-SELECT id, 'en', 'Concerts', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'concert'
-UNION ALL
-SELECT id, 'hy', 'Համերգներ', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'concert'
-UNION ALL
-SELECT id, 'ru', 'Концерты', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'concert'
-ON CONFLICT (category_id, language) DO NOTHING;
-
--- Theater Translations
-INSERT INTO event_category_translations (category_id, language, name, created_at, last_modified_at)
-SELECT id, 'en', 'Theater', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'theater'
-UNION ALL
-SELECT id, 'hy', 'Թատրոն', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'theater'
-UNION ALL
-SELECT id, 'ru', 'Театр', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'theater'
-ON CONFLICT (category_id, language) DO NOTHING;
-
--- Sport Translations
-INSERT INTO event_category_translations (category_id, language, name, created_at, last_modified_at)
-SELECT id, 'en', 'Sports', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'sport'
-UNION ALL
-SELECT id, 'hy', 'Սպորտ', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'sport'
-UNION ALL
-SELECT id, 'ru', 'Спорт', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'sport'
-ON CONFLICT (category_id, language) DO NOTHING;
-
--- Standup Translations
-INSERT INTO event_category_translations (category_id, language, name, created_at, last_modified_at)
-SELECT id, 'en', 'Stand Up', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'standup'
-UNION ALL
-SELECT id, 'hy', 'Սթենդ-ափ', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'standup'
-UNION ALL
-SELECT id, 'ru', 'Стендап', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'standup'
-ON CONFLICT (category_id, language) DO NOTHING;
-
--- Festival Translations
-INSERT INTO event_category_translations (category_id, language, name, created_at, last_modified_at)
-SELECT id, 'en', 'Festivals', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'festival'
-UNION ALL
-SELECT id, 'hy', 'Փառատոններ', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'festival'
-UNION ALL
-SELECT id, 'ru', 'Фестивали', NOW(), NOW()
-FROM event_categories
-WHERE category_key = 'festival'
-ON CONFLICT (category_id, language) DO NOTHING;
+INSERT INTO event_categories (code, names, icon, color, display_order, is_active, created_at, last_modified_at)
+VALUES ('CONCERT', '{
+         "en": "Concerts",
+         "hy": "Համերգներ",
+         "ru": "Концерты"
+       }', 'music', '#FF5733', 10, true, NOW(), NOW()),
+       ('THEATER', '{
+         "en": "Theater",
+         "hy": "Թատրոն",
+         "ru": "Театр"
+       }', 'masks', '#3357FF', 20, true, NOW(), NOW()),
+       ('SPORT', '{
+         "en": "Sports",
+         "hy": "Սպորտ",
+         "ru": "Спорт"
+       }', 'trophy', '#33FF57', 30, true, NOW(), NOW()),
+       ('STANDUP', '{
+         "en": "Stand Up",
+         "hy": "Սթենդ-ափ",
+         "ru": "Стендап"
+       }', 'microphone', '#FFC300', 40, true, NOW(), NOW()),
+       ('FESTIVAL', '{
+         "en": "Festivals",
+         "hy": "Փառատոններ",
+         "ru": "Фестивали"
+       }', 'flag', '#DAF7A6', 50, true, NOW(), NOW())
+ON CONFLICT (code) DO NOTHING;

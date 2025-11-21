@@ -175,6 +175,50 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun releaseSeats(sessionId: UUID, seatIds: List<Long>): Int
 
     /**
+     * BATCH operation: Update price template for multiple seats.
+     * Skips seats that are SOLD.
+     *
+     * @param sessionId Event session ID
+     * @param seatIds List of seat IDs to update
+     * @param template The new price template (can be null)
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.priceTemplate = :template
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status != app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun batchUpdatePriceTemplate(
+        sessionId: UUID,
+        seatIds: List<Long>,
+        template: app.venues.event.domain.EventPriceTemplate?
+    ): Int
+
+    /**
+     * BATCH operation: Sell multiple seats atomically (RESERVED -> SOLD).
+     *
+     * @param sessionId Event session ID
+     * @param seatIds List of seat IDs to sell
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.SOLD
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status = app.venues.event.domain.ConfigStatus.RESERVED
+    """
+    )
+    fun sellSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
      * Get availability statistics for session (optimized - count only).
      * Returns aggregated seat counts: total, available, and reserved.
      */
@@ -190,4 +234,9 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     """
     )
     fun getAvailabilityStatsRaw(sessionId: UUID): AvailabilityStatsDto?
+
+    /**
+     * Check if any configs exist for the session.
+     */
+    fun existsBySessionId(sessionId: UUID): Boolean
 }

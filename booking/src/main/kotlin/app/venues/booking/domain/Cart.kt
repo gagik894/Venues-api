@@ -35,6 +35,12 @@ class Cart(
     @Column(name = "user_id")
     var userId: UUID? = null,
 
+    @Column(name = "promo_code")
+    var promoCode: String? = null,
+
+    @Column(name = "discount_amount", precision = 10, scale = 2)
+    var discountAmount: java.math.BigDecimal? = null
+
 ) : AbstractUuidEntity() {
 
     @Column(name = "last_activity_at", nullable = false)

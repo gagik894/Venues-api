@@ -31,7 +31,8 @@ class VenueService(
     private val venueRepository: VenueRepository,
     private val cityRepository: CityRepository,
     private val categoryRepository: VenueCategoryRepository,
-    private val venueMapper: VenueMapper
+    private val venueMapper: VenueMapper,
+    private val promoCodeService: VenuePromoCodeService
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -446,6 +447,18 @@ class VenueService(
     }
 
     /**
+     * Get venue's organization ID for permission checking.
+     *
+     * @param venueId Venue UUID
+     * @return Organization UUID or null if venue has no organization
+     */
+    override fun getVenueOrganizationId(venueId: UUID): UUID? {
+        return venueRepository.findById(venueId)
+            .map { it.organizationId }
+            .orElse(null)
+    }
+
+    /**
      * Get venue names in batch (implements VenueApi interface).
      */
     override fun getVenueNamesBatch(venueIds: Set<UUID>, language: String?): Map<UUID, String> {
@@ -453,6 +466,35 @@ class VenueService(
         return venues.associate { venue ->
             venue.id to (language?.let { lang -> venue.getName(lang) } ?: venue.name)
         }
+    }
+
+    /**
+     * Validate a promo code for a venue (implements VenueApi interface).
+     */
+    override fun validatePromoCode(venueId: UUID, code: String): PromoCodeDto? {
+        return try {
+            val promoCode = promoCodeService.validatePromoCode(venueId, code)
+            PromoCodeDto(
+                id = promoCode.id,
+                code = promoCode.code,
+                discountType = promoCode.discountType.name,
+                discountValue = promoCode.discountValue,
+                minOrderAmount = promoCode.minOrderAmount,
+                maxDiscountAmount = promoCode.maxDiscountAmount,
+                expiresAt = promoCode.expiresAt,
+                isActive = promoCode.isActive
+            )
+        } catch (e: VenuesException) {
+            null
+        }
+    }
+
+    /**
+     * Redeem a promo code (implements VenueApi interface).
+     */
+    @Transactional
+    override fun redeemPromoCode(venueId: UUID, code: String) {
+        promoCodeService.redeemPromoCode(venueId, code)
     }
 }
 

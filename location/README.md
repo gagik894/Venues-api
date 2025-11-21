@@ -466,7 +466,7 @@ WHERE slug = 'old-city';
 
 ### ✅ Security
 
-- Admin endpoints protected with `@PreAuthorize("hasRole('ADMIN')")`
+- Admin endpoints protected with `@PreAuthorize("hasRole('SUPER_ADMIN')")`
 - Input validation on all request DTOs
 - SQL injection prevention via parameterized queries
 

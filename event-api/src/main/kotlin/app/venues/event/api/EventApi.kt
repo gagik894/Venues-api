@@ -206,4 +206,67 @@ interface EventApi {
      * @return Map of GA area ID to price template name (nullable).
      */
     fun getGaPriceTemplateNames(sessionId: UUID, gaAreaIds: List<Long>): Map<Long, String?>
+
+    /**
+     * Returns the price template names for the specified tables.
+     *
+     * @param sessionId Event session ID.
+     * @param tableIds List of table IDs.
+     * @return Map of table ID to price template name (nullable).
+     */
+    fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?>
+
+    // Sale Confirmation (Reserved -> Sold)
+
+    /**
+     * Marks a reserved seat as SOLD.
+     *
+     * @param sessionId Event session ID.
+     * @param seatId Unique seat ID.
+     * @throws app.venues.common.VenuesException.ResourceConflict if seat is not RESERVED.
+     */
+    fun sellSeat(sessionId: UUID, seatId: Long)
+
+    /**
+     * Marks multiple reserved seats as SOLD in a batch operation.
+     *
+     * @param sessionId Event session ID.
+     * @param seatIds List of seat IDs to sell.
+     */
+    fun sellSeatsBatch(sessionId: UUID, seatIds: List<Long>)
+
+    /**
+     * Marks reserved GA spots as SOLD.
+     *
+     * @param sessionId Event session ID.
+     * @param gaAreaId GA area ID.
+     * @param quantity Number of spots to sell.
+     * @throws app.venues.common.VenuesException.ResourceConflict if insufficient RESERVED spots.
+     */
+    fun sellGa(sessionId: UUID, gaAreaId: Long, quantity: Int)
+
+    /**
+     * Marks reserved GA spots as SOLD in batch.
+     *
+     * @param sessionId Event session ID.
+     * @param gaAreaQuantities Map of GA area IDs to quantities to sell.
+     */
+    fun sellGaBatch(sessionId: UUID, gaAreaQuantities: Map<Long, Int>)
+
+    /**
+     * Marks a reserved table as SOLD.
+     *
+     * @param sessionId Event session ID.
+     * @param tableId Table ID.
+     * @throws app.venues.common.VenuesException.ResourceConflict if table is not RESERVED.
+     */
+    fun sellTable(sessionId: UUID, tableId: Long)
+
+    /**
+     * Marks multiple reserved tables as SOLD in a batch operation.
+     *
+     * @param sessionId Event session ID.
+     * @param tableIds List of table IDs to sell.
+     */
+    fun sellTablesBatch(sessionId: UUID, tableIds: List<Long>)
 }

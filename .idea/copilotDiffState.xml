@@ -53,15 +53,6 @@
             </PendingDiffInfo>
           </value>
         </entry>
-        <entry key="$PROJECT_DIR$/organization/src/main/kotlin/app/venues/organization/domain/OrganizationType.kt">
-          <value>
-            <PendingDiffInfo>
-              <option name="filePath" value="$PROJECT_DIR$/organization/src/main/kotlin/app/venues/organization/domain/OrganizationType.kt" />
-              <option name="originalContent" value="package app.venues.organization.domain&#10;" />
-              <option name="updatedContent" value="package app.venues.organization.domain&#10;&#10;enum class OrganizationType {&#10;    /**&#10;     * Government ministry or department managing cultural venues.&#10;     */&#10;    GOVERNMENT,&#10;&#10;    /**&#10;     * Non-profit organization or foundation.&#10;     */&#10;    NON_PROFIT,&#10;&#10;    /**&#10;     * Private company or corporation.&#10;     */&#10;    PRIVATE,&#10;&#10;    /**&#10;     * Municipal/city government entity.&#10;     */&#10;    MUNICIPAL,&#10;&#10;    /**&#10;     * University or educational institution.&#10;     */&#10;    EDUCATIONAL,&#10;&#10;    /**&#10;     * Other type of organization.&#10;     */&#10;    OTHER&#10;}&#10;" />
-            </PendingDiffInfo>
-          </value>
-        </entry>
         <entry key="$PROJECT_DIR$/shared/settings.gradle.kts">
           <value>
             <PendingDiffInfo>

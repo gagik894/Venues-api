@@ -117,4 +117,3 @@ data class UpdateOrganizationRequest(
 
     val isActive: Boolean? = null
 )
-

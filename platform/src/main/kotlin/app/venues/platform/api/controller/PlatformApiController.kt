@@ -90,7 +90,7 @@ class PlatformApiController(
     )
     @SecurityRequirement(name = "platformAuth")
     fun sellSeats(
-        @RequestHeader("X-Platform-ID") platformId: Long,
+        @RequestHeader("X-Platform-ID") platformId: UUID,
         @Valid @RequestBody request: PlatformSellRequest
     ): ApiResponse<PlatformSellResponse> {
         logger.debug { "Platform $platformId selling reservation ${request.reservationToken}" }

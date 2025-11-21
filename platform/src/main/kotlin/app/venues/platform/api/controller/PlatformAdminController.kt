@@ -23,7 +23,7 @@ import java.util.*
  */
 @RestController
 @RequestMapping("/api/v1/admin/platforms")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasRole('SUPER_ADMIN')")
 @Tag(name = "Platform Management (Admin)", description = "Manage external platform integrations")
 @SecurityRequirement(name = "bearerAuth")
 class PlatformAdminController(

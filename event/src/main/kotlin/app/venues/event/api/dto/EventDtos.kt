@@ -44,7 +44,15 @@ data class EventRequest(
 
     val seatingChartId: UUID? = null,
 
-    val status: EventStatus = EventStatus.DRAFT
+    val status: EventStatus = EventStatus.DRAFT,
+
+    val venueId: UUID,
+
+    val sessions: List<EventSessionRequest> = emptyList(),
+
+    val translations: List<EventTranslationRequest> = emptyList(),
+
+    val priceTemplates: List<PriceTemplateRequest> = emptyList()
 )
 
 /**
@@ -85,6 +93,8 @@ data class EventResponse(
  * Request DTO for creating/updating event sessions.
  */
 data class EventSessionRequest(
+    val id: UUID? = null,
+
     @field:NotNull(message = "Start time is required")
     var startTime: Instant,
 
@@ -129,6 +139,8 @@ data class EventSessionResponse(
  * Request DTO for price template.
  */
 data class PriceTemplateRequest(
+    val id: UUID? = null,
+
     @field:NotBlank(message = "Template name is required")
     @field:Size(max = 100, message = "Template name must not exceed 100 characters")
     val templateName: String,
@@ -207,11 +219,10 @@ data class EventTranslationResponse(
  */
 data class EventCategoryResponse(
     val id: Long,
-    val categoryKey: String,
-    val name: String,
+    val code: String,
+    val names: Map<String, String>,
     val color: String?,
     val icon: String?,
     val displayOrder: Int,
-    val translations: Map<String, String> = emptyMap()
 )
 

@@ -73,7 +73,7 @@ class EventCategoryController(
     fun getCategoryByKey(@PathVariable key: String): ApiResponse<EventCategoryResponse?> {
         logger.debug { "Fetching category by key: $key" }
 
-        val category = categoryService.getCategoryByKey(key.uppercase())
+        val category = categoryService.getCategoryByCode(key.uppercase())
 
         return ApiResponse.success(
             data = category,

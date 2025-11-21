@@ -126,7 +126,7 @@ class UserController(
      * @return User profile
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(
         summary = "Get user by ID (Admin)",
         description = "Returns user profile for any user. Requires ADMIN role."
@@ -152,7 +152,7 @@ class UserController(
      * @return List of all users
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(
         summary = "Get all users (Admin)",
         description = "Returns list of all users. Requires ADMIN role."

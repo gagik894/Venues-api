@@ -72,7 +72,7 @@ class EventApiService(
     @Transactional
     override fun releaseGa(sessionId: UUID, gaAreaId: Long, quantity: Int) {
         sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, gaAreaId)?.let { config ->
-            config.sell(maxOf(0, config.soldCount - quantity))
+            config.refund(quantity)
             sessionGAConfigRepository.save(config)
         }
     }
@@ -155,5 +155,68 @@ class EventApiService(
         if (gaAreaIds.isEmpty()) return emptyMap()
         return sessionGAConfigRepository.findBySessionIdAndGaAreaIdIn(sessionId, gaAreaIds)
             .associate { it.gaAreaId to it.priceTemplate?.templateName }
+    }
+
+    @Transactional(readOnly = true)
+    override fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?> {
+        if (tableIds.isEmpty()) return emptyMap()
+        return sessionTableConfigRepository.findBySessionIdAndTableIdIn(sessionId, tableIds)
+            .associate { it.tableId to it.priceTemplate?.templateName }
+    }
+
+    @Transactional
+    override fun sellSeat(sessionId: UUID, seatId: Long) {
+        val updated = sessionSeatConfigRepository.sellSeats(sessionId, listOf(seatId))
+        if (updated == 0) {
+            // Check if it was already sold or not reserved
+            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+                ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Seat config not found")
+
+            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+                throw app.venues.common.exception.VenuesException.ResourceConflict("Seat $seatId is not RESERVED (status: ${config.status})")
+            }
+        }
+    }
+
+    @Transactional
+    override fun sellSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isNotEmpty()) {
+            sessionSeatConfigRepository.sellSeats(sessionId, seatIds)
+        }
+    }
+
+    @Transactional
+    override fun sellGa(sessionId: UUID, gaAreaId: Long, quantity: Int) {
+        // For GA, reservation already increments soldCount.
+        // So we just need to verify it's valid, but no state change needed if soldCount tracks both.
+        // However, if we want to distinguish, we might need a separate field.
+        // Given current implementation: reserveGa increments soldCount.
+        // So sellGa is a no-op regarding inventory count, but we might want to log or verify.
+        // If we don't have a separate "reserved" count, we assume reservation == sale for capacity purposes.
+    }
+
+    @Transactional
+    override fun sellGaBatch(sessionId: UUID, gaAreaQuantities: Map<Long, Int>) {
+        // No-op for GA as per above.
+    }
+
+    @Transactional
+    override fun sellTable(sessionId: UUID, tableId: Long) {
+        val updated = sessionTableConfigRepository.sellTables(sessionId, listOf(tableId))
+        if (updated == 0) {
+            val config = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
+                ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Table config not found")
+
+            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+                throw app.venues.common.exception.VenuesException.ResourceConflict("Table $tableId is not RESERVED (status: ${config.status})")
+            }
+        }
+    }
+
+    @Transactional
+    override fun sellTablesBatch(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isNotEmpty()) {
+            sessionTableConfigRepository.sellTables(sessionId, tableIds)
+        }
     }
 }

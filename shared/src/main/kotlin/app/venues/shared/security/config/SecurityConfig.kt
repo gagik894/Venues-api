@@ -82,7 +82,8 @@ class SecurityConfig(
                 auth
                     // Public endpoints - no authentication required
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/user/**").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/venue/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/staff/**").permitAll()
+
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/events/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/health/**").permitAll()

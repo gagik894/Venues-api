@@ -33,6 +33,19 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     fun findBySessionIdAndStatus(sessionId: UUID, status: ConfigStatus): List<SessionTableConfig>
 
     /**
+     * Find all table configs for a list of table IDs
+     */
+    @Query(
+        """
+        SELECT stc FROM SessionTableConfig stc
+        LEFT JOIN FETCH stc.priceTemplate
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+    """
+    )
+    fun findBySessionIdAndTableIdIn(sessionId: UUID, tableIds: List<Long>): List<SessionTableConfig>
+
+    /**
      * Get table price if available and priced
      * Returns null if table is not available or not priced
      */
@@ -150,4 +163,53 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     """
     )
     fun releaseTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * BATCH operation: Update price template for multiple tables.
+     * Skips tables that are SOLD.
+     *
+     * @param sessionId Event session ID
+     * @param tableIds List of table IDs to update
+     * @param template The new price template (can be null)
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.priceTemplate = :template
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status != app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun batchUpdatePriceTemplate(
+        sessionId: UUID,
+        tableIds: List<Long>,
+        template: app.venues.event.domain.EventPriceTemplate?
+    ): Int
+
+    /**
+     * BATCH operation: Sell multiple tables atomically (RESERVED -> SOLD).
+     *
+     * @param sessionId Event session ID
+     * @param tableIds List of table IDs to sell
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = app.venues.event.domain.ConfigStatus.SOLD
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status = app.venues.event.domain.ConfigStatus.RESERVED
+    """
+    )
+    fun sellTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * Check if any configs exist for the session.
+     */
+    fun existsBySessionId(sessionId: UUID): Boolean
 }

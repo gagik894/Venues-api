@@ -57,4 +57,12 @@ interface CartApi {
      * Clears entire cart.
      */
     fun clearCart(token: UUID)
+
+    /**
+     * Apply a promo code to the cart.
+     * @param token Cart token
+     * @param code Promo code string
+     * @return Response with new pricing details
+     */
+    fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse
 }

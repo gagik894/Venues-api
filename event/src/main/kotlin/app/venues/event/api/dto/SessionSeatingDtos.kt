@@ -118,3 +118,13 @@ data class SeatAvailabilityResponse(
     val availableSeatIdentifiers: List<String>  // Only for small venues
 )
 
+/**
+ * Request DTO for assigning price templates to inventory items.
+ */
+data class AssignPriceTemplateRequest(
+    val templateId: UUID?, // Null to clear price
+    val seatIds: List<Long> = emptyList(),
+    val tableIds: List<Long> = emptyList(),
+    val gaIds: List<Long> = emptyList()
+)
+

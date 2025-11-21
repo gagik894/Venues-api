@@ -4,7 +4,7 @@ import app.venues.common.model.ApiResponse
 import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
 import app.venues.shared.persistence.util.PageableMapper
-import app.venues.shared.security.util.SecurityUtil
+import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -12,19 +12,30 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.security.Principal
 import java.util.*
 
 /**
  * Venue seating chart management controller.
- * Provides CRUD operations for venue owners to manage their seating charts.
+ *
+ * Authorization Pattern:
+ * 1. @PreAuthorize checks authentication (STAFF or SUPER_ADMIN)
+ * 2. Controller uses @RequestAttribute to get staffId from JWT
+ * 3. Controller calls VenueSecurityService to check venue management permission
+ * 4. If authorized, controller delegates to service layer
+ *
+ * Permission Logic (via VenueSecurityService):
+ * - SUPER_ADMIN → can manage any venue
+ * - Organization OWNER/ADMIN → can manage venues in their organizations
+ * - Venue MANAGER → can manage assigned venues
  */
 @RestController
 @RequestMapping("/api/v1/venues/{venueId}/seating-charts")
-@Tag(name = "Venue Seating Charts", description = "Seating chart management for venue owners")
-@PreAuthorize("hasRole('VENUE')")
+@Tag(name = "Venue Seating Charts", description = "Seating chart management for staff members")
+@PreAuthorize("isAuthenticated()")
 class VenueSeatingController(
     private val seatingService: SeatingService,
-    private val securityUtil: SecurityUtil
+    private val venueSecurityService: VenueSecurityService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -33,12 +44,15 @@ class VenueSeatingController(
     // ===========================================
 
     @PostMapping
-    @Operation(summary = "Create seating chart")
+    @Operation(summary = "Create seating chart", description = "Requires venue management permission")
     fun createSeatingChart(
         @PathVariable venueId: UUID,
-        @Valid @RequestBody request: SeatingChartRequest
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: SeatingChartRequest, principal: Principal
     ): ApiResponse<SeatingChartResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        // Check permission: can staff manage this venue?
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val chart = seatingService.createSeatingChart(venueId, request)
         return ApiResponse.success(chart, "Created successfully")
     }
@@ -47,10 +61,12 @@ class VenueSeatingController(
     @Operation(summary = "Get venue charts")
     fun getSeatingCharts(
         @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<SeatingChartResponse>> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val charts = seatingService.getSeatingChartsByVenue(venueId, pageable)
         return ApiResponse.success(charts, "Retrieved successfully")
@@ -60,9 +76,11 @@ class VenueSeatingController(
     @Operation(summary = "Get detailed chart")
     fun getSeatingChart(
         @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID
     ): ApiResponse<SeatingChartDetailedResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val chart = seatingService.getSeatingChartDetailed(chartId)
         return ApiResponse.success(chart, "Retrieved successfully")
     }
@@ -72,9 +90,11 @@ class VenueSeatingController(
     fun updateSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val chart = seatingService.updateSeatingChart(chartId, venueId, request)
         return ApiResponse.success(chart, "Updated successfully")
     }
@@ -83,9 +103,11 @@ class VenueSeatingController(
     @Operation(summary = "Delete chart")
     fun deleteSeatingChart(
         @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         seatingService.deleteSeatingChart(chartId, venueId)
         return ApiResponse.success(Unit, "Deleted successfully")
     }
@@ -98,9 +120,11 @@ class VenueSeatingController(
     fun addZone(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: ZoneRequest
     ): ApiResponse<ZoneResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val zone = seatingService.addZone(chartId, request)
         return ApiResponse.success(zone, "Zone added")
     }
@@ -109,9 +133,11 @@ class VenueSeatingController(
     fun addTable(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: TableRequest
     ): ApiResponse<TableResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val table = seatingService.addTable(chartId, request)
         return ApiResponse.success(table, "Table added")
     }
@@ -120,9 +146,11 @@ class VenueSeatingController(
     fun addGaArea(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: GaAreaRequest
     ): ApiResponse<GaAreaResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val ga = seatingService.addGaArea(chartId, request)
         return ApiResponse.success(ga, "GA Area added")
     }
@@ -131,9 +159,11 @@ class VenueSeatingController(
     fun addSeat(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatRequest
     ): ApiResponse<SeatResponse> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val seat = seatingService.addSeat(chartId, request)
         return ApiResponse.success(seat, "Seat added")
     }
@@ -142,9 +172,11 @@ class VenueSeatingController(
     fun addSeatsBatch(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: BatchSeatRequest
     ): ApiResponse<List<SeatResponse>> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         val seats = seatingService.addSeatsBatch(chartId, request)
         return ApiResponse.success(seats, "${seats.size} seats added")
     }
@@ -153,9 +185,11 @@ class VenueSeatingController(
     fun deleteSeat(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
-        @PathVariable seatId: Long
+        @PathVariable seatId: Long,
+        @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        securityUtil.requireVenueOwnership(venueId)
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         seatingService.deleteSeat(seatId)
         return ApiResponse.success(Unit, "Deleted successfully")
     }

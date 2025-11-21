@@ -1,9 +1,11 @@
 package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.event.api.dto.*
+import app.venues.event.api.dto.AssignPriceTemplateRequest
+import app.venues.event.api.dto.EventRequest
+import app.venues.event.api.dto.EventResponse
 import app.venues.event.service.EventService
-import app.venues.shared.security.util.SecurityUtil
+import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -22,15 +24,15 @@ import java.util.*
  * - Manage sessions
  * - Manage translations
  *
- * All endpoints automatically use the authenticated venue's ID from JWT token.
+ * Uses StaffSecurityFacade for permission checking.
  */
 @RestController
 @RequestMapping("/api/v1/venue/events")
 @Tag(name = "Venue Events", description = "Event management for venue owners")
-@PreAuthorize("hasRole('VENUE')")
+@PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
 class VenueEventController(
     private val eventService: EventService,
-    private val securityUtil: SecurityUtil
+    private val venueSecurityService: VenueSecurityService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -43,10 +45,13 @@ class VenueEventController(
         description = "Create a new event for your venue (Venue owners only)"
     )
     fun createEvent(
-        @Valid @RequestBody request: EventRequest
+        @Valid @RequestBody request: EventRequest,
+        @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Creating event for venue: $venueId" }
+        val venueId = request.venueId
+
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.debug { "Creating event for venue: $venueId by staff: $staffId" }
 
         val event = eventService.createEvent(venueId, request)
 
@@ -66,12 +71,16 @@ class VenueEventController(
     )
     fun updateEvent(
         @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventRequest
+        @Valid @RequestBody request: EventRequest,
+        @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Updating event: $eventId for venue: $venueId" }
+        // Fetch event to get venueId for permission check
+        val existingEvent = eventService.getEventById(eventId)
+        venueSecurityService.requireVenueManagementPermission(staffId, existingEvent.venueId)
 
-        val event = eventService.updateEvent(eventId, venueId, request)
+        logger.debug { "Updating event: $eventId for venue: ${existingEvent.venueId} by staff: $staffId" }
+
+        val event = eventService.updateEvent(eventId, existingEvent.venueId, request)
 
         return ApiResponse.success(
             data = event,
@@ -88,12 +97,15 @@ class VenueEventController(
         description = "Delete an event (Venue owners only)"
     )
     fun deleteEvent(
-        @PathVariable eventId: UUID
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID,
     ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Deleting event: $eventId for venue: $venueId" }
+        val existingEvent = eventService.getEventById(eventId)
+        venueSecurityService.requireVenueManagementPermission(staffId, existingEvent.venueId)
 
-        eventService.deleteEvent(eventId, venueId)
+        logger.debug { "Deleting event: $eventId for venue: ${existingEvent.venueId} by staff: $staffId" }
+
+        eventService.deleteEvent(eventId, existingEvent.venueId)
 
         return ApiResponse.success(
             data = Unit,
@@ -102,104 +114,41 @@ class VenueEventController(
     }
 
     // ===========================================
-    // SESSION MANAGEMENT
+    // PRICING MANAGEMENT
     // ===========================================
 
     /**
-     * Add session to event.
+     * Assign price template to seats/tables.
      */
-    @PostMapping("/{eventId}/sessions")
+    @PutMapping("/{eventId}/sessions/{sessionId}/pricing")
     @Operation(
-        summary = "Add session",
-        description = "Add a new session to an event (Venue owners only)"
+        summary = "Assign price template",
+        description = "Batch assign a price template to seats, tables, or GA areas (Venue owners only)"
     )
-    fun addSession(
-        @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventSessionRequest
-    ): ApiResponse<EventSessionResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Adding session to event: $eventId for venue: $venueId" }
-
-        // Verify ownership is done in the service layer
-        val session = eventService.addSession(eventId, request)
-
-        return ApiResponse.success(
-            data = session,
-            message = "Session added successfully"
-        )
-    }
-
-    /**
-     * Update session.
-     */
-    @PutMapping("/{eventId}/sessions/{sessionId}")
-    @Operation(
-        summary = "Update session",
-        description = "Update session details (Venue owners only)"
-    )
-    fun updateSession(
+    fun assignPriceTemplate(
         @PathVariable eventId: UUID,
         @PathVariable sessionId: UUID,
-        @Valid @RequestBody request: EventSessionRequest
-    ): ApiResponse<EventSessionResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Updating session: $sessionId for venue: $venueId" }
-
-        val session = eventService.updateSession(sessionId, request)
-
-        return ApiResponse.success(
-            data = session,
-            message = "Session updated successfully"
-        )
-    }
-
-    /**
-     * Delete session.
-     */
-    @DeleteMapping("/{eventId}/sessions/{sessionId}")
-    @Operation(
-        summary = "Delete session",
-        description = "Delete a session (Venue owners only)"
-    )
-    fun deleteSession(
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID
+        @Valid @RequestBody request: AssignPriceTemplateRequest,
+        @RequestAttribute staffId: UUID,
     ): ApiResponse<Unit> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Deleting session: $sessionId for venue: $venueId" }
+        val existingEvent = eventService.getEventById(eventId)
+        venueSecurityService.requireVenueManagementPermission(staffId, existingEvent.venueId)
 
-        eventService.deleteSession(sessionId)
+        logger.debug { "Assigning price template for session: $sessionId, event: $eventId by staff: $staffId" }
+
+        eventService.assignPriceTemplate(
+            eventId = eventId,
+            sessionId = sessionId,
+            venueId = existingEvent.venueId,
+            templateId = request.templateId,
+            seatIds = request.seatIds,
+            tableIds = request.tableIds,
+            gaIds = request.gaIds
+        )
 
         return ApiResponse.success(
             data = Unit,
-            message = "Session deleted successfully"
-        )
-    }
-
-    // ===========================================
-    // TRANSLATION MANAGEMENT
-    // ===========================================
-
-    /**
-     * Set translation for event.
-     */
-    @PutMapping("/{eventId}/translations")
-    @Operation(
-        summary = "Set translation",
-        description = "Add or update translation for an event (Venue owners only)"
-    )
-    fun setTranslation(
-        @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventTranslationRequest
-    ): ApiResponse<EventTranslationResponse> {
-        val venueId = securityUtil.getCurrentUserId()
-        logger.debug { "Setting translation for event: $eventId for venue: $venueId" }
-
-        val translation = eventService.setTranslation(eventId, request)
-
-        return ApiResponse.success(
-            data = translation,
-            message = "Translation set successfully"
+            message = "Price template assigned successfully"
         )
     }
 }

@@ -43,9 +43,9 @@ class EventCategoryService(
     /**
      * Get category by key.
      */
-    fun getCategoryByKey(key: String): EventCategoryResponse? {
-        logger.debug { "Fetching category by key: $key" }
-        return categoryRepository.findByCategoryKey(key)
+    fun getCategoryByCode(code: String): EventCategoryResponse? {
+        logger.debug { "Fetching category by code: $code" }
+        return categoryRepository.findByCode(code)
             ?.let { eventMapper.toCategoryResponse(it) }
     }
 }

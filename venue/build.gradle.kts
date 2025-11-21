@@ -30,6 +30,7 @@ dependencyManagement {
 dependencies {
     // API Contract Module - this module implements the VenueApi interface
     api(project(":venue-api"))
+    api(project(":staff-api"))
 
     // Expose shared module as part of public API
     api(project(":shared"))

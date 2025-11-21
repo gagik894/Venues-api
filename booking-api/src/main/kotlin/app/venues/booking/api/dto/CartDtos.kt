@@ -121,3 +121,14 @@ data class AddToCartResponse(
     val expiresAt: String
 )
 
+/**
+ * Response after applying a promo code
+ */
+data class PromoCodeAppliedResponse(
+    val originalPrice: BigDecimal,
+    val discountAmount: BigDecimal,
+    val finalPrice: BigDecimal,
+    val promoCode: String,
+    val message: String
+)
+

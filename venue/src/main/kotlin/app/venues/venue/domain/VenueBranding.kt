@@ -46,14 +46,16 @@ class VenueBranding(
 
 data class HeroConfig(
     val title: Map<String, String>, // Multilingual
+    val imageUrl: String,
     val subtitle: Map<String, String>?,
     val ctaText: Map<String, String>?,
     val ctaLink: String?
 ) : java.io.Serializable
 
 data class ContentBlock(
-    val type: String, // "text", "image"
-    val content: Map<String, String>?,
+    val type: String, // "text", "image", "image_right", "image_left"
+    val title: Map<String, String>?,
+    val body: Map<String, String>?,
     val imageUrl: String?
 ) : java.io.Serializable
 

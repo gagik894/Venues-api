@@ -34,13 +34,7 @@ class EventMapper {
         }
 
         // Apply category translation if language is specified
-        val categoryName = if (language != null && event.category != null) {
-            event.category?.translations
-                ?.find { it.language.equals(language, ignoreCase = true) }
-                ?.name ?: event.category?.name
-        } else {
-            event.category?.name
-        }
+        val categoryName = event.category?.getName(language ?: "en")
 
         return EventResponse(
             id = event.id,
@@ -120,16 +114,13 @@ class EventMapper {
      * Convert EventCategory entity to EventCategoryResponse DTO.
      */
     fun toCategoryResponse(category: EventCategory): EventCategoryResponse {
-        val translationsMap = category.translations.associate { it.language to it.name }
-
         return EventCategoryResponse(
             id = category.id ?: throw IllegalArgumentException("Category ID must not be null"),
-            categoryKey = category.categoryKey,
-            name = category.name,
+            code = category.code,
+            names = category.names,
             color = category.color,
             icon = category.icon,
             displayOrder = category.displayOrder,
-            translations = translationsMap
         )
     }
 }

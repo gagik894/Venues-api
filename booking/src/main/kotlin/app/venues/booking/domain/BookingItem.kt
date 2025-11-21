@@ -42,6 +42,12 @@ class BookingItem(
     @Column(name = "ga_area_id")
     var gaAreaId: Long? = null,
 
+    /**
+     * Table ID from seating module (populated for table bookings).
+     */
+    @Column(name = "table_id")
+    var tableId: Long? = null,
+
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null
 
@@ -61,4 +67,9 @@ class BookingItem(
      * Check if this is a GA ticket booking.
      */
     fun isGA(): Boolean = gaAreaId != null && seatId == null
+
+    /**
+     * Check if this is a table booking.
+     */
+    fun isTable(): Boolean = tableId != null
 }

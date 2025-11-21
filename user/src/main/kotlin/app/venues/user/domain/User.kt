@@ -136,6 +136,13 @@ class User(
      * @param lockoutMinutes The configured duration for the lockout.
      */
     fun recordFailedLogin(maxAttempts: Int, lockoutMinutes: Long) {
+        // If the account was previously locked but the lock has expired,
+        // we should reset the counter so the user gets a fresh set of attempts.
+        if (lockedUntil != null && lockedUntil!!.isBefore(Instant.now())) {
+            this.failedLoginAttempts = 0
+            this.lockedUntil = null
+        }
+
         this.failedLoginAttempts++
         if (this.failedLoginAttempts >= maxAttempts) {
             this.lockedUntil = Instant.now().plusSeconds(lockoutMinutes * 60)

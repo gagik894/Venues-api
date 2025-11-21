@@ -19,7 +19,6 @@ class BookingMapper {
      * @param booking The booking entity
      * @param eventTitle Event title (from event module)
      * @param eventDescription Event description (from event module)
-     * @param venueName Venue name (from venue module)
      * @param sessionStartTime Session start time (from event module)
      * @param sessionEndTime Session end time (from event module)
      * @param customerEmail Customer email (from user/guest)
@@ -30,7 +29,6 @@ class BookingMapper {
         booking: Booking,
         eventTitle: String,
         eventDescription: String?,
-        venueName: String,
         sessionStartTime: String,
         sessionEndTime: String,
         customerEmail: String,
@@ -42,13 +40,15 @@ class BookingMapper {
             sessionId = booking.sessionId,
             eventTitle = eventTitle,
             eventDescription = eventDescription,
-            venueName = venueName,
             sessionStartTime = sessionStartTime,
             sessionEndTime = sessionEndTime,
             customerEmail = customerEmail,
             customerName = customerName,
             items = itemsData.map { toItemResponse(it) },
             totalPrice = booking.totalPrice.toString(),
+            serviceFeeAmount = booking.serviceFeeAmount.toString(),
+            discountAmount = booking.discountAmount.toString(),
+            promoCode = booking.promoCode,
             currency = booking.currency,
             status = booking.status,
             confirmedAt = booking.confirmedAt?.toString(),
@@ -69,6 +69,7 @@ class BookingMapper {
             seatIdentifier = itemData.seatIdentifier,
             levelId = itemData.levelId,
             levelName = itemData.levelName,
+            tableId = itemData.tableId,
             quantity = itemData.quantity,
             unitPrice = itemData.unitPrice,
             totalPrice = itemData.totalPrice,
@@ -86,6 +87,7 @@ data class BookingItemData(
     val seatIdentifier: String?,
     val levelId: Long?,
     val levelName: String?,
+    val tableId: Long?,
     val quantity: Int,
     val unitPrice: String,
     val totalPrice: String,

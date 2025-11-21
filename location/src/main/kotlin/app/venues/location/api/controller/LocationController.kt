@@ -246,7 +246,7 @@ class LocationController(
      * @return List of all regions
      */
     @GetMapping("/admin/regions")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Get all regions (admin)",
@@ -268,7 +268,7 @@ class LocationController(
      * @return Created region
      */
     @PostMapping("/admin/regions")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(
@@ -292,7 +292,7 @@ class LocationController(
      * @return Updated region
      */
     @PutMapping("/admin/regions/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Update region (admin)",
@@ -321,7 +321,7 @@ class LocationController(
      * @return Created city
      */
     @PostMapping("/admin/cities")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(
@@ -345,7 +345,7 @@ class LocationController(
      * @return Updated city
      */
     @PutMapping("/admin/cities/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "Update city (admin)",

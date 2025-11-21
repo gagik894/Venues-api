@@ -3,10 +3,7 @@ package app.venues.venue.api.mapper
 import app.venues.location.domain.City
 import app.venues.location.repository.CityRepository
 import app.venues.venue.api.dto.*
-import app.venues.venue.domain.Venue
-import app.venues.venue.domain.VenueCategory
-import app.venues.venue.domain.VenueSchedule
-import app.venues.venue.domain.VenueTranslation
+import app.venues.venue.domain.*
 import app.venues.venue.repository.VenueCategoryRepository
 import org.springframework.stereotype.Component
 
@@ -99,7 +96,7 @@ class VenueMapper(
             status = venue.status,
 
             translations = venue.translations.map(::toTranslationDto),
-            schedules = emptyList(), // TODO: load schedules
+            schedules = venue.schedules.map(::toScheduleDto),
 
             followerCount = 0L, // TODO: implement
             averageRating = null, // TODO: implement
@@ -275,6 +272,20 @@ class VenueMapper(
             color = category.color,
             icon = category.icon,
             displayOrder = category.displayOrder
+        )
+    }
+
+    /**
+     * Converts VenuePhoto entity to Response DTO.
+     */
+    fun toPhotoResponse(photo: VenuePhoto): VenuePhotoResponse {
+        return VenuePhotoResponse(
+            id = photo.id!!,
+            url = photo.url,
+            caption = photo.caption,
+            displayOrder = photo.displayOrder,
+            userId = photo.userId,
+            createdAt = photo.createdAt
         )
     }
 }

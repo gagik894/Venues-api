@@ -36,6 +36,14 @@ interface VenueApi {
     fun venueExists(venueId: UUID): Boolean
 
     /**
+     * Get venue's organization ID for permission checking.
+     *
+     * @param venueId Venue UUID
+     * @return Organization UUID or null if venue has no organization
+     */
+    fun getVenueOrganizationId(venueId: UUID): UUID?
+
+    /**
      * Get venue names in batch (for performance optimization).
      * Returns a map of venueId to venue name.
      *
@@ -43,5 +51,24 @@ interface VenueApi {
      * @param language Optional language code for translations
      */
     fun getVenueNamesBatch(venueIds: Set<UUID>, language: String? = null): Map<UUID, String>
+
+    /**
+     * Validate a promo code for a venue.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     * @return PromoCodeDto if valid, null if invalid or not found
+     */
+    fun validatePromoCode(venueId: UUID, code: String): app.venues.venue.api.dto.PromoCodeDto?
+
+    /**
+     * Redeem a promo code (increment usage).
+     * Should be called when a booking is confirmed.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     * @throws RuntimeException if redemption fails (e.g. limit reached)
+     */
+    fun redeemPromoCode(venueId: UUID, code: String)
 }
 

@@ -1,8 +1,3 @@
-/*
-  Flyway Migration V3
-  Description: Seed Development/Test Transactional Data
-  Dependencies: Requires V2 (Reference Data) to be applied first.
-*/
 
 -- ================================================================
 -- 0. PRE-REQUISITES (Organizations)
@@ -265,14 +260,16 @@ ON CONFLICT (id) DO NOTHING;
 -- Fixed: Removed 'reservation_token'
 -- ================================================================
 INSERT INTO bookings (id, user_id, guest_id, session_id, venue_id, platform_id, total_price, currency, status,
-                      created_at, last_modified_at)
+                      service_fee_amount, discount_amount, created_at, last_modified_at)
 VALUES ('bbbbbbbb-1111-1111-1111-111111111111',
         'a0000000-0000-0000-0000-000000000002',
         NULL,
         '55555555-1111-1111-1111-111111111111',
         '11111111-1111-1111-1111-111111111111',
         'bbbbbbbb-1111-1111-1111-111111111111',
-        6000.00, 'AMD', 'CONFIRMED', NOW(), NOW())
+        6000.00, 'AMD', 'CONFIRMED',
+        0.00, 0.00, -- Mandatory fields added
+        NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ================================================================

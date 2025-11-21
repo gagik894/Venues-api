@@ -724,6 +724,13 @@ create table bookings
     cancelled_at          timestamp(6) with time zone,
     cancellation_reason   varchar(500),
     payment_id            uuid,
+
+    -- Added to match Booking.kt
+    service_fee_amount numeric(10, 2) not null default 0,
+    discount_amount    numeric(10, 2) not null default 0,
+    promo_code         varchar(50),
+    version            bigint         not null default 0,
+
     created_at            timestamp(6) with time zone not null,
     last_modified_at      timestamp(6) with time zone not null
 );
@@ -744,6 +751,10 @@ create table booking_items
         constraint fk_booking_items_seat references chart_seats (id),
     ga_area_id          bigint
         constraint fk_booking_items_ga_area references chart_ga_areas (id),
+    -- Added to match BookingItem.kt
+    table_id bigint
+        constraint fk_booking_items_table references chart_tables (id),
+
     price_template_name varchar(100),
     created_at          timestamp(6) with time zone not null,
     last_modified_at    timestamp(6) with time zone not null
@@ -756,6 +767,11 @@ create table carts
     expires_at       timestamp(6) with time zone not null,
     token   uuid not null unique,
     user_id uuid,
+
+    -- Added to match Cart.kt
+    promo_code      varchar(50),
+    discount_amount numeric(10, 2),
+
     last_activity_at timestamp(6) with time zone not null,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null

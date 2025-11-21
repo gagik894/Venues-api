@@ -154,6 +154,7 @@ data class CreateVenueRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String,
 
+    //TODO: USE CITY CODE INSTEAD OF ID
     @field:NotNull(message = "City is required")
     var cityId: Long,
 

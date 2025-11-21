@@ -96,12 +96,6 @@ class SecurityConfig(
                     .requestMatchers("/v1/api-docs/**").permitAll()
                     .requestMatchers("/v1/api-docs").permitAll()
 
-                    // Admin endpoints - require ADMIN role
-                    .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-
-                    // Venue management - require VENUE role
-                    .requestMatchers("/api/v1/venue/management/**").hasRole("VENUE")
-
                     // All other endpoints require authentication
                     .anyRequest().authenticated()
             }

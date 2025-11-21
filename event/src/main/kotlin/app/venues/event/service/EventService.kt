@@ -4,7 +4,6 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.Event
-import app.venues.event.domain.EventSession
 import app.venues.event.domain.EventStatus
 import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventRepository
@@ -37,6 +36,8 @@ import java.util.*
 class EventService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
+    private val eventSessionService: EventSessionService,
+    private val eventPriceService: EventPriceService,
     private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi
@@ -78,24 +79,20 @@ class EventService(
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         event.tags.addAll(request.tags)
 
-        // Create sessions
-        request.sessions.forEach { sessionRequest ->
-            val session = createSessionEntity(event, sessionRequest)
-            event.sessions.add(session)
-        }
+        // Delegate Price Templates
+        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
+
+        // Delegate Sessions
+        eventSessionService.updateSessions(event, request.sessions)
 
         // Create translations
-        request.translations.forEach { translationRequest ->
-            val translation = EventTranslation(
-                event = event,
-                language = translationRequest.language.lowercase(),
-                title = translationRequest.title,
-                description = translationRequest.description
-            )
-            event.addTranslation(translation)
-        }
+        updateTranslationsCollection(event, request.translations)
 
         val savedEvent = eventRepository.save(event)
+
+        // Generate configs for sessions now that event is saved
+        eventSessionService.generateConfigsForNewSessions(savedEvent)
+        
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
         val venueName = venueApi.getVenueName(venueId)
@@ -166,16 +163,23 @@ class EventService(
         event.tags.clear()
         event.tags.addAll(request.tags)
 
-        // Update sessions
-        updateSessionsCollection(event, request.sessions)
+        // Delegate Price Templates
+        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
+
+        // Delegate Sessions
+        eventSessionService.updateSessions(event, request.sessions)
 
         // Update translations
         updateTranslationsCollection(event, request.translations)
 
         val savedEvent = eventRepository.save(event)
+
+        // Generate configs for any new sessions
+        eventSessionService.generateConfigsForNewSessions(savedEvent)
+        
         logger.info { "Event updated successfully: $eventId" }
 
-        val venueName = venueApi.getVenueName(venueId)
+        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
         val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
@@ -265,17 +269,6 @@ class EventService(
     // PRIVATE HELPER METHODS
     // ===========================================
 
-    /**
-     * Map events page to response with batch-fetched venue names.
-     *
-     * This method implements the DRY principle by centralizing the logic for:
-     * - Batch fetching venue names (single API call via VenueApi)
-     * - Mapping events to responses with venue and seating chart names
-     *
-     * @param eventsPage Page of events to map
-     * @param language Optional language for translations
-     * @return Page of EventResponse with enriched venue information
-     */
     private fun mapEventsWithVenueNames(
         eventsPage: Page<Event>,
         language: String?
@@ -289,14 +282,6 @@ class EventService(
         }
     }
 
-    /**
-     * Map a single event to response with venue name and seating chart name.
-     *
-     * @param event Event entity to map
-     * @param venueName Venue name (already fetched)
-     * @param language Optional language for translations
-     * @return EventResponse with enriched information
-     */
     private fun mapEventToResponse(
         event: Event,
         venueName: String,
@@ -315,41 +300,36 @@ class EventService(
         )
     }
 
-    // ===========================================
-    // EVENT SESSIONS
-    // ===========================================
+    private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
+        val existingTranslationsMap = event.translations.associateBy { it.language }
+        val requestLanguages = translationRequests.map { it.language.lowercase() }.toSet()
 
-    /**
-     * Add session to event.
-     */
-    fun addSession(eventId: UUID, venueId: UUID, request: EventSessionRequest): EventSessionResponse {
-        logger.debug { "Adding session to event: $eventId for venue: $venueId" }
+        // Remove deleted translations
+        event.translations.removeIf { it.language !in requestLanguages }
 
-        val event = eventRepository.findById(eventId)
-            .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
-
-        if (event.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only add sessions to your own events")
+        translationRequests.forEach { request ->
+            val lang = request.language.lowercase()
+            if (existingTranslationsMap.containsKey(lang)) {
+                // Update existing
+                val translation = existingTranslationsMap[lang]!!
+                translation.title = request.title
+                translation.description = request.description
+            } else {
+                // Create new
+                val translation = EventTranslation(
+                    event = event,
+                    language = lang,
+                    title = request.title,
+                    description = request.description
+                )
+                event.addTranslation(translation)
+            }
         }
-
-        if (request.startTime.isAfter(request.endTime)) {
-            throw VenuesException.ValidationFailure("Start time must be before end time")
-        }
-
-        val session = EventSession(
-            event = event,
-            startTime = request.startTime,
-            endTime = request.endTime,
-            ticketsCount = request.ticketsCount,
-            priceOverride = request.priceOverride,
-            priceRangeOverride = request.priceRangeOverride
-        )
-
-        val savedSession = eventSessionRepository.save(session)
-        logger.info { "Session added successfully: ID=${savedSession.id}" }
-
-        return eventMapper.toSessionResponse(savedSession)
     }
+
+    // ===========================================
+    // EVENT SESSIONS (Read Operations)
+    // ===========================================
 
     /**
      * Get sessions for an event.
@@ -372,90 +352,6 @@ class EventService(
     }
 
     /**
-     * Update session.
-     */
-    fun updateSession(sessionId: UUID, venueId: UUID, request: EventSessionRequest): EventSessionResponse {
-        logger.debug { "Updating session: $sessionId for venue: $venueId" }
-
-        val session = eventSessionRepository.findById(sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found with ID: $sessionId") }
-
-        if (session.event.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only update sessions of your own events")
-        }
-
-        if (request.startTime.isAfter(request.endTime)) {
-            throw VenuesException.ValidationFailure("Start time must be before end time")
-        }
-
-        session.startTime = request.startTime
-        session.endTime = request.endTime
-        session.ticketsCount = request.ticketsCount
-        session.priceOverride = request.priceOverride
-        session.priceRangeOverride = request.priceRangeOverride
-
-        val savedSession = eventSessionRepository.save(session)
-        logger.info { "Session updated successfully: $sessionId" }
-
-        return eventMapper.toSessionResponse(savedSession)
-    }
-
-    /**
-     * Delete session.
-     */
-    fun deleteSession(sessionId: UUID, venueId: UUID) {
-        logger.debug { "Deleting session: $sessionId for venue: $venueId" }
-
-        val session = eventSessionRepository.findById(sessionId)
-            .orElseThrow { VenuesException.ResourceNotFound("Session not found with ID: $sessionId") }
-
-        if (session.event.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only delete sessions of your own events")
-        }
-
-        eventSessionRepository.delete(session)
-        logger.info { "Session deleted successfully: $sessionId" }
-    }
-
-    // ===========================================
-    // TRANSLATIONS
-    // ===========================================
-
-    /**
-     * Add or update translation for an event.
-     */
-    fun setTranslation(eventId: UUID, venueId: UUID, request: EventTranslationRequest): EventTranslationResponse {
-        logger.debug { "Setting translation for event: $eventId, language: ${request.language} for venue: $venueId" }
-
-        val event = eventRepository.findById(eventId)
-            .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
-
-        if (event.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("You can only translate your own events")
-        }
-
-        // Find existing translation or create new
-        val translation = event.translations.find { it.language == request.language.lowercase() }
-            ?: EventTranslation(
-                event = event,
-                language = request.language.lowercase(),
-                title = request.title,
-                description = request.description
-            ).also { event.addTranslation(it) }
-
-        // Update translation
-        translation.title = request.title
-        translation.description = request.description
-
-        val savedEvent = eventRepository.save(event)
-        val savedTranslation = savedEvent.translations.find { it.language == request.language.lowercase() }!!
-
-        logger.info { "Translation set successfully for event: $eventId, language: ${request.language}" }
-
-        return eventMapper.toTranslationResponse(savedTranslation)
-    }
-
-    /**
      * Get translations for an event.
      */
     @Transactional(readOnly = true)
@@ -468,103 +364,47 @@ class EventService(
         return event.translations.map { eventMapper.toTranslationResponse(it) }
     }
 
-    private fun createSessionEntity(event: Event, request: EventSessionRequest): EventSession {
-        if (request.startTime.isAfter(request.endTime)) {
-            throw VenuesException.ValidationFailure("Start time must be before end time")
+    // ===========================================
+    // SEATING & PRICING
+    // ===========================================
+
+    /**
+     * Batch assign price template to seats/tables in a session.
+     */
+    fun assignPriceTemplate(
+        eventId: UUID,
+        sessionId: UUID,
+        venueId: UUID,
+        templateId: UUID?,
+        seatIds: List<Long>,
+        tableIds: List<Long>,
+        gaIds: List<Long>
+    ) {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
         }
 
-        val session = EventSession(
-            event = event,
-            startTime = request.startTime,
-            endTime = request.endTime,
-            ticketsCount = request.ticketsCount,
-            priceOverride = request.priceOverride,
-            priceRangeOverride = request.priceRangeOverride
-        )
+        // Verify session belongs to event
+        event.sessions.find { it.id == sessionId }
+            ?: throw VenuesException.ResourceNotFound("Session not found in event")
 
-        request.priceTemplateOverrides.forEach { overrideRequest ->
-            val override = app.venues.event.domain.EventSessionPriceOverride(
-                session = session,
-                templateName = overrideRequest.templateName,
-                price = overrideRequest.price
-            )
-            session.priceTemplateOverrides.add(override)
+        val template = if (templateId != null) {
+            event.priceTemplates.find { it.id == templateId }
+                ?: throw VenuesException.ResourceNotFound("Price template not found: $templateId")
+        } else null
+
+        if (seatIds.isNotEmpty()) {
+            eventSessionService.assignPriceTemplateToSeats(sessionId, template, seatIds)
         }
-
-        return session
-    }
-
-    private fun updateSessionsCollection(event: Event, sessionRequests: List<EventSessionRequest>) {
-        // 1. Map existing sessions by ID
-        val existingSessionsMap = event.sessions.associateBy { it.id }
-        val requestSessionIds = sessionRequests.mapNotNull { it.id }.toSet()
-
-        // 2. Identify sessions to remove
-        val sessionsToRemove = event.sessions.filter { it.id !in requestSessionIds }
-        sessionsToRemove.forEach { session ->
-            if (session.ticketsSold > 0) {
-                throw VenuesException.ValidationFailure("Cannot remove session with sold tickets: ${session.id}")
-            }
+        if (tableIds.isNotEmpty()) {
+            eventSessionService.assignPriceTemplateToTables(sessionId, template, tableIds)
         }
-        event.sessions.removeAll(sessionsToRemove)
-
-        // 3. Update or Create sessions
-        sessionRequests.forEach { request ->
-            if (request.id != null && existingSessionsMap.containsKey(request.id)) {
-                // Update existing
-                val session = existingSessionsMap[request.id]!!
-                if (request.startTime.isAfter(request.endTime)) {
-                    throw VenuesException.ValidationFailure("Start time must be before end time")
-                }
-                session.startTime = request.startTime
-                session.endTime = request.endTime
-                session.ticketsCount = request.ticketsCount
-                session.priceOverride = request.priceOverride
-                session.priceRangeOverride = request.priceRangeOverride
-
-                // Update price overrides (replace all strategy for simplicity)
-                session.priceTemplateOverrides.clear()
-                request.priceTemplateOverrides.forEach { overrideRequest ->
-                    val override = app.venues.event.domain.EventSessionPriceOverride(
-                        session = session,
-                        templateName = overrideRequest.templateName,
-                        price = overrideRequest.price
-                    )
-                    session.priceTemplateOverrides.add(override)
-                }
-            } else {
-                // Create new
-                val session = createSessionEntity(event, request)
-                event.sessions.add(session)
-            }
-        }
-    }
-
-    private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
-        // 1. Map existing translations by language
-        val existingTranslationsMap = event.translations.associateBy { it.language }
-        val requestLanguages = translationRequests.map { it.language.lowercase() }.toSet()
-
-        // 2. Remove translations not in request
-        event.translations.removeIf { it.language !in requestLanguages }
-
-        // 3. Update or Create translations
-        translationRequests.forEach { request ->
-            val language = request.language.lowercase()
-            if (existingTranslationsMap.containsKey(language)) {
-                // Update existing
-                val translation = existingTranslationsMap[language]!!
-                translation.title = request.title
-                translation.description = request.description
-            } else {
-                // Create new
-                val translation = EventTranslation(
-                    event = event,
-                    language = language,
-                    title = request.title,
-                    description = request.description
-                )
-                event.addTranslation(translation)
+        if (gaIds.isNotEmpty()) {
+            gaIds.forEach { gaId ->
+                eventSessionService.assignPriceTemplateToGa(sessionId, template, gaId)
             }
         }
     }

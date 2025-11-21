@@ -107,5 +107,10 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     """
     )
     fun adjustGATickets(sessionId: UUID, gaAreaId: Long, quantityDelta: Int): Int
+
+    /**
+     * Check if any configs exist for the session.
+     */
+    fun existsBySessionId(sessionId: UUID): Boolean
 }
 

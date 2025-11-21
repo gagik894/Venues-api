@@ -150,4 +150,34 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     """
     )
     fun releaseTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * BATCH operation: Update price template for multiple tables.
+     * Skips tables that are SOLD.
+     *
+     * @param sessionId Event session ID
+     * @param tableIds List of table IDs to update
+     * @param template The new price template (can be null)
+     * @return Number of rows updated
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.priceTemplate = :template
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status != app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun batchUpdatePriceTemplate(
+        sessionId: UUID,
+        tableIds: List<Long>,
+        template: app.venues.event.domain.EventPriceTemplate?
+    ): Int
+
+    /**
+     * Check if any configs exist for the session.
+     */
+    fun existsBySessionId(sessionId: UUID): Boolean
 }

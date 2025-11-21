@@ -50,7 +50,9 @@ data class EventRequest(
 
     val sessions: List<EventSessionRequest> = emptyList(),
 
-    val translations: List<EventTranslationRequest> = emptyList()
+    val translations: List<EventTranslationRequest> = emptyList(),
+
+    val priceTemplates: List<PriceTemplateRequest> = emptyList()
 )
 
 /**
@@ -137,6 +139,8 @@ data class EventSessionResponse(
  * Request DTO for price template.
  */
 data class PriceTemplateRequest(
+    val id: UUID? = null,
+
     @field:NotBlank(message = "Template name is required")
     @field:Size(max = 100, message = "Template name must not exceed 100 characters")
     val templateName: String,

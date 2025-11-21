@@ -1,6 +1,7 @@
 package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.event.api.dto.AssignPriceTemplateRequest
 import app.venues.event.api.dto.EventRequest
 import app.venues.event.api.dto.EventResponse
 import app.venues.event.service.EventService
@@ -125,5 +126,44 @@ class VenueEventController(
 
     // Legacy translation management endpoints removed.
     // Use updateEvent to manage translations in bulk.
+
+    // ===========================================
+    // PRICING MANAGEMENT
+    // ===========================================
+
+    /**
+     * Assign price template to seats/tables.
+     */
+    @PutMapping("/{eventId}/sessions/{sessionId}/pricing")
+    @Operation(
+        summary = "Assign price template",
+        description = "Batch assign a price template to seats, tables, or GA areas (Venue owners only)"
+    )
+    fun assignPriceTemplate(
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @Valid @RequestBody request: AssignPriceTemplateRequest,
+        @RequestAttribute staffId: UUID,
+    ): ApiResponse<Unit> {
+        val existingEvent = eventService.getEventById(eventId)
+        venueSecurityService.requireVenueManagementPermission(staffId, existingEvent.venueId)
+
+        logger.debug { "Assigning price template for session: $sessionId, event: $eventId by staff: $staffId" }
+
+        eventService.assignPriceTemplate(
+            eventId = eventId,
+            sessionId = sessionId,
+            venueId = existingEvent.venueId,
+            templateId = request.templateId,
+            seatIds = request.seatIds,
+            tableIds = request.tableIds,
+            gaIds = request.gaIds
+        )
+
+        return ApiResponse.success(
+            data = Unit,
+            message = "Price template assigned successfully"
+        )
+    }
 }
 

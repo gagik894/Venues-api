@@ -4,15 +4,16 @@ import app.venues.common.constants.AppConstants
 import app.venues.common.exception.VenuesException
 import app.venues.staff.api.StaffSecurityFacade
 import app.venues.venue.api.VenueApi
+import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.util.*
 
 @Service
-class VenueSecurityService(
+class VenueSecurityServiceImpl(
     private val venueApi: VenueApi,
     private val staffSecurityFacade: StaffSecurityFacade
-) {
+) : VenueSecurityService {
     private val logger = KotlinLogging.logger {}
 
     /**
@@ -28,7 +29,7 @@ class VenueSecurityService(
      * @param venueId Venue UUID from path
      * @throws VenuesException.AuthorizationFailure if staff cannot manage venue
      */
-    fun requireVenueManagementPermission(staffId: UUID, venueId: UUID) {
+    override fun requireVenueManagementPermission(staffId: UUID, venueId: UUID) {
         // Get venue's organization ID (needed for permission check)
         val organizationId = venueApi.getVenueOrganizationId(venueId)
             ?: throw VenuesException.ResourceNotFound(

@@ -3,7 +3,7 @@ package app.venues.venue.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.venue.api.dto.UpdateVenueBrandingRequest
 import app.venues.venue.api.dto.VenueBrandingDto
-import app.venues.venue.service.VenueSecurityService
+import app.venues.venue.api.service.VenueSecurityService
 import app.venues.venue.service.VenueWebsiteService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement

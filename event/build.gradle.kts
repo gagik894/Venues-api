@@ -36,6 +36,7 @@ dependencies {
     api(project(":event-api"))    // EventApi implementation
     api(project(":venue-api"))    // VenueApi for venue information
     api(project(":seating-api"))  // SeatingApi for seating chart information
+    api(project(":staff-api"))    // StaffApi for staff information
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

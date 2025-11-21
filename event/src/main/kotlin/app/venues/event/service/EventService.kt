@@ -59,7 +59,6 @@ class EventService(
 
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
-                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
         }
 
         val event = Event(
@@ -82,7 +81,7 @@ class EventService(
         val savedEvent = eventRepository.save(event)
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
@@ -131,7 +130,6 @@ class EventService(
 
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
-                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
         }
 
         // Update fields
@@ -154,7 +152,7 @@ class EventService(
         val savedEvent = eventRepository.save(event)
         logger.info { "Event updated successfully: $eventId" }
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
@@ -301,11 +299,15 @@ class EventService(
     /**
      * Add session to event.
      */
-    fun addSession(eventId: UUID, request: EventSessionRequest): EventSessionResponse {
-        logger.debug { "Adding session to event: $eventId" }
+    fun addSession(eventId: UUID, venueId: UUID, request: EventSessionRequest): EventSessionResponse {
+        logger.debug { "Adding session to event: $eventId for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("You can only add sessions to your own events")
+        }
 
         if (request.startTime.isAfter(request.endTime)) {
             throw VenuesException.ValidationFailure("Start time must be before end time")
@@ -349,11 +351,15 @@ class EventService(
     /**
      * Update session.
      */
-    fun updateSession(sessionId: UUID, request: EventSessionRequest): EventSessionResponse {
-        logger.debug { "Updating session: $sessionId" }
+    fun updateSession(sessionId: UUID, venueId: UUID, request: EventSessionRequest): EventSessionResponse {
+        logger.debug { "Updating session: $sessionId for venue: $venueId" }
 
         val session = eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found with ID: $sessionId") }
+
+        if (session.event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("You can only update sessions of your own events")
+        }
 
         if (request.startTime.isAfter(request.endTime)) {
             throw VenuesException.ValidationFailure("Start time must be before end time")
@@ -374,11 +380,15 @@ class EventService(
     /**
      * Delete session.
      */
-    fun deleteSession(sessionId: UUID) {
-        logger.debug { "Deleting session: $sessionId" }
+    fun deleteSession(sessionId: UUID, venueId: UUID) {
+        logger.debug { "Deleting session: $sessionId for venue: $venueId" }
 
         val session = eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Session not found with ID: $sessionId") }
+
+        if (session.event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("You can only delete sessions of your own events")
+        }
 
         eventSessionRepository.delete(session)
         logger.info { "Session deleted successfully: $sessionId" }
@@ -391,11 +401,15 @@ class EventService(
     /**
      * Add or update translation for an event.
      */
-    fun setTranslation(eventId: UUID, request: EventTranslationRequest): EventTranslationResponse {
-        logger.debug { "Setting translation for event: $eventId, language: ${request.language}" }
+    fun setTranslation(eventId: UUID, venueId: UUID, request: EventTranslationRequest): EventTranslationResponse {
+        logger.debug { "Setting translation for event: $eventId, language: ${request.language} for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("You can only translate your own events")
+        }
 
         // Find existing translation or create new
         val translation = event.translations.find { it.language == request.language.lowercase() }

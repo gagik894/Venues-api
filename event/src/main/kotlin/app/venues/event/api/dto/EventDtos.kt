@@ -44,7 +44,9 @@ data class EventRequest(
 
     val seatingChartId: UUID? = null,
 
-    val status: EventStatus = EventStatus.DRAFT
+    val status: EventStatus = EventStatus.DRAFT,
+
+    val venueId: UUID
 )
 
 /**

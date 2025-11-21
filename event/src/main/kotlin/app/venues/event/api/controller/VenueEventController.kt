@@ -114,20 +114,6 @@ class VenueEventController(
     }
 
     // ===========================================
-    // SESSION MANAGEMENT
-    // ===========================================
-
-    // Legacy session management endpoints removed.
-    // Use updateEvent to manage sessions in bulk.
-
-    // ===========================================
-    // TRANSLATION MANAGEMENT
-    // ===========================================
-
-    // Legacy translation management endpoints removed.
-    // Use updateEvent to manage translations in bulk.
-
-    // ===========================================
     // PRICING MANAGEMENT
     // ===========================================
 

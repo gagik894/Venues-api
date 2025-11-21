@@ -154,7 +154,7 @@ class JwtAuthenticationFilter(
             // Support both "staffId" and "userId" for different entity types
             request.setAttribute("principalId", principalId)
             request.setAttribute("staffId", principalId)
-            request.setAttribute("usrId", principalId)
+            request.setAttribute("userId", principalId)
             log.debug { "Principal authenticated successfully: principalId=$principalId, email=$email, role=$role" }
 
         } catch (e: ExpiredJwtException) {

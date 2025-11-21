@@ -8,6 +8,8 @@ import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
@@ -38,10 +40,19 @@ class BookingController(
     @PostMapping("/checkout")
     @Operation(
         summary = "Checkout",
-        description = "Convert cart to booking. No authentication required - provide email."
+        description = "Convert cart to booking. No authentication required - provide email. Token can be in body or cookie."
     )
-    fun checkout(@Valid @RequestBody request: CheckoutRequest): ApiResponse<CheckoutResponse> {
-        logger.debug { "Processing checkout: token=${request.token}" }
+    fun checkout(
+        @Valid @RequestBody request: CheckoutRequest,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CheckoutResponse> {
+        val effectiveToken = request.token ?: cookieToken
+        ?: throw IllegalArgumentException("Cart token is required (body or cookie)")
+
+        val effectiveRequest = request.copy(token = effectiveToken)
+
+        logger.debug { "Processing checkout: token=$effectiveToken" }
 
         // Try to get user ID if authenticated, but not required
         val userId = try {
@@ -50,7 +61,13 @@ class BookingController(
             null
         }
 
-        val result = bookingService.checkout(request, userId)
+        val result = bookingService.checkout(effectiveRequest, userId)
+
+        // Clear cart cookie on successful checkout
+        val cookie = Cookie("cart_token", "")
+        cookie.path = "/"
+        cookie.maxAge = 0
+        response.addCookie(cookie)
 
         return ApiResponse.success(
             data = result,

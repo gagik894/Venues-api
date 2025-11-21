@@ -52,10 +52,15 @@ class Cart(
 
     /**
      * Extends the cart's expiration time and updates its activity.
+     * Respects a hard limit relative to creation time to prevent infinite holding.
      */
-    fun extendExpiration(minutes: Long) {
-        this.expiresAt = Instant.now().plusSeconds(minutes * 60)
-        this.lastActivityAt = Instant.now()
+    fun extendExpiration(minutes: Long, maxTtlMinutes: Long) {
+        val now = Instant.now()
+        val proposed = now.plusSeconds(minutes * 60)
+        val hardLimit = this.createdAt.plusSeconds(maxTtlMinutes * 60)
+
+        this.expiresAt = if (proposed.isAfter(hardLimit)) hardLimit else proposed
+        this.lastActivityAt = now
     }
 
     /**

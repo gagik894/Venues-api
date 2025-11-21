@@ -3,7 +3,6 @@ package app.venues.booking.api.dto
 import app.venues.booking.api.domain.BookingStatus
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import java.util.*
 
@@ -15,8 +14,7 @@ import java.util.*
  * Checkout request to convert cart to booking
  */
 data class CheckoutRequest(
-    @field:NotNull(message = "Reservation token is required")
-    val token: UUID,
+    val token: UUID? = null, // Optional if cookie is present
 
     @field:NotBlank(message = "Email is required")
     @field:Email(message = "Invalid email format")

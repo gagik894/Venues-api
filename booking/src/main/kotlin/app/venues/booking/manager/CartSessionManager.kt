@@ -16,7 +16,9 @@ class CartSessionManager(
     private val cartRepository: CartRepository
 ) {
     companion object {
-        const val CART_EXPIRATION_MINUTES = 15
+        const val CART_EXPIRATION_MINUTES = 10
+        const val CART_TOUCH_ADD_MINUTES = 5
+        const val MAX_CART_TTL_MINUTES = 20 // Hard limit to prevent infinite holding
     }
 
     fun findOrCreateCart(token: UUID?, sessionId: UUID, userId: UUID? = null): Cart {
@@ -42,7 +44,8 @@ class CartSessionManager(
     }
 
     fun touchCart(cart: Cart): Cart {
-        cart.touch()
+        // Extend expiration on activity to prevent session timeout while user is active
+        cart.extendExpiration(CART_TOUCH_ADD_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())
         return cartRepository.save(cart)
     }
 
@@ -59,7 +62,7 @@ class CartSessionManager(
     }
 
     private fun extendCartExpiration(cart: Cart): Cart {
-        cart.extendExpiration(CART_EXPIRATION_MINUTES.toLong())
+        cart.extendExpiration(CART_EXPIRATION_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())
         return cartRepository.save(cart)
     }
 

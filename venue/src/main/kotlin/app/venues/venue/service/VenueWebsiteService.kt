@@ -1,8 +1,10 @@
 package app.venues.venue.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.venue.api.dto.LocalizedVenueWebsiteDto
 import app.venues.venue.api.dto.UpdateVenueBrandingRequest
 import app.venues.venue.api.dto.VenueBrandingDto
+import app.venues.venue.api.dto.VenueWebsiteDataDto
 import app.venues.venue.api.mapper.VenueWebsiteMapper
 import app.venues.venue.domain.VenueBranding
 import app.venues.venue.repository.VenueBrandingRepository
@@ -25,6 +27,22 @@ class VenueWebsiteService(
             .orElseThrow { VenuesException.ResourceNotFound("Branding not found for venue $venueId") }
 
         return venueWebsiteMapper.toDto(branding)
+    }
+
+    @Transactional(readOnly = true)
+    fun getVenueWebsiteData(venueId: UUID): VenueWebsiteDataDto {
+        val venue = venueRepository.findById(venueId)
+            .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
+
+        return venueWebsiteMapper.toWebsiteData(venue)
+    }
+
+    @Transactional(readOnly = true)
+    fun getLocalizedVenueWebsiteData(venueId: UUID, lang: String): LocalizedVenueWebsiteDto {
+        val venue = venueRepository.findById(venueId)
+            .orElseThrow { VenuesException.ResourceNotFound("Venue not found: $venueId") }
+
+        return venueWebsiteMapper.toLocalizedWebsiteData(venue, lang)
     }
 
     fun updateVenueBranding(venueId: UUID, request: UpdateVenueBrandingRequest): VenueBrandingDto {

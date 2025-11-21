@@ -21,7 +21,8 @@ data class HeroConfigDto(
 
 data class ContentBlockDto(
     val type: String,
-    val content: Map<String, String>?,
+    val title: Map<String, String>?,
+    val body: Map<String, String>?,
     val imageUrl: String?
 )
 

@@ -1,6 +1,7 @@
 package app.venues.venue.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.venue.api.dto.LocalizedVenueWebsiteDto
 import app.venues.venue.api.dto.UpdateVenueBrandingRequest
 import app.venues.venue.api.dto.VenueBrandingDto
 import app.venues.venue.service.VenueSecurityService
@@ -27,6 +28,19 @@ class VenueWebsiteController(
     fun getVenueBranding(@PathVariable venueId: UUID): ApiResponse<VenueBrandingDto> {
         val branding = venueWebsiteService.getVenueBranding(venueId)
         return ApiResponse.success(branding, "Branding retrieved successfully")
+    }
+
+    @GetMapping("/data")
+    @Operation(
+        summary = "Get full website data",
+        description = "Returns aggregated data for the venue's white-label site. Supports localization via 'lang' parameter."
+    )
+    fun getVenueWebsiteData(
+        @PathVariable venueId: UUID,
+        @RequestParam(defaultValue = "en") lang: String
+    ): ApiResponse<LocalizedVenueWebsiteDto> {
+        val data = venueWebsiteService.getLocalizedVenueWebsiteData(venueId, lang)
+        return ApiResponse.success(data, "Website data retrieved successfully")
     }
 }
 

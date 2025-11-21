@@ -52,8 +52,9 @@ data class HeroConfig(
 ) : java.io.Serializable
 
 data class ContentBlock(
-    val type: String, // "text", "image"
-    val content: Map<String, String>?,
+    val type: String, // "text", "image", "image_right", "image_left"
+    val title: Map<String, String>?,
+    val body: Map<String, String>?,
     val imageUrl: String?
 ) : java.io.Serializable
 

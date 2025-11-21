@@ -207,6 +207,15 @@ interface EventApi {
      */
     fun getGaPriceTemplateNames(sessionId: UUID, gaAreaIds: List<Long>): Map<Long, String?>
 
+    /**
+     * Returns the price template names for the specified tables.
+     *
+     * @param sessionId Event session ID.
+     * @param tableIds List of table IDs.
+     * @return Map of table ID to price template name (nullable).
+     */
+    fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?>
+
     // Sale Confirmation (Reserved -> Sold)
 
     /**

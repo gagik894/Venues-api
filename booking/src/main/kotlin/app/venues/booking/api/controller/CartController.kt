@@ -105,7 +105,6 @@ class CartController(
     fun getCartSummary(@PathVariable token: UUID): ApiResponse<CartSummaryResponse> {
         logger.debug { "Fetching cart: $token" }
 
-        // DELEGATE TO THE NEW QUERY SERVICE
         val cart = cartQueryService.getCartSummary(token)
 
         return ApiResponse.success(
@@ -220,6 +219,28 @@ class CartController(
         return ApiResponse.success(
             data = Unit,
             message = "Cart cleared"
+        )
+    }
+
+    /**
+     * Apply promo code to cart.
+     */
+    @PostMapping("/{token}/promo-code")
+    @Operation(
+        summary = "Apply promo code",
+        description = "Apply a promo code to the cart and recalculate totals."
+    )
+    fun applyPromoCode(
+        @PathVariable token: UUID,
+        @Valid @RequestBody request: ApplyPromoCodeRequest
+    ): ApiResponse<PromoCodeAppliedResponse> {
+        logger.debug { "Applying promo code: token=$token, code=${request.code}" }
+
+        val result = cartService.applyPromoCode(token, request.code)
+
+        return ApiResponse.success(
+            data = result,
+            message = result.message
         )
     }
 }

@@ -2,6 +2,7 @@ package app.venues.booking.service
 
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.dto.*
+import app.venues.booking.domain.Cart
 import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
@@ -11,11 +12,14 @@ import app.venues.booking.validation.CartLimitValidator
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.validation.ConstraintViolationException
 import jakarta.validation.Validator
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Isolation
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 import java.util.*
 
 /**
@@ -38,6 +42,7 @@ class CartService(
     private val tableReservationService: TableReservationService,
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
+    private val venueApi: VenueApi,
     private val validator: Validator
 ) : CartApi {
     private val logger = KotlinLogging.logger {}
@@ -61,7 +66,7 @@ class CartService(
     /**
      * Builds standard success response for add-to-cart operations.
      */
-    private fun buildSuccessResponse(cart: app.venues.booking.domain.Cart, message: String) =
+    private fun buildSuccessResponse(cart: Cart, message: String) =
         AddToCartResponse(
             token = cart.token,
             message = message,
@@ -75,7 +80,7 @@ class CartService(
      *
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding seat to cart: ${request.code}" }
 
@@ -130,7 +135,7 @@ class CartService(
      *
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     override fun addGAToCart(request: AddGAToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding GA to cart: ${request.code}, quantity=${request.quantity}" }
 
@@ -195,7 +200,7 @@ class CartService(
      *
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     override fun addTableToCart(request: AddTableToCartRequest, token: UUID?): AddToCartResponse {
         logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.code}" }
 
@@ -260,7 +265,7 @@ class CartService(
      * Updates quantity of GA tickets in cart with atomic inventory adjustment.
      * If new quantity is 0, removes the GA item from cart.
      */
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     override fun updateGAQuantity(token: UUID, levelIdentifier: String, request: UpdateGAQuantityRequest) {
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) {
@@ -405,5 +410,72 @@ class CartService(
         logger.info {
             "Cart cleared: token=$token, seats=${seatIds.size}, GA=${gaUpdates.size}, tables=${tableIds.size}"
         }
+    }
+
+    /**
+     * Apply a promo code to the cart.
+     * Validates the code with VenueApi and updates the cart with the discount.
+     */
+    @Transactional
+    override fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse {
+        val cart = cartSessionManager.getActiveCart(token)
+
+        // 1. Get Venue ID from Session
+        val session = eventApi.getEventSessionInfo(cart.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Session not found")
+        val venueId = session.venueId
+
+        // 2. Validate Promo Code via VenueApi
+        val promoCode = venueApi.validatePromoCode(venueId, code)
+            ?: throw VenuesException.ValidationFailure("Invalid or expired promo code")
+
+        // 3. Calculate Cart Total (before discount)
+        val cartSeats = cartItemPersistence.getAllSeats(cart)
+        val cartTables = cartTablePersistence.getAllTables(cart)
+        val cartGaItems = cartItemPersistence.getAllGAItems(cart)
+
+        var subtotal = BigDecimal.ZERO
+        cartSeats.forEach { subtotal = subtotal.add(it.unitPrice) }
+        cartTables.forEach { subtotal = subtotal.add(it.unitPrice) }
+        cartGaItems.forEach {
+            val itemTotal = it.unitPrice.multiply(BigDecimal(it.quantity))
+            subtotal = subtotal.add(itemTotal)
+        }
+
+        // 4. Check Minimum Order Amount
+        if (promoCode.minOrderAmount != null && subtotal < promoCode.minOrderAmount) {
+            throw VenuesException.ValidationFailure("Order amount must be at least ${promoCode.minOrderAmount} to use this code")
+        }
+
+        // 5. Calculate Discount
+        var discount: BigDecimal
+        if (promoCode.discountType == "PERCENTAGE") {
+            discount = subtotal.multiply(promoCode.discountValue).divide(BigDecimal(100))
+            if (promoCode.maxDiscountAmount != null && discount > promoCode.maxDiscountAmount) {
+                discount = promoCode.maxDiscountAmount!!
+            }
+        } else {
+            discount = promoCode.discountValue
+        }
+
+        // Ensure discount doesn't exceed total
+        if (discount > subtotal) {
+            discount = subtotal
+        }
+
+        // 6. Update Cart
+        cart.promoCode = code
+        cart.discountAmount = discount
+        cartRepository.save(cart)
+
+        logger.info { "Applied promo code '$code' to cart ${cart.token}. Discount: $discount" }
+
+        return PromoCodeAppliedResponse(
+            originalPrice = subtotal,
+            discountAmount = discount,
+            finalPrice = subtotal.subtract(discount),
+            promoCode = code,
+            message = "Promo code applied successfully"
+        )
     }
 }

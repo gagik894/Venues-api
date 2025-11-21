@@ -63,6 +63,12 @@ class Booking(
     @Column(name = "service_fee_amount", nullable = false, precision = 10, scale = 2)
     var serviceFeeAmount: BigDecimal = BigDecimal.ZERO,
 
+    @Column(name = "discount_amount", nullable = false, precision = 10, scale = 2)
+    var discountAmount: BigDecimal = BigDecimal.ZERO,
+
+    @Column(name = "promo_code", length = 50)
+    var promoCode: String? = null,
+
     @Version
     @Column(name = "version")
     var version: Long = 0
@@ -71,9 +77,8 @@ class Booking(
 
     init {
         require(serviceFeeAmount.signum() >= 0) { "serviceFeeAmount must be >= 0" }
-        require(totalPrice.compareTo(serviceFeeAmount) >= 0) {
-            "totalPrice must be greater than or equal to serviceFeeAmount"
-        }
+        require(discountAmount.signum() >= 0) { "discountAmount must be >= 0" }
+        // Total price check is complex because it depends on calculation order (base + fee - discount)
     }
 
     // --- Internal State (Encapsulated) ---
@@ -135,7 +140,7 @@ class Booking(
      * Confirms the booking, moving it to a confirmed state
      * and recording the payment.
      *
-     * @param paymentId The unique identifier for the payment transaction.
+     * @param paymentId The unique identifier for the payment transaction (internal UUID).
      * @throws IllegalStateException if the booking is not in a PENDING state.
      */
     fun confirm(paymentId: UUID?) {

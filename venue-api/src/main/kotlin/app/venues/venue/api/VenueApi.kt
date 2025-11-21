@@ -51,5 +51,24 @@ interface VenueApi {
      * @param language Optional language code for translations
      */
     fun getVenueNamesBatch(venueIds: Set<UUID>, language: String? = null): Map<UUID, String>
+
+    /**
+     * Validate a promo code for a venue.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     * @return PromoCodeDto if valid, null if invalid or not found
+     */
+    fun validatePromoCode(venueId: UUID, code: String): app.venues.venue.api.dto.PromoCodeDto?
+
+    /**
+     * Redeem a promo code (increment usage).
+     * Should be called when a booking is confirmed.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     * @throws RuntimeException if redemption fails (e.g. limit reached)
+     */
+    fun redeemPromoCode(venueId: UUID, code: String)
 }
 

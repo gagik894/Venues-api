@@ -36,6 +36,7 @@ dependencies {
     api(project(":user-api"))      // UserApi for user information
     api(project(":seating-api"))   // SeatingApi for seat/level information
     api(project(":booking-api"))
+    api(project(":venue-api"))    // Venue module - for venue and level details
     // Event module - we use the API interface
     api(project(":event-api"))
 

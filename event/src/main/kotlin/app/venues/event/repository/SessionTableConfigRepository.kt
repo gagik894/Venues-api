@@ -33,6 +33,19 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     fun findBySessionIdAndStatus(sessionId: UUID, status: ConfigStatus): List<SessionTableConfig>
 
     /**
+     * Find all table configs for a list of table IDs
+     */
+    @Query(
+        """
+        SELECT stc FROM SessionTableConfig stc
+        LEFT JOIN FETCH stc.priceTemplate
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+    """
+    )
+    fun findBySessionIdAndTableIdIn(sessionId: UUID, tableIds: List<Long>): List<SessionTableConfig>
+
+    /**
      * Get table price if available and priced
      * Returns null if table is not available or not priced
      */

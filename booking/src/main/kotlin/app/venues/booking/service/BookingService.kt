@@ -13,11 +13,13 @@ import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
 import java.util.*
 
 /**
@@ -36,11 +38,13 @@ class BookingService(
     private val cartRepository: CartRepository,
     private val cartSeatRepository: CartSeatRepository,
     private val cartItemRepository: CartItemRepository,
+    private val cartTableRepository: CartTableRepository,
     private val guestService: GuestService,
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
-    private val eventApi: EventApi
+    private val eventApi: EventApi,
+    private val venueApi: VenueApi
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -233,6 +237,7 @@ class BookingService(
                 seatIdentifier = seatIdentifier,
                 levelId = levelId,
                 levelName = levelName,
+                tableId = item.tableId,
                 quantity = item.quantity,
                 unitPrice = item.unitPrice.toString(),
                 totalPrice = item.getTotalPrice().toString(),
@@ -264,6 +269,7 @@ class BookingService(
         val cart: app.venues.booking.domain.Cart,
         val cartSeats: List<app.venues.booking.domain.CartSeat>,
         val cartItems: List<app.venues.booking.domain.CartItem>,
+        val cartTables: List<app.venues.booking.domain.CartTable>,
         val sessionDto: EventSessionDto
     )
 
@@ -288,8 +294,9 @@ class BookingService(
         // Get cart items
         val cartSeats = cartSeatRepository.findByCart(cart)
         val cartItems = cartItemRepository.findByCart(cart)
+        val cartTables = cartTableRepository.findByCart(cart)
 
-        if (cartSeats.isEmpty() && cartItems.isEmpty()) {
+        if (cartSeats.isEmpty() && cartItems.isEmpty() && cartTables.isEmpty()) {
             throw VenuesException.ResourceNotFound("Cart is empty")
         }
 
@@ -301,6 +308,7 @@ class BookingService(
             cart = cart,
             cartSeats = cartSeats,
             cartItems = cartItems,
+            cartTables = cartTables,
             sessionDto = sessionDto
         )
     }
@@ -327,7 +335,7 @@ class BookingService(
         val venueId = sessionDto.venueId
 
         // Calculate total and create booking items
-        var totalPrice = java.math.BigDecimal.ZERO
+        var totalPrice = BigDecimal.ZERO
         val bookingItems = mutableListOf<BookingItem>()
 
         // Create booking first (needed for items)
@@ -337,12 +345,11 @@ class BookingService(
             sessionId = sessionDto.sessionId,
             platformId = platformId,
             venueId = venueId,
-            totalPrice = java.math.BigDecimal.ZERO, // Will update
+            totalPrice = BigDecimal.ZERO, // Will update
             currency = sessionDto.currency
         )
 
-        // TODO: Calculate service fee if applicable. Currently 0.
-        // booking.applyServiceFeePercent(totalPrice, BigDecimal("2.5"))
+        booking.applyServiceFeePercent(totalPrice, BigDecimal("10.0")) // Example 10% service fee
 
         if (paymentReference != null) {
             // We can't set paymentId directly if it's protected set.
@@ -371,7 +378,7 @@ class BookingService(
         val gaTemplates = eventApi.getGaPriceTemplateNames(sessionDto.sessionId, gaAreaIds)
 
         cartData.cartItems.forEach { cartItem ->
-            val itemTotal = cartItem.unitPrice.multiply(java.math.BigDecimal(cartItem.quantity))
+            val itemTotal = cartItem.unitPrice.multiply(BigDecimal(cartItem.quantity))
             val item = BookingItem(
                 booking = booking,
                 gaAreaId = cartItem.gaAreaId,
@@ -381,6 +388,33 @@ class BookingService(
             )
             bookingItems.add(item)
             totalPrice = totalPrice.add(itemTotal)
+        }
+
+        // Add Table items
+        val tableIds = cartData.cartTables.map { it.tableId }
+        val tableTemplates = eventApi.getTablePriceTemplateNames(sessionDto.sessionId, tableIds)
+
+        cartData.cartTables.forEach { cartTable ->
+            val item = BookingItem(
+                booking = booking,
+                tableId = cartTable.tableId,
+                quantity = 1,
+                unitPrice = cartTable.unitPrice,
+                priceTemplateName = tableTemplates[cartTable.tableId]
+            )
+            bookingItems.add(item)
+            totalPrice = totalPrice.add(cartTable.unitPrice)
+        }
+
+        // Apply discount if present in cart
+        if (cartData.cart.discountAmount != null) {
+            totalPrice = totalPrice.subtract(cartData.cart.discountAmount)
+            // Ensure total is not negative
+            if (totalPrice < BigDecimal.ZERO) {
+                totalPrice = BigDecimal.ZERO
+            }
+            booking.discountAmount = cartData.cart.discountAmount!!
+            booking.promoCode = cartData.cart.promoCode
         }
 
         booking.totalPrice = totalPrice
@@ -417,7 +451,7 @@ class BookingService(
     private fun createPlatformBooking(
         cartToken: UUID,
         platformId: UUID,
-        paymentReference: String,
+        paymentReference: String?,
         guestEmail: String? = null,
         guestName: String? = null,
         guestPhone: String? = null
@@ -442,13 +476,27 @@ class BookingService(
         )
 
         // Confirm immediately (payment already done by platform)
-        booking.confirm(UUID.fromString(paymentReference)) // Assuming reference is UUID, or generate new UUID if not
+        // External platforms do not provide internal payment UUIDs, so paymentId is null.
+        booking.confirm(null)
+
+        if (paymentReference != null) {
+            booking.externalOrderNumber = paymentReference
+        }
 
         // Save booking
         val savedBooking = bookingRepository.save(booking)
 
         // Finalize inventory (RESERVED -> SOLD)
         finalizeBookingInventory(booking)
+
+        // Redeem promo code if used
+        if (cartData.cart.promoCode != null) {
+            try {
+                venueApi.redeemPromoCode(booking.venueId!!, cartData.cart.promoCode!!)
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to redeem promo code ${cartData.cart.promoCode} for booking ${booking.id}" }
+            }
+        }
 
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
@@ -474,7 +522,7 @@ class BookingService(
         val booking = createPlatformBooking(
             cartToken = cartToken,
             platformId = platformId,
-            paymentReference = paymentReference ?: UUID.randomUUID().toString(),
+            paymentReference = paymentReference,
             guestEmail = guestEmail,
             guestName = guestName,
             guestPhone = guestPhone

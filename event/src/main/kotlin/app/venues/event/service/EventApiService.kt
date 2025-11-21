@@ -157,6 +157,13 @@ class EventApiService(
             .associate { it.gaAreaId to it.priceTemplate?.templateName }
     }
 
+    @Transactional(readOnly = true)
+    override fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?> {
+        if (tableIds.isEmpty()) return emptyMap()
+        return sessionTableConfigRepository.findBySessionIdAndTableIdIn(sessionId, tableIds)
+            .associate { it.tableId to it.priceTemplate?.templateName }
+    }
+
     @Transactional
     override fun sellSeat(sessionId: UUID, seatId: Long) {
         val updated = sessionSeatConfigRepository.sellSeats(sessionId, listOf(seatId))

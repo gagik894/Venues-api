@@ -46,7 +46,11 @@ data class EventRequest(
 
     val status: EventStatus = EventStatus.DRAFT,
 
-    val venueId: UUID
+    val venueId: UUID,
+
+    val sessions: List<EventSessionRequest> = emptyList(),
+
+    val translations: List<EventTranslationRequest> = emptyList()
 )
 
 /**
@@ -87,6 +91,8 @@ data class EventResponse(
  * Request DTO for creating/updating event sessions.
  */
 data class EventSessionRequest(
+    val id: UUID? = null,
+
     @field:NotNull(message = "Start time is required")
     var startTime: Instant,
 

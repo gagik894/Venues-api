@@ -4,7 +4,7 @@ import app.venues.common.model.ApiResponse
 import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
 import app.venues.shared.persistence.util.PageableMapper
-import app.venues.venue.service.VenueSecurityService
+import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -193,9 +193,4 @@ class VenueSeatingController(
         seatingService.deleteSeat(seatId)
         return ApiResponse.success(Unit, "Deleted successfully")
     }
-
-    // ===========================================
-    // PRIVATE HELPERS
-    // ===========================================
-
 }

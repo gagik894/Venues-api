@@ -59,6 +59,7 @@ class EventService(
 
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
+                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
         }
 
         val event = Event(
@@ -74,9 +75,25 @@ class EventService(
             seatingChartId = request.seatingChartId,
         )
 
-
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         event.tags.addAll(request.tags)
+
+        // Create sessions
+        request.sessions.forEach { sessionRequest ->
+            val session = createSessionEntity(event, sessionRequest)
+            event.sessions.add(session)
+        }
+
+        // Create translations
+        request.translations.forEach { translationRequest ->
+            val translation = EventTranslation(
+                event = event,
+                language = translationRequest.language.lowercase(),
+                title = translationRequest.title,
+                description = translationRequest.description
+            )
+            event.addTranslation(translation)
+        }
 
         val savedEvent = eventRepository.save(event)
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
@@ -148,6 +165,12 @@ class EventService(
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         event.tags.clear()
         event.tags.addAll(request.tags)
+
+        // Update sessions
+        updateSessionsCollection(event, request.sessions)
+
+        // Update translations
+        updateTranslationsCollection(event, request.translations)
 
         val savedEvent = eventRepository.save(event)
         logger.info { "Event updated successfully: $eventId" }
@@ -443,6 +466,107 @@ class EventService(
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
 
         return event.translations.map { eventMapper.toTranslationResponse(it) }
+    }
+
+    private fun createSessionEntity(event: Event, request: EventSessionRequest): EventSession {
+        if (request.startTime.isAfter(request.endTime)) {
+            throw VenuesException.ValidationFailure("Start time must be before end time")
+        }
+
+        val session = EventSession(
+            event = event,
+            startTime = request.startTime,
+            endTime = request.endTime,
+            ticketsCount = request.ticketsCount,
+            priceOverride = request.priceOverride,
+            priceRangeOverride = request.priceRangeOverride
+        )
+
+        request.priceTemplateOverrides.forEach { overrideRequest ->
+            val override = app.venues.event.domain.EventSessionPriceOverride(
+                session = session,
+                templateName = overrideRequest.templateName,
+                price = overrideRequest.price
+            )
+            session.priceTemplateOverrides.add(override)
+        }
+
+        return session
+    }
+
+    private fun updateSessionsCollection(event: Event, sessionRequests: List<EventSessionRequest>) {
+        // 1. Map existing sessions by ID
+        val existingSessionsMap = event.sessions.associateBy { it.id }
+        val requestSessionIds = sessionRequests.mapNotNull { it.id }.toSet()
+
+        // 2. Identify sessions to remove
+        val sessionsToRemove = event.sessions.filter { it.id !in requestSessionIds }
+        sessionsToRemove.forEach { session ->
+            if (session.ticketsSold > 0) {
+                throw VenuesException.ValidationFailure("Cannot remove session with sold tickets: ${session.id}")
+            }
+        }
+        event.sessions.removeAll(sessionsToRemove)
+
+        // 3. Update or Create sessions
+        sessionRequests.forEach { request ->
+            if (request.id != null && existingSessionsMap.containsKey(request.id)) {
+                // Update existing
+                val session = existingSessionsMap[request.id]!!
+                if (request.startTime.isAfter(request.endTime)) {
+                    throw VenuesException.ValidationFailure("Start time must be before end time")
+                }
+                session.startTime = request.startTime
+                session.endTime = request.endTime
+                session.ticketsCount = request.ticketsCount
+                session.priceOverride = request.priceOverride
+                session.priceRangeOverride = request.priceRangeOverride
+
+                // Update price overrides (replace all strategy for simplicity)
+                session.priceTemplateOverrides.clear()
+                request.priceTemplateOverrides.forEach { overrideRequest ->
+                    val override = app.venues.event.domain.EventSessionPriceOverride(
+                        session = session,
+                        templateName = overrideRequest.templateName,
+                        price = overrideRequest.price
+                    )
+                    session.priceTemplateOverrides.add(override)
+                }
+            } else {
+                // Create new
+                val session = createSessionEntity(event, request)
+                event.sessions.add(session)
+            }
+        }
+    }
+
+    private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
+        // 1. Map existing translations by language
+        val existingTranslationsMap = event.translations.associateBy { it.language }
+        val requestLanguages = translationRequests.map { it.language.lowercase() }.toSet()
+
+        // 2. Remove translations not in request
+        event.translations.removeIf { it.language !in requestLanguages }
+
+        // 3. Update or Create translations
+        translationRequests.forEach { request ->
+            val language = request.language.lowercase()
+            if (existingTranslationsMap.containsKey(language)) {
+                // Update existing
+                val translation = existingTranslationsMap[language]!!
+                translation.title = request.title
+                translation.description = request.description
+            } else {
+                // Create new
+                val translation = EventTranslation(
+                    event = event,
+                    language = language,
+                    title = request.title,
+                    description = request.description
+                )
+                event.addTranslation(translation)
+            }
+        }
     }
 }
 

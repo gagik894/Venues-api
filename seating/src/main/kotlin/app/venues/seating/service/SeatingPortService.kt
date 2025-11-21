@@ -1,5 +1,6 @@
 package app.venues.seating.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.*
 import app.venues.seating.repository.*
@@ -41,7 +42,12 @@ class SeatingPortService(
     override fun getSeatingChartName(chartId: UUID): String {
         return seatingChartRepository.findById(chartId)
             .map { it.name }
-            .orElse("")
+            .orElseThrow {
+                VenuesException.ResourceNotFound(
+                    message = "Seating chart not found",
+                    errorCode = "SEATING_CHART_NOT_FOUND"
+                )
+            }
     }
 
     override fun getChartStructure(chartId: UUID): SeatingChartStructureDto? {

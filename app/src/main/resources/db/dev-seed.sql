@@ -150,13 +150,13 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO events (id, venue_id, category_id, seating_chart_id, title, description, currency, status, created_at,
                     last_modified_at)
 VALUES ('eeeeeeee-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111111',
-        (SELECT id FROM event_categories WHERE category_key = 'theater'), '99999999-1111-1111-1111-111111111111',
+        (SELECT id FROM event_categories WHERE code = 'theater'), '99999999-1111-1111-1111-111111111111',
         'Swan Lake', 'Tchaikovsky masterpiece', 'AMD', 'UPCOMING', NOW(), NOW()),
        ('eeeeeeee-2222-2222-2222-222222222222', '22222222-2222-2222-2222-222222222222',
-        (SELECT id FROM event_categories WHERE category_key = 'theater'), '99999999-2222-2222-2222-222222222222',
+        (SELECT id FROM event_categories WHERE code = 'theater'), '99999999-2222-2222-2222-222222222222',
         'Hamlet', 'Shakespeare tragedy', 'AMD', 'UPCOMING', NOW(), NOW()),
        ('eeeeeeee-3333-3333-3333-333333333333', '33333333-3333-3333-3333-333333333333',
-        (SELECT id FROM event_categories WHERE category_key = 'concert'), '99999999-3333-3333-3333-333333333333',
+        (SELECT id FROM event_categories WHERE code = 'concert'), '99999999-3333-3333-3333-333333333333',
         'Philharmonic Orchestra', 'Classical evening', 'AMD', 'UPCOMING', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 

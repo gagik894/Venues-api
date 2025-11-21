@@ -5,6 +5,7 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
+import app.venues.booking.domain.BookingItem
 import app.venues.booking.domain.Guest
 import app.venues.booking.repository.*
 import app.venues.common.exception.VenuesException
@@ -12,7 +13,6 @@ import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
-import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -20,12 +20,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
-
-//TODO: validate requests
-//  val violations = validator.validate(request)
-//  if (violations.isNotEmpty()) {
-//      throw ConstraintViolationException(violations)
-//  }
 /**
  * Service for booking management operations.
  *
@@ -46,8 +40,7 @@ class BookingService(
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
-    private val eventApi: EventApi,
-    private val venueApi: VenueApi
+    private val eventApi: EventApi
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -120,19 +113,7 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
 
         // Finalize inventory (RESERVED -> SOLD)
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
-        }
-
-        // For GA, we don't need to do anything if soldCount was already incremented during reservation.
-        // But if we want to be explicit or if logic changes, we could call sellGaBatch.
-        // Currently sellGa is no-op in EventApiService, so calling it is safe and future-proof.
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
-        }
+        finalizeBookingInventory(booking)
 
         logger.info { "Booking confirmed: $bookingId" }
 
@@ -161,16 +142,7 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
 
         // Release inventory (RESERVED/SOLD -> AVAILABLE)
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.releaseSeatsBatch(booking.sessionId, seatIds)
-        }
-
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
-        }
+        releaseBookingInventory(booking)
 
         logger.info { "Booking cancelled: $bookingId" }
 
@@ -268,13 +240,11 @@ class BookingService(
             )
         }
 
-        val venueName = booking.venueId?.let { venueApi.getVenueName(it) } ?: "Unknown Venue"
 
         return bookingMapper.toResponse(
             booking = booking,
             eventTitle = sessionDto.eventTitle,
             eventDescription = sessionDto.eventDescription,
-            venueName = venueName,
             sessionStartTime = sessionDto.startTime.toString(),
             sessionEndTime = sessionDto.endTime.toString(),
             customerEmail = customerEmail,
@@ -371,6 +341,9 @@ class BookingService(
             currency = sessionDto.currency
         )
 
+        // TODO: Calculate service fee if applicable. Currently 0.
+        // booking.applyServiceFeePercent(totalPrice, BigDecimal("2.5"))
+
         if (paymentReference != null) {
             // We can't set paymentId directly if it's protected set.
             // But we can confirm it later.
@@ -440,20 +413,10 @@ class BookingService(
     /**
      * Create booking from cart for platform integration.
      * Used when external platforms complete payment and need to finalize booking.
-     *
-     * @param cartToken The cart token
-     * @param platformId Platform ID that initiated the booking
-     * @param paymentMethod Payment method used
-     * @param paymentReference External payment reference
-     * @param guestEmail Optional guest email
-     * @param guestName Optional guest name
-     * @param guestPhone Optional guest phone
-     * @return Completed booking
      */
-    fun createBookingFromCart(
+    private fun createPlatformBooking(
         cartToken: UUID,
         platformId: UUID,
-        paymentMethod: String,
         paymentReference: String,
         guestEmail: String? = null,
         guestName: String? = null,
@@ -485,16 +448,7 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
 
         // Finalize inventory (RESERVED -> SOLD)
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
-        }
-
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
-        }
+        finalizeBookingInventory(booking)
 
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
@@ -517,15 +471,48 @@ class BookingService(
         guestName: String,
         guestPhone: String?
     ): BookingResponse {
-        val booking = createBookingFromCart(
+        val booking = createPlatformBooking(
             cartToken = cartToken,
             platformId = platformId,
-            paymentMethod = paymentMethod,
             paymentReference = paymentReference ?: UUID.randomUUID().toString(),
             guestEmail = guestEmail,
             guestName = guestName,
             guestPhone = guestPhone
         )
         return prepareBookingResponse(booking)
+    }
+
+    /**
+     * Finalize inventory (RESERVED -> SOLD).
+     */
+    private fun finalizeBookingInventory(booking: Booking) {
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
+        }
+
+        // For GA, we don't need to do anything if soldCount was already incremented during reservation.
+        // But if we want to be explicit or if logic changes, we could call sellGaBatch.
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        if (gaItems.isNotEmpty()) {
+            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
+        }
+    }
+
+    /**
+     * Release inventory (RESERVED/SOLD -> AVAILABLE).
+     */
+    private fun releaseBookingInventory(booking: Booking) {
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            eventApi.releaseSeatsBatch(booking.sessionId, seatIds)
+        }
+
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        if (gaItems.isNotEmpty()) {
+            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
+        }
     }
 }

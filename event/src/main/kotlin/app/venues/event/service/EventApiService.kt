@@ -72,7 +72,7 @@ class EventApiService(
     @Transactional
     override fun releaseGa(sessionId: UUID, gaAreaId: Long, quantity: Int) {
         sessionGAConfigRepository.findBySessionIdAndGaAreaId(sessionId, gaAreaId)?.let { config ->
-            config.sell(maxOf(0, config.soldCount - quantity))
+            config.refund(quantity)
             sessionGAConfigRepository.save(config)
         }
     }

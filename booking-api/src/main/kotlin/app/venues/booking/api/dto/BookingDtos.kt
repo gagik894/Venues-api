@@ -73,7 +73,6 @@ data class BookingResponse(
     val sessionId: UUID,
     val eventTitle: String,
     val eventDescription: String?,
-    val venueName: String,
     val sessionStartTime: String,
     val sessionEndTime: String,
     val customerEmail: String,

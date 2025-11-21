@@ -61,7 +61,11 @@ class Booking(
     var externalOrderNumber: String? = null,
 
     @Column(name = "service_fee_amount", nullable = false, precision = 10, scale = 2)
-    var serviceFeeAmount: BigDecimal = BigDecimal.ZERO
+    var serviceFeeAmount: BigDecimal = BigDecimal.ZERO,
+
+    @Version
+    @Column(name = "version")
+    var version: Long = 0
 
 ) : AbstractUuidEntity() {
 

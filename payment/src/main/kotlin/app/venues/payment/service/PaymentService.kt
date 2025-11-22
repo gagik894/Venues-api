@@ -51,7 +51,7 @@ class PaymentService(
                     payment.status = "COMPLETED"
                     payment.externalReference = result.externalId ?: payment.externalReference
                     paymentRepository.save(payment)
-                    bookingApi.confirmBooking(payment.bookingId)
+                    bookingApi.confirmBooking(payment.bookingId, payment.id)
                 } else if (result is PaymentCallbackResult.Failure) {
                     payment.status = "FAILED"
                     paymentRepository.save(payment)
@@ -150,7 +150,7 @@ class PaymentService(
                     logger.info { "Payment ${payment.id} completed successfully via $providerId" }
 
                     try {
-                        bookingApi.confirmBooking(payment.bookingId)
+                        bookingApi.confirmBooking(payment.bookingId, payment.id)
                     } catch (e: Exception) {
                         logger.error(e) { "Failed to confirm booking ${payment.bookingId} after successful payment" }
                         // We don't rollback payment status, but we should alert/retry

@@ -1,6 +1,7 @@
 package app.venues.booking.service
 
 import app.venues.booking.api.BookingApi
+import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
@@ -111,7 +112,7 @@ class BookingService(
             throw VenuesException.AuthorizationFailure("You can only confirm your own bookings")
         }
 
-        if (booking.status == app.venues.booking.api.domain.BookingStatus.CONFIRMED) {
+        if (booking.status == BookingStatus.CONFIRMED) {
             return prepareBookingResponse(booking)
         }
 
@@ -533,20 +534,75 @@ class BookingService(
     }
 
     /**
+     * Confirms a booking after successful payment.
+     * This should finalize the sale and generate tickets.
+     */
+    override fun confirmBooking(bookingId: UUID, paymentId: UUID) {
+        logger.info { "Confirming booking via internal API: $bookingId, payment: $paymentId" }
+        val booking = bookingRepository.findById(bookingId)
+            .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
+
+        if (booking.status == BookingStatus.CONFIRMED) {
+            logger.warn { "Booking $bookingId is already confirmed" }
+            return
+        }
+
+        booking.confirm(paymentId)
+        val savedBooking = bookingRepository.save(booking)
+
+        // Redeem promo code if used
+        if (savedBooking.promoCode != null && savedBooking.venueId != null) {
+            try {
+                venueApi.redeemPromoCode(savedBooking.venueId!!, savedBooking.promoCode!!)
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to redeem promo code ${savedBooking.promoCode} for booking ${savedBooking.id}" }
+            }
+        }
+
+        finalizeBookingInventory(savedBooking)
+    }
+
+    /**
+     * Cancels a booking after failed payment.
+     * This should release held seats.
+     */
+    override fun cancelBooking(bookingId: UUID) {
+        logger.info { "Cancelling booking via internal API: $bookingId" }
+        val booking = bookingRepository.findById(bookingId)
+            .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
+
+        if (!booking.isCancellable()) {
+            logger.warn { "Booking $bookingId cannot be cancelled (status: ${booking.status})" }
+            return
+        }
+
+        booking.cancel("Payment failed or cancelled")
+        val savedBooking = bookingRepository.save(booking)
+
+        releaseBookingInventory(savedBooking)
+    }
+
+    /**
      * Finalize inventory (RESERVED -> SOLD).
      */
     private fun finalizeBookingInventory(booking: Booking) {
+        // 1. Finalize Seats
         val seatIds = booking.items.mapNotNull { it.seatId }
         if (seatIds.isNotEmpty()) {
             eventApi.sellSeatsBatch(booking.sessionId, seatIds)
         }
 
-        // For GA, we don't need to do anything if soldCount was already incremented during reservation.
-        // But if we want to be explicit or if logic changes, we could call sellGaBatch.
+        // 2. Finalize GA
         val gaItems = booking.items.filter { it.gaAreaId != null }
         if (gaItems.isNotEmpty()) {
             val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
             eventApi.sellGaBatch(booking.sessionId, gaQuantities)
+        }
+
+        // 3. Finalize Tables
+        val tableIds = booking.items.mapNotNull { it.tableId }
+        if (tableIds.isNotEmpty()) {
+            eventApi.sellTablesBatch(booking.sessionId, tableIds)
         }
     }
 
@@ -554,15 +610,23 @@ class BookingService(
      * Release inventory (RESERVED/SOLD -> AVAILABLE).
      */
     private fun releaseBookingInventory(booking: Booking) {
+        // 1. Release Seats
         val seatIds = booking.items.mapNotNull { it.seatId }
         if (seatIds.isNotEmpty()) {
             eventApi.releaseSeatsBatch(booking.sessionId, seatIds)
         }
 
+        // 2. Release GA
         val gaItems = booking.items.filter { it.gaAreaId != null }
         if (gaItems.isNotEmpty()) {
             val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
             eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
+        }
+
+        // 3. Release Tables
+        val tableIds = booking.items.mapNotNull { it.tableId }
+        if (tableIds.isNotEmpty()) {
+            eventApi.releaseTablesBatch(booking.sessionId, tableIds)
         }
     }
 }

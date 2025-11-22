@@ -43,8 +43,9 @@ interface BookingApi {
      * This should finalize the sale and generate tickets.
      *
      * @param bookingId The ID of the booking to confirm.
+     * @param paymentId The ID of the successful payment transaction.
      */
-    fun confirmBooking(bookingId: UUID)
+    fun confirmBooking(bookingId: UUID, paymentId: UUID)
 
     /**
      * Cancels a booking after failed payment.

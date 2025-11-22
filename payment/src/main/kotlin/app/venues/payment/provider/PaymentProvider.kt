@@ -2,6 +2,8 @@ package app.venues.payment.provider
 
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.payment.domain.Payment
+import app.venues.payment.provider.dto.PaymentCallbackResult
+import app.venues.payment.provider.dto.PaymentLinkResult
 
 /**
  * Strategy interface for Payment Providers.
@@ -29,11 +31,22 @@ interface PaymentProvider {
      * @return A result containing the URL and/or form data.
      */
     fun generatePaymentLink(payment: Payment, config: PaymentConfig): PaymentLinkResult
-}
 
-data class PaymentLinkResult(
-    val paymentUrl: String?,
-    val formData: Map<String, String>? = null,
-    val method: String = "GET", // GET (redirect) or POST (form submit)
-    val gatewayReference: String? = null
-)
+    /**
+     * Extracts the internal payment ID (booking ID) from the callback parameters.
+     * This is needed to load the payment record before processing the callback.
+     *
+     * @param params The parameters received in the callback.
+     * @return The payment ID string, or null if not found.
+     */
+    fun extractPaymentId(params: Map<String, String>): String?
+
+    /**
+     * Processes a callback or redirect from the payment provider.
+     *
+     * @param params The parameters received in the callback (query params or body).
+     * @param config The merchant's payment configuration.
+     * @return The result of the callback processing.
+     */
+    fun handleCallback(params: Map<String, String>, config: PaymentConfig): PaymentCallbackResult
+}

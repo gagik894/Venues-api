@@ -19,4 +19,12 @@ interface PaymentRoutingApi {
      * @return The resolved MerchantProfile DTO.
      */
     fun resolveMerchant(venueId: UUID, eventId: UUID? = null): MerchantProfileDto
+
+    /**
+     * Retrieve a specific merchant profile by ID.
+     *
+     * @param merchantId The ID of the merchant.
+     * @return The MerchantProfile DTO.
+     */
+    fun getMerchant(merchantId: UUID): MerchantProfileDto
 }

@@ -1,14 +1,15 @@
 package app.venues.payment.service
 
+import app.venues.booking.api.BookingApi
 import app.venues.finance.api.PaymentRoutingApi
 import app.venues.finance.api.dto.MerchantProfileDto
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.finance.api.dto.TelcelConfig
 import app.venues.payment.api.dto.InitiatePaymentRequest
 import app.venues.payment.domain.Payment
-import app.venues.payment.provider.PaymentLinkResult
 import app.venues.payment.provider.PaymentProvider
 import app.venues.payment.provider.PaymentProviderFactory
+import app.venues.payment.provider.dto.PaymentLinkResult
 import app.venues.payment.repository.PaymentRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -25,11 +26,13 @@ class PaymentServiceTest {
     private val paymentRepository = mockk<PaymentRepository>()
     private val paymentRoutingApi = mockk<PaymentRoutingApi>()
     private val paymentProviderFactory = mockk<PaymentProviderFactory>()
+    private val bookingApi = mockk<BookingApi>(relaxed = true)
 
     private val paymentService = PaymentService(
         paymentRepository,
         paymentRoutingApi,
-        paymentProviderFactory
+        paymentProviderFactory,
+        bookingApi
     )
 
     @Test
@@ -82,7 +85,7 @@ class PaymentServiceTest {
         every { provider.generatePaymentLink(any(), config) } returns linkResult
 
         val paymentSlot = slot<Payment>()
-        every { paymentRepository.save(capture(paymentSlot)) } answers {
+        every { paymentRepository.save(capture(paymentSlot)) } answers { 
             paymentSlot.captured
         }
 
@@ -123,7 +126,7 @@ class PaymentServiceTest {
 
         val merchant = MerchantProfileDto(
             id = UUID.randomUUID(),
-            name = "Test Merchant",
+            name = "Test Merchant", 
             legalName = null,
             taxId = null,
             organizationId = UUID.randomUUID(),

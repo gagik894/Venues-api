@@ -68,6 +68,13 @@ class PaymentRoutingService(
         throw IllegalStateException("No MerchantProfile found for Venue $venueId (Org $organizationId). Configuration missing.")
     }
 
+    @Transactional(readOnly = true)
+    override fun getMerchant(merchantId: UUID): MerchantProfileDto {
+        val profile = merchantProfileRepository.findById(merchantId)
+            .orElseThrow { IllegalArgumentException("Merchant profile not found: $merchantId") }
+        return toDto(profile)
+    }
+
     private fun toDto(profile: MerchantProfile): MerchantProfileDto {
         return MerchantProfileDto(
             id = profile.id,

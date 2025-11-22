@@ -2,8 +2,9 @@ package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.payment.domain.Payment
-import app.venues.payment.provider.PaymentLinkResult
 import app.venues.payment.provider.PaymentProvider
+import app.venues.payment.provider.dto.PaymentCallbackResult
+import app.venues.payment.provider.dto.PaymentLinkResult
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -63,6 +64,17 @@ class ConverseProvider : PaymentProvider {
             logger.error(e) { "Failed to register Converse payment" }
             throw IllegalStateException("Payment gateway error", e)
         }
+    }
+
+    override fun extractPaymentId(params: Map<String, String>): String? {
+        // Converse redirects with orderNumber usually, but we don't have a callback API for it.
+        return params["orderNumber"]
+    }
+
+    override fun handleCallback(params: Map<String, String>, config: PaymentConfig): PaymentCallbackResult {
+        // Converse does not support server-to-server callbacks in this integration.
+        // The user is redirected to the success page.
+        return PaymentCallbackResult.Invalid("Converse does not support callbacks")
     }
 
     data class ConverseResponse(

@@ -2,9 +2,11 @@ package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.payment.domain.Payment
-import app.venues.payment.provider.PaymentLinkResult
 import app.venues.payment.provider.PaymentProvider
+import app.venues.payment.provider.dto.PaymentCallbackResult
+import app.venues.payment.provider.dto.PaymentLinkResult
 import org.springframework.stereotype.Component
+import java.math.BigDecimal
 import java.security.MessageDigest
 import java.util.*
 
@@ -71,6 +73,56 @@ class TelcellProvider : PaymentProvider {
             formData = formData,
             method = "POST"
         )
+    }
+
+    override fun extractPaymentId(params: Map<String, String>): String? {
+        val issuerIdBase64 = params["issuer_id"] ?: return null
+        return try {
+            String(Base64.getDecoder().decode(issuerIdBase64))
+        } catch (e: Exception) {
+            // Fallback if not base64 (though it should be)
+            issuerIdBase64
+        }
+    }
+
+    override fun handleCallback(params: Map<String, String>, config: PaymentConfig): PaymentCallbackResult {
+        val telcelConfig = config.telcel ?: return PaymentCallbackResult.Invalid("Telcell config missing")
+
+        val invoice = params["invoice"] ?: ""
+        val issuerId = params["issuer_id"] ?: ""
+        val paymentId = params["payment_id"] ?: ""
+        val currency = params["currency"] ?: ""
+        val sum = params["sum"] ?: ""
+        val time = params["time"] ?: ""
+        val status = params["status"] ?: ""
+        val checksum = params["checksum"] ?: ""
+
+        val secretKey = telcelConfig.storeKey
+
+        // Checksum string: secretKey + invoice + issuer_id + payment_id + currency + sum + time + status
+        val checksumString = "$secretKey$invoice$issuerId$paymentId$currency$sum$time$status"
+        val calculatedChecksum = md5(checksumString)
+
+        if (!calculatedChecksum.equals(checksum, ignoreCase = true)) {
+            return PaymentCallbackResult.Invalid("Invalid checksum")
+        }
+
+        val extractedId = extractPaymentId(params) ?: return PaymentCallbackResult.Invalid("Missing issuer_id")
+
+        return when (status.uppercase()) {
+            "PAID" -> PaymentCallbackResult.Success(
+                paymentId = extractedId,
+                externalId = paymentId,
+                amount = BigDecimal(sum)
+            )
+
+            "REJECTED", "CANCELLED", "EXPIRED" -> PaymentCallbackResult.Failure(
+                paymentId = extractedId,
+                reason = "Payment status: $status"
+            )
+
+            else -> PaymentCallbackResult.Invalid("Unknown status: $status")
+        }
     }
 
     private fun md5(input: String): String {

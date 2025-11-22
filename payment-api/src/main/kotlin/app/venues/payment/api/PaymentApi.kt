@@ -32,4 +32,13 @@ interface PaymentApi {
      * @return The response containing the payment ID and redirect URL.
      */
     fun initiatePayment(request: InitiatePaymentRequest): InitiatePaymentResponse
+
+    /**
+     * Processes a callback from a payment provider.
+     *
+     * @param providerId The ID of the provider (e.g., "telcel", "idram").
+     * @param params The parameters received in the callback.
+     * @return The result payload (if any) to be returned to the provider.
+     */
+    fun processCallback(providerId: String, params: Map<String, String>): Any
 }

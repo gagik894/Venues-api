@@ -37,4 +37,20 @@ interface BookingApi {
         guestName: String,
         guestPhone: String?
     ): BookingResponse
+
+    /**
+     * Confirms a booking after successful payment.
+     * This should finalize the sale and generate tickets.
+     *
+     * @param bookingId The ID of the booking to confirm.
+     */
+    fun confirmBooking(bookingId: UUID)
+
+    /**
+     * Cancels a booking after failed payment.
+     * This should release held seats.
+     *
+     * @param bookingId The ID of the booking to cancel.
+     */
+    fun cancelBooking(bookingId: UUID)
 }

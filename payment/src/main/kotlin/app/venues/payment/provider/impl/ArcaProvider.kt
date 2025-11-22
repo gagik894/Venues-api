@@ -1,7 +1,9 @@
 package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
+import app.venues.payment.config.PaymentProperties
 import app.venues.payment.domain.Payment
+import app.venues.payment.domain.PaymentProviders
 import app.venues.payment.provider.PaymentProvider
 import app.venues.payment.provider.dto.PaymentCallbackResult
 import app.venues.payment.provider.dto.PaymentLinkResult
@@ -17,19 +19,21 @@ import java.math.BigDecimal
  * Makes a server-to-server call to register the transaction.
  */
 @Component
-class ArcaProvider : PaymentProvider {
+class ArcaProvider(
+    private val paymentProperties: PaymentProperties
+) : PaymentProvider {
 
     private val logger = KotlinLogging.logger {}
     private val restClient = RestClient.create()
 
-    override val providerId: String = "arca"
+    override val providerId: String = PaymentProviders.ARCA
 
     override fun isConfigured(config: PaymentConfig): Boolean = config.arca != null
 
     override fun generatePaymentLink(payment: Payment, config: PaymentConfig): PaymentLinkResult {
         val arcaConfig = config.arca ?: throw IllegalStateException("Arca config missing")
 
-        val returnUrl = "https://traveler-ynga.onrender.com/payment/success/${payment.bookingId}"
+        val returnUrl = "${paymentProperties.frontendUrl}/payment/success/${payment.bookingId}"
 
         // Amount in cents/luma
         val amountCents = payment.amount.multiply(BigDecimal(100)).toBigInteger().toString()
@@ -76,12 +80,19 @@ class ArcaProvider : PaymentProvider {
         val arcaConfig = config.arca ?: return PaymentCallbackResult.Invalid("Arca config missing")
         val orderNumber = params["orderNumber"] ?: return PaymentCallbackResult.Invalid("Missing orderNumber")
 
-        try {
-            val queryParams = LinkedMultiValueMap<String, String>()
-            queryParams.add("userName", arcaConfig.username)
-            queryParams.add("password", arcaConfig.password)
-            queryParams.add("orderNumber", orderNumber)
+        return checkArcaStatus(orderNumber, arcaConfig)
+    }
 
+    override fun checkStatus(payment: Payment, config: PaymentConfig): PaymentCallbackResult {
+        val arcaConfig = config.arca ?: return PaymentCallbackResult.Invalid("Arca config missing")
+        return checkArcaStatus(payment.bookingId.toString(), arcaConfig)
+    }
+
+    private fun checkArcaStatus(
+        orderNumber: String,
+        arcaConfig: app.venues.finance.api.dto.ArcaConfig
+    ): PaymentCallbackResult {
+        try {
             val response = restClient.get()
                 .uri(
                     "https://ipay.arca.am/payment/rest/getOrderStatusExtended.do?userName={u}&password={p}&orderNumber={o}",

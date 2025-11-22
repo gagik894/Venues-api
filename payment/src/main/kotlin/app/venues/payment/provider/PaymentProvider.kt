@@ -49,4 +49,11 @@ interface PaymentProvider {
      * @return The result of the callback processing.
      */
     fun handleCallback(params: Map<String, String>, config: PaymentConfig): PaymentCallbackResult
+
+    /**
+     * Actively checks the status of the payment with the provider.
+     * Used for polling or verification when callbacks are not available.
+     */
+    fun checkStatus(payment: Payment, config: PaymentConfig): PaymentCallbackResult =
+        PaymentCallbackResult.Invalid("Not supported")
 }

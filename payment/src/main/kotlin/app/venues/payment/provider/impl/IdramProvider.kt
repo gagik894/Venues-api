@@ -2,6 +2,7 @@ package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.payment.domain.Payment
+import app.venues.payment.domain.PaymentProviders
 import app.venues.payment.provider.PaymentProvider
 import app.venues.payment.provider.dto.PaymentCallbackResult
 import app.venues.payment.provider.dto.PaymentLinkResult
@@ -17,7 +18,7 @@ import java.security.MessageDigest
 @Component
 class IdramProvider : PaymentProvider {
 
-    override val providerId: String = "idram"
+    override val providerId: String = PaymentProviders.IDRAM
 
     override fun isConfigured(config: PaymentConfig): Boolean = config.idram != null
 

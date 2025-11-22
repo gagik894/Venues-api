@@ -51,6 +51,9 @@ class Payment(
     var externalReference: String? = null,
 
     @Column(name = "merchant_id", nullable = false)
-    var merchantId: UUID
+    var merchantId: UUID,
+
+    @Column(name = "provider_id", nullable = false, length = 50)
+    var providerId: String
 
 ) : AbstractUuidEntity()

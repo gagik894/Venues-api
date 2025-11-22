@@ -81,6 +81,7 @@ class PaymentServiceTest {
 
         every { paymentRoutingApi.resolveMerchant(venueId) } returns merchant
         every { paymentProviderFactory.getProvider(providerId) } returns provider
+        every { provider.providerId } returns providerId
         every { provider.isConfigured(config) } returns true
         every { provider.generatePaymentLink(any(), config) } returns linkResult
 

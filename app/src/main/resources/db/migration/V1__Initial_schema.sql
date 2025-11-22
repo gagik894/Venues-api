@@ -866,6 +866,7 @@ CREATE TABLE payments
     status             VARCHAR(20)              NOT NULL,
     external_reference VARCHAR(255),
     merchant_id        UUID                     NOT NULL,
+    provider_id VARCHAR(50) NOT NULL,
     created_at         TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at         TIMESTAMP WITH TIME ZONE NOT NULL
 );

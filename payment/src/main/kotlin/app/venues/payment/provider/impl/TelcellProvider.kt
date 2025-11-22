@@ -2,6 +2,7 @@ package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
 import app.venues.payment.domain.Payment
+import app.venues.payment.domain.PaymentProviders
 import app.venues.payment.provider.PaymentProvider
 import app.venues.payment.provider.dto.PaymentCallbackResult
 import app.venues.payment.provider.dto.PaymentLinkResult
@@ -20,7 +21,7 @@ import java.util.*
 @Component
 class TelcellProvider : PaymentProvider {
 
-    override val providerId: String = "telcel"
+    override val providerId: String = PaymentProviders.TELCELL
 
     override fun isConfigured(config: PaymentConfig): Boolean = config.telcel != null
 

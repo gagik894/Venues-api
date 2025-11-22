@@ -34,10 +34,33 @@ class PaymentService(
     /**
      * Retrieves the status of a payment.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     override fun getPaymentStatus(paymentId: UUID): String {
-        val payment = paymentRepository.findById(paymentId)
+        val payment = paymentRepository.findByIdWithLock(paymentId)
             .orElseThrow { RuntimeException("Payment not found: $paymentId") }
+
+        if (payment.status == "PENDING") {
+            try {
+                val merchant = paymentRoutingApi.getMerchant(payment.merchantId)
+                val config = merchant.config ?: return payment.status
+
+                val provider = paymentProviderFactory.getProvider(payment.providerId)
+                val result = provider.checkStatus(payment, config)
+
+                if (result is PaymentCallbackResult.Success) {
+                    payment.status = "COMPLETED"
+                    payment.externalReference = result.externalId ?: payment.externalReference
+                    paymentRepository.save(payment)
+                    bookingApi.confirmBooking(payment.bookingId)
+                } else if (result is PaymentCallbackResult.Failure) {
+                    payment.status = "FAILED"
+                    paymentRepository.save(payment)
+                    bookingApi.cancelBooking(payment.bookingId)
+                }
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to check status for payment $paymentId" }
+            }
+        }
         return payment.status
     }
 
@@ -71,7 +94,8 @@ class PaymentService(
             amount = request.amount,
             currency = request.currency,
             status = "PENDING",
-            merchantId = merchant.id
+            merchantId = merchant.id,
+            providerId = provider.providerId
         )
 
         // 4. Generate Link via Provider Strategy
@@ -109,7 +133,8 @@ class PaymentService(
             throw IllegalArgumentException("Invalid payment ID format: $paymentIdStr")
         }
 
-        val payment = paymentRepository.findById(paymentId)
+        // Lock the payment record to prevent race conditions (double callbacks)
+        val payment = paymentRepository.findByIdWithLock(paymentId)
             .orElseThrow { RuntimeException("Payment not found: $paymentId") }
 
         val merchant = paymentRoutingApi.getMerchant(payment.merchantId)

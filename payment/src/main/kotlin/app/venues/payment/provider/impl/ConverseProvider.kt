@@ -1,7 +1,9 @@
 package app.venues.payment.provider.impl
 
 import app.venues.finance.api.dto.PaymentConfig
+import app.venues.payment.config.PaymentProperties
 import app.venues.payment.domain.Payment
+import app.venues.payment.domain.PaymentProviders
 import app.venues.payment.provider.PaymentProvider
 import app.venues.payment.provider.dto.PaymentCallbackResult
 import app.venues.payment.provider.dto.PaymentLinkResult
@@ -16,12 +18,14 @@ import org.springframework.web.client.RestClient
  * then returns the redirect URL provided by the bank.
  */
 @Component
-class ConverseProvider : PaymentProvider {
+class ConverseProvider(
+    private val paymentProperties: PaymentProperties
+) : PaymentProvider {
 
     private val logger = KotlinLogging.logger {}
     private val restClient = RestClient.create()
 
-    override val providerId: String = "converse"
+    override val providerId: String = PaymentProviders.CONVERSE
 
     override fun isConfigured(config: PaymentConfig): Boolean = config.converse != null
 
@@ -29,7 +33,7 @@ class ConverseProvider : PaymentProvider {
         val converseConfig = config.converse ?: throw IllegalStateException("Converse config missing")
 
         // TODO: Make return URL configurable via environment or request
-        val returnUrl = "https://traveler-ynga.onrender.com/payment/success/${payment.bookingId}"
+        val returnUrl = "${paymentProperties.frontendUrl}/payment/success/${payment.bookingId}"
 
         val requestBody = mapOf(
             "merchant_id" to converseConfig.merchantId,

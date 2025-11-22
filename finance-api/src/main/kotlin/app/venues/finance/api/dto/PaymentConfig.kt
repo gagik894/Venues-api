@@ -42,29 +42,49 @@ data class PaymentConfig(
 data class IdramConfig(
     val recAccount: String,
     val secretKey: String? = null // Optional for public display, required for signing
-)
+) {
+    override fun toString(): String {
+        return "IdramConfig(recAccount='$recAccount', secretKey='***')"
+    }
+}
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class TelcelConfig(
     val storeKey: String,
     val postponeBillIssuer: String? = null
-)
+) {
+    override fun toString(): String {
+        return "TelcelConfig(storeKey='***', postponeBillIssuer=$postponeBillIssuer)"
+    }
+}
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class ArcaConfig(
     val username: String,
     val password: String
-)
+) {
+    override fun toString(): String {
+        return "ArcaConfig(username='$username', password='***')"
+    }
+}
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class ConverseConfig(
     val merchantId: String,
     val secretKey: String
-)
+) {
+    override fun toString(): String {
+        return "ConverseConfig(merchantId='$merchantId', secretKey='***')"
+    }
+}
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class StripeConfig(
     val secretKey: String,
     val publishableKey: String,
     val webhookSecret: String? = null
-)
+) {
+    override fun toString(): String {
+        return "StripeConfig(publishableKey='$publishableKey', secretKey='***', webhookSecret='***')"
+    }
+}

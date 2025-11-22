@@ -56,6 +56,14 @@ interface BookingApi {
     fun cancelBooking(bookingId: UUID)
 
     /**
+     * Refunds a booking and updates its status.
+     *
+     * @param bookingId The ID of the booking to refund.
+     * @param reason An optional reason for the refund.
+     */
+    fun refundBooking(bookingId: UUID, reason: String?)
+
+    /**
      * Retrieves a booking by its ID.
      *
      * @param bookingId The unique identifier of the booking.

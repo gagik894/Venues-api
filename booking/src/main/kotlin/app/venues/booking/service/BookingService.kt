@@ -610,6 +610,23 @@ class BookingService(
     }
 
     /**
+     * Refunds a booking and updates its status.
+     */
+    override fun refundBooking(bookingId: UUID, reason: String?) {
+        logger.info { "Refunding booking via internal API: $bookingId" }
+        val booking = bookingRepository.findById(bookingId)
+            .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
+
+        if (booking.status != BookingStatus.CONFIRMED) {
+            logger.warn { "Booking $bookingId cannot be refunded (status: ${booking.status})" }
+            return
+        }
+        booking.cancel(reason ?: "Booking refunded")
+        val savedBooking = bookingRepository.save(booking)
+        releaseBookingInventory(savedBooking)
+    }
+
+    /**
      * Finalize inventory (RESERVED -> SOLD).
      */
     private fun finalizeBookingInventory(booking: Booking) {

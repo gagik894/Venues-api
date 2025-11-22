@@ -19,7 +19,7 @@ import org.hibernate.type.SqlTypes
  * @param displayOrder The order in which this category should be displayed.
  */
 @Entity
-@Table(name = "event_categories")
+@Table(name = "ref_event_categories")
 class EventCategory(
 
     /**

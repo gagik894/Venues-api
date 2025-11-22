@@ -3,10 +3,16 @@ package app.venues.event.service
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.domain.ConfigStatus
+import app.venues.event.domain.EventPriceTemplate
+import app.venues.event.domain.EventSession
+import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
+import app.venues.seating.api.SeatingApi
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -18,7 +24,8 @@ class EventApiService(
     private val eventSessionRepository: EventSessionRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
-    private val sessionTableConfigRepository: SessionTableConfigRepository
+    private val sessionTableConfigRepository: SessionTableConfigRepository,
+    private val seatingApi: SeatingApi
 ) : EventApi {
 
     @Transactional(readOnly = true)
@@ -40,19 +47,106 @@ class EventApiService(
 
     @Transactional
     override fun reserveSeat(sessionId: UUID, seatId: Long): BigDecimal? {
-        return sessionSeatConfigRepository.reserveSeatAndGetPrice(sessionId, seatId)
+        // 1. Try to find existing config
+        val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+
+        if (config != null) {
+            // Row exists: Check status
+            if (config.status != ConfigStatus.AVAILABLE) {
+                return null // Already reserved/sold/blocked
+            }
+            // Update status
+            config.reserve()
+            sessionSeatConfigRepository.save(config)
+
+            // Resolve price (might be overridden in session)
+            val session = config.session
+            val template = config.priceTemplate
+
+            return if (template != null) {
+                // Check for session override
+                val override = session.priceTemplateOverrides.find { it.templateName == template.templateName }
+                override?.price ?: template.price
+            } else {
+                // Should not happen if config exists with priceTemplate, but fallback
+                BigDecimal.ZERO
+            }
+        } else {
+            // 2. Row missing: Implicitly AVAILABLE -> Create RESERVED
+            try {
+                val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+                val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
+
+                // Resolve template
+                val (price, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+
+                if (template == null) {
+                    // Cannot reserve if no price template
+                    return null
+                }
+
+                val newConfig = SessionSeatConfig(
+                    session = session,
+                    seatId = seatId,
+                    priceTemplate = template,
+                    status = ConfigStatus.RESERVED
+                )
+                sessionSeatConfigRepository.saveAndFlush(newConfig)
+                return price
+            } catch (e: DataIntegrityViolationException) {
+                // Race condition: someone else created the row
+                return null
+            }
+        }
+    }
+
+    private fun resolvePriceAndTemplate(
+        session: EventSession,
+        categoryKey: String
+    ): Pair<BigDecimal?, EventPriceTemplate?> {
+        val event = session.event
+        val template = event.priceTemplates.find { it.templateName == categoryKey } ?: return null to null
+
+        val override = session.priceTemplateOverrides.find { it.templateName == categoryKey }
+        val price = override?.price ?: template.price
+
+        return price to template
     }
 
     @Transactional
     override fun releaseSeat(sessionId: UUID, seatId: Long) {
         sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)?.let { config ->
+            // Set to AVAILABLE
             config.release()
+
+            // Sparse Cleanup: If it matches default template, delete the row
+            // But we need to check if it's a custom override.
+            // If config.priceTemplate matches the category default, we can delete it?
+            // Requirement 2: "If a seat is 'Available' and has the default price, it must NOT have a row"
+
+            val seatInfo = seatingApi.getSeatInfo(seatId)
+            if (seatInfo != null) {
+                val defaultTemplate =
+                    config.session.event.priceTemplates.find { it.templateName == seatInfo.categoryKey }
+
+                if (config.priceTemplate?.id == defaultTemplate?.id) {
+                    // It's the default template. Delete the row.
+                    sessionSeatConfigRepository.delete(config)
+                    return
+                }
+            }
+
+            // Otherwise save as AVAILABLE (it has custom pricing or we couldn't verify)
             sessionSeatConfigRepository.save(config)
         }
     }
 
     @Transactional
     override fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
+        // For batch release, we can't easily do the "Delete if default" logic efficiently in bulk
+        // without fetching everything.
+        // For now, we'll just set them to AVAILABLE.
+        // A background cleanup job could optimize the sparse table later if needed.
         if (seatIds.isNotEmpty()) {
             sessionSeatConfigRepository.releaseSeats(sessionId, seatIds)
         }
@@ -124,7 +218,46 @@ class EventApiService(
     @Transactional
     override fun blockSeats(sessionId: UUID, seatIds: List<Long>): Int {
         if (seatIds.isEmpty()) return 0
-        return sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+
+        // 1. Update existing rows (set to BLOCKED)
+        val updated = sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+
+        // 2. Handle missing rows (Sparse Matrix: Create them as BLOCKED)
+        val existingConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(sessionId, seatIds)
+        val existingSeatIds = existingConfigs.map { it.seatId }.toSet()
+
+        val missingSeatIds = seatIds.filter { it !in existingSeatIds }
+
+        if (missingSeatIds.isNotEmpty()) {
+            val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return updated
+
+            // We need to fetch seat info to get category keys for templates
+            // This might be slow for large lists, but blocking is usually admin action
+            val newConfigs = mutableListOf<SessionSeatConfig>()
+
+            missingSeatIds.forEach { seatId ->
+                val seatInfo = seatingApi.getSeatInfo(seatId)
+                if (seatInfo != null) {
+                    val (_, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+
+                    newConfigs.add(
+                        SessionSeatConfig(
+                            session = session,
+                            seatId = seatId,
+                            priceTemplate = template,
+                            status = ConfigStatus.BLOCKED
+                        )
+                    )
+                }
+            }
+
+            if (newConfigs.isNotEmpty()) {
+                sessionSeatConfigRepository.saveAll(newConfigs)
+                return updated + newConfigs.size
+            }
+        }
+
+        return updated
     }
 
     @Transactional
@@ -172,7 +305,7 @@ class EventApiService(
             val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
                 ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Seat config not found")
 
-            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+            if (config.status != ConfigStatus.RESERVED) {
                 throw app.venues.common.exception.VenuesException.ResourceConflict("Seat $seatId is not RESERVED (status: ${config.status})")
             }
         }
@@ -207,7 +340,7 @@ class EventApiService(
             val config = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
                 ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Table config not found")
 
-            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+            if (config.status != ConfigStatus.RESERVED) {
                 throw app.venues.common.exception.VenuesException.ResourceConflict("Table $tableId is not RESERVED (status: ${config.status})")
             }
         }

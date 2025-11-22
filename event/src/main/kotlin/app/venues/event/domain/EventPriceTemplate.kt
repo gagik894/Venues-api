@@ -28,4 +28,7 @@ class EventPriceTemplate(
 
     @Column(name = "color", length = 7)
     var color: String? = null,
+
+    @Column(name = "is_anchor", nullable = false)
+    var isAnchor: Boolean = false
 ) : AbstractUuidEntity()

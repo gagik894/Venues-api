@@ -82,7 +82,9 @@ data class EventResponse(
     val sessions: List<EventSessionResponse> = emptyList(),
     // Statistics
     val sessionCount: Int? = null,
-    val upcomingSessionCount: Int? = null
+    val upcomingSessionCount: Int? = null,
+    // Price Templates
+    val priceTemplates: List<PriceTemplateResponse> = emptyList()
 )
 
 // ===========================================
@@ -163,7 +165,8 @@ data class PriceTemplateResponse(
     val id: UUID,
     val templateName: String,
     val color: String?,
-    val price: String
+    val price: String,
+    val isRemovable: Boolean = true // UI hint: false if it's an "Anchor" template
 )
 
 /**

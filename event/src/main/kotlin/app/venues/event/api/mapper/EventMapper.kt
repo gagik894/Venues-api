@@ -20,6 +20,7 @@ class EventMapper {
      * @param seatingChartName Optional seating chart name (must be fetched from seating module)
      * @param includeStats Whether to include statistics (session counts)
      * @param language Optional language code for translations (e.g., "hy", "ru", "en")
+     * @param anchorTemplateNames Set of template names that are "Anchors" (match chart categories)
      */
     fun toResponse(
         event: Event,
@@ -59,7 +60,8 @@ class EventMapper {
             // Automatically populate sessions
             sessions = event.sessions.map { toSessionResponse(it) },
             sessionCount = if (includeStats) event.sessions.size else null,
-            upcomingSessionCount = if (includeStats) event.sessions.count { it.status == EventStatus.UPCOMING } else null
+            upcomingSessionCount = if (includeStats) event.sessions.count { it.status == EventStatus.UPCOMING } else null,
+            priceTemplates = event.priceTemplates.map { toPriceTemplateResponse(it) }
         )
     }
 
@@ -86,13 +88,19 @@ class EventMapper {
 
     /**
      * Convert EventPriceTemplate entity to PriceTemplateResponse DTO.
+     *
+     * @param template The template entity
+     * @param anchorTemplateNames Set of template names that are "Anchors" (match chart categories)
      */
-    fun toPriceTemplateResponse(template: EventPriceTemplate): PriceTemplateResponse {
+    fun toPriceTemplateResponse(
+        template: EventPriceTemplate
+    ): PriceTemplateResponse {
         return PriceTemplateResponse(
             id = template.id,
             templateName = template.templateName,
             color = template.color,
-            price = template.price.toString()
+            price = template.price.toString(),
+            isRemovable = !template.isAnchor
         )
     }
 

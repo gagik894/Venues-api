@@ -98,7 +98,11 @@ class EventService(
         val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
-        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
+        return eventMapper.toResponse(
+            savedEvent,
+            venueName = venueName,
+            seatingChartName = seatingChartName
+        )
     }
 
     /**
@@ -182,7 +186,11 @@ class EventService(
         val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
         val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
-        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
+        return eventMapper.toResponse(
+            savedEvent,
+            venueName = venueName,
+            seatingChartName = seatingChartName
+        )
     }
 
     /**
@@ -299,6 +307,7 @@ class EventService(
             language = language
         )
     }
+
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
         val existingTranslationsMap = event.translations.associateBy { it.language }

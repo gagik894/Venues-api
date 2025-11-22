@@ -1,9 +1,11 @@
 package app.venues.event.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.PriceTemplateRequest
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.repository.EventRepository
+import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -19,7 +21,8 @@ import java.util.*
 @Service
 @Transactional
 class EventPriceService(
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -32,9 +35,17 @@ class EventPriceService(
         val requestTemplateIds = requests.mapNotNull { it.id }.toSet()
 
         // 1. Remove deleted templates
-        // Note: This might fail if templates are in use by sold tickets. 
-        // Ideally, we should check usage or soft-delete, but for now we rely on DB constraints.
-        event.priceTemplates.removeIf { it.id !in requestTemplateIds }
+        val templatesToRemove = event.priceTemplates.filter { it.id !in requestTemplateIds }
+
+        templatesToRemove.forEach { template ->
+            if (template.isAnchor) {
+                throw VenuesException.ValidationFailure(
+                    "Cannot delete price template '${template.templateName}' because it matches a seating chart category (Anchor Template)."
+                )
+            }
+        }
+
+        event.priceTemplates.removeAll(templatesToRemove)
 
         // 2. Update or Create
         requests.forEach { request ->

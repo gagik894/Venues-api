@@ -4,6 +4,7 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.*
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventSession
+import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
@@ -68,12 +69,17 @@ class SessionSeatingService(
         val zoneHierarchyMap = buildZoneHierarchyMap(chartStructure.zones)
 
         // Process seats
-        val seats = chartStructure.seats.mapNotNull { seatDto ->
+        val seats = chartStructure.seats.map { seatDto ->
             val config = seatConfigMap[seatDto.id]
-            if (config == null) {
-                logger.warn { "Seat config missing for seat ${seatDto.code}" }
-                return@mapNotNull null
-            }
+
+            // 1. Determine Status
+            val status = config?.status?.name ?: "AVAILABLE"
+
+            // 2. Resolve Pricing & Template (Waterfall Logic)
+            val (price, templateName, color) = resolveSeatPricing(seatDto.categoryKey, config, session, event)
+
+            // 3. Color Logic (Hide color if not available)
+            val displayColor = if (status == "AVAILABLE") color else null
 
             SessionSeatResponse(
                 seatIdentifier = seatDto.code,
@@ -82,10 +88,10 @@ class SessionSeatingService(
                 levels = zoneHierarchyMap[seatDto.zoneId] ?: listOf("Unknown"),
                 positionX = seatDto.x,
                 positionY = seatDto.y,
-                status = config.status.name,
-                price = config.priceTemplate?.price?.toString(),
-                priceTemplateName = config.priceTemplate?.templateName,
-                priceTemplateColor = config.priceTemplate?.color
+                status = status,
+                price = price?.toString(),
+                priceTemplateName = templateName,
+                priceTemplateColor = displayColor
             )
         }
 
@@ -229,19 +235,27 @@ class SessionSeatingService(
         logger.debug { "Fetching seat availability for session: $sessionId" }
 
         val session = getSessionOrThrow(sessionId)
+        val event = session.event
+        val seatingChartId = event.seatingChartId
+            ?: throw VenuesException.ValidationFailure("Event does not have a seating chart assigned")
+
+        // Fetch chart structure to get total seats (Sparse Matrix: we don't have rows for all seats)
+        val structure = seatingApi.getChartStructure(seatingChartId)
+            ?: throw VenuesException.ResourceNotFound("Seating chart not found")
 
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
-        val totalSeats = seatConfigs.size
-        val availableSeats = seatConfigs.count { it.isAvailable() }
+
+        val totalSeats = structure.seats.size
+        val unavailableSeats = seatConfigs.count { !it.isAvailable() }
+        val availableSeats = totalSeats - unavailableSeats
         val reservedSeats = seatConfigs.count { it.status.name == "RESERVED" }
 
         // Only include seat codes for small venues (< 1000 seats)
         val availableIdentifiers = if (totalSeats < 1000) {
-            seatConfigs
-                .filter { it.isAvailable() }
-                .mapNotNull { config ->
-                    seatingApi.getSeatInfo(config.seatId)?.code
-                }
+            val unavailableSeatIds = seatConfigs.filter { !it.isAvailable() }.map { it.seatId }.toSet()
+            structure.seats
+                .filter { it.id !in unavailableSeatIds }
+                .map { it.code }
                 .sorted()
         } else {
             emptyList()
@@ -285,6 +299,39 @@ class SessionSeatingService(
     private fun getSessionOrThrow(sessionId: UUID): EventSession {
         return eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
+    }
+
+    /**
+     * Resolves the price, template name, and color for a seat based on the Waterfall logic.
+     * 1. Seat Config (Specific Override)
+     * 2. Session Override (Category Override)
+     * 3. Event Template (Default)
+     */
+    private fun resolveSeatPricing(
+        categoryKey: String,
+        config: SessionSeatConfig?,
+        session: EventSession,
+        event: Event
+    ): Triple<java.math.BigDecimal?, String?, String?> {
+        // Step 1: Determine which template to use
+        val template = if (config?.priceTemplate != null) {
+            // Specific override on the seat
+            config.priceTemplate
+        } else {
+            // Default to category key
+            event.priceTemplates.find { it.templateName == categoryKey }
+        }
+
+        if (template == null) {
+            return Triple(null, null, null)
+        }
+
+        // Step 2: Check for Session Price Override
+        val override = session.priceTemplateOverrides.find { it.templateName == template.templateName }
+
+        val finalPrice = override?.price ?: template.price
+
+        return Triple(finalPrice, template.templateName, template.color)
     }
 }
 

@@ -74,6 +74,9 @@ class EventSessionService(
     fun generateConfigsForNewSessions(event: Event) {
         if (event.seatingChartId == null) return
 
+        // Ensure price templates exist for all categories in the chart (Requirement 1)
+        eventSeatingService.ensurePriceTemplatesForChart(event, event.seatingChartId!!)
+
         event.sessions.forEach { session ->
             // Check if configs already exist using repositories to avoid loading large collections
             val hasSeats = eventSeatingService.hasConfigs(session.id)

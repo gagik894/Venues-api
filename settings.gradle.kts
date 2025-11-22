@@ -43,9 +43,11 @@ include(":location")
 include(":staff")
 include(":organization")
 include(":finance")
+include(":payment")
 
 // API Modules
 include(":finance-api")
+include(":payment-api")
 include(":organization-api")
 include(":staff-api")
 include(":event-api")

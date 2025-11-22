@@ -70,5 +70,11 @@ interface VenueApi {
      * @throws RuntimeException if redemption fails (e.g. limit reached)
      */
     fun redeemPromoCode(venueId: UUID, code: String)
+
+    /**
+     * Get venue basic info in batch.
+     * Returns a map of venueId to VenueBasicInfoDto.
+     */
+    fun getVenueBasicInfoBatch(venueIds: Set<UUID>): Map<UUID, VenueBasicInfoDto>
 }
 

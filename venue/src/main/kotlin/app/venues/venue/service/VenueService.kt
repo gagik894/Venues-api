@@ -409,12 +409,32 @@ class VenueService(
         return VenueBasicInfoDto(
             id = venue.id,
             name = venue.name,
+            slug = venue.slug,
             address = venue.address,
             latitude = venue.latitude,
             longitude = venue.longitude,
             organizationId = venue.organizationId,
             merchantProfileId = venue.merchantProfileId
         )
+    }
+
+    /**
+     * Get venue basic info in batch (implements VenueApi interface).
+     */
+    override fun getVenueBasicInfoBatch(venueIds: Set<UUID>): Map<UUID, VenueBasicInfoDto> {
+        val venues = venueRepository.findAllById(venueIds)
+        return venues.associate { venue ->
+            venue.id to VenueBasicInfoDto(
+                id = venue.id,
+                name = venue.name,
+                slug = venue.slug,
+                address = venue.address,
+                latitude = venue.latitude,
+                longitude = venue.longitude,
+                organizationId = venue.organizationId,
+                merchantProfileId = venue.merchantProfileId
+            )
+        }
     }
 
     /**

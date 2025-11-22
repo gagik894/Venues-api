@@ -34,6 +34,8 @@ data class OrganizationMembershipDto(
 
 data class VenuePermissionDto(
     val venueId: UUID,
+    val venueName: String? = null, // Added for UI
+    val venueSlug: String? = null, // Added for UI navigation
     val role: VenueRole // MANAGER, SCANNER, etc.
 )
 

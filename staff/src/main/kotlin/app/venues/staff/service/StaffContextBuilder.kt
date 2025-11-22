@@ -6,6 +6,7 @@ import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.VenuePermissionDto
 import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.repository.StaffIdentityRepository
+import app.venues.venue.api.VenueApi
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -24,7 +25,8 @@ import java.util.*
 @Service
 @Transactional(readOnly = true)
 class StaffContextBuilder(
-    private val staffRepository: StaffIdentityRepository
+    private val staffRepository: StaffIdentityRepository,
+    private val venueApi: VenueApi
 ) {
 
     /**
@@ -39,6 +41,18 @@ class StaffContextBuilder(
      * @return StaffGlobalContextDto with full hierarchy
      */
     fun buildContext(staff: StaffIdentity): StaffGlobalContextDto {
+        // Collect all venue IDs to fetch names/slugs in batch
+        val allVenueIds = staff.memberships
+            .flatMap { it.venuePermissions }
+            .map { it.venueId }
+            .toSet()
+
+        val venueInfos = if (allVenueIds.isNotEmpty()) {
+            venueApi.getVenueBasicInfoBatch(allVenueIds)
+        } else {
+            emptyMap()
+        }
+
         val memberships = staff.memberships
             .filter { it.isActive }
             .map { membership ->
@@ -47,8 +61,11 @@ class StaffContextBuilder(
                     orgRole = membership.orgRole,
                     venuePermissions = membership.venuePermissions
                         .map { vp ->
+                            val info = venueInfos[vp.venueId]
                             VenuePermissionDto(
                                 venueId = vp.venueId,
+                                venueName = info?.name ?: "Unknown Venue",
+                                venueSlug = info?.slug,
                                 role = vp.role
                             )
                         }

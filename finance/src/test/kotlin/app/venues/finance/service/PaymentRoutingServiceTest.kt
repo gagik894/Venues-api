@@ -39,7 +39,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = profileId
+            merchantProfileId = profileId,
+            slug = "test-venue"
         )
 
         every { venueApi.getVenueBasicInfo(venueId) } returns venueInfo
@@ -74,7 +75,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = null
+            merchantProfileId = null,
+            slug = "test-venue"
         )
 
         val organizationDto = OrganizationDto(
@@ -114,7 +116,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = null
+            merchantProfileId = null,
+            slug = "test-venue"
         )
 
         val organizationDto = OrganizationDto(

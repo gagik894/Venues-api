@@ -9,6 +9,8 @@ import app.venues.staff.service.StaffAuthService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -25,26 +27,50 @@ class StaffAuthController(
 
     @PostMapping("/register")
     @Operation(summary = "Register new staff", description = "Creates a new Staff Identity (Global Account)")
-    fun register(@Valid @RequestBody req: StaffRegisterRequest): ApiResponse<StaffAuthResponse> {
+    fun register(
+        @Valid @RequestBody req: StaffRegisterRequest,
+        response: HttpServletResponse
+    ): ApiResponse<StaffAuthResponse> {
         logger.info { "Registering new staff email: ${req.email}" }
 
-        val response = authService.register(req)
+        val authResponse = authService.register(req)
+
+        // Set HttpOnly Cookie
+        val cookie = Cookie("staff_auth_token", authResponse.token)
+        cookie.isHttpOnly = true
+        cookie.secure = true // Should be true in production (HTTPS)
+        cookie.path = "/"
+        cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
+        cookie.setAttribute("SameSite", "Strict")
+        response.addCookie(cookie)
 
         return ApiResponse.success(
-            data = response,
+            data = authResponse,
             message = "Registration successful. Please verify your email."
         )
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Staff Login", description = "Returns JWT and full Context (Orgs/Venues)")
-    fun login(@Valid @RequestBody req: StaffLoginRequest): ApiResponse<StaffAuthResponse> {
+    @Operation(summary = "Staff Login", description = "Returns JWT (in HttpOnly cookie) and full Context (Orgs/Venues)")
+    fun login(
+        @Valid @RequestBody req: StaffLoginRequest,
+        response: HttpServletResponse
+    ): ApiResponse<StaffAuthResponse> {
         logger.debug { "Login attempt for: ${req.email}" }
 
-        val response = authService.login(req)
+        val authResponse = authService.login(req)
+
+        // Set HttpOnly Cookie
+        val cookie = Cookie("staff_auth_token", authResponse.token)
+        cookie.isHttpOnly = true
+        cookie.secure = true // Should be true in production (HTTPS)
+        cookie.path = "/"
+        cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
+        cookie.setAttribute("SameSite", "Strict")
+        response.addCookie(cookie)
 
         return ApiResponse.success(
-            data = response,
+            data = authResponse,
             message = "Login successful"
         )
     }

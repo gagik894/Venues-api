@@ -29,7 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
  *
  * Security Strategy:
  * - Stateless JWT-based authentication (no server-side sessions)
- * - Dual authentication: Users and Venues have separate authentication flows
+ * - Dual authentication: Users and Staff have separate authentication flows
  * - Role-based access control (RBAC)
  * - BCrypt password encoding with strength 12
  * - CORS enabled for specified origins
@@ -37,9 +37,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
  *
  * Public endpoints (no authentication required):
  * - /api/v1/auth/user/ - User authentication (login, register)
- * - /api/v1/auth/venue/ - Venue authentication
+ * - /api/v1/auth/staff/ - Staff authentication
  * - /api/v1/venues/ (GET only) - Public venue information
  * - /api/v1/events/ (GET only) - Public event information
+ * - /api/v1/sessions/ (GET only) - Public seating charts
+ * - /api/v1/checkout (POST) - Guest checkout
+ * - /api/v1/bookings/ (GET) - Public booking retrieval
  * - /actuator/health - Health check endpoint
  *
  * Protected endpoints require valid JWT token in Authorization header.
@@ -86,6 +89,9 @@ class SecurityConfig(
 
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/events/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/bookings/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/checkout").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/health/**").permitAll()
                     .requestMatchers("/actuator/**").permitAll()
                     .requestMatchers("/api/v1/public/**").permitAll()

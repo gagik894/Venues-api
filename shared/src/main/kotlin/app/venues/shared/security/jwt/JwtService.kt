@@ -16,7 +16,7 @@ import javax.crypto.SecretKey
  *
  * This service is shared across all modules and handles JWT operations for:
  * - Users (with ROLE_USER)
- * - Venues (with ROLE_VENUE)
+ * - Staff (with ROLE_STAFF)
  * - Any other authenticated principals
  *
  * JWT Structure:
@@ -28,8 +28,8 @@ import javax.crypto.SecretKey
  * - sub (subject): Principal email/identifier
  * - iat (issued at): Token creation timestamp
  * - exp (expiration): Token expiration timestamp
- * - id: Custom claim for principal ID (user ID or venue ID)
- * - role: Custom claim for principal role (ROLE_USER, ROLE_VENUE, etc.)
+ * - id: Custom claim for principal ID (user ID or staff ID)
+ * - role: Custom claim for principal role (ROLE_USER, ROLE_STAFF, etc.)
  *
  * Security:
  * - Tokens are signed with HMAC-SHA256
@@ -39,7 +39,7 @@ import javax.crypto.SecretKey
  *
  * Usage Examples:
  * - User: generateToken(email = "user@example.com", userId = 123, role = "USER")
- * - Venue: generateToken(email = "venue@example.com", userId = 456, role = "VENUE")
+ * - Staff: generateToken(email = "staff@example.com", userId = 456, role = "STAFF")
  */
 @Service
 class JwtService {

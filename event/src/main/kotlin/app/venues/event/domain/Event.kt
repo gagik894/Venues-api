@@ -56,7 +56,8 @@ class Event(
     @ElementCollection
     @CollectionTable(name = "event_secondary_images", joinColumns = [JoinColumn(name = "event_id")])
     @Column(name = "image_url", length = 500)
-    var secondaryImgUrls: MutableList<String> = mutableListOf(),
+    @org.hibernate.annotations.BatchSize(size = 100)
+    var secondaryImgUrls: MutableSet<String> = mutableSetOf(),
 
     @Column(name = "description", columnDefinition = "TEXT")
     var description: String? = null,
@@ -73,6 +74,7 @@ class Event(
     @ElementCollection
     @CollectionTable(name = "event_tags", joinColumns = [JoinColumn(name = "event_id")])
     @Column(name = "tag", length = 50)
+    @org.hibernate.annotations.BatchSize(size = 100)
     var tags: MutableSet<String> = mutableSetOf(),
 
     @Column(name = "price_range", length = 100)
@@ -105,13 +107,18 @@ class Event(
 
     // --- Relationships ---
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("startTime ASC")
+    @org.hibernate.annotations.BatchSize(size = 100)
     val sessions: MutableList<EventSession> = mutableListOf()
 
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val priceTemplates: MutableList<EventPriceTemplate> = mutableListOf()
+    @OrderBy("price ASC")
+    @org.hibernate.annotations.BatchSize(size = 100)
+    val priceTemplates: MutableSet<EventPriceTemplate> = mutableSetOf()
 
     @OneToMany(mappedBy = "event", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
-    val translations: MutableList<EventTranslation> = mutableListOf()
+    @org.hibernate.annotations.BatchSize(size = 100)
+    val translations: MutableSet<EventTranslation> = mutableSetOf()
 
     // --- Public Behaviors ---
     fun publish() {

@@ -520,6 +520,7 @@ create table event_price_templates
     template_name    varchar(100)                not null,
     price            numeric(10, 2)              not null,
     color            varchar(7),
+    is_anchor boolean not null default false,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null
 );

@@ -131,5 +131,40 @@ class EventMapper {
             displayOrder = category.displayOrder,
         )
     }
+
+    /**
+     * Convert Event entity to EventSummaryResponse DTO.
+     */
+    fun toSummaryResponse(
+        event: Event,
+        venueName: String,
+        language: String? = null
+    ): EventSummaryResponse {
+        // Apply event translation if requested language exists
+        val translation = language?.let { lang ->
+            event.translations.find { it.language.equals(lang, ignoreCase = true) }
+        }
+
+        // Apply category translation if language is specified
+        val categoryName = event.category?.getName(language ?: "en")
+
+        // Get next session time (relies on @BatchSize for efficiency)
+        val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(java.time.Instant.now()) }
+            ?: event.sessions.firstOrNull()
+
+        return EventSummaryResponse(
+            id = event.id,
+            title = translation?.title ?: event.title,
+            imgUrl = event.imgUrl,
+            venueId = event.venueId,
+            venueName = venueName,
+            location = event.location,
+            categoryName = categoryName,
+            priceRange = event.priceRange,
+            currency = event.currency,
+            status = event.status,
+            startDateTime = nextSession?.startTime?.toString()
+        )
+    }
 }
 

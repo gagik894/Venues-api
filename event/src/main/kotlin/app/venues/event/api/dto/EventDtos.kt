@@ -80,6 +80,23 @@ data class EventResponse(
     val priceTemplates: List<PriceTemplateResponse> = emptyList()
 )
 
+/**
+ * Lightweight response DTO for event lists.
+ */
+data class EventSummaryResponse(
+    val id: UUID,
+    val title: String,
+    val imgUrl: String?,
+    val venueId: UUID,
+    val venueName: String,
+    val location: String?,
+    val categoryName: String?,
+    val priceRange: String?,
+    val currency: String,
+    val status: EventStatus,
+    val startDateTime: String?
+)
+
 // ===========================================
 // EVENT SESSION DTOs
 // ===========================================

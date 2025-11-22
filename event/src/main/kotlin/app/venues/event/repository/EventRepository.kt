@@ -4,6 +4,7 @@ import app.venues.event.domain.Event
 import app.venues.event.domain.EventStatus
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
@@ -64,6 +65,12 @@ interface EventRepository : JpaRepository<Event, UUID> {
     """
     )
     fun findByTag(tag: String, status: EventStatus, pageable: Pageable): Page<Event>
+
+    /**
+     * Find event by ID with all details loaded.
+     */
+    @EntityGraph(attributePaths = ["secondaryImgUrls", "tags", "translations", "category", "priceTemplates", "sessions"])
+    override fun findById(id: UUID): Optional<Event>
 
     /**
      * Count events by venue ID

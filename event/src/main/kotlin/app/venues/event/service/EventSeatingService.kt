@@ -86,7 +86,7 @@ class EventSeatingService(
     fun generateConfigsForSession(
         session: EventSession,
         chartId: UUID,
-        priceTemplates: List<EventPriceTemplate>
+        priceTemplates: Collection<EventPriceTemplate>
     ) {
         logger.debug { "Generating seating configs for session: ${session.id} using chart: $chartId" }
 

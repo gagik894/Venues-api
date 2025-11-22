@@ -3,6 +3,7 @@ package app.venues.event.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.EventResponse
 import app.venues.event.api.dto.EventSessionResponse
+import app.venues.event.api.dto.EventSummaryResponse
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.Event
 import app.venues.event.service.EventService
@@ -50,7 +51,7 @@ class EventController(
         @RequestParam(required = false) sortBy: String?,
         @RequestParam(required = false) sortDirection: String?,
         @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
+    ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Fetching all events, language: $lang" }
 
         val allowedSortFields = setOf("createdAt", "title", "id")
@@ -59,7 +60,7 @@ class EventController(
         val events = eventService.getAllEvents(pageable)
 
         return ApiResponse.success(
-            data = mapEventsWithVenueNames(events, lang),
+            data = mapEventsToSummary(events, lang),
             message = "Events retrieved successfully"
         )
     }
@@ -101,14 +102,14 @@ class EventController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
+    ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Searching events: $searchTerm, language: $lang" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.searchEvents(searchTerm, pageable)
 
         return ApiResponse.success(
-            data = mapEventsWithVenueNames(events, lang),
+            data = mapEventsToSummary(events, lang),
             message = "Search completed successfully"
         )
     }
@@ -126,14 +127,14 @@ class EventController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
+    ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Fetching events for venue: $venueId, language: $lang" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByVenue(venueId, pageable)
 
         return ApiResponse.success(
-            data = mapEventsWithVenueNames(events, lang),
+            data = mapEventsToSummary(events, lang),
             message = "Events retrieved successfully"
         )
     }
@@ -151,14 +152,14 @@ class EventController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
+    ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Fetching events for category: $categoryId, language: $lang" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByCategory(categoryId, pageable)
 
         return ApiResponse.success(
-            data = mapEventsWithVenueNames(events, lang),
+            data = mapEventsToSummary(events, lang),
             message = "Events retrieved successfully"
         )
     }
@@ -176,14 +177,14 @@ class EventController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
+    ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Fetching events for tag: $tag, language: $lang" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getEventsByTag(tag, pageable)
 
         return ApiResponse.success(
-            data = mapEventsWithVenueNames(events, lang),
+            data = mapEventsToSummary(events, lang),
             message = "Events retrieved successfully"
         )
     }
@@ -231,17 +232,16 @@ class EventController(
         )
     }
 
-    private fun mapEventsWithVenueNames(
+    private fun mapEventsToSummary(
         eventsPage: Page<Event>,
         language: String?
-    ): Page<EventResponse> {
+    ): Page<EventSummaryResponse> {
         val venueIds = eventsPage.content.map { it.venueId }.toSet()
         val venueNamesMap = venueApi.getVenueNamesBatch(venueIds, language)
 
         return eventsPage.map { event ->
             val venueName = venueNamesMap[event.venueId] ?: "Unknown"
-            val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-            eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = language)
+            eventMapper.toSummaryResponse(event, venueName, language)
         }
     }
 }

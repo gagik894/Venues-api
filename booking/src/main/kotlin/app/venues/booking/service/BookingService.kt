@@ -157,7 +157,34 @@ class BookingService(
     }
 
     /**
-     * Get booking by ID.
+     * Expire a booking (system action).
+     * Called by cleanup job for PENDING bookings that timed out.
+     */
+    fun expireBooking(bookingId: UUID) {
+        logger.info { "Expiring booking: $bookingId" }
+        val booking = bookingRepository.findById(bookingId)
+            .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
+
+        if (booking.status != BookingStatus.PENDING) {
+            return
+        }
+
+        booking.cancel("Booking expired")
+        val savedBooking = bookingRepository.save(booking)
+
+        releaseBookingInventory(savedBooking)
+    }
+
+    /**
+     * Get booking by ID (Internal API).
+     */
+    @Transactional(readOnly = true)
+    override fun getBookingById(bookingId: UUID): BookingResponse {
+        return getBookingById(bookingId, null)
+    }
+
+    /**
+     * Get booking by ID (Controller).
      */
     @Transactional(readOnly = true)
     fun getBookingById(bookingId: UUID, userId: UUID? = null): BookingResponse {

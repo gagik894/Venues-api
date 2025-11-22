@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import java.time.Instant
 import java.util.*
 
 /**
@@ -33,5 +34,10 @@ interface BookingRepository : JpaRepository<Booking, UUID> {
      * Find bookings by session
      */
     fun findBySessionId(sessionId: UUID, pageable: Pageable): Page<Booking>
+
+    /**
+     * Find expired pending bookings.
+     */
+    fun findByStatusAndCreatedAtBefore(status: BookingStatus, cutoff: Instant): List<Booking>
 }
 

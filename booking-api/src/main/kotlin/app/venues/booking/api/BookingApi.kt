@@ -54,4 +54,13 @@ interface BookingApi {
      * @param bookingId The ID of the booking to cancel.
      */
     fun cancelBooking(bookingId: UUID)
+
+    /**
+     * Retrieves a booking by its ID.
+     *
+     * @param bookingId The unique identifier of the booking.
+     * @return The booking response.
+     * @throws app.venues.common.exception.VenuesException.ResourceNotFound if not found.
+     */
+    fun getBookingById(bookingId: UUID): BookingResponse
 }

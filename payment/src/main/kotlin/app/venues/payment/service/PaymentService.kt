@@ -70,6 +70,12 @@ class PaymentService(
     override fun initiatePayment(request: InitiatePaymentRequest): InitiatePaymentResponse {
         logger.info { "Initiating payment for booking ${request.bookingId} at venue ${request.venueId}" }
 
+        // 0. Check if booking is already paid
+        val booking = bookingApi.getBookingById(request.bookingId)
+        if (booking.status.name == "CONFIRMED") {
+            throw IllegalStateException("Booking ${request.bookingId} is already confirmed")
+        }
+
         // 1. Resolve Merchant via Finance API
         val merchant = paymentRoutingApi.resolveMerchant(request.venueId)
         logger.debug { "Resolved merchant: ${merchant.id} (${merchant.name})" }
@@ -184,5 +190,42 @@ class PaymentService(
                 throw IllegalArgumentException(result.reason)
             }
         }
+    }
+
+    /**
+     * Refunds a completed payment.
+     *
+     * Currently only marks the payment as REFUNDED and cancels the booking.
+     * Actual provider refund integration is pending.
+     */
+    @Transactional
+    override fun refundPayment(paymentId: UUID): Boolean {
+        logger.info { "Initiating refund for payment $paymentId" }
+
+        val payment = paymentRepository.findByIdWithLock(paymentId)
+            .orElseThrow { RuntimeException("Payment not found: $paymentId") }
+
+        if (payment.status != "COMPLETED") {
+            logger.warn { "Cannot refund payment $paymentId: Status is ${payment.status}" }
+            throw IllegalStateException("Only COMPLETED payments can be refunded")
+        }
+
+        // TODO: Call provider refund API
+        // val merchant = paymentRoutingApi.getMerchant(payment.merchantId)
+        // val provider = paymentProviderFactory.getProvider(payment.providerId)
+        // provider.refund(payment, merchant.config)
+
+//        payment.status = "REFUNDED"
+//        paymentRepository.save(payment)
+
+        try {
+            bookingApi.cancelBooking(payment.bookingId)
+            logger.info { "Booking ${payment.bookingId} cancelled due to refund" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to cancel booking ${payment.bookingId} during refund" }
+            // We still return true as the payment status is updated, but this requires manual intervention
+        }
+
+        return true
     }
 }

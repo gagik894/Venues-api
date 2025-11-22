@@ -41,4 +41,12 @@ interface PaymentApi {
      * @return The result payload (if any) to be returned to the provider.
      */
     fun processCallback(providerId: String, params: Map<String, String>): Any
+
+    /**
+     * Refunds a completed payment.
+     *
+     * @param paymentId The unique identifier of the payment to refund.
+     * @return True if the refund was initiated/completed successfully.
+     */
+    fun refundPayment(paymentId: UUID): Boolean
 }

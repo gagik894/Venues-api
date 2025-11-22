@@ -69,6 +69,50 @@ class EventPriceService(
     }
 
     /**
+     * Create a single price template.
+     */
+    fun createTemplate(event: Event, request: PriceTemplateRequest): EventPriceTemplate {
+        val template = EventPriceTemplate(
+            event = event,
+            templateName = request.templateName,
+            price = request.price,
+            color = request.color
+        )
+        event.priceTemplates.add(template)
+        return template
+    }
+
+    /**
+     * Update a single price template.
+     */
+    fun updateTemplate(event: Event, templateId: UUID, request: PriceTemplateRequest): EventPriceTemplate {
+        val template = event.priceTemplates.find { it.id == templateId }
+            ?: throw VenuesException.ResourceNotFound("Price template not found: $templateId")
+
+        template.templateName = request.templateName
+        template.price = request.price
+        template.color = request.color
+
+        return template
+    }
+
+    /**
+     * Delete a single price template.
+     */
+    fun deleteTemplate(event: Event, templateId: UUID) {
+        val template = event.priceTemplates.find { it.id == templateId }
+            ?: throw VenuesException.ResourceNotFound("Price template not found: $templateId")
+
+        if (template.isAnchor) {
+            throw VenuesException.ValidationFailure(
+                "Cannot delete price template '${template.templateName}' because it matches a seating chart category (Anchor Template)."
+            )
+        }
+
+        event.priceTemplates.remove(template)
+    }
+
+    /**
      * Get a specific price template by ID.
      */
     fun getTemplate(templateId: UUID): EventPriceTemplate {

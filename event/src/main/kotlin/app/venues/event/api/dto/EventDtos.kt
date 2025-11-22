@@ -32,12 +32,9 @@ data class EventRequest(
 
     val longitude: Double? = null,
 
-    val categoryId: Long? = null,
+    val categoryCode: String? = null,
 
     val tags: Set<String> = emptySet(),
-
-    @field:Size(max = 100, message = "Price range must not exceed 100 characters")
-    val priceRange: String? = null,
 
     @field:Size(min = 3, max = 3, message = "Currency must be 3 characters (ISO 4217)")
     val currency: String = "AMD",
@@ -46,13 +43,9 @@ data class EventRequest(
 
     val status: EventStatus = EventStatus.DRAFT,
 
-    val venueId: UUID,
-
     val sessions: List<EventSessionRequest> = emptyList(),
 
-    val translations: List<EventTranslationRequest> = emptyList(),
-
-    val priceTemplates: List<PriceTemplateRequest> = emptyList()
+    val translations: List<EventTranslationRequest> = emptyList()
 )
 
 /**

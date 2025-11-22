@@ -6,6 +6,7 @@ import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventStatus
 import app.venues.event.domain.EventTranslation
+import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
 import app.venues.seating.api.SeatingApi
@@ -36,6 +37,7 @@ import java.util.*
 class EventService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
+    private val eventCategoryRepository: EventCategoryRepository,
     private val eventSessionService: EventSessionService,
     private val eventPriceService: EventPriceService,
     private val eventMapper: EventMapper,
@@ -60,7 +62,11 @@ class EventService(
 
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
-                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
+        }
+
+        val category = request.categoryCode?.let { code ->
+            eventCategoryRepository.findByCode(code)
+                ?: throw VenuesException.ResourceNotFound("Category not found with code: $code")
         }
 
         val event = Event(
@@ -71,16 +77,14 @@ class EventService(
             location = request.location,
             latitude = request.latitude,
             longitude = request.longitude,
-            priceRange = request.priceRange,
+            priceRange = null,
             currency = request.currency,
             seatingChartId = request.seatingChartId,
+            category = category
         )
 
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         event.tags.addAll(request.tags)
-
-        // Delegate Price Templates
-        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
 
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
@@ -157,18 +161,21 @@ class EventService(
         event.location = request.location
         event.latitude = request.latitude
         event.longitude = request.longitude
-        event.priceRange = request.priceRange
         event.currency = request.currency
         event.seatingChartId = request.seatingChartId
+
+        if (request.categoryCode != null) {
+            event.category = eventCategoryRepository.findByCode(request.categoryCode)
+                ?: throw VenuesException.ResourceNotFound("Category not found with code: ${request.categoryCode}")
+        } else {
+            event.category = null
+        }
 
         // Update collections
         event.secondaryImgUrls.clear()
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         event.tags.clear()
         event.tags.addAll(request.tags)
-
-        // Delegate Price Templates
-        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
 
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
@@ -271,6 +278,55 @@ class EventService(
     fun getEventsByTag(tag: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
         logger.debug { "Fetching events for tag: $tag, language: $language" }
         return mapEventsWithVenueNames(eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable), language)
+    }
+
+    // ===========================================
+    // PRICE TEMPLATE MANAGEMENT
+    // ===========================================
+
+    fun createPriceTemplate(eventId: UUID, venueId: UUID, request: PriceTemplateRequest): PriceTemplateResponse {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+
+        val template = eventPriceService.createTemplate(event, request)
+        eventRepository.save(event)
+
+        return eventMapper.toPriceTemplateResponse(template)
+    }
+
+    fun updatePriceTemplate(
+        eventId: UUID,
+        venueId: UUID,
+        templateId: UUID,
+        request: PriceTemplateRequest
+    ): PriceTemplateResponse {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+
+        val template = eventPriceService.updateTemplate(event, templateId, request)
+        eventRepository.save(event)
+
+        return eventMapper.toPriceTemplateResponse(template)
+    }
+
+    fun deletePriceTemplate(eventId: UUID, venueId: UUID, templateId: UUID) {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+
+        eventPriceService.deleteTemplate(event, templateId)
+        eventRepository.save(event)
     }
 
     // ===========================================

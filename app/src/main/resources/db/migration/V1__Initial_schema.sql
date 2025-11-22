@@ -852,3 +852,23 @@ create table webhook_events
 create index idx_webhook_platform_id on webhook_events (platform_id);
 create index idx_webhook_status on webhook_events (status);
 create index idx_webhook_next_retry on webhook_events (next_retry_at);
+
+/* =========================================================
+   11. Payments
+   ========================================================= */
+
+CREATE TABLE payments
+(
+    id                 UUID PRIMARY KEY,
+    booking_id         UUID                     NOT NULL,
+    amount             DECIMAL(19, 2)           NOT NULL,
+    currency           VARCHAR(3)               NOT NULL,
+    status             VARCHAR(20)              NOT NULL,
+    external_reference VARCHAR(255),
+    merchant_id        UUID                     NOT NULL,
+    created_at         TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at         TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE INDEX idx_payment_booking_id ON payments (booking_id);
+CREATE INDEX idx_payment_external_ref ON payments (external_reference);

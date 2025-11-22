@@ -13,9 +13,12 @@ data class MerchantProfileDto(
     val taxId: String?,
     val organizationId: UUID,
 
-    // We do NOT expose the full encrypted config here.
-    // Consumers usually just need to know "who" the merchant is,
-    // or pass this DTO to a payment processor which might need internal access.
-    // For now, we keep it simple.
-    val hasPaymentConfig: Boolean
-)
+    /**
+     * The payment configuration containing credentials.
+     * WARNING: This contains sensitive secrets. Do not expose to frontend.
+     * Only for internal use by Payment Module.
+     */
+    val config: PaymentConfig?
+) {
+    val merchantId: UUID get() = id
+}

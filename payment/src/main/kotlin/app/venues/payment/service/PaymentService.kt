@@ -5,6 +5,7 @@ import app.venues.payment.api.PaymentApi
 import app.venues.payment.api.dto.InitiatePaymentRequest
 import app.venues.payment.api.dto.InitiatePaymentResponse
 import app.venues.payment.domain.Payment
+import app.venues.payment.provider.PaymentProviderFactory
 import app.venues.payment.repository.PaymentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -21,7 +22,8 @@ import java.util.*
 @Transactional
 class PaymentService(
     private val paymentRepository: PaymentRepository,
-    private val paymentRoutingApi: PaymentRoutingApi
+    private val paymentRoutingApi: PaymentRoutingApi,
+    private val paymentProviderFactory: PaymentProviderFactory
 ) : PaymentApi {
 
     private val logger = KotlinLogging.logger {}
@@ -41,13 +43,26 @@ class PaymentService(
      */
     override fun initiatePayment(request: InitiatePaymentRequest): InitiatePaymentResponse {
         logger.info { "Initiating payment for booking ${request.bookingId} at venue ${request.venueId}" }
-        //TODO: Implement actual payment gateway integration
 
         // 1. Resolve Merchant via Finance API
         val merchant = paymentRoutingApi.resolveMerchant(request.venueId)
-        logger.debug { "Resolved merchant: ${merchant.id} (${merchant})" }
+        logger.debug { "Resolved merchant: ${merchant.id} (${merchant.name})" }
 
-        // 2. Create Payment Record
+        val config = merchant.config
+            ?: throw IllegalStateException("Merchant ${merchant.name} has no payment configuration")
+
+        // 2. Select Provider
+        val provider = if (request.providerId != null) {
+            paymentProviderFactory.getProvider(request.providerId!!)
+        } else {
+            paymentProviderFactory.getDefaultProvider(config)
+        }
+
+        if (!provider.isConfigured(config)) {
+            throw IllegalStateException("Provider ${provider.providerId} is not configured for merchant ${merchant.name}")
+        }
+
+        // 3. Create Payment Record
         val payment = Payment(
             bookingId = request.bookingId,
             amount = request.amount,
@@ -56,22 +71,21 @@ class PaymentService(
             merchantId = merchant.id
         )
 
-        // 3. (Placeholder) Interact with Payment Gateway
-        // In a real implementation, we would use a Strategy pattern based on merchant.provider
-        // to call Stripe, PayPal, etc.
-        val gatewayReference = "simulated_ref_${UUID.randomUUID()}"
-        val paymentUrl = "https://checkout.example.com/pay/${gatewayReference}"
+        // 4. Generate Link via Provider Strategy
+        val linkResult = provider.generatePaymentLink(payment, config)
 
-        payment.externalReference = gatewayReference
-
+        payment.externalReference = linkResult.gatewayReference
+        
         val savedPayment = paymentRepository.save(payment)
-        logger.info { "Payment created: ${savedPayment.id}, status: ${savedPayment.status}" }
+        logger.info { "Payment created: ${savedPayment.id}, provider: ${provider.providerId}" }
 
         return InitiatePaymentResponse(
             paymentId = savedPayment.id,
             status = savedPayment.status,
-            paymentUrl = paymentUrl,
-            gatewayReference = gatewayReference
+            paymentUrl = linkResult.paymentUrl,
+            formData = linkResult.formData,
+            method = linkResult.method,
+            gatewayReference = linkResult.gatewayReference
         )
     }
 }

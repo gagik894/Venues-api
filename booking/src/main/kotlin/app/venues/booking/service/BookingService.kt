@@ -59,7 +59,9 @@ class BookingService(
         logger.debug { "Processing checkout: token=${request.token}, email=${request.email}" }
 
         // Validate cart and get session
-        val cartData = validateCartAndGetSession(request.token)
+        val cartData = validateCartAndGetSession(
+            request.token ?: throw VenuesException.ValidationFailure("Cart token is required for checkout")
+        )
 
         // Determine user or guest
         val guest = if (userId == null) {
@@ -78,7 +80,7 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
 
         // Delete cart (CASCADE deletes items)
-        deleteCart(request.token)
+        deleteCart(request.token ?: throw VenuesException.ValidationFailure("Cart token is required for checkout"))
 
         logger.info { "Checkout completed: bookingId=${savedBooking.id}, total=${booking.totalPrice}" }
 

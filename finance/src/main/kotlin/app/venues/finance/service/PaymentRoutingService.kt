@@ -75,7 +75,7 @@ class PaymentRoutingService(
             legalName = profile.legalName,
             taxId = profile.taxId,
             organizationId = profile.organizationId,
-            hasPaymentConfig = profile.hasPaymentConfig()
+            config = profile.config // Pass the full config (including secrets) to the Payment Module
         )
     }
 }

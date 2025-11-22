@@ -1,7 +1,7 @@
 package app.venues.finance.domain
 
+import app.venues.finance.api.dto.PaymentConfig
 import app.venues.finance.converter.PaymentConfigConverter
-import app.venues.finance.dto.PaymentConfig
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Convert

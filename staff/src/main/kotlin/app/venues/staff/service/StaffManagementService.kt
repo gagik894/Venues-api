@@ -1,8 +1,8 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.staff.api.dto.AuthorizedVenueDto
 import app.venues.staff.api.dto.InviteStaffRequest
-import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.StaffProfileDto
 import app.venues.staff.api.dto.UpdateStaffStatusRequest
 import app.venues.staff.api.mapper.StaffMapper
@@ -18,7 +18,7 @@ import java.util.*
  * Service for staff management operations.
  *
  * Responsibilities:
- * - Staff context/hierarchy retrieval
+ * - Staff authorized venues retrieval
  * - Staff invitations to organizations
  * - Membership management
  * - Status updates (suspend/reactivate)
@@ -31,18 +31,18 @@ class StaffManagementService(
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Gets the organizational context for a staff member.
+     * Gets the authorized venues list for a staff member.
      *
-     * Returns which organizations and venues they can access.
+     * Returns which venues they can access with their assigned roles.
      * Used by the frontend to build navigation/sidebar.
      *
      * @param staffId Staff member ID
-     * @return StaffGlobalContextDto with organizations and venues hierarchy
+     * @return List of authorized venues with roles
      */
     @Transactional(readOnly = true)
-    fun getStaffContext(staffId: UUID): StaffGlobalContextDto {
-        logger.debug { "Fetching context for staff: $staffId" }
-        return staffContextBuilder.buildContextById(staffId)
+    fun getAuthorizedVenues(staffId: UUID): List<AuthorizedVenueDto> {
+        logger.debug { "Fetching authorized venues for staff: $staffId" }
+        return staffContextBuilder.buildAuthorizedVenuesById(staffId)
     }
 
     /**

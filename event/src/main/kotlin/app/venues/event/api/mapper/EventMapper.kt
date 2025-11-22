@@ -80,7 +80,7 @@ class EventMapper {
             status = session.status,
             priceOverride = session.priceOverride?.toString(),
             priceRangeOverride = session.priceRangeOverride,
-            effectivePriceRange = session.getEffectivePriceRange(),
+            effectivePriceRange = session.priceRangeOverride ?: session.event.priceRange,
             isBookable = session.isBookable(),
             createdAt = session.createdAt.toString()
         )
@@ -134,23 +134,20 @@ class EventMapper {
 
     /**
      * Convert Event entity to EventSummaryResponse DTO.
+     * Note: categoryName and startDateTime must be pre-fetched and provided.
      */
     fun toSummaryResponse(
         event: Event,
         venueName: String,
+        categoryName: String?,
+        startDateTime: String?,
         language: String? = null
     ): EventSummaryResponse {
         // Apply event translation if requested language exists
+        // Note: translations are loaded via @BatchSize if accessed
         val translation = language?.let { lang ->
             event.translations.find { it.language.equals(lang, ignoreCase = true) }
         }
-
-        // Apply category translation if language is specified
-        val categoryName = event.category?.getName(language ?: "en")
-
-        // Get next session time (relies on @BatchSize for efficiency)
-        val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(java.time.Instant.now()) }
-            ?: event.sessions.firstOrNull()
 
         return EventSummaryResponse(
             id = event.id,
@@ -163,7 +160,7 @@ class EventMapper {
             priceRange = event.priceRange,
             currency = event.currency,
             status = event.status,
-            startDateTime = nextSession?.startTime?.toString()
+            startDateTime = startDateTime
         )
     }
 }

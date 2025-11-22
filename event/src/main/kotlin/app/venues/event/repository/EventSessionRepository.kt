@@ -19,6 +19,7 @@ interface EventSessionRepository : JpaRepository<EventSession, UUID> {
     /**
      * Find sessions by event ID
      */
+    @Query("SELECT s FROM EventSession s JOIN FETCH s.event WHERE s.event.id = :eventId")
     fun findByEventId(eventId: UUID, pageable: Pageable): Page<EventSession>
 
     /**
@@ -46,6 +47,7 @@ interface EventSessionRepository : JpaRepository<EventSession, UUID> {
     @Query(
         """
         SELECT s FROM EventSession s
+        JOIN FETCH s.event
         WHERE s.event.id = :eventId
         AND s.status = 'UPCOMING'
         AND s.startTime > :now

@@ -1,10 +1,12 @@
 package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
-import app.venues.event.api.dto.EventRequest
-import app.venues.event.api.dto.EventTranslationRequest
-import app.venues.event.api.dto.PriceTemplateRequest
-import app.venues.event.domain.*
+import app.venues.event.api.dto.*
+import app.venues.event.api.mapper.EventMapper
+import app.venues.event.domain.Event
+import app.venues.event.domain.EventPriceTemplate
+import app.venues.event.domain.EventStatus
+import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
@@ -41,7 +43,8 @@ class EventService(
     private val eventPriceService: EventPriceService,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi,
-    private val imageStorageService: ImageStorageService
+    private val imageStorageService: ImageStorageService,
+    private val eventMapper: EventMapper
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -283,6 +286,106 @@ class EventService(
     // ===========================================
 
     /**
+     * Get all publicly visible events as summaries.
+     *
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getAllEventSummaries(pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching all publicly visible events (summary)" }
+        val events = eventRepository.findByStatus(EventStatus.UPCOMING, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Search events by title as summaries.
+     *
+     * @param searchTerm The term to search for in event titles.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun searchEventSummaries(searchTerm: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Searching events (summary): $searchTerm" }
+        val events = eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by venue as summaries.
+     *
+     * @param venueId The ID of the venue.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByVenue(venueId: UUID, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for venue (summary): $venueId" }
+        val events = eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by category as summaries.
+     *
+     * @param categoryId The ID of the category.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByCategory(
+        categoryId: Long,
+        pageable: Pageable,
+        language: String?
+    ): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for category (summary): $categoryId" }
+        val events = eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.UPCOMING, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by tag as summaries.
+     *
+     * @param tag The tag to filter by.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByTag(tag: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for tag (summary): $tag" }
+        val events = eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable)
+        return mapToSummary(events, language)
+    }
+
+    private fun mapToSummary(events: Page<Event>, language: String?): Page<EventSummaryResponse> {
+        val venueIds = events.content.map { it.venueId }.toSet()
+        val venueNames = venueApi.getVenueNamesBatch(venueIds, language)
+
+        return events.map { event ->
+            // Fetch category name within transaction scope
+            val categoryName = event.category?.getName(language ?: "en")
+
+            // Fetch next session time within transaction scope (uses @BatchSize)
+            val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(Instant.now()) }
+                ?: event.sessions.firstOrNull()
+
+            eventMapper.toSummaryResponse(
+                event = event,
+                venueName = venueNames[event.venueId] ?: "Unknown",
+                categoryName = categoryName,
+                startDateTime = nextSession?.startTime?.toString(),
+                language = language
+            )
+        }
+    }
+
+    /**
      * Get all publicly visible events.
      *
      * @param pageable Pagination information.
@@ -459,24 +562,30 @@ class EventService(
      *
      * @param eventId The ID of the event.
      * @param pageable Pagination information.
-     * @return Page of EventSession entities.
+     * @return Page of EventSessionResponse DTOs.
      */
     @Transactional(readOnly = true)
-    fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSession> {
+    fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSessionResponse> {
         logger.debug { "Fetching sessions for event: $eventId" }
-        return eventSessionRepository.findByEventId(eventId, pageable)
+        val sessions = eventSessionRepository.findByEventId(eventId, pageable)
+        return sessions.map { session ->
+            eventMapper.toSessionResponse(session)
+        }
     }
 
     /**
      * Get upcoming bookable sessions for an event.
      *
      * @param eventId The ID of the event.
-     * @return List of EventSession entities.
+     * @return List of EventSessionResponse DTOs.
      */
     @Transactional(readOnly = true)
-    fun getBookableSessions(eventId: UUID): List<EventSession> {
+    fun getBookableSessions(eventId: UUID): List<EventSessionResponse> {
         logger.debug { "Fetching bookable sessions for event: $eventId" }
-        return eventSessionRepository.findBookableSessions(eventId, Instant.now())
+        val sessions = eventSessionRepository.findBookableSessions(eventId, Instant.now())
+        return sessions.map { session ->
+            eventMapper.toSessionResponse(session)
+        }
     }
 
     /**

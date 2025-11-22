@@ -1,8 +1,8 @@
 package app.venues.staff.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.staff.api.dto.AuthorizedVenueDto
 import app.venues.staff.api.dto.InviteStaffRequest
-import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.StaffProfileDto
 import app.venues.staff.api.dto.UpdateStaffStatusRequest
 import app.venues.staff.service.StaffManagementService
@@ -16,7 +16,7 @@ import java.util.*
 
 @RestController
 @RequestMapping("/api/v1/staff")
-@Tag(name = "Staff Management", description = "Manage context, invitations, and statuses")
+@Tag(name = "Staff Management", description = "Manage authorized venues, invitations, and statuses")
 class StaffAdminController(
     private val managementService: StaffManagementService
 ) {
@@ -24,22 +24,22 @@ class StaffAdminController(
 
     /**
      * Critical endpoint for the Frontend Sidebar.
-     * It tells the UI which Organizations and Venues the user can access.
+     * Returns the list of venues the user can access with their assigned roles.
      */
-    @GetMapping("/me/context")
+    @GetMapping("/me/authorized-venues")
     @Operation(
-        summary = "Get User Context",
-        description = "Returns the hierarchy of Organizations and Venues this user can access"
+        summary = "Get Authorized Venues",
+        description = "Returns the list of venues this user can access with their roles"
     )
-    fun getMyContext(@RequestAttribute("principalId") staffId: UUID): ApiResponse<StaffGlobalContextDto> {
+    fun getMyAuthorizedVenues(@RequestAttribute("principalId") staffId: UUID): ApiResponse<List<AuthorizedVenueDto>> {
         // Note: "staffId" usually comes from a JWT Filter/Interceptor
-        logger.debug { "Fetching context for staff: $staffId" }
+        logger.debug { "Fetching authorized venues for staff: $staffId" }
 
-        val context = managementService.getStaffContext(staffId)
+        val venues = managementService.getAuthorizedVenues(staffId)
 
         return ApiResponse.success(
-            data = context,
-            message = "Context retrieved successfully"
+            data = venues,
+            message = "Authorized venues retrieved successfully"
         )
     }
 

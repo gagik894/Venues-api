@@ -1,7 +1,7 @@
 package app.venues.staff.api.mapper
 
+import app.venues.staff.api.dto.AuthorizedVenueDto
 import app.venues.staff.api.dto.StaffAuthResponse
-import app.venues.staff.api.dto.StaffGlobalContextDto
 import app.venues.staff.api.dto.StaffProfileDto
 import app.venues.staff.domain.StaffIdentity
 
@@ -37,26 +37,24 @@ object StaffMapper {
             id = staff.id,
             email = staff.email,
             firstName = staff.firstName,
-            lastName = staff.lastName,
-            status = staff.status,
-            isPlatformSuperAdmin = staff.isPlatformSuperAdmin
+            lastName = staff.lastName
         )
     }
 
     /**
-     * Converts staff identity, context, and token into complete auth response.
+     * Converts staff identity, authorized venues, and token into complete auth response.
      *
      * Used for login and registration responses.
      *
      * @param staff The authenticated staff identity
-     * @param context The organizational context (orgs and venues)
+     * @param authorizedVenues List of venues the staff member can access with their roles
      * @param token The JWT token
      * @param expiresIn Token expiration time in milliseconds
      * @return Complete authentication response
      */
     fun toAuthResponse(
         staff: StaffIdentity,
-        context: StaffGlobalContextDto,
+        authorizedVenues: List<AuthorizedVenueDto>,
         token: String,
         expiresIn: Long
     ): StaffAuthResponse {
@@ -64,7 +62,7 @@ object StaffMapper {
             token = token,
             expiresIn = expiresIn,
             profile = toProfileDto(staff),
-            context = context
+            authorizedVenues = authorizedVenues
         )
     }
 }

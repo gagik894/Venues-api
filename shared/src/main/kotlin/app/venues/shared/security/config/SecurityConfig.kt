@@ -143,8 +143,10 @@ class SecurityConfig(
 
         val configuration = CorsConfiguration().apply {
             // Allowed origins - UPDATE IN PRODUCTION with specific domains
+            //TODO: Restrict origins before deploying to production
             allowedOrigins = listOf(
                 "http://localhost:3000",  // React/Vue dev server
+                "http://localhost:5173",  // Vite dev server
                 "http://localhost:4200",  // Angular dev server
                 "http://localhost:8080"   // Same origin
             )

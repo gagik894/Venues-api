@@ -109,7 +109,7 @@ class StaffAuthService(
 
         return StaffMapper.toAuthResponse(
             staff = saved,
-            context = staffContextBuilder.buildContext(saved),
+            authorizedVenues = staffContextBuilder.buildAuthorizedVenues(saved),
             token = token,
             expiresIn = jwtService.getExpirationMs()
         )
@@ -193,12 +193,12 @@ class StaffAuthService(
         // Successful authentication - now record it in write transaction
         recordSuccessfulLoginInWriteTransaction(staff.id)
 
-        // Load organizational context (uses @EntityGraph for efficiency)
-        val context = staffContextBuilder.buildContext(staff)
+        // Load authorized venues list (uses @EntityGraph for efficiency)
+        val authorizedVenues = staffContextBuilder.buildAuthorizedVenues(staff)
 
         // Determine JWT role - PLATFORM LEVEL ONLY
         // JWT roles represent system-wide permissions, not organization-specific roles.
-        // Organization/venue permissions are checked separately via context in service layer.
+        // Organization/venue permissions are checked separately via authorizedVenues in service layer.
         //
         // Role assignment:
         // - SUPER_ADMIN: Platform administrator (can manage all organizations/venues)
@@ -216,7 +216,7 @@ class StaffAuthService(
 
         return StaffMapper.toAuthResponse(
             staff = staff,
-            context = context,
+            authorizedVenues = authorizedVenues,
             token = token,
             expiresIn = jwtService.getExpirationMs()
         )

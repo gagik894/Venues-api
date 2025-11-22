@@ -1,11 +1,10 @@
 package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
-import app.venues.event.api.dto.*
-import app.venues.event.api.mapper.EventMapper
-import app.venues.event.domain.Event
-import app.venues.event.domain.EventStatus
-import app.venues.event.domain.EventTranslation
+import app.venues.event.api.dto.EventRequest
+import app.venues.event.api.dto.EventTranslationRequest
+import app.venues.event.api.dto.PriceTemplateRequest
+import app.venues.event.domain.*
 import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
@@ -40,7 +39,6 @@ class EventService(
     private val eventCategoryRepository: EventCategoryRepository,
     private val eventSessionService: EventSessionService,
     private val eventPriceService: EventPriceService,
-    private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi
 ) {
@@ -52,8 +50,13 @@ class EventService(
 
     /**
      * Create a new event for a venue.
+     *
+     * @param venueId The ID of the venue creating the event.
+     * @param request The event creation request data.
+     * @return The created Event entity.
+     * @throws VenuesException.ResourceNotFound If venue, seating chart, or category is not found.
      */
-    fun createEvent(venueId: UUID, request: EventRequest): EventResponse {
+    fun createEvent(venueId: UUID, request: EventRequest): Event {
         logger.debug { "Creating event for venue: $venueId" }
 
         if (!venueApi.venueExists(venueId)) {
@@ -99,42 +102,36 @@ class EventService(
         
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
-        val venueName = venueApi.getVenueName(venueId)
-        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-
-        return eventMapper.toResponse(
-            savedEvent,
-            venueName = venueName,
-            seatingChartName = seatingChartName
-        )
+        return savedEvent
     }
 
     /**
      * Get event by ID.
+     *
+     * @param id The ID of the event to retrieve.
+     * @return The Event entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
      */
     @Transactional(readOnly = true)
-    fun getEventById(id: UUID, includeStats: Boolean = false, language: String? = null): EventResponse {
-        logger.debug { "Fetching event by ID: $id, language: $language" }
+    fun getEventById(id: UUID): Event {
+        logger.debug { "Fetching event by ID: $id" }
 
-        val event = eventRepository.findById(id)
+        return eventRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $id") }
-
-        val venueName = venueApi.getVenueNameTranslated(event.venueId, language) ?: "Unknown"
-        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-
-        return eventMapper.toResponse(
-            event,
-            venueName = venueName,
-            seatingChartName = seatingChartName,
-            includeStats = includeStats,
-            language = language
-        )
     }
 
     /**
      * Update event.
+     *
+     * @param eventId The ID of the event to update.
+     * @param venueId The ID of the venue requesting the update (for ownership check).
+     * @param request The event update request data.
+     * @return The updated Event entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     * @throws VenuesException.AuthorizationFailure If venueId does not match event owner.
+     * @throws VenuesException.ValidationFailure If event is not in editable state.
      */
-    fun updateEvent(eventId: UUID, venueId: UUID, request: EventRequest): EventResponse {
+    fun updateEvent(eventId: UUID, venueId: UUID, request: EventRequest): Event {
         logger.debug { "Updating event: $eventId for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
@@ -190,14 +187,7 @@ class EventService(
         
         logger.info { "Event updated successfully: $eventId" }
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
-        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-
-        return eventMapper.toResponse(
-            savedEvent,
-            venueName = venueName,
-            seatingChartName = seatingChartName
-        )
+        return savedEvent
     }
 
     /**
@@ -224,67 +214,83 @@ class EventService(
 
     /**
      * Get all publicly visible events.
+     *
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getAllEvents(pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching all publicly visible events, language: $language" }
-        return mapEventsWithVenueNames(eventRepository.findByStatus(EventStatus.UPCOMING, pageable), language)
+    fun getAllEvents(pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching all publicly visible events" }
+        return eventRepository.findByStatus(EventStatus.UPCOMING, pageable)
     }
 
     /**
      * Search events by title.
+     *
+     * @param searchTerm The term to search for in event titles.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun searchEvents(searchTerm: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Searching events: $searchTerm, language: $language" }
-        return mapEventsWithVenueNames(
-            eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable),
-            language
-        )
+    fun searchEvents(searchTerm: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Searching events: $searchTerm" }
+        return eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable)
     }
 
     /**
      * Get events by venue.
+     *
+     * @param venueId The ID of the venue.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getEventsByVenue(venueId: UUID, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for venue: $venueId, language: $language" }
-
-        val venueName = venueApi.getVenueNameTranslated(venueId, language) ?: "Unknown"
-
+    fun getEventsByVenue(venueId: UUID, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for venue: $venueId" }
         return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
-            .map { event -> mapEventToResponse(event, venueName, language) }
     }
 
     /**
      * Get events by category.
+     *
+     * @param categoryId The ID of the category.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getEventsByCategory(categoryId: Long, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for category: $categoryId, language: $language" }
-        return mapEventsWithVenueNames(
-            eventRepository.findByCategoryIdAndStatus(
-                categoryId,
-                EventStatus.UPCOMING,
-                pageable
-            ), language
-        )
+    fun getEventsByCategory(categoryId: Long, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for category: $categoryId" }
+        return eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.UPCOMING, pageable)
     }
 
     /**
      * Get events by tag.
+     *
+     * @param tag The tag to filter by.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getEventsByTag(tag: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for tag: $tag, language: $language" }
-        return mapEventsWithVenueNames(eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable), language)
+    fun getEventsByTag(tag: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for tag: $tag" }
+        return eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable)
     }
 
     // ===========================================
     // PRICE TEMPLATE MANAGEMENT
     // ===========================================
 
-    fun createPriceTemplate(eventId: UUID, venueId: UUID, request: PriceTemplateRequest): PriceTemplateResponse {
+    /**
+     * Create a price template for an event.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue (for ownership check).
+     * @param request The price template creation request.
+     * @return The created EventPriceTemplate entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     * @throws VenuesException.AuthorizationFailure If venueId does not match event owner.
+     */
+    fun createPriceTemplate(eventId: UUID, venueId: UUID, request: PriceTemplateRequest): EventPriceTemplate {
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
 
@@ -295,15 +301,24 @@ class EventService(
         val template = eventPriceService.createTemplate(event, request)
         eventRepository.save(event)
 
-        return eventMapper.toPriceTemplateResponse(template)
+        return template
     }
 
+    /**
+     * Update a price template.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue.
+     * @param templateId The ID of the template to update.
+     * @param request The update request.
+     * @return The updated EventPriceTemplate entity.
+     */
     fun updatePriceTemplate(
         eventId: UUID,
         venueId: UUID,
         templateId: UUID,
         request: PriceTemplateRequest
-    ): PriceTemplateResponse {
+    ): EventPriceTemplate {
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
 
@@ -314,9 +329,16 @@ class EventService(
         val template = eventPriceService.updateTemplate(event, templateId, request)
         eventRepository.save(event)
 
-        return eventMapper.toPriceTemplateResponse(template)
+        return template
     }
 
+    /**
+     * Delete a price template.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue.
+     * @param templateId The ID of the template to delete.
+     */
     fun deletePriceTemplate(eventId: UUID, venueId: UUID, templateId: UUID) {
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
@@ -329,40 +351,6 @@ class EventService(
         eventRepository.save(event)
     }
 
-    // ===========================================
-    // PRIVATE HELPER METHODS
-    // ===========================================
-
-    private fun mapEventsWithVenueNames(
-        eventsPage: Page<Event>,
-        language: String?
-    ): Page<EventResponse> {
-        val venueIds = eventsPage.content.map { it.venueId }.toSet()
-        val venueNamesMap = venueApi.getVenueNamesBatch(venueIds, language)
-
-        return eventsPage.map { event ->
-            val venueName = venueNamesMap[event.venueId] ?: "Unknown"
-            mapEventToResponse(event, venueName, language)
-        }
-    }
-
-    private fun mapEventToResponse(
-        event: Event,
-        venueName: String,
-        language: String?
-    ): EventResponse {
-        val seatingChartName = event.seatingChartId?.let {
-            seatingApi.getSeatingChartName(it)
-        }
-
-        return eventMapper.toResponse(
-            event,
-            venueName = venueName,
-            seatingChartName = seatingChartName,
-            includeStats = true,
-            language = language
-        )
-    }
 
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
@@ -398,35 +386,43 @@ class EventService(
 
     /**
      * Get sessions for an event.
+     *
+     * @param eventId The ID of the event.
+     * @param pageable Pagination information.
+     * @return Page of EventSession entities.
      */
     @Transactional(readOnly = true)
-    fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSessionResponse> {
+    fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSession> {
         logger.debug { "Fetching sessions for event: $eventId" }
         return eventSessionRepository.findByEventId(eventId, pageable)
-            .map { eventMapper.toSessionResponse(it) }
     }
 
     /**
      * Get upcoming bookable sessions for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventSession entities.
      */
     @Transactional(readOnly = true)
-    fun getBookableSessions(eventId: UUID): List<EventSessionResponse> {
+    fun getBookableSessions(eventId: UUID): List<EventSession> {
         logger.debug { "Fetching bookable sessions for event: $eventId" }
         return eventSessionRepository.findBookableSessions(eventId, Instant.now())
-            .map { eventMapper.toSessionResponse(it) }
     }
 
     /**
      * Get translations for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventTranslation entities.
      */
     @Transactional(readOnly = true)
-    fun getTranslations(eventId: UUID): List<EventTranslationResponse> {
+    fun getTranslations(eventId: UUID): List<EventTranslation> {
         logger.debug { "Fetching translations for event: $eventId" }
 
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
 
-        return event.translations.map { eventMapper.toTranslationResponse(it) }
+        return event.translations.toList()
     }
 
     // ===========================================

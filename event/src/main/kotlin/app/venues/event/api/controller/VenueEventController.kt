@@ -2,7 +2,10 @@ package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.*
+import app.venues.event.api.mapper.EventMapper
 import app.venues.event.service.EventService
+import app.venues.seating.api.SeatingApi
+import app.venues.venue.api.VenueApi
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -30,7 +33,10 @@ import java.util.*
 @PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
 class VenueEventController(
     private val eventService: EventService,
-    private val venueSecurityService: VenueSecurityService
+    private val venueSecurityService: VenueSecurityService,
+    private val eventMapper: EventMapper,
+    private val venueApi: VenueApi,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -52,8 +58,11 @@ class VenueEventController(
 
         val event = eventService.createEvent(venueId, request)
 
+        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
         return ApiResponse.success(
-            data = event,
+            data = eventMapper.toResponse(event, venueName, seatingChartName),
             message = "Event created successfully"
         )
     }
@@ -78,8 +87,11 @@ class VenueEventController(
 
         val event = eventService.updateEvent(eventId, venueId, request)
 
+        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
         return ApiResponse.success(
-            data = event,
+            data = eventMapper.toResponse(event, venueName, seatingChartName),
             message = "Event updated successfully"
         )
     }
@@ -123,7 +135,7 @@ class VenueEventController(
     ): ApiResponse<PriceTemplateResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         val template = eventService.createPriceTemplate(eventId, venueId, request)
-        return ApiResponse.success(template, "Price template created")
+        return ApiResponse.success(eventMapper.toPriceTemplateResponse(template), "Price template created")
     }
 
     @PutMapping("/{eventId}/price-templates/{templateId}")
@@ -137,7 +149,7 @@ class VenueEventController(
     ): ApiResponse<PriceTemplateResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         val template = eventService.updatePriceTemplate(eventId, venueId, templateId, request)
-        return ApiResponse.success(template, "Price template updated")
+        return ApiResponse.success(eventMapper.toPriceTemplateResponse(template), "Price template updated")
     }
 
     @DeleteMapping("/{eventId}/price-templates/{templateId}")

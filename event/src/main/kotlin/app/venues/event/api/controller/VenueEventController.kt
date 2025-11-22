@@ -43,22 +43,27 @@ class VenueEventController(
     /**
      * Create event for authenticated venue.
      */
-    @PostMapping
+    @PostMapping(consumes = ["multipart/form-data"])
     @Operation(
         summary = "Create event",
-        description = "Create a new event for your venue (Venue owners only)"
+        description = "Create a new event for your venue (Venue owners only). Supports image upload."
     )
     fun createEvent(
         @PathVariable venueId: UUID,
-        @Valid @RequestBody request: EventRequest,
+        @Valid @RequestPart("data") request: EventRequest,
+        @RequestPart("image", required = false) image: org.springframework.web.multipart.MultipartFile?,
+        @RequestPart(
+            "secondaryImages",
+            required = false
+        ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         logger.debug { "Creating event for venue: $venueId by staff: $staffId" }
 
-        val event = eventService.createEvent(venueId, request)
+        val event = eventService.createEvent(venueId, request, image, secondaryImages)
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return ApiResponse.success(
@@ -70,22 +75,27 @@ class VenueEventController(
     /**
      * Update event.
      */
-    @PutMapping("/{eventId}")
+    @PutMapping(value = ["/{eventId}"], consumes = ["multipart/form-data"])
     @Operation(
         summary = "Update event",
-        description = "Update event details (Venue owners only)"
+        description = "Update event details (Venue owners only). Supports image upload."
     )
     fun updateEvent(
         @PathVariable venueId: UUID,
         @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventRequest,
+        @Valid @RequestPart("data") request: EventRequest,
+        @RequestPart("image", required = false) image: org.springframework.web.multipart.MultipartFile?,
+        @RequestPart(
+            "secondaryImages",
+            required = false
+        ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
 
         logger.debug { "Updating event: $eventId for venue: $venueId by staff: $staffId" }
 
-        val event = eventService.updateEvent(eventId, venueId, request)
+        val event = eventService.updateEvent(eventId, venueId, request, image, secondaryImages)
 
         val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }

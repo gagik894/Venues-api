@@ -40,7 +40,8 @@ class EventService(
     private val eventSessionService: EventSessionService,
     private val eventPriceService: EventPriceService,
     private val venueApi: VenueApi,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val imageStorageService: ImageStorageService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -53,14 +54,35 @@ class EventService(
      *
      * @param venueId The ID of the venue creating the event.
      * @param request The event creation request data.
+     * @param image Optional main image file.
+     * @param secondaryImages Optional list of secondary image files.
      * @return The created Event entity.
      * @throws VenuesException.ResourceNotFound If venue, seating chart, or category is not found.
      */
-    fun createEvent(venueId: UUID, request: EventRequest): Event {
+    fun createEvent(
+        venueId: UUID,
+        request: EventRequest,
+        image: org.springframework.web.multipart.MultipartFile? = null,
+        secondaryImages: List<org.springframework.web.multipart.MultipartFile>? = null
+    ): Event {
         logger.debug { "Creating event for venue: $venueId" }
 
         if (!venueApi.venueExists(venueId)) {
             throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
+        }
+
+        // Fallback to venue location if not provided
+        var location = request.location
+        var latitude = request.latitude
+        var longitude = request.longitude
+
+        if (location == null || latitude == null || longitude == null) {
+            val venueInfo = venueApi.getVenueBasicInfo(venueId)
+            if (venueInfo != null) {
+                if (location == null) location = venueInfo.address
+                if (latitude == null) latitude = venueInfo.latitude
+                if (longitude == null) longitude = venueInfo.longitude
+            }
         }
 
         if (request.seatingChartId != null) {
@@ -72,21 +94,34 @@ class EventService(
                 ?: throw VenuesException.ResourceNotFound("Category not found with code: $code")
         }
 
+        // Handle image uploads
+        val mainImgUrl = if (image != null && !image.isEmpty) {
+            imageStorageService.store(image)
+        } else {
+            request.imgUrl
+        }
+
         val event = Event(
             title = request.title,
             description = request.description,
-            imgUrl = request.imgUrl,
+            imgUrl = mainImgUrl,
             venueId = venueId,
-            location = request.location,
-            latitude = request.latitude,
-            longitude = request.longitude,
+            location = location,
+            latitude = latitude,
+            longitude = longitude,
             priceRange = null,
             currency = request.currency,
             seatingChartId = request.seatingChartId,
             category = category
         )
 
+        // Handle secondary images
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
+        secondaryImages?.forEach { file ->
+            if (!file.isEmpty) {
+                event.secondaryImgUrls.add(imageStorageService.store(file))
+            }
+        }
         event.tags.addAll(request.tags)
 
         // Delegate Sessions
@@ -126,12 +161,20 @@ class EventService(
      * @param eventId The ID of the event to update.
      * @param venueId The ID of the venue requesting the update (for ownership check).
      * @param request The event update request data.
+     * @param image Optional new main image file.
+     * @param secondaryImages Optional list of new secondary image files.
      * @return The updated Event entity.
      * @throws VenuesException.ResourceNotFound If event is not found.
      * @throws VenuesException.AuthorizationFailure If venueId does not match event owner.
      * @throws VenuesException.ValidationFailure If event is not in editable state.
      */
-    fun updateEvent(eventId: UUID, venueId: UUID, request: EventRequest): Event {
+    fun updateEvent(
+        eventId: UUID,
+        venueId: UUID,
+        request: EventRequest,
+        image: org.springframework.web.multipart.MultipartFile? = null,
+        secondaryImages: List<org.springframework.web.multipart.MultipartFile>? = null
+    ): Event {
         logger.debug { "Updating event: $eventId for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
@@ -151,13 +194,34 @@ class EventService(
             seatingApi.getSeatingChartName(request.seatingChartId)
         }
 
+        // Fallback to venue location if not provided
+        var location = request.location
+        var latitude = request.latitude
+        var longitude = request.longitude
+
+        if (location == null || latitude == null || longitude == null) {
+            val venueInfo = venueApi.getVenueBasicInfo(venueId)
+            if (venueInfo != null) {
+                if (location == null) location = venueInfo.address
+                if (latitude == null) latitude = venueInfo.latitude
+                if (longitude == null) longitude = venueInfo.longitude
+            }
+        }
+
         // Update fields
         event.title = request.title
         event.description = request.description
-        event.imgUrl = request.imgUrl
-        event.location = request.location
-        event.latitude = request.latitude
-        event.longitude = request.longitude
+
+        // Update main image if provided, otherwise keep existing or use URL from request
+        if (image != null && !image.isEmpty) {
+            event.imgUrl = imageStorageService.store(image)
+        } else if (request.imgUrl != null) {
+            event.imgUrl = request.imgUrl
+        }
+
+        event.location = location
+        event.latitude = latitude
+        event.longitude = longitude
         event.currency = request.currency
         event.seatingChartId = request.seatingChartId
 
@@ -171,6 +235,12 @@ class EventService(
         // Update collections
         event.secondaryImgUrls.clear()
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
+        secondaryImages?.forEach { file ->
+            if (!file.isEmpty) {
+                event.secondaryImgUrls.add(imageStorageService.store(file))
+            }
+        }
+        
         event.tags.clear()
         event.tags.addAll(request.tags)
 

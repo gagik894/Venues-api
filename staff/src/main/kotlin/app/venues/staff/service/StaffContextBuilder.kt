@@ -62,6 +62,7 @@ class StaffContextBuilder(
                     AuthorizedVenueDto(
                         id = vp.venueId,
                         name = venueInfo?.name ?: "Unknown Venue",
+                        slug = venueInfo?.slug ?: "unknown-venue",
                         role = vp.role
                     )
                 }

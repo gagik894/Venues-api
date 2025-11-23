@@ -57,6 +57,13 @@ class VenuePromoCodeService(
             .map { toResponse(it) }
     }
 
+    @Transactional
+    fun getPromoCodeByCode(venueId: UUID, code: String): VenuePromoCodeResponse {
+        val promoCode = promoCodeRepository.findByVenueIdAndCode(venueId, code)
+            .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
+        return toResponse(promoCode)
+    }
+
     /**
      * Get a specific promo code.
      */
@@ -65,6 +72,14 @@ class VenuePromoCodeService(
         val promoCode = promoCodeRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
         return toResponse(promoCode)
+    }
+
+    fun deactivatePromoCode(venueId: UUID, code: String) {
+        val promoCode = promoCodeRepository.findByVenueIdAndCode(venueId, code)
+            .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
+        promoCode.deactivate()
+        promoCodeRepository.save(promoCode)
+        logger.info { "Deactivated promo code: $code for venue: $venueId" }
     }
 
     /**

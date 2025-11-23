@@ -23,6 +23,7 @@ data class StaffProfileDto(
 data class AuthorizedVenueDto(
     val id: UUID,
     val name: String,
+    val slug: String,
     val role: VenueRole
 )
 

@@ -72,6 +72,15 @@ interface VenueApi {
     fun redeemPromoCode(venueId: UUID, code: String)
 
     /**
+     * Release a reserved promo code (decrement usage).
+     * Should be called when a booking is cancelled.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     */
+    fun releasePromoCode(venueId: UUID, code: String)
+
+    /**
      * Get venue basic info in batch.
      * Returns a map of venueId to VenueBasicInfoDto.
      */

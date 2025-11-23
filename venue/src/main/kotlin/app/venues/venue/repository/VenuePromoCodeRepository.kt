@@ -2,6 +2,7 @@ package app.venues.venue.repository
 
 import app.venues.venue.domain.VenuePromoCode
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.Instant
@@ -11,60 +12,69 @@ import java.util.*
  * Repository interface for VenuePromoCode entity operations.
  *
  * Provides database access methods for venue promotional codes.
- * Supports validation and usage tracking.
+ * Supports validation and atomic usage tracking to prevent race conditions.
  */
 @Repository
 interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, UUID> {
 
-    /**
-     * Find all active promo codes for a specific venue.
-     *
-     * @param venueId The venue ID
-     * @return List of active promo codes for the venue
-     */
-    fun findByVenueIdAndIsActiveTrue(venueId: UUID): List<VenuePromoCode>
+    // ============================================================================================
+    // REGION: Secure Management (Admin Dashboard)
+    // Use these methods for CRUD operations in the Venue Manager Dashboard.
+    // ============================================================================================
 
     /**
-     * Find all promo codes for a specific venue (including inactive).
-     *
-     * @param venueId The venue ID
-     * @return List of all promo codes for the venue
+     * Securely retrieves a promo code by ID, verifying venue ownership in the database layer.
+     * Use this instead of standard [findById] to prevent IDOR attacks.
+     */
+    fun findByIdAndVenueId(id: UUID, venueId: UUID): Optional<VenuePromoCode>
+
+    /**
+     * Performs a case-insensitive fuzzy search for promo codes within a venue.
+     */
+    fun findByVenueIdAndCodeContainingIgnoreCase(venueId: UUID, code: String): List<VenuePromoCode>
+
+    /**
+     * Retrieves all active and inactive promo codes for a specific venue.
      */
     fun findByVenueId(venueId: UUID): List<VenuePromoCode>
 
+    // ============================================================================================
+    // REGION: Commerce & Validation (Shopping Cart)
+    // Use these methods when a customer is applying a code during checkout.
+    // ============================================================================================
+
     /**
-     * Find promo code by venue and code.
-     *
-     * @param venueId The venue ID
-     * @param code The promo code
-     * @return Optional promo code
+     * Retrieves a promo code entity by its exact string code.
      */
     fun findByVenueIdAndCode(venueId: UUID, code: String): Optional<VenuePromoCode>
 
     /**
-     * Find promo code by code (across all venues).
-     * Used for global code validation.
-     *
-     * @param code The promo code
-     * @return Optional promo code
-     */
-    fun findByCode(code: String): Optional<VenuePromoCode>
-
-    /**
-     * Check if a promo code exists for a venue.
-     *
-     * @param venueId The venue ID
-     * @param code The promo code
-     * @return True if code exists for the venue
+     * Checks if a code string is already taken within a venue.
      */
     fun existsByVenueIdAndCode(venueId: UUID, code: String): Boolean
 
     /**
-     * Find all valid (active, not expired, under usage limit) promo codes for a venue.
-     *
-     * @param venueId The venue ID
-     * @param currentTime Current timestamp
-     * @return List of valid promo codes
+     * Finds a strictly **valid** promo code for immediate application (Read-Only).
+     * Encapsulates logic: Active + Not Expired + Usage Limit Not Reached.
+     */
+    @Query(
+        """
+        SELECT p FROM VenuePromoCode p 
+        WHERE p.venue.id = :venueId 
+        AND p.code = :code
+        AND p.isActive = true 
+        AND (p.expiresAt IS NULL OR p.expiresAt > :currentTime)
+        AND (p.maxUsageCount IS NULL OR p.currentUsageCount < p.maxUsageCount)
+    """
+    )
+    fun findValidPromoCodeByVenueIdAndCode(
+        venueId: UUID,
+        code: String,
+        currentTime: Instant
+    ): Optional<VenuePromoCode>
+
+    /**
+     * Finds ALL valid promo codes for a venue.
      */
     @Query(
         """
@@ -77,49 +87,60 @@ interface VenuePromoCodeRepository : JpaRepository<VenuePromoCode, UUID> {
     )
     fun findValidPromoCodesByVenueId(venueId: UUID, currentTime: Instant): List<VenuePromoCode>
 
+    // ============================================================================================
+    // REGION: Usage Tracking (Atomic Operations)
+    // Use these methods to safely track usage counts during checkout.
+    // ============================================================================================
+
     /**
-     * Find a valid promo code by venue and code.
-     *
-     * @param venueId The venue ID
-     * @param code The promo code
-     * @param currentTime Current timestamp
-     * @return Optional valid promo code
+     * ATOMIC RESERVATION:
+     * Increments the counter ONLY if the limit is not reached.
+     * Returns 1 if successful (Reservation secured).
+     * Returns 0 if limit reached (Reservation failed).
      */
+    @Modifying
     @Query(
         """
-        SELECT p FROM VenuePromoCode p 
+        UPDATE VenuePromoCode p
+        SET p.currentUsageCount = p.currentUsageCount + 1
         WHERE p.venue.id = :venueId 
         AND p.code = :code
-        AND p.isActive = true 
-        AND (p.expiresAt IS NULL OR p.expiresAt > :currentTime)
+        AND p.isActive = true
+        AND (p.expiresAt IS NULL OR p.expiresAt > :now)
         AND (p.maxUsageCount IS NULL OR p.currentUsageCount < p.maxUsageCount)
     """
     )
-    fun findValidPromoCodeByVenueIdAndCode(venueId: UUID, code: String, currentTime: Instant): Optional<VenuePromoCode>
+    fun incrementUsageIfAllowed(venueId: UUID, code: String, now: Instant): Int
 
     /**
-     * Find expired promo codes.
-     * Used for cleanup operations.
-     *
-     * @param currentTime Current timestamp
-     * @return List of expired promo codes
+     * ATOMIC RELEASE:
+     * Decrements the counter. Used when a booking is Cancelled or Expired.
+     * Includes a safety check (currentUsageCount > 0) to prevent negative numbers.
+     */
+    @Modifying
+    @Query(
+        """
+        UPDATE VenuePromoCode p
+        SET p.currentUsageCount = p.currentUsageCount - 1
+        WHERE p.venue.id = :venueId 
+        AND p.code = :code
+        AND p.currentUsageCount > 0
+    """
+    )
+    fun decrementUsage(venueId: UUID, code: String)
+
+    // ============================================================================================
+    // REGION: Maintenance & Analytics
+    // Use these methods for background jobs or reporting.
+    // ============================================================================================
+
+    /**
+     * Finds all promo codes that have physically expired based on time.
      */
     @Query("SELECT p FROM VenuePromoCode p WHERE p.expiresAt IS NOT NULL AND p.expiresAt <= :currentTime")
     fun findExpiredPromoCodes(currentTime: Instant): List<VenuePromoCode>
 
-    /**
-     * Count active promo codes for a venue.
-     *
-     * @param venueId The venue ID
-     * @return Number of active promo codes for the venue
-     */
     fun countByVenueIdAndIsActiveTrue(venueId: UUID): Long
 
-    /**
-     * Delete all promo codes for a venue.
-     * Used when a venue is deleted.
-     *
-     * @param venueId The venue ID
-     */
     fun deleteByVenueId(venueId: UUID)
 }

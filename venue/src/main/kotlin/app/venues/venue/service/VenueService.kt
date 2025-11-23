@@ -514,7 +514,12 @@ class VenueService(
      */
     @Transactional
     override fun redeemPromoCode(venueId: UUID, code: String) {
-        promoCodeService.redeemPromoCode(venueId, code)
+        promoCodeService.reservePromoCode(venueId, code)
+    }
+
+    @Transactional
+    override fun releasePromoCode(venueId: UUID, code: String) {
+        promoCodeService.releasePromoCode(venueId, code)
     }
 }
 

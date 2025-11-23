@@ -1,5 +1,6 @@
 package app.venues.venue.api.controller
 
+import app.venues.common.model.ApiResponse
 import app.venues.venue.api.dto.VenuePromoCodeRequest
 import app.venues.venue.api.dto.VenuePromoCodeResponse
 import app.venues.venue.api.service.VenueSecurityService
@@ -31,40 +32,47 @@ class VenuePromoCodeController(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
         @Valid @RequestBody request: VenuePromoCodeRequest
-    ): VenuePromoCodeResponse {
+    ): ApiResponse<VenuePromoCodeResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-        return promoCodeService.createPromoCode(venueId, request)
+        val promoCode = promoCodeService.createPromoCode(venueId, request)
+        return ApiResponse.success(promoCode, "Promotional code created successfully")
     }
 
     @GetMapping
     @Operation(
         summary = "List promo codes",
-        description = "List all promotional codes for the venue."
+        description = "List all promotional codes for the venue. Supports optional fuzzy search."
     )
     fun listPromoCodes(
         @RequestAttribute staffId: UUID,
-        @PathVariable venueId: UUID
-    ): List<VenuePromoCodeResponse> {
+        @PathVariable venueId: UUID,
+        @RequestParam(required = false) search: String?
+    ): ApiResponse<List<VenuePromoCodeResponse>> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-        return promoCodeService.getPromoCodes(venueId)
+
+        val promoCodes = promoCodeService.getPromoCodes(venueId, search)
+
+        return ApiResponse.success(promoCodes, "Promotional codes retrieved successfully")
     }
 
-    @GetMapping("/{code}")
+    @GetMapping("/{promoCodeId}")
     @Operation(
-        summary = "Get promo code by code",
-        description = "Get details of a specific promotional code."
+        summary = "Get promo code by ID",
+        description = "Get details of a specific promotional code by its UUID."
     )
     fun getPromoCode(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
-        @PathVariable code: String
-    ): VenuePromoCodeResponse {
+        @PathVariable promoCodeId: UUID
+    ): ApiResponse<VenuePromoCodeResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-        return promoCodeService.getPromoCodeByCode(venueId, code)
+
+        val promoCode = promoCodeService.getPromoCodeById(venueId, promoCodeId)
+
+        return ApiResponse.success(promoCode, "Promotional code retrieved successfully")
     }
 
     @DeleteMapping("/{promoCodeId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(
         summary = "Deactivate promo code",
         description = "Deactivate (soft delete) a promotional code."
@@ -72,9 +80,30 @@ class VenuePromoCodeController(
     fun deactivatePromoCode(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
-        @PathVariable promoCodeId: String
-    ) {
+        @PathVariable promoCodeId: UUID
+    ): ApiResponse<Unit> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
         promoCodeService.deactivatePromoCode(venueId, promoCodeId)
+
+        return ApiResponse.success(message = "Promotional code deactivated successfully")
+    }
+
+    @PutMapping("/{promoCodeId}")
+    @Operation(
+        summary = "Update promo code",
+        description = "Update details of an existing promotional code (e.g., extend expiry, increase limit)."
+    )
+    fun updatePromoCode(
+        @RequestAttribute staffId: UUID,
+        @PathVariable venueId: UUID,
+        @PathVariable promoCodeId: UUID,
+        @Valid @RequestBody request: VenuePromoCodeRequest
+    ): ApiResponse<VenuePromoCodeResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        val updatedPromoCode = promoCodeService.updatePromoCode(venueId, promoCodeId, request)
+
+        return ApiResponse.success(updatedPromoCode, "Promotional code updated successfully")
     }
 }

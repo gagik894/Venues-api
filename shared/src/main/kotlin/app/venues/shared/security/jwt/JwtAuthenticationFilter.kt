@@ -16,26 +16,42 @@ import org.springframework.web.filter.OncePerRequestFilter
 /**
  * Filter that intercepts all HTTP requests to validate JWT tokens.
  *
- * This filter:
- * 1. Extracts the JWT token from the Authorization header
- * 2. Validates the token using JwtService
- * 3. If valid, creates an Authentication object and stores it in SecurityContext
- * 4. If invalid or missing, lets the request continue (other filters will handle it)
+ * This filter supports dual authentication methods:
+ * 1. Authorization header (Bearer tokens) - for API clients, mobile apps, SPAs
+ * 2. HttpOnly cookies - for browser-based clients (admin panels, customer portals)
+ *
+ * Authentication flow:
+ * ```
+ * Request → Extract Token (header OR cookie) → Validate Token → Create Authentication → Continue Chain
+ * ```
+ *
+ * Extraction priority:
+ * 1. Authorization header: "Authorization: Bearer <token>"
+ * 2. staff_auth_token cookie (staff/admin sessions)
+ * 3. user_auth_token cookie (customer sessions)
+ *
+ * Why dual authentication?
+ * - **Headers**: Best for programmatic clients (mobile apps, API integrations)
+ * - **Cookies**: Best for browsers (XSS protection via HttpOnly, CSRF protection via SameSite)
  *
  * The Authentication object contains:
  * - Principal: Map with userId, email, role
  * - Authorities: User's role(s) as GrantedAuthority
  * - Details: Request details
  *
- * Flow:
- * ```
- * Request → Extract Token → Validate Token → Create Authentication → Continue Chain
- * ```
+ * Request attributes (for controller access):
+ * - principalId: UUID of the authenticated principal (user/staff/venue)
+ * - staffId: Alias for principalId (used in staff controllers)
+ * - userId: Alias for principalId (used in user controllers)
  *
  * SecurityContext:
  * - Stores the Authentication for the current request
  * - Thread-safe (uses ThreadLocal)
  * - Cleared after request completes
+ *
+ * Error handling:
+ * - Invalid/expired tokens: logged and ignored (request continues without authentication)
+ * - Protected endpoints: JwtAuthenticationEntryPoint returns 401 Unauthorized
  *
  * @property jwtService Service for JWT operations
  */
@@ -49,10 +65,23 @@ class JwtAuthenticationFilter(
     companion object {
         private const val AUTHORIZATION_HEADER = "Authorization"
         private const val BEARER_PREFIX = "Bearer "
+
+        // Cookie names for JWT tokens (supports multiple auth contexts)
+        private const val STAFF_AUTH_COOKIE = "staff_auth_token"
+        private const val USER_AUTH_COOKIE = "user_auth_token"
     }
 
     /**
      * Filters each HTTP request to validate JWT tokens.
+     *
+     * Extraction order:
+     * 1. Authorization header (Bearer token)
+     * 2. staff_auth_token cookie
+     * 3. user_auth_token cookie
+     *
+     * This dual extraction strategy supports both:
+     * - Programmatic API clients (mobile apps, SPAs) using Authorization headers
+     * - Browser-based clients using HttpOnly cookies for XSS protection
      *
      * @param request HTTP request
      * @param response HTTP response
@@ -64,7 +93,7 @@ class JwtAuthenticationFilter(
         filterChain: FilterChain
     ) {
         try {
-            // Extract JWT token from Authorization header
+            // Extract JWT token from Authorization header OR cookies
             val jwt = extractJwtFromRequest(request)
 
             // If token exists and authentication is not already set
@@ -82,21 +111,48 @@ class JwtAuthenticationFilter(
     }
 
     /**
-     * Extracts JWT token from the Authorization header.
+     * Extracts JWT token from Authorization header or cookies.
      *
-     * Expected header format: "Authorization: Bearer <token>"
+     * Extraction priority:
+     * 1. Authorization header: "Authorization: Bearer <token>"
+     * 2. staff_auth_token cookie (for admin/staff browser sessions)
+     * 3. user_auth_token cookie (for customer browser sessions)
+     *
+     * This approach enables:
+     * - Mobile apps and SPAs to use Authorization headers
+     * - Browser-based admin panels to use HttpOnly cookies (XSS protection)
+     * - Secure cookie-based sessions without exposing tokens to JavaScript
      *
      * @param request HTTP request
-     * @return JWT token string or null if not found or invalid format
+     * @return JWT token string or null if not found in header or cookies
      */
     private fun extractJwtFromRequest(request: HttpServletRequest): String? {
+        // 1. Try Authorization header first (Bearer token)
         val bearerToken = request.getHeader(AUTHORIZATION_HEADER)
-
-        return if (bearerToken != null && bearerToken.startsWith(BEARER_PREFIX)) {
-            bearerToken.substring(BEARER_PREFIX.length)
-        } else {
-            null
+        if (bearerToken != null && bearerToken.startsWith(BEARER_PREFIX)) {
+            log.debug { "JWT extracted from Authorization header" }
+            return bearerToken.substring(BEARER_PREFIX.length)
         }
+
+        // 2. Try staff_auth_token cookie
+        val cookies = request.cookies
+        if (cookies != null) {
+            val staffCookie = cookies.firstOrNull { it.name == STAFF_AUTH_COOKIE }
+            if (staffCookie != null && staffCookie.value.isNotEmpty()) {
+                log.debug { "JWT extracted from staff_auth_token cookie" }
+                return staffCookie.value
+            }
+
+            // 3. Try user_auth_token cookie
+            val userCookie = cookies.firstOrNull { it.name == USER_AUTH_COOKIE }
+            if (userCookie != null && userCookie.value.isNotEmpty()) {
+                log.debug { "JWT extracted from user_auth_token cookie" }
+                return userCookie.value
+            }
+        }
+
+        log.debug { "No JWT found in Authorization header or cookies" }
+        return null
     }
 
     /**

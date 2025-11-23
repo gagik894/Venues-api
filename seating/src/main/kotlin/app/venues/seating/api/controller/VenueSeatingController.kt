@@ -58,6 +58,17 @@ class VenueSeatingController(
     }
 
     @GetMapping
+    @Operation(summary = "Get seating chart overview")
+    fun getSeatingChartsOverview(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<SeatingChartOverviewResponse>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val charts = seatingService.getSeatingChartsOverviewByVenue(venueId)
+        return ApiResponse.success(charts, "Retrieved successfully")
+    }
+
+    @GetMapping("/details")
     @Operation(summary = "Get venue charts")
     fun getSeatingCharts(
         @PathVariable venueId: UUID,

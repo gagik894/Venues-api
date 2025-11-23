@@ -121,6 +121,16 @@ class SeatingService(
     }
 
     /**
+     * Get overview list of charts for venue.
+     */
+    @Transactional(readOnly = true)
+    fun getSeatingChartsOverviewByVenue(venueId: UUID): List<SeatingChartOverviewResponse> {
+        return seatingChartRepository.findAllByVenueId(venueId).map { chart ->
+            mapper.toOverviewResponse(chart)
+        }
+    }
+
+    /**
      * Get paginated list of charts for venue.
      */
     @Transactional(readOnly = true)

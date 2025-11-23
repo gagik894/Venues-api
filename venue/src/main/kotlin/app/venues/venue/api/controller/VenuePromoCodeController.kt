@@ -86,7 +86,7 @@ class VenuePromoCodeController(
 
         promoCodeService.deactivatePromoCode(venueId, promoCodeId)
 
-        return ApiResponse.success(message = "Promotional code deactivated successfully")
+        return ApiResponse.success(data = Unit, message = "Promotional code deactivated successfully")
     }
 
     @PutMapping("/{promoCodeId}")

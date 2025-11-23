@@ -14,6 +14,11 @@ import java.util.*
 interface SeatingChartRepository : JpaRepository<SeatingChart, UUID> {
 
     /**
+     * Find all seating charts by venue ID
+     */
+    fun findAllByVenueId(venueId: UUID): List<SeatingChart>
+
+    /**
      * Find seating charts by venue ID
      */
     fun findByVenueId(venueId: UUID, pageable: Pageable): Page<SeatingChart>

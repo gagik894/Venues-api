@@ -27,6 +27,11 @@ data class SeatingChartRequest(
     val backgroundUrl: String? = null
 )
 
+data class SeatingChartOverviewResponse(
+    val id: UUID,
+    val name: String,
+)
+
 data class SeatingChartResponse(
     val id: UUID,
     val venueId: UUID,

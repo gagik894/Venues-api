@@ -12,6 +12,18 @@ import org.springframework.stereotype.Component
 class SeatingResponseMapper {
 
     /**
+     * Map chart entity to overview response.
+     */
+    fun toOverviewResponse(
+        chart: SeatingChart,
+    ): SeatingChartOverviewResponse {
+        return SeatingChartOverviewResponse(
+            id = chart.id,
+            name = chart.name,
+        )
+    }
+
+    /**
      * Map chart entity to summary response.
      */
     fun toResponse(

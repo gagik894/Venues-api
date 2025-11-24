@@ -53,7 +53,7 @@ class EventController(
     ): ApiResponse<Page<EventSummaryResponse>> {
         logger.debug { "Fetching all events, language: $lang" }
 
-        val allowedSortFields = setOf("createdAt", "title", "id")
+        val allowedSortFields = setOf("createdAt", "title", "id", "firstSessionStart")
         val pageable = PageableMapper.createPageable(limit, offset, sortBy, sortDirection, allowedSortFields)
 
         val events = eventService.getAllEventSummaries(pageable, lang)

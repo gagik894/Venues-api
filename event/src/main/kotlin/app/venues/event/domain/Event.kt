@@ -2,6 +2,7 @@ package app.venues.event.domain
 
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
+import java.time.Instant
 import java.util.*
 
 /**
@@ -28,7 +29,9 @@ import java.util.*
     indexes = [
         Index(name = "idx_event_venue_id", columnList = "venue_id"),
         Index(name = "idx_event_status", columnList = "status"),
-        Index(name = "idx_event_category_id", columnList = "category_id")
+        Index(name = "idx_event_category_id", columnList = "category_id"),
+        Index(name = "idx_event_first_session_start", columnList = "first_session_start"),
+        Index(name = "idx_event_last_session_end", columnList = "last_session_end")
     ]
 )
 class Event(
@@ -96,6 +99,20 @@ class Event(
      */
     @Column(name = "merchant_profile_id")
     var merchantProfileId: UUID? = null,
+
+    /**
+     * The start time of the earliest session.
+     * Used for sorting events by "Soonest".
+     */
+    @Column(name = "first_session_start")
+    var firstSessionStart: Instant? = null,
+
+    /**
+     * The end time of the latest session.
+     * Used for filtering "Ongoing" events.
+     */
+    @Column(name = "last_session_end")
+    var lastSessionEnd: Instant? = null,
 ) : AbstractUuidEntity() {
 
     // --- Internal State (Encapsulated) ---
@@ -123,16 +140,20 @@ class Event(
     // --- Public Behaviors ---
     fun publish() {
         if (this.status == EventStatus.DRAFT) {
-            this.status = EventStatus.UPCOMING
+            this.status = EventStatus.PUBLISHED
         }
     }
 
     fun cancel() {
-        this.status = EventStatus.CANCELLED
+        this.status = EventStatus.SUSPENDED
+    }
+
+    fun markAsDeleted() {
+        this.status = EventStatus.DELETED
     }
 
     fun isEditable(): Boolean {
-        return status == EventStatus.DRAFT || status == EventStatus.UPCOMING
+        return status == EventStatus.DRAFT || status == EventStatus.PUBLISHED
     }
 
     fun addTranslation(translation: EventTranslation) {

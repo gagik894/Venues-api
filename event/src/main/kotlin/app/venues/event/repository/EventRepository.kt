@@ -6,8 +6,10 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.time.Instant
 import java.util.*
 
 /**
@@ -81,5 +83,12 @@ interface EventRepository : JpaRepository<Event, UUID> {
      * Count events by venue ID and status
      */
     fun countByVenueIdAndStatus(venueId: UUID, status: EventStatus): Long
+
+    /**
+     * Archive past events.
+     */
+    @Modifying
+    @Query("UPDATE Event e SET e.status = :newStatus WHERE e.status = :oldStatus AND e.lastSessionEnd < :cutoff")
+    fun archivePastEvents(oldStatus: EventStatus, newStatus: EventStatus, cutoff: Instant): Int
 }
 

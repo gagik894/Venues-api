@@ -1,6 +1,7 @@
 package app.venues.event.api.dto
 
 import app.venues.event.domain.EventStatus
+import app.venues.event.domain.SessionStatus
 import jakarta.validation.constraints.*
 import java.math.BigDecimal
 import java.time.Instant
@@ -135,7 +136,7 @@ data class EventSessionResponse(
     val ticketsCount: Int?,
     val ticketsSold: Int,
     val remainingTickets: Int?,
-    val status: EventStatus,
+    val status: SessionStatus,
     val priceOverride: String?,
     val priceRangeOverride: String?,
     val effectivePriceRange: String?,

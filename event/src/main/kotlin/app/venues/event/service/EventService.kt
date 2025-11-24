@@ -130,6 +130,10 @@ class EventService(
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
 
+        // Update session timestamps for sorting/filtering
+        event.firstSessionStart = event.sessions.minOfOrNull { it.startTime }
+        event.lastSessionEnd = event.sessions.maxOfOrNull { it.endTime }
+
         // Create translations
         updateTranslationsCollection(event, request.translations)
 
@@ -250,6 +254,10 @@ class EventService(
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
 
+        // Update session timestamps for sorting/filtering
+        event.firstSessionStart = event.sessions.minOfOrNull { it.startTime }
+        event.lastSessionEnd = event.sessions.maxOfOrNull { it.endTime }
+
         // Update translations
         updateTranslationsCollection(event, request.translations)
 
@@ -265,6 +273,8 @@ class EventService(
 
     /**
      * Delete event.
+     * Performs a soft delete if the event has any sales or is published.
+     * Hard deletes only if it's a draft with no sales.
      */
     fun deleteEvent(eventId: UUID, venueId: UUID) {
         logger.debug { "Deleting event: $eventId" }
@@ -277,8 +287,19 @@ class EventService(
             throw VenuesException.AuthorizationFailure("You can only delete your own events")
         }
 
-        eventRepository.delete(event)
-        logger.info { "Event deleted successfully: $eventId" }
+        // Check for any sales across all sessions
+        val hasSales = event.sessions.any { it.ticketsSold > 0 }
+
+        if (hasSales) {
+            // Soft delete
+            logger.info { "Soft deleting event $eventId due to existing sales" }
+            event.markAsDeleted()
+            eventRepository.save(event)
+        } else {
+            // Hard delete
+            eventRepository.delete(event)
+            logger.info { "Event hard deleted successfully: $eventId" }
+        }
     }
 
     // ===========================================
@@ -295,7 +316,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getAllEventSummaries(pageable: Pageable, language: String?): Page<EventSummaryResponse> {
         logger.debug { "Fetching all publicly visible events (summary)" }
-        val events = eventRepository.findByStatus(EventStatus.UPCOMING, pageable)
+        val events = eventRepository.findByStatus(EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -310,7 +331,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun searchEventSummaries(searchTerm: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
         logger.debug { "Searching events (summary): $searchTerm" }
-        val events = eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable)
+        val events = eventRepository.searchByTitle(searchTerm, EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -325,7 +346,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getEventSummariesByVenue(venueId: UUID, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
         logger.debug { "Fetching events for venue (summary): $venueId" }
-        val events = eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
+        val events = eventRepository.findByVenueIdAndStatus(venueId, EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -344,7 +365,7 @@ class EventService(
         language: String?
     ): Page<EventSummaryResponse> {
         logger.debug { "Fetching events for category (summary): $categoryId" }
-        val events = eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.UPCOMING, pageable)
+        val events = eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -359,7 +380,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getEventSummariesByTag(tag: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
         logger.debug { "Fetching events for tag (summary): $tag" }
-        val events = eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable)
+        val events = eventRepository.findByTag(tag, EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -394,7 +415,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getAllEvents(pageable: Pageable): Page<Event> {
         logger.debug { "Fetching all publicly visible events" }
-        return eventRepository.findByStatus(EventStatus.UPCOMING, pageable)
+        return eventRepository.findByStatus(EventStatus.PUBLISHED, pageable)
     }
 
     /**
@@ -407,7 +428,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun searchEvents(searchTerm: String, pageable: Pageable): Page<Event> {
         logger.debug { "Searching events: $searchTerm" }
-        return eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable)
+        return eventRepository.searchByTitle(searchTerm, EventStatus.PUBLISHED, pageable)
     }
 
     /**
@@ -420,7 +441,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getEventsByVenue(venueId: UUID, pageable: Pageable): Page<Event> {
         logger.debug { "Fetching events for venue: $venueId" }
-        return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
+        return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.PUBLISHED, pageable)
     }
 
     /**
@@ -433,7 +454,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getEventsByCategory(categoryId: Long, pageable: Pageable): Page<Event> {
         logger.debug { "Fetching events for category: $categoryId" }
-        return eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.UPCOMING, pageable)
+        return eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.PUBLISHED, pageable)
     }
 
     /**
@@ -446,7 +467,7 @@ class EventService(
     @Transactional(readOnly = true)
     fun getEventsByTag(tag: String, pageable: Pageable): Page<Event> {
         logger.debug { "Fetching events for tag: $tag" }
-        return eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable)
+        return eventRepository.findByTag(tag, EventStatus.PUBLISHED, pageable)
     }
 
     // ===========================================

@@ -30,7 +30,7 @@ class EventSession(
     var endTime: Instant,
 
     @Column(name = "tickets_count")
-    var ticketsCount: Int? = null, // Total capacity (for GA)
+    var ticketsCount: Int? = null, // Total capacity all tickets
 
     @Column(name = "price_override", precision = 10, scale = 2)
     var priceOverride: BigDecimal? = null,
@@ -49,7 +49,7 @@ class EventSession(
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
-    var status: EventStatus = EventStatus.UPCOMING
+    var status: SessionStatus = SessionStatus.ON_SALE
         protected set
 
     // --- Relationships ---
@@ -76,7 +76,7 @@ class EventSession(
     }
 
     fun isBookable(): Boolean {
-        return status == EventStatus.UPCOMING && hasAvailableTickets() && startTime.isAfter(Instant.now())
+        return status == SessionStatus.ON_SALE && hasAvailableTickets() && startTime.isAfter(Instant.now())
     }
 
     /**

@@ -97,7 +97,7 @@ class VenueEventController(
 
         val event = eventService.updateEvent(eventId, venueId, request, image, secondaryImages)
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
+        val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return ApiResponse.success(

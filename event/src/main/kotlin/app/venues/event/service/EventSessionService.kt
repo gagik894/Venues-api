@@ -153,4 +153,15 @@ class EventSessionService(
     fun assignPriceTemplateToGa(sessionId: UUID, template: EventPriceTemplate?, gaId: Long) {
         eventSeatingService.assignPriceTemplateToGa(sessionId, template, gaId)
     }
+
+    /**
+     * Reserve tickets for a session.
+     * Uses atomic database update to prevent race conditions.
+     *
+     * @return true if reservation was successful, false if not enough capacity
+     */
+    fun reserveTickets(sessionId: UUID, quantity: Int): Boolean {
+        val updatedRows = eventSessionRepository.incrementTicketsSold(sessionId, quantity)
+        return updatedRows > 0
+    }
 }

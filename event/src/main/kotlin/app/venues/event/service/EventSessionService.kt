@@ -154,6 +154,7 @@ class EventSessionService(
         eventSeatingService.assignPriceTemplateToGa(sessionId, template, gaId)
     }
 
+    //TODO: Call these methods from the booking service when creating/cancelling bookings
     /**
      * Reserve tickets for a session.
      * Uses atomic database update to prevent race conditions.
@@ -162,6 +163,17 @@ class EventSessionService(
      */
     fun reserveTickets(sessionId: UUID, quantity: Int): Boolean {
         val updatedRows = eventSessionRepository.incrementTicketsSold(sessionId, quantity)
+        return updatedRows > 0
+    }
+
+    /**
+     * Decrement tickets sold for a session (e.g., on cancellation).
+     * Uses atomic database update to prevent race conditions.
+     *
+     * @return true if decrement was successful, false otherwise
+     */
+    fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        val updatedRows = eventSessionRepository.decrementTicketsSold(sessionId, quantity)
         return updatedRows > 0
     }
 }

@@ -5,6 +5,72 @@ import jakarta.persistence.*
 import java.time.Instant
 import java.util.*
 
+
+//TODO
+//1. The Parent (Cart)
+//Do not use FetchType.EAGER. Keep it Lazy.
+//
+//Kotlin
+//
+//@Entity
+//@Table(name = "carts", ...)
+//class Cart(
+//    // ... fields ...
+//) : AbstractUuidEntity() {
+//
+//    // ✅ RELATIONAL MAPPING
+//    // Cascade ALL: If I delete the Cart, the items disappear automatically.
+//    // Orphan Removal: If I remove an item from this list, DB deletes the row.
+//    @OneToMany(mappedBy = "cart", cascade = [CascadeType.ALL], orphanRemoval = true)
+//    var seats: MutableList<CartSeat> = mutableListOf()
+//
+//    @OneToMany(mappedBy = "cart", cascade = [CascadeType.ALL], orphanRemoval = true)
+//    var tables: MutableList<CartTable> = mutableListOf()
+//
+//    // Helper to calculate total price in memory
+//    fun getTotalPrice(): BigDecimal {
+//        val seatTotal = seats.fold(BigDecimal.ZERO) { acc, s -> acc.add(s.unitPrice) }
+//        val tableTotal = tables.fold(BigDecimal.ZERO) { acc, t -> acc.add(t.unitPrice) }
+//        return seatTotal.add(tableTotal).subtract(discountAmount ?: BigDecimal.ZERO)
+//    }
+//}
+//2. The Child (CartSeat)
+//Ensure you have the Foreign Key to the physical seat! This is your safety line.
+//
+//Kotlin
+//
+//@Entity
+//@Table(name = "cart_seats", ...)
+//class CartSeat(
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @JoinColumn(name = "cart_id", nullable = false)
+//    var cart: Cart,
+//
+//    @Column(name = "seat_id", nullable = false)
+//    var seatId: Long,
+//    // ^^^ You COULD make this a @ManyToOne to ChartSeat entity if you want
+//    // strict DB constraints, but storing the Long ID is acceptable for performance
+//    // as long as you trust your app logic.
+//    // Ideally: Use @ManyToOne to ChartSeat for maximum safety.
+//
+//) : AbstractLongEntity()
+//3. The "Entity Graph" Trick (Performance Secret)
+//To solve the "N+1 Select Problem" (the slowness I was worried about), you don't need JSON. You just need a JPA Entity Graph.
+//
+//When you load the cart for the Checkout page, you want the Cart + Seats + Tables in one single query.
+//
+//In your Repository:
+//
+//Kotlin
+//
+//interface CartRepository : JpaRepository<Cart, UUID> {
+//
+//    // This annotation forces Hibernate to do a JOIN FETCH
+//    // It grabs the Cart and all its items in ONE SQL call.
+//    @EntityGraph(attributePaths = ["seats", "tables"])
+//    fun findByToken(token: UUID): Optional<Cart>
+//}
+
 /**
  * Represents a temporary shopping cart session.
  *

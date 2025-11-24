@@ -79,6 +79,8 @@ class EventSession(
         return status == SessionStatus.ON_SALE && hasAvailableTickets() && startTime.isAfter(Instant.now())
     }
 
+
+    //TODO: Use those methods in service layer to manage ticket sales atomically
     /**
      * Attempts to sell a specified number of tickets.
      * @return true if the sale was successful, false if not enough capacity.

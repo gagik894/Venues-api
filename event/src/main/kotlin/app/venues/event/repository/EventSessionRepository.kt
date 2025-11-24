@@ -84,5 +84,20 @@ interface EventSessionRepository : JpaRepository<EventSession, UUID> {
     """
     )
     fun incrementTicketsSold(sessionId: UUID, quantity: Int): Int
+
+    /**
+     * Atomically decrement tickets sold count.
+     * Returns 1 if successful (enough sold tickets), 0 otherwise.
+     */
+    @Modifying
+    @Query(
+        """
+        UPDATE EventSession s 
+        SET s.ticketsSold = s.ticketsSold - :quantity 
+        WHERE s.id = :sessionId 
+        AND s.ticketsSold >= :quantity
+    """
+    )
+    fun decrementTicketsSold(sessionId: UUID, quantity: Int): Int
 }
 

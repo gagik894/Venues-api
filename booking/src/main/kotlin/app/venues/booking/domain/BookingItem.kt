@@ -48,10 +48,27 @@ class BookingItem(
     @Column(name = "table_id")
     var tableId: Long? = null,
 
+    // --- SNAPSHOTS (For History/Receipts) ---
+    //TODO: add to flyway migration, add logic to copy from seating module on booking creation
+    @Column(name = "item_label", nullable = false)
+    var itemLabel: String, // e.g., "Row A - Seat 15" or "General Admission - Pit"
+
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null
 
 ) : AbstractLongEntity() {
+
+    init {
+        val refCount = listOfNotNull(seatId, gaAreaId, tableId).size
+        if (refCount != 1) {
+            throw IllegalStateException("BookingItem must reference exactly one inventory type (Seat, GA, or Table)")
+        }
+
+        // Seat Logic Safety
+        if (seatId != null && quantity != 1) {
+            throw IllegalStateException("Individual seats must have a quantity of exactly 1")
+        }
+    }
 
     /**
      * Calculate total price for this line item.

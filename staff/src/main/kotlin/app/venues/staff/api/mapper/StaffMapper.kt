@@ -36,8 +36,8 @@ object StaffMapper {
         return StaffProfileDto(
             id = staff.id,
             email = staff.email,
-            firstName = staff.firstName,
-            lastName = staff.lastName
+            firstName = staff.firstName ?: "",
+            lastName = staff.lastName ?: ""
         )
     }
 
@@ -49,18 +49,18 @@ object StaffMapper {
      * @param staff The authenticated staff identity
      * @param authorizedVenues List of venues the staff member can access with their roles
      * @param token The JWT token
-     * @param expiresIn Token expiration time in milliseconds
+     * @param expiresInSeconds Token expiration time in seconds
      * @return Complete authentication response
      */
     fun toAuthResponse(
         staff: StaffIdentity,
         authorizedVenues: List<AuthorizedVenueDto>,
         token: String,
-        expiresIn: Long
+        expiresInSeconds: Long
     ): StaffAuthResponse {
         return StaffAuthResponse(
             token = token,
-            expiresIn = expiresIn,
+            expiresIn = expiresInSeconds,
             profile = toProfileDto(staff),
             authorizedVenues = authorizedVenues
         )

@@ -2,10 +2,7 @@ package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.shared.security.jwt.JwtService
-import app.venues.staff.api.dto.StaffAuthResponse
-import app.venues.staff.api.dto.StaffLoginRequest
-import app.venues.staff.api.dto.StaffRegisterRequest
-import app.venues.staff.api.dto.VerifyEmailRequest
+import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
 import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.domain.StaffStatus
@@ -44,6 +41,23 @@ class StaffAuthService(
     private val staffContextBuilder: StaffContextBuilder
 ) {
     private val logger = KotlinLogging.logger {}
+
+    private fun jwtRole(staff: StaffIdentity): String = if (staff.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
+
+    private fun jwtExpiresInSeconds(): Long = jwtService.getExpirationMs() / 1000
+
+    private fun buildAuthResponse(
+        staff: StaffIdentity,
+        authorizedVenues: List<AuthorizedVenueDto>,
+        token: String
+    ): StaffAuthResponse {
+        return StaffMapper.toAuthResponse(
+            staff = staff,
+            authorizedVenues = authorizedVenues,
+            token = token,
+            expiresInSeconds = jwtExpiresInSeconds()
+        )
+    }
 
     /**
      * Registers a new staff identity (global account).
@@ -107,12 +121,7 @@ class StaffAuthService(
             role = role
         )
 
-        return StaffMapper.toAuthResponse(
-            staff = saved,
-            authorizedVenues = staffContextBuilder.buildAuthorizedVenues(saved),
-            token = token,
-            expiresIn = jwtService.getExpirationMs()
-        )
+        return buildAuthResponse(saved, staffContextBuilder.buildAuthorizedVenues(saved), token)
     }
 
     /**
@@ -214,12 +223,7 @@ class StaffAuthService(
 
         logger.info { "Login successful for staff: ${staff.email}, ID=${staff.id}" }
 
-        return StaffMapper.toAuthResponse(
-            staff = staff,
-            authorizedVenues = authorizedVenues,
-            token = token,
-            expiresIn = jwtService.getExpirationMs()
-        )
+        return buildAuthResponse(staff, authorizedVenues, token)
     }
 
     /**

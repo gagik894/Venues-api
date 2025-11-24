@@ -50,8 +50,8 @@ class BookingItem(
 
     // --- SNAPSHOTS (For History/Receipts) ---
     //TODO: add to flyway migration, add logic to copy from seating module on booking creation
-    @Column(name = "item_label", nullable = false)
-    var itemLabel: String, // e.g., "Row A - Seat 15" or "General Admission - Pit"
+//    @Column(name = "item_label", nullable = false)
+//    var itemLabel: String, // e.g., "Row A - Seat 15" or "General Admission - Pit"
 
     @Column(name = "price_template_name", length = 100)
     var priceTemplateName: String? = null

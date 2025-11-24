@@ -39,34 +39,31 @@ class StaffContextBuilder(
      * @return List of authorized venues with roles
      */
     fun buildAuthorizedVenues(staff: StaffIdentity): List<AuthorizedVenueDto> {
-        // Collect all venue IDs from active memberships
-        val allVenueIds = staff.memberships
+        val activePermissions = staff.memberships
+            .asSequence()
             .filter { it.isActive }
-            .flatMap { it.venuePermissions }
-            .map { it.venueId }
-            .toSet()
+            .flatMap { it.venuePermissions.asSequence() }
+            .toList()
 
-        // Fetch venue information in batch for performance
-        val venueInfos = if (allVenueIds.isNotEmpty()) {
-            venueApi.getVenueBasicInfoBatch(allVenueIds)
-        } else {
-            emptyMap()
+        if (activePermissions.isEmpty()) {
+            return emptyList()
         }
 
-        // Build flat list of authorized venues with roles
-        return staff.memberships
-            .filter { it.isActive }
-            .flatMap { membership ->
-                membership.venuePermissions.map { vp ->
-                    val venueInfo = venueInfos[vp.venueId]
+        val venueInfos = venueApi.getVenueBasicInfoBatch(activePermissions.map { it.venueId }.toSet())
+
+        return activePermissions
+            .mapNotNull { permission ->
+                val venueInfo = venueInfos[permission.venueId]
+                venueInfo?.let {
                     AuthorizedVenueDto(
-                        id = vp.venueId,
-                        name = venueInfo?.name ?: "Unknown Venue",
-                        slug = venueInfo?.slug ?: "unknown-venue",
-                        role = vp.role
+                        id = it.id,
+                        name = it.name,
+                        slug = it.slug,
+                        role = permission.role
                     )
                 }
             }
+            .sortedBy { it.name.lowercase() }
     }
 
     /**

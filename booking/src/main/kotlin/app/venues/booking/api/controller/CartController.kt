@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
@@ -29,12 +30,15 @@ class CartController(
 ) {
     private val logger = KotlinLogging.logger {}
 
+    @Value("\${app.security.cookie.secure}")
+    private var cookieSecure: Boolean = true
+
     private fun setCartCookie(response: HttpServletResponse, token: UUID) {
         val cookie = Cookie("cart_token", token.toString())
         cookie.isHttpOnly = true
         cookie.path = "/"
         cookie.maxAge = 60 * 30
-        cookie.secure = true
+        cookie.secure = cookieSecure
         response.addCookie(cookie)
     }
 
@@ -277,6 +281,7 @@ class CartController(
         val cookie = Cookie("cart_token", "")
         cookie.path = "/"
         cookie.maxAge = 0
+        cookie.secure = cookieSecure
         response.addCookie(cookie)
 
         return ApiResponse.success(

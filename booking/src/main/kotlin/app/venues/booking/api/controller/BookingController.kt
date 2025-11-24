@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
@@ -29,6 +30,9 @@ class BookingController(
     private val securityUtil: SecurityUtil
 ) {
     private val logger = KotlinLogging.logger {}
+
+    @Value("\${app.security.cookie.secure}")
+    private var cookieSecure: Boolean = true
 
     // ===========================================
     // CHECKOUT (No auth required)
@@ -67,6 +71,7 @@ class BookingController(
         val cookie = Cookie("cart_token", "")
         cookie.path = "/"
         cookie.maxAge = 0
+        cookie.secure = cookieSecure
         response.addCookie(cookie)
 
         return ApiResponse.success(

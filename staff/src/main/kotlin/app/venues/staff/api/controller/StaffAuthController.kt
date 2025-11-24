@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -24,6 +25,9 @@ class StaffAuthController(
     private val authService: StaffAuthService
 ) {
     private val logger = KotlinLogging.logger {}
+
+    @Value("\${app.security.cookie.secure}")
+    private var cookieSecure: Boolean = true
 
     @PostMapping("/register")
     @Operation(summary = "Register new staff", description = "Creates a new Staff Identity (Global Account)")
@@ -38,7 +42,7 @@ class StaffAuthController(
         // Set HttpOnly Cookie
         val cookie = Cookie("staff_auth_token", authResponse.token)
         cookie.isHttpOnly = true
-        cookie.secure = true // Should be true in production (HTTPS)
+        cookie.secure = cookieSecure
         cookie.path = "/"
         cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
         cookie.setAttribute("SameSite", "Strict")
@@ -63,7 +67,7 @@ class StaffAuthController(
         // Set HttpOnly Cookie
         val cookie = Cookie("staff_auth_token", authResponse.token)
         cookie.isHttpOnly = true
-        cookie.secure = true // Should be true in production (HTTPS)
+        cookie.secure = cookieSecure
         cookie.path = "/"
         cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
         cookie.setAttribute("SameSite", "Strict")

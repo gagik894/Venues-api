@@ -145,9 +145,10 @@ class SessionSeatingService(
             )
         }
 
-        // Calculate statistics
-        val totalSeats = seatConfigs.size
-        val availableSeats = seatConfigs.count { it.isAvailable() }
+        // Calculate statistics based on the full chart snapshot (sparse matrix)
+        val totalSeats = chartStructure.seats.size
+        val unavailableSeats = seatConfigs.count { !it.isAvailable() }
+        val availableSeats = (totalSeats - unavailableSeats).coerceAtLeast(0)
         val soldSeats = session.ticketsSold
 
         // Get price templates

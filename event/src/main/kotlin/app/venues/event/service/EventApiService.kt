@@ -26,7 +26,8 @@ class EventApiService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val seatConfigSparseService: SeatConfigSparseService
 ) : EventApi {
     private val logger = KotlinLogging.logger {}
 
@@ -118,28 +119,9 @@ class EventApiService(
     @Transactional
     override fun releaseSeat(sessionId: UUID, seatId: Long) {
         sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)?.let { config ->
-            // Set to AVAILABLE
             config.release()
-
-            // Sparse Cleanup: If it matches default template, delete the row
-            // But we need to check if it's a custom override.
-            // If config.priceTemplate matches the category default, we can delete it?
-            // Requirement 2: "If a seat is 'Available' and has the default price, it must NOT have a row"
-
-            val seatInfo = seatingApi.getSeatInfo(seatId)
-            if (seatInfo != null) {
-                val defaultTemplate =
-                    config.session.event.priceTemplates.find { it.templateName == seatInfo.categoryKey }
-
-                if (config.priceTemplate?.id == defaultTemplate?.id) {
-                    // It's the default template. Delete the row.
-                    sessionSeatConfigRepository.delete(config)
-                    return
-                }
-            }
-
-            // Otherwise save as AVAILABLE (it has custom pricing or we couldn't verify)
             sessionSeatConfigRepository.save(config)
+            seatConfigSparseService.purgeDefaultRows(sessionId, listOf(seatId))
         }
     }
 
@@ -147,6 +129,7 @@ class EventApiService(
     override fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
         if (seatIds.isNotEmpty()) {
             sessionSeatConfigRepository.releaseSeats(sessionId, seatIds)
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
         }
     }
 
@@ -261,7 +244,11 @@ class EventApiService(
     @Transactional
     override fun unblockSeats(sessionId: UUID, seatIds: List<Long>): Int {
         if (seatIds.isEmpty()) return 0
-        return sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+        val updated = sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+        if (updated > 0) {
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
+        }
+        return updated
     }
 
     @Transactional

@@ -27,7 +27,8 @@ class EventSeatingService(
     private val seatConfigRepository: SessionSeatConfigRepository,
     private val tableConfigRepository: SessionTableConfigRepository,
     private val gaConfigRepository: SessionGAConfigRepository,
-    private val sessionCapacityService: SessionCapacityService
+    private val sessionCapacityService: SessionCapacityService,
+    private val seatConfigSparseService: SeatConfigSparseService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -145,6 +146,9 @@ class EventSeatingService(
         // Optimized batch update for performance (handles 10k+ seats efficiently)
         val updatedCount = seatConfigRepository.batchUpdatePriceTemplate(sessionId, seatIds, template)
         logger.info { "Updated price template for $updatedCount seats in session $sessionId" }
+
+        // Remove redundant rows when seats fall back to the default price while available
+        seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
     }
 
     /**

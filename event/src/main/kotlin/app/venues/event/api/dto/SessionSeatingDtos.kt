@@ -14,7 +14,10 @@ data class SessionSeatingResponse(
     val eventTitle: String,
     val seatingChartId: UUID,
     val seatingChartName: String,
+    val chartWidth: Int,
+    val chartHeight: Int,
     val priceTemplates: List<SessionPriceTemplateResponse>,
+    val zones: List<SessionZoneResponse>,
 
     // Flat array of all seats - easy to render
     val seats: List<SessionSeatResponse>,
@@ -36,19 +39,25 @@ data class SessionSeatingResponse(
  * Simple flat structure for UI rendering.
  */
 data class SessionSeatResponse(
+    val seatId: Long,
     val seatIdentifier: String,
     val seatNumber: String?,
     val rowLabel: String?,
 
+    val isBookable: Boolean,
+
     // Level hierarchy from root to leaf (e.g., ["Orchestra", "Row A"])
     val levels: List<String>,
-
-    // Position for rendering
+    val zoneId: Long,
+    val tableId: Long?,
+    val categoryKey: String,
+    val isAccessible: Boolean,
+    val isObstructed: Boolean,
     val positionX: Double?,
     val positionY: Double?,
+    val rotation: Double?,
 
     // Session-specific data
-    val status: String,  // AVAILABLE, RESERVED, SOLD, CLOSED, BLOCKED
     val price: String?,
     val priceTemplateName: String?,
     val priceTemplateColor: String?
@@ -60,11 +69,17 @@ data class SessionSeatResponse(
 data class SessionGaAreaResponse(
     val levelIdentifier: String,
     val levelName: String,
+
+    val isBookable: Boolean,
+
     val levels: List<String>,  // Hierarchy (e.g., ["Balcony", "Standing Area"])
+    val zoneId: Long,
     val capacity: Int,
     val available: Int,
     val price: String?,
-    val priceTemplateName: String?
+    val priceTemplateName: String?,
+    val boundaryPath: String?,
+    val displayColor: String?
 )
 
 /**
@@ -76,23 +91,37 @@ data class SessionTableResponse(
     val tableName: String,
     val tableIdentifier: String?,
 
+    val isBookable: Boolean,
+
     // Level hierarchy (e.g., ["VIP Lounge", "VIP Table 1"])
     val levels: List<String>,
-
-    // Position for rendering
+    val zoneId: Long,
     val positionX: Double?,
     val positionY: Double?,
-
     // Table booking configuration
+    val width: Double?,
+    val height: Double?,
+    val rotation: Double?,
+    val shape: String?,
     val bookingMode: String,  // TABLE_ONLY, FLEXIBLE, SEATS_ONLY
     val seatCount: Int,
-    val seatIdentifiers: List<String>,  // All seat IDs in this table
-
-    // Session-specific data
-    val status: String,  // AVAILABLE, RESERVED, SOLD, BLOCKED
+    val seatIdentifiers: List<String>,
+    val status: String,
     val price: String?,
     val priceTemplateName: String?,
     val priceTemplateColor: String?
+)
+
+data class SessionZoneResponse(
+    val id: Long,
+    val name: String,
+    val code: String,
+    val parentZoneId: Long?,
+    val positionX: Double?,
+    val positionY: Double?,
+    val rotation: Double?,
+    val boundaryPath: String?,
+    val displayColor: String?
 )
 
 /**

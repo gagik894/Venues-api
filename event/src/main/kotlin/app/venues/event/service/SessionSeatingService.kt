@@ -65,8 +65,21 @@ class SessionSeatingService(
         val tableConfigs = sessionTableConfigRepository.findBySessionId(sessionId)
         val tableConfigMap = tableConfigs.associateBy { it.tableId }
 
-        // Build zone hierarchy map for breadcrumb display
+        // Build zone hierarchy map for breadcrumb display and expose raw zones
         val zoneHierarchyMap = buildZoneHierarchyMap(chartStructure.zones)
+        val zones = chartStructure.zones.map { zone ->
+            SessionZoneResponse(
+                id = zone.id,
+                name = zone.name,
+                code = zone.code,
+                parentZoneId = zone.parentZoneId,
+                positionX = zone.x,
+                positionY = zone.y,
+                rotation = zone.rotation,
+                boundaryPath = zone.boundaryPath,
+                displayColor = zone.displayColor
+            )
+        }
 
         // Process seats
         val seats = chartStructure.seats.map { seatDto ->
@@ -78,20 +91,24 @@ class SessionSeatingService(
             // 2. Resolve Pricing & Template (Waterfall Logic)
             val (price, templateName, color) = resolveSeatPricing(seatDto.categoryKey, config, session, event)
 
-            // 3. Color Logic (Hide color if not available)
-            val displayColor = if (status == "AVAILABLE") color else null
-
             SessionSeatResponse(
+                seatId = seatDto.id,
                 seatIdentifier = seatDto.code,
+                isBookable = status == "AVAILABLE",
                 seatNumber = seatDto.seatNumber,
                 rowLabel = seatDto.rowLabel,
                 levels = zoneHierarchyMap[seatDto.zoneId] ?: listOf("Unknown"),
+                zoneId = seatDto.zoneId,
+                tableId = seatDto.tableId,
+                categoryKey = seatDto.categoryKey,
+                isAccessible = seatDto.isAccessible,
+                isObstructed = seatDto.isObstructed,
                 positionX = seatDto.x,
                 positionY = seatDto.y,
-                status = status,
+                rotation = seatDto.rotation,
                 price = price?.toString(),
                 priceTemplateName = templateName,
-                priceTemplateColor = displayColor
+                priceTemplateColor = color
             )
         }
 
@@ -109,11 +126,15 @@ class SessionSeatingService(
             SessionGaAreaResponse(
                 levelIdentifier = gaDto.code,
                 levelName = gaDto.name,
+                isBookable = config.status.name == "AVAILABLE",
                 levels = zoneHierarchyMap[gaDto.zoneId] ?: listOf(gaDto.name),
+                zoneId = gaDto.zoneId,
                 capacity = capacity,
                 available = available,
                 price = config.priceTemplate?.price?.toString(),
-                priceTemplateName = config.priceTemplate?.templateName
+                priceTemplateName = config.priceTemplate?.templateName,
+                boundaryPath = gaDto.boundaryPath,
+                displayColor = gaDto.displayColor
             )
         }
 
@@ -132,9 +153,15 @@ class SessionSeatingService(
                 tableId = tableDto.id,
                 tableName = tableDto.tableNumber,
                 tableIdentifier = tableDto.code,
+                isBookable = config.status.name == "AVAILABLE",
                 levels = zoneHierarchyMap[tableDto.zoneId] ?: listOf(tableDto.tableNumber),
+                zoneId = tableDto.zoneId,
                 positionX = tableDto.x,
                 positionY = tableDto.y,
+                width = tableDto.width,
+                height = tableDto.height,
+                rotation = tableDto.rotation,
+                shape = tableDto.shape,
                 bookingMode = config.bookingMode.name,
                 seatCount = tableSeats.size,
                 seatIdentifiers = tableSeats.map { it.code },
@@ -161,11 +188,14 @@ class SessionSeatingService(
 
         return SessionSeatingResponse(
             sessionId = sessionId,
-            eventId = event.id ?: throw VenuesException.ValidationFailure("Event ID is null"),
+            eventId = event.id,
             eventTitle = event.title,
             seatingChartId = seatingChartId,
             seatingChartName = chartStructure.chartName,
+            chartWidth = chartStructure.width,
+            chartHeight = chartStructure.height,
             priceTemplates = priceTemplates,
+            zones = zones,
             seats = seats,
             gaAreas = gaAreas,
             tables = tables,

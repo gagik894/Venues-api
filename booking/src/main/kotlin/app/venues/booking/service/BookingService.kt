@@ -6,13 +6,12 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
-import app.venues.booking.domain.BookingItem
-import app.venues.booking.domain.Guest
 import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
+import app.venues.booking.service.model.BookingCreationContext
+import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
-import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
@@ -21,7 +20,6 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
 import java.util.*
 
 /**
@@ -38,6 +36,7 @@ class BookingService(
     private val bookingRepository: BookingRepository,
     private val cartRepository: CartRepository,
     private val guestService: GuestService,
+    private val bookingCreationService: BookingCreationService,
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
@@ -57,30 +56,36 @@ class BookingService(
         logger.debug { "Processing checkout: token=${request.token}, email=${request.email}" }
 
         // Validate cart and get session
-        val cartData = validateCartAndGetSession(
-            request.token ?: throw VenuesException.ValidationFailure("Cart token is required for checkout")
-        )
+        val cartToken = request.token ?: throw VenuesException.ValidationFailure("Cart token is required for checkout")
+        val cartSnapshot = validateCartAndGetSession(cartToken)
 
         // Determine user or guest
         val guest = if (userId == null) {
             guestService.findOrCreateGuest(request.email, request.name, request.phone)
         } else null
 
-        // Create booking with items
-        val booking = createBookingFromCartData(
-            cartData = cartData,
-            userId = userId,
-            guest = guest,
-            platformId = null
+        val creationResult = bookingCreationService.assembleBooking(
+            snapshot = cartSnapshot,
+            context = BookingCreationContext(
+                userId = userId,
+                guest = guest,
+                platformId = null,
+                paymentReference = null
+            )
         )
 
         // Save booking
-        val savedBooking = bookingRepository.save(booking)
+        val savedBooking = bookingRepository.save(creationResult.booking)
+
+        redeemPromoIfNeeded(savedBooking)
 
         // Delete cart (CASCADE deletes items)
-        deleteCart(request.token ?: throw VenuesException.ValidationFailure("Cart token is required for checkout"))
+        deleteCart(cartToken)
 
-        logger.info { "Checkout completed: bookingId=${savedBooking.id}, total=${booking.totalPrice}" }
+        logger.info {
+            "Checkout completed: bookingId=${savedBooking.id}, total=${creationResult.pricing.total}, " +
+                    "items=${savedBooking.items.size}"
+        }
 
         // Prepare response with fetched data
         val bookingResponse = prepareBookingResponse(savedBooking)
@@ -290,26 +295,15 @@ class BookingService(
     // ===========================================
 
     /**
-     * Data class to hold validated cart data.
-     */
-    private data class CartData(
-        val cart: app.venues.booking.domain.Cart,
-        val cartSeats: List<app.venues.booking.domain.CartSeat>,
-        val cartItems: List<app.venues.booking.domain.CartItem>,
-        val cartTables: List<app.venues.booking.domain.CartTable>,
-        val sessionDto: EventSessionDto
-    )
-
-    /**
      * Validates cart and fetches session data for checkout.
      * Uses @EntityGraph optimization to load all items in a single query.
      *
      * @param cartToken Cart token
-     * @return CartData with validated cart items and session info
+     * @return CartSnapshot with validated cart items and session info
      * @throws VenuesException.ResourceNotFound if cart not found
      * @throws VenuesException.ValidationFailure if cart is expired
      */
-    private fun validateCartAndGetSession(cartToken: UUID): CartData {
+    private fun validateCartAndGetSession(cartToken: UUID): CartSnapshot {
         // Get cart with ALL items in single query (via @EntityGraph)
         val cart = cartRepository.findWithItemsByToken(cartToken)
             ?: throw VenuesException.ResourceNotFound("Cart not found")
@@ -320,9 +314,9 @@ class BookingService(
         }
 
         // Collections are already loaded - no additional queries
-        val cartSeats = cart.seats
-        val cartItems = cart.gaItems
-        val cartTables = cart.tables
+        val cartSeats = cart.seats.toList()
+        val cartItems = cart.gaItems.toList()
+        val cartTables = cart.tables.toList()
 
         if (cartSeats.isEmpty() && cartItems.isEmpty() && cartTables.isEmpty()) {
             throw VenuesException.ResourceNotFound("Cart is empty")
@@ -332,121 +326,13 @@ class BookingService(
         val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Event session not found")
 
-        return CartData(
+        return CartSnapshot(
             cart = cart,
-            cartSeats = cartSeats,
-            cartItems = cartItems,
-            cartTables = cartTables,
-            sessionDto = sessionDto
+            seats = cartSeats,
+            gaItems = cartItems,
+            tables = cartTables,
+            session = sessionDto
         )
-    }
-
-    /**
-     * Create booking entity from cart data.
-     *
-     * @param cartData Validated cart data
-     * @param userId Optional user ID
-     * @param guest Optional guest
-     * @param platformId Optional platform ID
-     * @param paymentReference Optional payment reference
-     * @return Created booking entity (not saved yet)
-     */
-    private fun createBookingFromCartData(
-        cartData: CartData,
-        userId: UUID?,
-        guest: Guest?,
-        platformId: UUID?,
-        paymentReference: String? = null
-    ): Booking {
-        cartData.cart
-        val sessionDto = cartData.sessionDto
-        val venueId = sessionDto.venueId
-
-        // Calculate total and create booking items
-        var totalPrice = BigDecimal.ZERO
-        val bookingItems = mutableListOf<BookingItem>()
-
-        // Create booking first (needed for items)
-        val booking = Booking(
-            userId = userId,
-            guest = guest,
-            sessionId = sessionDto.sessionId,
-            platformId = platformId,
-            venueId = venueId,
-            totalPrice = BigDecimal.ZERO, // Will update
-            currency = sessionDto.currency
-        )
-
-        booking.applyServiceFeePercent(totalPrice, BigDecimal("10.0")) // Example 10% service fee
-
-
-        // Add seat items
-        // We need price template names. EventApi provides batch lookup.
-        val seatIds = cartData.cartSeats.map { it.seatId }
-        val seatTemplates = eventApi.getSeatPriceTemplateNames(sessionDto.sessionId, seatIds)
-
-        cartData.cartSeats.forEach { cartSeat ->
-            val item = BookingItem(
-                booking = booking,
-                seatId = cartSeat.seatId,
-                quantity = 1,
-                unitPrice = cartSeat.unitPrice,
-                priceTemplateName = seatTemplates[cartSeat.seatId]
-            )
-            bookingItems.add(item)
-            totalPrice = totalPrice.add(cartSeat.unitPrice)
-        }
-
-        // Add GA items
-        val gaAreaIds = cartData.cartItems.map { it.gaAreaId }
-        val gaTemplates = eventApi.getGaPriceTemplateNames(sessionDto.sessionId, gaAreaIds)
-
-        cartData.cartItems.forEach { cartItem ->
-            val itemTotal = cartItem.unitPrice.multiply(BigDecimal(cartItem.quantity))
-            val item = BookingItem(
-                booking = booking,
-                gaAreaId = cartItem.gaAreaId,
-                quantity = cartItem.quantity,
-                unitPrice = cartItem.unitPrice,
-                priceTemplateName = gaTemplates[cartItem.gaAreaId]
-            )
-            bookingItems.add(item)
-            totalPrice = totalPrice.add(itemTotal)
-        }
-
-        // Add Table items
-        val tableIds = cartData.cartTables.map { it.tableId }
-        val tableTemplates = eventApi.getTablePriceTemplateNames(sessionDto.sessionId, tableIds)
-
-        cartData.cartTables.forEach { cartTable ->
-            val item = BookingItem(
-                booking = booking,
-                tableId = cartTable.tableId,
-                quantity = 1,
-                unitPrice = cartTable.unitPrice,
-                priceTemplateName = tableTemplates[cartTable.tableId]
-            )
-            bookingItems.add(item)
-            totalPrice = totalPrice.add(cartTable.unitPrice)
-        }
-
-        // Apply discount if present in cart
-        if (cartData.cart.discountAmount != null) {
-            totalPrice = totalPrice.subtract(cartData.cart.discountAmount)
-            // Ensure total is not negative
-            if (totalPrice < BigDecimal.ZERO) {
-                totalPrice = BigDecimal.ZERO
-            }
-            booking.discountAmount = cartData.cart.discountAmount!!
-            booking.promoCode = cartData.cart.promoCode
-        }
-
-        booking.totalPrice = totalPrice
-
-        // Add items to booking
-        bookingItems.forEach { booking.addItem(it) }
-
-        return booking
     }
 
 
@@ -483,49 +369,43 @@ class BookingService(
         logger.debug { "Creating booking from cart for platform $platformId: token=$cartToken" }
 
         // Validate cart and get session
-        val cartData = validateCartAndGetSession(cartToken)
+        val cartSnapshot = validateCartAndGetSession(cartToken)
 
         // Create or find guest if email provided
         val guest = if (guestEmail != null && guestName != null) {
             guestService.findOrCreateGuest(guestEmail, guestName, guestPhone ?: "")
         } else null
 
-        // Create booking with items
-        val booking = createBookingFromCartData(
-            cartData = cartData,
-            userId = null,
-            guest = guest,
-            platformId = platformId,
-            paymentReference = paymentReference
+        val creationResult = bookingCreationService.assembleBooking(
+            snapshot = cartSnapshot,
+            context = BookingCreationContext(
+                userId = null,
+                guest = guest,
+                platformId = platformId,
+                paymentReference = paymentReference
+            )
         )
+        val booking = creationResult.booking
 
         // Confirm immediately (payment already done by platform)
         // External platforms do not provide internal payment UUIDs, so paymentId is null.
         booking.confirm(null)
 
-        if (paymentReference != null) {
-            booking.externalOrderNumber = paymentReference
-        }
-
         // Save booking
         val savedBooking = bookingRepository.save(booking)
+
+        redeemPromoIfNeeded(savedBooking)
 
         // Finalize inventory (RESERVED -> SOLD)
         finalizeBookingInventory(booking)
 
-        // Redeem promo code if used
-        if (cartData.cart.promoCode != null) {
-            try {
-                venueApi.redeemPromoCode(booking.venueId!!, cartData.cart.promoCode!!)
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to redeem promo code ${cartData.cart.promoCode} for booking ${booking.id}" }
-            }
-        }
-
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
 
-        logger.info { "Booking created from platform $platformId: bookingId=${savedBooking.id}, total=${booking.totalPrice}" }
+        logger.info {
+            "Booking created from platform $platformId: bookingId=${savedBooking.id}, " +
+                    "total=${creationResult.pricing.total}"
+        }
 
         return savedBooking
     }
@@ -571,15 +451,6 @@ class BookingService(
         booking.confirm(paymentId)
         val savedBooking = bookingRepository.save(booking)
 
-        // Redeem promo code if used
-        if (savedBooking.promoCode != null && savedBooking.venueId != null) {
-            try {
-                venueApi.redeemPromoCode(savedBooking.venueId!!, savedBooking.promoCode!!)
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to redeem promo code ${savedBooking.promoCode} for booking ${savedBooking.id}" }
-            }
-        }
-
         finalizeBookingInventory(savedBooking)
     }
 
@@ -600,6 +471,7 @@ class BookingService(
         booking.cancel("Payment failed or cancelled")
         val savedBooking = bookingRepository.save(booking)
 
+        releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
     }
 
@@ -617,7 +489,30 @@ class BookingService(
         }
         booking.cancel(reason ?: "Booking refunded")
         val savedBooking = bookingRepository.save(booking)
+        releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
+    }
+
+    private fun redeemPromoIfNeeded(booking: Booking) {
+        val code = booking.promoCode
+        val venueId = booking.venueId
+        if (code != null && venueId != null) {
+            venueApi.redeemPromoCode(venueId, code)
+            logger.debug { "Redeemed promo code $code for booking ${booking.id}" }
+        }
+    }
+
+    private fun releasePromoIfNeeded(booking: Booking) {
+        val code = booking.promoCode
+        val venueId = booking.venueId
+        if (code != null && venueId != null) {
+            try {
+                venueApi.releasePromoCode(venueId, code)
+                logger.debug { "Released promo code $code for booking ${booking.id}" }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to release promo code $code for booking ${booking.id}" }
+            }
+        }
     }
 
     /**

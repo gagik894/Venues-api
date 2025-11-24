@@ -78,7 +78,7 @@ class EventController(
     ): ApiResponse<EventResponse> {
         logger.debug { "Fetching event: $id, language: $lang" }
 
-        val event = eventService.getEventById(id)
+        val event = eventService.getPublishedEventById(id)
         val venueName = venueApi.getVenueNameTranslated(event.venueId, lang) ?: "Unknown"
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 

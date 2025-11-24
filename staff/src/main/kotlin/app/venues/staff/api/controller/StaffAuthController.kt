@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/v1/auth/staff")
+@RequestMapping("/api/v1/staff/auth")
 @Tag(name = "Staff Auth", description = "Authentication and Registration for Staff/Admins")
 class StaffAuthController(
     private val authService: StaffAuthService
@@ -44,7 +44,7 @@ class StaffAuthController(
         cookie.isHttpOnly = true
         cookie.secure = cookieSecure
         cookie.path = "/"
-        cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
+        cookie.maxAge = (authResponse.expiresIn).toInt()
         cookie.setAttribute("SameSite", "Strict")
         response.addCookie(cookie)
 
@@ -69,7 +69,7 @@ class StaffAuthController(
         cookie.isHttpOnly = true
         cookie.secure = cookieSecure
         cookie.path = "/"
-        cookie.maxAge = (authResponse.expiresIn / 1000).toInt()
+        cookie.maxAge = (authResponse.expiresIn).toInt()
         cookie.setAttribute("SameSite", "Strict")
         response.addCookie(cookie)
 

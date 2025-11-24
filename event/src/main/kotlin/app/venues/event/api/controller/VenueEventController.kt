@@ -3,14 +3,17 @@ package app.venues.event.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
+import app.venues.event.domain.EventStatus
 import app.venues.event.service.EventService
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.VenueApi
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -28,9 +31,12 @@ import java.util.*
  * Uses StaffSecurityFacade for permission checking.
  */
 @RestController
-@RequestMapping("/api/v1/venues/{venueId}/events")
-@Tag(name = "Venue Events", description = "Event management for venue owners")
 @PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
+@RequestMapping("/api/v1/staff/venues/{venueId}/events")
+@Tag(
+    name = "Venue Events",
+    description = "Event management for venue owners"
+)
 class VenueEventController(
     private val eventService: EventService,
     private val venueSecurityService: VenueSecurityService,
@@ -39,6 +45,62 @@ class VenueEventController(
     private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
+
+    @GetMapping
+    @Operation(
+        summary = "List venue events (staff)",
+        description = "Returns all events for the venue, including drafts and suspended events."
+    )
+    fun listVenueEvents(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false) lang: String?,
+        @RequestParam(required = false, name = "status") statuses: List<EventStatus>?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Listing staff events for venue=$venueId statuses=$statuses" }
+
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val events = eventService.getStaffEventSummariesByVenue(
+            venueId = venueId,
+            pageable = pageable,
+            statuses = statuses?.toSet(),
+            language = lang
+        )
+
+        return ApiResponse.success(
+            data = events,
+            message = "Events retrieved successfully"
+        )
+    }
+
+    @GetMapping("/{eventId}")
+    @Operation(
+        summary = "Get event details (staff)",
+        description = "Returns event details for staff, including hidden events."
+    )
+    fun getVenueEvent(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestParam(required = false) lang: String?
+    ): ApiResponse<EventResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Fetching staff event details: event=$eventId venue=$venueId" }
+
+        val event = eventService.getEventForVenueStaff(eventId, venueId)
+        val venueName = venueApi.getVenueName(venueId)
+        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+
+        return ApiResponse.success(
+            data = eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = lang),
+            message = "Event retrieved successfully"
+        )
+    }
 
     /**
      * Create event for authenticated venue.

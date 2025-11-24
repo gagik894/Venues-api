@@ -15,7 +15,7 @@ import java.util.*
 
 @RestController
 @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STAFF')")
-@RequestMapping("/api/v1/venues/{venueId}/promo-codes")
+@RequestMapping("/api/v1/staff/venues/{venueId}/promo-codes")
 @Tag(name = "Venue Promo Codes", description = "Management of promotional codes for venues")
 class VenuePromoCodeController(
     private val promoCodeService: VenuePromoCodeService,

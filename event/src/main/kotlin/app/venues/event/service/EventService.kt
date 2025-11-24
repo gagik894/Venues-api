@@ -47,6 +47,8 @@ class EventService(
     private val eventMapper: EventMapper
 ) {
     private val logger = KotlinLogging.logger {}
+    private val staffVisibleStatuses: Set<EventStatus> =
+        EventStatus.values().filterNot { it == EventStatus.DELETED }.toSet()
 
     // ===========================================
     // EVENT CRUD
@@ -160,6 +162,27 @@ class EventService(
 
         return eventRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $id") }
+    }
+
+    @Transactional(readOnly = true)
+    fun getPublishedEventById(id: UUID): Event {
+        val event = getEventById(id)
+        if (event.status != EventStatus.PUBLISHED) {
+            throw VenuesException.ResourceNotFound("Event not found with ID: $id")
+        }
+        return event
+    }
+
+    @Transactional(readOnly = true)
+    fun getEventForVenueStaff(eventId: UUID, venueId: UUID): Event {
+        val event = getEventById(eventId)
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Event does not belong to this venue")
+        }
+        if (event.status == EventStatus.DELETED) {
+            throw VenuesException.ResourceNotFound("Event not found with ID: $eventId")
+        }
+        return event
     }
 
     /**
@@ -347,6 +370,20 @@ class EventService(
     fun getEventSummariesByVenue(venueId: UUID, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
         logger.debug { "Fetching events for venue (summary): $venueId" }
         val events = eventRepository.findByVenueIdAndStatus(venueId, EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    @Transactional(readOnly = true)
+    fun getStaffEventSummariesByVenue(
+        venueId: UUID,
+        pageable: Pageable,
+        statuses: Set<EventStatus>?,
+        language: String?
+    ): Page<EventSummaryResponse> {
+        val effectiveStatuses = statuses?.takeIf { it.isNotEmpty() } ?: staffVisibleStatuses
+        val resolvedStatuses =
+            effectiveStatuses.filterNot { it == EventStatus.DELETED }.toSet().ifEmpty { staffVisibleStatuses }
+        val events = eventRepository.findByVenueIdAndStatusIn(venueId, resolvedStatuses, pageable)
         return mapToSummary(events, language)
     }
 

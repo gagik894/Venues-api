@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
+@PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
 @RequestMapping("/api/v1/staff")
 @Tag(name = "Staff Management", description = "Manage authorized venues, invitations, and statuses")
 class StaffAdminController(
@@ -31,7 +32,9 @@ class StaffAdminController(
         summary = "Get Authorized Venues",
         description = "Returns the list of venues this user can access with their roles"
     )
-    fun getMyAuthorizedVenues(@RequestAttribute("principalId") staffId: UUID): ApiResponse<List<AuthorizedVenueDto>> {
+    fun getMyAuthorizedVenues(
+        @RequestAttribute("staffId") staffId: UUID
+    ): ApiResponse<List<AuthorizedVenueDto>> {
         // Note: "staffId" usually comes from a JWT Filter/Interceptor
         logger.debug { "Fetching authorized venues for staff: $staffId" }
 
@@ -45,7 +48,9 @@ class StaffAdminController(
 
     @PostMapping("/invite")
     @Operation(summary = "Invite Member", description = "Invite a user (new or existing) to an Organization")
-    fun inviteStaff(@Valid @RequestBody req: InviteStaffRequest): ApiResponse<StaffProfileDto> {
+    fun inviteStaff(
+        @Valid @RequestBody req: InviteStaffRequest
+    ): ApiResponse<StaffProfileDto> {
         logger.info { "Inviting ${req.email} to Org ${req.organizationId} as ${req.role}" }
 
         // Security Note: Service layer must verify that Current User is ADMIN of req.organizationId

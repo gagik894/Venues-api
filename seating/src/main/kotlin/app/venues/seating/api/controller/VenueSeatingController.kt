@@ -30,7 +30,7 @@ import java.util.*
  * - Venue MANAGER → can manage assigned venues
  */
 @RestController
-@RequestMapping("/api/v1/venues/{venueId}/seating-charts")
+@RequestMapping("/api/v1/staff/venues/{venueId}/seating-charts")
 @Tag(name = "Venue Seating Charts", description = "Seating chart management for staff members")
 @PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
 class VenueSeatingController(

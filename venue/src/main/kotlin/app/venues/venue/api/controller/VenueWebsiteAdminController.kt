@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 @RestController
-@RequestMapping("/api/v1/admin/venues/{venueId}/website")
+@RequestMapping("/api/v1/staff/venues/{venueId}/website")
 @Tag(name = "Venue Website Administration", description = "Manage white-label website configuration")
 class VenueWebsiteAdminController(
     private val venueWebsiteService: VenueWebsiteService,

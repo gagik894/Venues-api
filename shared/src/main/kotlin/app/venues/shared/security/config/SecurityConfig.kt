@@ -111,9 +111,8 @@ class SecurityConfig(
                     // ============================================
                     // AUTHENTICATION ENDPOINTS (Public)
                     // ============================================
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/user/**").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/staff/**").permitAll()
-
+                    .requestMatchers(HttpMethod.POST, "/api/v1/user/auth/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/staff/auth/**").permitAll()
                     // ============================================
                     // PUBLIC VENUE BROWSING (Read-only)
                     // ============================================

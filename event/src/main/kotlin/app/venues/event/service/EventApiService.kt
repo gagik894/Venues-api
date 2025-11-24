@@ -12,6 +12,7 @@ import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -27,6 +28,7 @@ class EventApiService(
     private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val seatingApi: SeatingApi
 ) : EventApi {
+    private val logger = KotlinLogging.logger {}
 
     @Transactional(readOnly = true)
     override fun getEventSessionInfo(sessionId: UUID): EventSessionDto? {
@@ -143,10 +145,6 @@ class EventApiService(
 
     @Transactional
     override fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
-        // For batch release, we can't easily do the "Delete if default" logic efficiently in bulk
-        // without fetching everything.
-        // For now, we'll just set them to AVAILABLE.
-        // A background cleanup job could optimize the sparse table later if needed.
         if (seatIds.isNotEmpty()) {
             sessionSeatConfigRepository.releaseSeats(sessionId, seatIds)
         }
@@ -351,5 +349,29 @@ class EventApiService(
         if (tableIds.isNotEmpty()) {
             sessionTableConfigRepository.sellTables(sessionId, tableIds)
         }
+    }
+
+    @Transactional
+    override fun incrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = eventSessionRepository.incrementTicketsSold(sessionId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to increment ticketsSold for session $sessionId by $quantity due to capacity limit" }
+        }
+        return updated > 0
+    }
+
+    @Transactional
+    override fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = eventSessionRepository.decrementTicketsSold(sessionId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to decrement ticketsSold for session $sessionId by $quantity because there are not enough sold tickets" }
+        }
+        return updated > 0
     }
 }

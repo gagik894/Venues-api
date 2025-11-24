@@ -52,6 +52,18 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     fun findBySessionId(sessionId: UUID): List<SessionGAConfig>
 
     /**
+     * Calculate total GA capacity for a session.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(COALESCE(gc.capacity, 0)), 0)
+        FROM SessionGAConfig gc
+        WHERE gc.session.id = :sessionId
+    """
+    )
+    fun sumCapacityBySessionId(sessionId: UUID): Long
+
+    /**
      * Get GA area price if available capacity exists.
      */
     @Query(

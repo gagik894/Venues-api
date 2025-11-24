@@ -26,7 +26,8 @@ class EventSeatingService(
     private val seatingApi: SeatingApi,
     private val seatConfigRepository: SessionSeatConfigRepository,
     private val tableConfigRepository: SessionTableConfigRepository,
-    private val gaConfigRepository: SessionGAConfigRepository
+    private val gaConfigRepository: SessionGAConfigRepository,
+    private val sessionCapacityService: SessionCapacityService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -124,6 +125,8 @@ class EventSeatingService(
         }
 
         logger.info { "Generated ${tableConfigs.size} tables, ${gaConfigs.size} GA areas for session ${session.id}" }
+
+        sessionCapacityService.recalculateForSession(session)
     }
 
     /**

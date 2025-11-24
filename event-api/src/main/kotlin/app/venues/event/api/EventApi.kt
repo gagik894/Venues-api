@@ -269,4 +269,18 @@ interface EventApi {
      * @param tableIds List of table IDs to sell.
      */
     fun sellTablesBatch(sessionId: UUID, tableIds: List<Long>)
+
+    /**
+     * Atomically increments the session-level tickets sold counter.
+     *
+     * @return true if the increment succeeded, false if capacity would be exceeded.
+     */
+    fun incrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
+
+    /**
+     * Atomically decrements the session-level tickets sold counter.
+     *
+     * @return true if the decrement succeeded, false if there were not enough sold tickets.
+     */
+    fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
 }

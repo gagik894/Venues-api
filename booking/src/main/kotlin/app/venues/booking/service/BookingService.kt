@@ -147,12 +147,16 @@ class BookingService(
             throw VenuesException.ValidationFailure("Booking cannot be cancelled (status: ${booking.status})")
         }
 
+        val wasConfirmed = booking.status == BookingStatus.CONFIRMED
         booking.cancel(request.reason)
         val savedBooking = bookingRepository.save(booking)
 
         releasePromoIfNeeded(savedBooking)
         // Release inventory (RESERVED/SOLD -> AVAILABLE)
         releaseBookingInventory(booking)
+        if (wasConfirmed) {
+            rollbackTicketsSold(booking)
+        }
 
         logger.info { "Booking cancelled: $bookingId" }
 
@@ -470,11 +474,15 @@ class BookingService(
             return
         }
 
+        val wasConfirmed = booking.status == BookingStatus.CONFIRMED
         booking.cancel("Payment failed or cancelled")
         val savedBooking = bookingRepository.save(booking)
 
         releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
+        if (wasConfirmed) {
+            rollbackTicketsSold(savedBooking)
+        }
     }
 
     /**
@@ -493,6 +501,7 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
         releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
+        rollbackTicketsSold(savedBooking)
     }
 
     private fun redeemPromoIfNeeded(booking: Booking) {
@@ -539,6 +548,8 @@ class BookingService(
         if (tableIds.isNotEmpty()) {
             eventApi.sellTablesBatch(booking.sessionId, tableIds)
         }
+
+        recordTicketsSold(booking)
     }
 
     /**
@@ -562,6 +573,60 @@ class BookingService(
         val tableIds = booking.items.mapNotNull { it.tableId }
         if (tableIds.isNotEmpty()) {
             eventApi.releaseTablesBatch(booking.sessionId, tableIds)
+        }
+    }
+
+    private fun recordTicketsSold(booking: Booking) {
+        val quantity = calculateTicketQuantity(booking)
+        if (quantity == 0) {
+            return
+        }
+        val updated = eventApi.incrementTicketsSold(booking.sessionId, quantity)
+        if (!updated) {
+            logger.warn { "Failed to increment tickets sold for booking ${booking.id} in session ${booking.sessionId}" }
+        }
+    }
+
+    private fun rollbackTicketsSold(booking: Booking) {
+        val quantity = calculateTicketQuantity(booking)
+        if (quantity == 0) {
+            return
+        }
+        val updated = eventApi.decrementTicketsSold(booking.sessionId, quantity)
+        if (!updated) {
+            logger.warn { "Failed to decrement tickets sold for booking ${booking.id} in session ${booking.sessionId}" }
+        }
+    }
+
+    private fun calculateTicketQuantity(booking: Booking): Int {
+        if (booking.items.isEmpty()) {
+            return 0
+        }
+
+        val seatTickets = booking.items.count { it.seatId != null }
+        val gaTickets = booking.items.filter { it.gaAreaId != null }.sumOf { it.quantity }
+        val tableTickets = calculateTableTicketQuantity(booking)
+        return seatTickets + gaTickets + tableTickets
+    }
+
+    private fun calculateTableTicketQuantity(booking: Booking): Int {
+        val tableIds = booking.items.mapNotNull { it.tableId }.toSet()
+        if (tableIds.isEmpty()) {
+            return 0
+        }
+
+        return tableIds.sumOf { tableId ->
+            try {
+                val seats = seatingApi.getSeatsForTable(tableId)
+                if (seats.isNotEmpty()) {
+                    seats.size
+                } else {
+                    seatingApi.getTableInfo(tableId)?.seatCapacity ?: 0
+                }
+            } catch (ex: Exception) {
+                logger.error(ex) { "Failed to resolve seat capacity for table $tableId" }
+                0
+            }
         }
     }
 }

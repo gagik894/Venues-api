@@ -53,6 +53,7 @@ data class TableDto(
     val code: String,
     val shape: String,
     val seatCapacity: Int,
+    val categoryKey: String,
     val x: Double,
     val y: Double,
     val width: Double,
@@ -69,6 +70,7 @@ data class GaAreaDto(
     val name: String,
     val code: String,
     val capacity: Int,
+    val categoryKey: String,
     val boundaryPath: String?,
     val displayColor: String?
 )

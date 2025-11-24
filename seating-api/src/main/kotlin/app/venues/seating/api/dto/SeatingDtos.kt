@@ -22,7 +22,8 @@ data class TableInfoDto(
     val tableNumber: String,
     val seatCapacity: Int,
     val zoneId: Long,        // Tables live inside Zones
-    val zoneName: String
+    val zoneName: String,
+    val categoryKey: String
 )
 
 /**
@@ -42,5 +43,6 @@ data class GaInfoDto(
     val code: String,        // "PIT_A"
     val name: String,
     val capacity: Int,
-    val zoneId: Long         // GA areas live inside Zones
+    val zoneId: Long,        // GA areas live inside Zones
+    val categoryKey: String
 )

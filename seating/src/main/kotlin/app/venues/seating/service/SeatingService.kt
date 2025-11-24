@@ -225,6 +225,7 @@ class SeatingService(
             tableNumber = request.tableNumber,
             code = request.code,
             seatCapacity = request.seatCapacity,
+            categoryKey = request.categoryKey,
             shape = TableShape.valueOf(request.shape.uppercase()),
             x = request.x,
             y = request.y,
@@ -256,6 +257,7 @@ class SeatingService(
             name = request.name,
             code = request.code,
             capacity = request.capacity,
+            categoryKey = request.categoryKey,
             boundaryPath = request.boundaryPath,
             displayColor = request.displayColor
         )

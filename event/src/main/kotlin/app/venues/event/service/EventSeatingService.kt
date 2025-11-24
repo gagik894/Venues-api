@@ -54,7 +54,13 @@ class EventSeatingService(
             ?: throw VenuesException.ResourceNotFound("Seating chart not found: $chartId")
 
         val existingTemplateNames = event.priceTemplates.map { it.templateName }.toSet()
-        val distinctCategories = structure.seats.map { it.categoryKey }.distinct()
+        val distinctCategories = buildList {
+            addAll(structure.seats.map { it.categoryKey })
+            addAll(structure.tables.map { it.categoryKey })
+            addAll(structure.gaAreas.map { it.categoryKey })
+        }
+            .filter { it.isNotBlank() }
+            .distinct()
 
         var newTemplatesCount = 0
         distinctCategories.forEachIndexed { index, categoryKey ->
@@ -95,6 +101,8 @@ class EventSeatingService(
         val structure = seatingApi.getChartStructure(chartId)
             ?: throw VenuesException.ResourceNotFound("Seating chart not found: $chartId")
 
+        val templatesByName = priceTemplates.associateBy { it.templateName }
+
         // 1. Generate Seat Configs - SKIPPED (Sparse Matrix Pattern)
         // We do NOT create rows for seats. They default to AVAILABLE and use the EventPriceTemplate
         // matching their categoryKey. Rows are only created on state change (Reserve/Block).
@@ -102,10 +110,14 @@ class EventSeatingService(
 
         // 2. Generate Table Configs
         val tableConfigs = structure.tables.map { tableDto ->
+            val defaultTemplate = templatesByName[tableDto.categoryKey]
+            if (defaultTemplate == null) {
+                logger.warn { "No price template found for table category ${tableDto.categoryKey} in event ${session.event.id}" }
+            }
             SessionTableConfig(
                 session = session,
                 tableId = tableDto.id,
-                priceTemplate = null // Tables usually default to null until explicitly priced
+                priceTemplate = defaultTemplate // Default to chart category template (if available)
             )
         }
         if (tableConfigs.isNotEmpty()) {
@@ -114,11 +126,15 @@ class EventSeatingService(
 
         // 3. Generate GA Configs
         val gaConfigs = structure.gaAreas.map { gaDto ->
+            val defaultTemplate = templatesByName[gaDto.categoryKey]
+            if (defaultTemplate == null) {
+                logger.warn { "No price template found for GA category ${gaDto.categoryKey} in event ${session.event.id}" }
+            }
             SessionGAConfig(
                 session = session,
                 gaAreaId = gaDto.id,
                 capacity = gaDto.capacity,
-                priceTemplate = null
+                priceTemplate = defaultTemplate
             )
         }
         if (gaConfigs.isNotEmpty()) {

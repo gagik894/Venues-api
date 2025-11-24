@@ -44,6 +44,9 @@ class ChartTable(
     @Enumerated(EnumType.STRING)
     var shape: TableShape = TableShape.ROUND,
 
+    @Column(name = "category_key", nullable = false, length = 100)
+    var categoryKey: String = "STANDARD",
+
     // --- Rendering Attributes ---
 
     @Column(name = "x_position", nullable = false)

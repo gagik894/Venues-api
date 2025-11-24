@@ -168,6 +168,8 @@ data class TableRequest(
 
     @field:Min(1) val seatCapacity: Int = 4,
 
+    val categoryKey: String = "STANDARD",
+
     val shape: String = "ROUND",
 
     val x: Double,
@@ -183,6 +185,7 @@ data class TableResponse(
     val code: String,
     val tableNumber: String,
     val seatCapacity: Int,
+    val categoryKey: String,
     val shape: String,
     val x: Double,
     val y: Double,
@@ -202,6 +205,8 @@ data class GaAreaRequest(
     @field:NotBlank val code: String,
     @field:Min(1) val capacity: Int,
 
+    val categoryKey: String = "STANDARD",
+
     val boundaryPath: String? = null,
     val displayColor: String? = null
 )
@@ -212,6 +217,7 @@ data class GaAreaResponse(
     val code: String,
     val name: String,
     val capacity: Int,
+    val categoryKey: String,
     val boundaryPath: String?,
     val displayColor: String?
 )

@@ -80,6 +80,7 @@ class SeatingPortService(
                 code = t.code,
                 shape = t.shape.name,
                 seatCapacity = t.seatCapacity,
+                categoryKey = t.categoryKey,
                 x = t.x,
                 y = t.y,
                 width = t.width,
@@ -112,6 +113,7 @@ class SeatingPortService(
                 name = g.name,
                 code = g.code,
                 capacity = g.capacity,
+                categoryKey = g.categoryKey,
                 boundaryPath = g.boundaryPath,
                 displayColor = g.displayColor
             )
@@ -192,7 +194,8 @@ class SeatingPortService(
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
             zoneId = table.zone.id ?: error("Zone ID cannot be null"),
-            zoneName = table.zone.name
+            zoneName = table.zone.name,
+            categoryKey = table.categoryKey
         )
     }
 
@@ -203,7 +206,8 @@ class SeatingPortService(
             code = ga.code,
             name = ga.name,
             capacity = ga.capacity,
-            zoneId = ga.zone.id ?: error("Zone ID cannot be null")
+            zoneId = ga.zone.id ?: error("Zone ID cannot be null"),
+            categoryKey = ga.categoryKey
         )
     }
 
@@ -214,7 +218,8 @@ class SeatingPortService(
             code = ga.code,
             name = ga.name,
             capacity = ga.capacity,
-            zoneId = ga.zone.id ?: error("Zone ID cannot be null")
+            zoneId = ga.zone.id ?: error("Zone ID cannot be null"),
+            categoryKey = ga.categoryKey
         )
     }
 
@@ -228,7 +233,8 @@ class SeatingPortService(
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
             zoneId = table.zone.id ?: error("Zone ID cannot be null"),
-            zoneName = table.zone.name
+            zoneName = table.zone.name,
+            categoryKey = table.categoryKey
         )
     }
 
@@ -240,7 +246,8 @@ class SeatingPortService(
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
             zoneId = table.zone.id ?: error("Zone ID cannot be null"),
-            zoneName = table.zone.name
+            zoneName = table.zone.name,
+            categoryKey = table.categoryKey
         )
     }
 

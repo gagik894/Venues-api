@@ -129,6 +129,7 @@ class SeatingResponseMapper {
             code = table.code,
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
+            categoryKey = table.categoryKey,
             shape = table.shape.name,
             x = table.x,
             y = table.y,
@@ -148,6 +149,7 @@ class SeatingResponseMapper {
             code = ga.code,
             name = ga.name,
             capacity = ga.capacity,
+            categoryKey = ga.categoryKey,
             boundaryPath = ga.boundaryPath,
             displayColor = ga.displayColor
         )

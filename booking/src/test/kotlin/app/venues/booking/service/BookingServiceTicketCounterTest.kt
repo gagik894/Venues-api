@@ -139,7 +139,10 @@ class BookingServiceTicketCounterTest {
         every { userApi.getUserEmail(any()) } returns "user@example.com"
         every { userApi.getUserFullName(any()) } returns "Alice"
         every { seatingApi.getSeatInfo(10L) } returns SeatInfoDto(10L, "A1", "1", "A", 1L, "Zone", "VIP")
-        every { seatingApi.getGaInfo(20L) } returns GaInfoDto(20L, "GA", "GA", 100, 1L)
+        every { seatingApi.getGaInfo(20L) } returns GaInfoDto(
+            20L, "GA", "GA", 100, 1L,
+            categoryKey = "AAA"
+        )
         every { seatingApi.getSeatsForTable(30L) } returns listOf(
             SeatInfoDto(101L, "T1", "1", "T", 1L, "Zone", "VIP"),
             SeatInfoDto(102L, "T2", "2", "T", 1L, "Zone", "VIP"),
@@ -198,7 +201,7 @@ class BookingServiceTicketCounterTest {
         every { userApi.getUserEmail(any()) } returns "user@example.com"
         every { userApi.getUserFullName(any()) } returns "Bob"
         every { seatingApi.getSeatInfo(11L) } returns SeatInfoDto(11L, "B1", "1", "B", 1L, "Zone", "VIP")
-        every { seatingApi.getGaInfo(21L) } returns GaInfoDto(21L, "GA", "GA", 100, 1L)
+        every { seatingApi.getGaInfo(21L) } returns GaInfoDto(21L, "GA", "GA", 100, 1L, categoryKey = "AAA")
 
         service.cancelBooking(bookingId, CancelBookingRequest("Customer request"), booking.userId)
 

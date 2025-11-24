@@ -41,6 +41,9 @@ class GeneralAdmissionArea(
     @Column(name = "capacity", nullable = false)
     var capacity: Int,
 
+    @Column(name = "category_key", nullable = false, length = 100)
+    var categoryKey: String = "STANDARD",
+
     @Column(name = "boundary_path", columnDefinition = "TEXT")
     var boundaryPath: String? = null,
 

@@ -30,25 +30,48 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
  * Security Strategy:
  * - Stateless JWT-based authentication (no server-side sessions)
  * - Dual authentication: Users and Staff have separate authentication flows
- * - Role-based access control (RBAC)
+ * - Role-based access control (RBAC) with @PreAuthorize annotations
  * - BCrypt password encoding with strength 12
  * - CORS enabled for specified origins
  * - CSRF disabled (stateless API with JWT)
+ * - Granular path-based security (specific public endpoints only)
  *
- * Public endpoints (no authentication required):
- * - /api/v1/auth/user/ - User authentication (login, register)
- * - /api/v1/auth/staff/ - Staff authentication
- * - /api/v1/venues/ (GET only) - Public venue information
- * - /api/v1/events/ (GET only) - Public event information
- * - /api/v1/sessions/ (GET only) - Public seating charts
- * - /api/v1/checkout (POST) - Guest checkout
- * - /api/v1/bookings/ (GET) - Public booking retrieval
- * - /actuator/health - Health check endpoint
+ * Public Endpoints (No Authentication Required):
  *
- * Protected endpoints require valid JWT token in Authorization header.
+ * Authentication:
+ * - POST /api/v1/auth/user/ - User authentication (login, register)
+ * - POST /api/v1/auth/staff/ - Staff authentication
+ *
+ * Public Browsing (GET only):
+ * - GET /api/v1/venues - List venues
+ * - GET /api/v1/venues/{id} - View venue details
+ * - GET /api/v1/venues/{id}/website - View venue public website
+ * - GET /api/v1/events - List events
+ * - GET /api/v1/events/{id} - View event details
+ * - GET /api/v1/events/{id}/sessions - View event sessions
+ * - GET /api/v1/event/categories - List event categories
+ * - GET /api/v1/sessions/{id} - View session details
+ * - GET /api/v1/sessions/{id}/seating - View seating availability
+ * - GET /api/v1/locations/ - Location data
+ *
+ * Cart & Checkout:
+ * - ALL /api/v1/cart/ - Cart operations (guest + authenticated)
+ * - POST /api/v1/checkout - Guest checkout
+ * - GET /api/v1/bookings/{id} - View booking details
+ *
+ * System:
+ * - GET /api/v1/health/ - Health checks
+ * - /actuator/ - Spring Actuator endpoints
+ *
+ * Protected Endpoints (Authentication Required):
+ * - /api/v1/venues/{id}/seating-charts - Venue seating management (STAFF)
+ * - /api/v1/venues/{id}/events - Venue event management (STAFF)
+ * - /api/v1/admin/ - Administrative operations (SUPER_ADMIN)
+ * - All POST/PUT/PATCH/DELETE operations (except auth & checkout)
  *
  * @property jwtAuthenticationFilter Custom filter for JWT token validation
- */
+ *
+ **/
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
@@ -83,26 +106,84 @@ class SecurityConfig(
             // Authorization rules
             .authorizeHttpRequests { auth ->
                 auth
-                    // Public endpoints - no authentication required
+                    // ============================================
+                    // AUTHENTICATION ENDPOINTS (Public)
+                    // ============================================
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/user/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/staff/**").permitAll()
 
-                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/events/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/bookings/**").permitAll()
+                    // ============================================
+                    // PUBLIC VENUE BROWSING (Read-only)
+                    // ============================================
+                    // Public venue list and details
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/slug/{slug}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}/website").permitAll()
+
+                    // ⚠️ IMPORTANT: All other /api/v1/venues/** endpoints are PROTECTED
+                    // Includes: seating-charts, events (management), etc.
+
+                    // ============================================
+                    // PUBLIC EVENT BROWSING (Read-only)
+                    // ============================================
+                    // Public event browsing and details
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/search").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/sessions").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/seating").permitAll()
+
+                    // Event categories (public)
+                    .requestMatchers(HttpMethod.GET, "/api/v1/event/categories/**").permitAll()
+
+                    // ⚠️ IMPORTANT: All other /api/v1/events/** endpoints are PROTECTED
+
+                    // ============================================
+                    // PUBLIC SESSION & SEATING (Read-only for customers)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/seating").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/availability").permitAll()
+
+                    // ============================================
+                    // CART & CHECKOUT (Guest + Authenticated)
+                    // ============================================
+                    .requestMatchers("/api/v1/cart/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/checkout").permitAll()
+
+                    // ============================================
+                    // BOOKINGS (Guest + Authenticated)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/bookings/{id}").permitAll()
+
+                    // ============================================
+                    // LOCATIONS (Public)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
+
+                    // ============================================
+                    // HEALTH & MONITORING
+                    // ============================================
                     .requestMatchers(HttpMethod.GET, "/api/v1/health/**").permitAll()
                     .requestMatchers("/actuator/**").permitAll()
-                    .requestMatchers("/api/v1/public/**").permitAll()
 
-                    // Swagger UI and OpenAPI endpoints
+                    // ============================================
+                    // SWAGGER / API DOCUMENTATION
+                    // ============================================
                     .requestMatchers("/v1/swagger-ui/**").permitAll()
                     .requestMatchers("/v1/swagger-ui.html").permitAll()
                     .requestMatchers("/v1/api-docs/**").permitAll()
                     .requestMatchers("/v1/api-docs").permitAll()
 
-                    // All other endpoints require authentication
+                    // ============================================
+                    // ALL OTHER ENDPOINTS REQUIRE AUTHENTICATION
+                    // ============================================
+                    // This includes:
+                    // - /api/v1/admin/** (Super Admin)
+                    // - /api/v1/venues/{id}/seating-charts (Staff)
+                    // - /api/v1/venues/{id}/events (Management)
+                    // - All POST/PUT/PATCH/DELETE operations
                     .anyRequest().authenticated()
             }
 

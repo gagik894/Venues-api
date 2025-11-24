@@ -32,7 +32,7 @@ import java.util.*
 @RestController
 @RequestMapping("/api/v1/venues/{venueId}/seating-charts")
 @Tag(name = "Venue Seating Charts", description = "Seating chart management for staff members")
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
 class VenueSeatingController(
     private val seatingService: SeatingService,
     private val venueSecurityService: VenueSecurityService

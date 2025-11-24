@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
  * Provides endpoints for browsing event categories.
  */
 @RestController
-@RequestMapping("/api/v1/event/categories")
+@RequestMapping("/api/v1/events/categories")
 @Tag(name = "Event Categories", description = "Event category browsing")
 class EventCategoryController(
     private val categoryService: EventCategoryService

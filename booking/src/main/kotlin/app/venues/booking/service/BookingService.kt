@@ -8,7 +8,8 @@ import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
 import app.venues.booking.domain.Guest
-import app.venues.booking.repository.*
+import app.venues.booking.repository.BookingRepository
+import app.venues.booking.repository.CartRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
@@ -35,11 +36,7 @@ import java.util.*
 @Transactional
 class BookingService(
     private val bookingRepository: BookingRepository,
-    private val bookingItemRepository: BookingItemRepository,
     private val cartRepository: CartRepository,
-    private val cartSeatRepository: CartSeatRepository,
-    private val cartItemRepository: CartItemRepository,
-    private val cartTableRepository: CartTableRepository,
     private val guestService: GuestService,
     private val bookingMapper: BookingMapper,
     private val userApi: UserApi,
@@ -304,7 +301,8 @@ class BookingService(
     )
 
     /**
-     * Validate cart and get session data.
+     * Validates cart and fetches session data for checkout.
+     * Uses @EntityGraph optimization to load all items in a single query.
      *
      * @param cartToken Cart token
      * @return CartData with validated cart items and session info
@@ -312,8 +310,8 @@ class BookingService(
      * @throws VenuesException.ValidationFailure if cart is expired
      */
     private fun validateCartAndGetSession(cartToken: UUID): CartData {
-        // Get cart session
-        val cart = cartRepository.findByToken(cartToken)
+        // Get cart with ALL items in single query (via @EntityGraph)
+        val cart = cartRepository.findWithItemsByToken(cartToken)
             ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         // Check if cart expired
@@ -321,10 +319,10 @@ class BookingService(
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
-        // Get cart items
-        val cartSeats = cartSeatRepository.findByCart(cart)
-        val cartItems = cartItemRepository.findByCart(cart)
-        val cartTables = cartTableRepository.findByCart(cart)
+        // Collections are already loaded - no additional queries
+        val cartSeats = cart.seats
+        val cartItems = cart.gaItems
+        val cartTables = cart.tables
 
         if (cartSeats.isEmpty() && cartItems.isEmpty() && cartTables.isEmpty()) {
             throw VenuesException.ResourceNotFound("Cart is empty")
@@ -381,10 +379,6 @@ class BookingService(
 
         booking.applyServiceFeePercent(totalPrice, BigDecimal("10.0")) // Example 10% service fee
 
-        if (paymentReference != null) {
-            // We can't set paymentId directly if it's protected set.
-            // But we can confirm it later.
-        }
 
         // Add seat items
         // We need price template names. EventApi provides batch lookup.

@@ -4,8 +4,6 @@ import app.venues.booking.api.CartQueryApi
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.mapper.CartMapper
 import app.venues.booking.manager.CartSessionManager
-import app.venues.booking.persistence.CartItemPersistence
-import app.venues.booking.persistence.CartTablePersistence
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
@@ -27,8 +25,6 @@ import java.util.*
 @Transactional(readOnly = true)
 class CartQueryService(
     private val cartSessionManager: CartSessionManager,
-    private val cartItemPersistence: CartItemPersistence,
-    private val cartTablePersistence: CartTablePersistence,
     private val eventApi: EventApi,
     private val cartMapper: CartMapper,
     private val seatingApi: SeatingApi
@@ -36,22 +32,26 @@ class CartQueryService(
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Retrieves cart summary. Touches cart session to track activity.
+     * Retrieves cart summary with optimized loading strategy.
+     *
+     * Uses @EntityGraph to load cart + all items in a single query,
+     * then performs batch API calls for external data (seating info, templates).
      * Returns snapshotted prices, not current live prices.
      *
-     * This operation is optimized to use batch fetching to prevent N+1 queries.
+     * Performance: O(1) database queries instead of O(n+1).
      */
     override fun getCartSummary(token: UUID): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCart(token)
-        cartSessionManager.touchCart(cart) // 'touch' is a write, but on the session, so OK
+        // Load cart with ALL items in single query (via @EntityGraph)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
+        cartSessionManager.touchCart(cart)
 
         val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Session not found")
 
-        // 1. Get all cart items from local DB
-        val seats = cartItemPersistence.getAllSeats(cart)
-        val gaItems = cartItemPersistence.getAllGAItems(cart)
-        val tables = cartTablePersistence.getAllTables(cart)
+        // Collections are already loaded via @EntityGraph - no additional queries
+        val seats = cart.seats
+        val gaItems = cart.gaItems
+        val tables = cart.tables
 
         if (seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()) {
             throw VenuesException.ResourceNotFound("Cart is empty")

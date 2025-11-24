@@ -43,6 +43,31 @@ class CartSessionManager(
         return cart
     }
 
+    /**
+     * Retrieves an active cart with all child collections eagerly loaded.
+     *
+     * Uses @EntityGraph optimization to fetch cart + seats + gaItems + tables
+     * in a single SQL query, preventing N+1 query problems.
+     *
+     * Use this method when you need to access cart items (e.g., for cart summary,
+     * price calculations, or checkout operations).
+     *
+     * @param token The cart's public token.
+     * @return Cart with all collections initialized.
+     * @throws VenuesException.ResourceNotFound if cart doesn't exist.
+     * @throws VenuesException.ValidationFailure if cart has expired.
+     */
+    fun getActiveCartWithItems(token: UUID): Cart {
+        val cart = cartRepository.findWithItemsByToken(token)
+            ?: throw VenuesException.ResourceNotFound("Cart not found")
+
+        if (cart.isExpired()) {
+            throw VenuesException.ValidationFailure("Cart has expired")
+        }
+
+        return cart
+    }
+
     fun touchCart(cart: Cart): Cart {
         // Extend expiration on activity to prevent session timeout while user is active
         cart.extendExpiration(CART_TOUCH_ADD_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())

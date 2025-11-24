@@ -371,16 +371,18 @@ class CartService(
      * Clears entire cart and releases all inventory using batch operations.
      * Optimized for high-volume scenarios (10K+ seats).
      *
-     * Performance: O(1) instead of O(n) - uses bulk database operations.
+     * Performance: O(1) database queries - uses @EntityGraph to load all items
+     * in a single query, then performs bulk inventory release operations.
      */
     @Transactional
     override fun clearCart(token: UUID) {
-        val cart = cartSessionManager.getActiveCart(token)
+        // Load cart with ALL items in single query (via @EntityGraph)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
 
-        // 1. Load all items ONCE (single query per type)
-        val seats = cartItemPersistence.getAllSeats(cart)
-        val gaItems = cartItemPersistence.getAllGAItems(cart)
-        val tables = cartTablePersistence.getAllTables(cart)
+        // Collections are already loaded - no additional queries
+        val seats = cart.seats
+        val gaItems = cart.gaItems
+        val tables = cart.tables
 
         // 2. Extract IDs for batch operations
         val seatIds = seats.map { it.seatId }
@@ -418,7 +420,8 @@ class CartService(
      */
     @Transactional
     override fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse {
-        val cart = cartSessionManager.getActiveCart(token)
+        // Load cart with ALL items in single query (via @EntityGraph)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
 
         // 1. Get Venue ID from Session
         val session = eventApi.getEventSessionInfo(cart.sessionId)
@@ -429,10 +432,11 @@ class CartService(
         val promoCode = venueApi.validatePromoCode(venueId, code)
             ?: throw VenuesException.ValidationFailure("Invalid or expired promo code")
 
-        // 3. Calculate Cart Total (before discount)
-        val cartSeats = cartItemPersistence.getAllSeats(cart)
-        val cartTables = cartTablePersistence.getAllTables(cart)
-        val cartGaItems = cartItemPersistence.getAllGAItems(cart)
+        // 3. Calculate Cart Subtotal (before discount) using helper method
+        // Note: getTotalPrice() already includes any existing discount, so we recalculate subtotal
+        val cartSeats = cart.seats
+        val cartTables = cart.tables
+        val cartGaItems = cart.gaItems
 
         var subtotal = BigDecimal.ZERO
         cartSeats.forEach { subtotal = subtotal.add(it.unitPrice) }

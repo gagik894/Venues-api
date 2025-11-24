@@ -2,82 +2,25 @@ package app.venues.booking.domain
 
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
-
-
-//TODO
-//1. The Parent (Cart)
-//Do not use FetchType.EAGER. Keep it Lazy.
-//
-//Kotlin
-//
-//@Entity
-//@Table(name = "carts", ...)
-//class Cart(
-//    // ... fields ...
-//) : AbstractUuidEntity() {
-//
-//    // ✅ RELATIONAL MAPPING
-//    // Cascade ALL: If I delete the Cart, the items disappear automatically.
-//    // Orphan Removal: If I remove an item from this list, DB deletes the row.
-//    @OneToMany(mappedBy = "cart", cascade = [CascadeType.ALL], orphanRemoval = true)
-//    var seats: MutableList<CartSeat> = mutableListOf()
-//
-//    @OneToMany(mappedBy = "cart", cascade = [CascadeType.ALL], orphanRemoval = true)
-//    var tables: MutableList<CartTable> = mutableListOf()
-//
-//    // Helper to calculate total price in memory
-//    fun getTotalPrice(): BigDecimal {
-//        val seatTotal = seats.fold(BigDecimal.ZERO) { acc, s -> acc.add(s.unitPrice) }
-//        val tableTotal = tables.fold(BigDecimal.ZERO) { acc, t -> acc.add(t.unitPrice) }
-//        return seatTotal.add(tableTotal).subtract(discountAmount ?: BigDecimal.ZERO)
-//    }
-//}
-//2. The Child (CartSeat)
-//Ensure you have the Foreign Key to the physical seat! This is your safety line.
-//
-//Kotlin
-//
-//@Entity
-//@Table(name = "cart_seats", ...)
-//class CartSeat(
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "cart_id", nullable = false)
-//    var cart: Cart,
-//
-//    @Column(name = "seat_id", nullable = false)
-//    var seatId: Long,
-//    // ^^^ You COULD make this a @ManyToOne to ChartSeat entity if you want
-//    // strict DB constraints, but storing the Long ID is acceptable for performance
-//    // as long as you trust your app logic.
-//    // Ideally: Use @ManyToOne to ChartSeat for maximum safety.
-//
-//) : AbstractLongEntity()
-//3. The "Entity Graph" Trick (Performance Secret)
-//To solve the "N+1 Select Problem" (the slowness I was worried about), you don't need JSON. You just need a JPA Entity Graph.
-//
-//When you load the cart for the Checkout page, you want the Cart + Seats + Tables in one single query.
-//
-//In your Repository:
-//
-//Kotlin
-//
-//interface CartRepository : JpaRepository<Cart, UUID> {
-//
-//    // This annotation forces Hibernate to do a JOIN FETCH
-//    // It grabs the Cart and all its items in ONE SQL call.
-//    @EntityGraph(attributePaths = ["seats", "tables"])
-//    fun findByToken(token: UUID): Optional<Cart>
-//}
 
 /**
  * Represents a temporary shopping cart session.
  *
- * @param sessionId The [UUID] of the EventSession.
+ * This entity manages the lifecycle of a cart and its associated items (seats, GA tickets, tables).
+ * Uses proper JPA relationships with cascade operations and orphan removal for data consistency.
+ *
+ * Performance Note: Child collections use LAZY fetch with @EntityGraph optimization
+ * to prevent N+1 queries during cart retrieval operations.
+ *
+ * @param sessionId The [UUID] of the EventSession this cart is for.
  * @param expiresAt The absolute timestamp when the cart reservations expire.
- * @param token A unique public token for API access.
- * @param userId The [UUID] of the authenticated user (nullable).
+ * @param token A unique public token for API access (used for anonymous carts).
+ * @param userId The [UUID] of the authenticated user (nullable for guest checkout).
+ * @param promoCode Optional promotional code applied to this cart.
+ * @param discountAmount Optional discount amount (calculated from promo code).
  */
 @Entity
 @Table(
@@ -105,7 +48,7 @@ class Cart(
     var promoCode: String? = null,
 
     @Column(name = "discount_amount", precision = 10, scale = 2)
-    var discountAmount: java.math.BigDecimal? = null
+    var discountAmount: BigDecimal? = null
 
 ) : AbstractUuidEntity() {
 
@@ -114,11 +57,62 @@ class Cart(
     var lastActivityAt: Instant = Instant.now()
         protected set
 
+    /**
+     * Individual seat selections in this cart.
+     *
+     * Cascade ALL: When cart is deleted, all seats are automatically removed.
+     * Orphan Removal: When a seat is removed from this collection, it's deleted from DB.
+     *
+     * LAZY fetch: Collection is only loaded when explicitly accessed or via @EntityGraph.
+     */
+    @OneToMany(
+        mappedBy = "cart",
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+        fetch = FetchType.LAZY
+    )
+    var seats: MutableList<CartSeat> = mutableListOf()
+
+    /**
+     * General Admission (GA) ticket items in this cart.
+     *
+     * Cascade ALL: When cart is deleted, all GA items are automatically removed.
+     * Orphan Removal: When a GA item is removed from this collection, it's deleted from DB.
+     *
+     * LAZY fetch: Collection is only loaded when explicitly accessed or via @EntityGraph.
+     */
+    @OneToMany(
+        mappedBy = "cart",
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+        fetch = FetchType.LAZY
+    )
+    var gaItems: MutableList<CartItem> = mutableListOf()
+
+    /**
+     * Complete table bookings in this cart.
+     *
+     * Cascade ALL: When cart is deleted, all table bookings are automatically removed.
+     * Orphan Removal: When a table is removed from this collection, it's deleted from DB.
+     *
+     * LAZY fetch: Collection is only loaded when explicitly accessed or via @EntityGraph.
+     */
+    @OneToMany(
+        mappedBy = "cart",
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true,
+        fetch = FetchType.LAZY
+    )
+    var tables: MutableList<CartTable> = mutableListOf()
+
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
     /**
      * Extends the cart's expiration time and updates its activity.
      * Respects a hard limit relative to creation time to prevent infinite holding.
+     *
+     * @param minutes Number of minutes to extend from current time.
+     * @param maxTtlMinutes Maximum total lifetime from cart creation.
      */
     fun extendExpiration(minutes: Long, maxTtlMinutes: Long) {
         val now = Instant.now()
@@ -131,8 +125,70 @@ class Cart(
 
     /**
      * Updates the last activity time without extending expiration.
+     * Used for read-only operations like viewing cart summary.
      */
     fun touch() {
         this.lastActivityAt = Instant.now()
     }
+
+    /**
+     * Calculates the total price of all items in the cart using snapshotted prices.
+     *
+     * This method aggregates:
+     * - Individual seat prices (from seats collection)
+     * - GA ticket prices (unitPrice * quantity for each GA item)
+     * - Table prices (from tables collection)
+     * - Subtracts any discount amount from promo codes
+     *
+     * Note: Uses snapshotted prices captured at add-to-cart time, NOT current live prices.
+     * This ensures price consistency during the checkout flow.
+     *
+     * @return Total cart value as [BigDecimal] with 2 decimal places.
+     */
+    fun getTotalPrice(): BigDecimal {
+        val seatTotal = seats.fold(BigDecimal.ZERO) { acc, seat ->
+            acc.add(seat.unitPrice)
+        }
+
+        val gaTotal = gaItems.fold(BigDecimal.ZERO) { acc, item ->
+            acc.add(item.unitPrice.multiply(BigDecimal(item.quantity)))
+        }
+
+        val tableTotal = tables.fold(BigDecimal.ZERO) { acc, table ->
+            acc.add(table.unitPrice)
+        }
+
+        val subtotal = seatTotal.add(gaTotal).add(tableTotal)
+        val discount = discountAmount ?: BigDecimal.ZERO
+
+        return subtotal.subtract(discount).max(BigDecimal.ZERO)
+    }
+
+    /**
+     * Returns total number of items (not quantity) in the cart.
+     * Useful for UI display and validation limits.
+     *
+     * @return Count of distinct items (seats + GA items + tables).
+     */
+    fun getItemCount(): Int = seats.size + gaItems.size + tables.size
+
+    /**
+     * Returns total ticket quantity accounting for GA multiples.
+     * Used for capacity validation and order processing.
+     *
+     * @return Total ticket count (seats + sum of GA quantities + table seat counts).
+     */
+    fun getTotalTicketCount(): Int {
+        val seatCount = seats.size
+        val gaCount = gaItems.sumOf { it.quantity }
+        val tableCount = tables.size // Each table counts as 1 unit for now
+        return seatCount + gaCount + tableCount
+    }
+
+    /**
+     * Checks if the cart is empty (no items).
+     *
+     * @return true if cart has no seats, GA items, or tables.
+     */
+    fun isEmpty(): Boolean = seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()
 }

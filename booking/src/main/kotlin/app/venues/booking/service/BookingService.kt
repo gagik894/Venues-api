@@ -150,6 +150,7 @@ class BookingService(
         booking.cancel(request.reason)
         val savedBooking = bookingRepository.save(booking)
 
+        releasePromoIfNeeded(savedBooking)
         // Release inventory (RESERVED/SOLD -> AVAILABLE)
         releaseBookingInventory(booking)
 
@@ -174,6 +175,7 @@ class BookingService(
         booking.cancel("Booking expired")
         val savedBooking = bookingRepository.save(booking)
 
+        releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
     }
 

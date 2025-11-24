@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.core.AuthenticationException
 import org.springframework.security.web.AuthenticationEntryPoint
+import org.springframework.stereotype.Component
 import java.io.IOException
 
 /**
@@ -36,10 +37,12 @@ import java.io.IOException
  * @see app.venues.shared.web.exception.GlobalExceptionHandler for controller-layer exception handling
  * @see ApiErrorResponseBuilder for error response formatting
  */
-class JwtAuthenticationEntryPoint : AuthenticationEntryPoint {
+@Component
+class JwtAuthenticationEntryPoint(
+    private val objectMapper: ObjectMapper
+) : AuthenticationEntryPoint {
 
     private val logger = KotlinLogging.logger {}
-    private val objectMapper = ObjectMapper()
 
     /**
      * Handles authentication failures by returning a structured error response.
@@ -71,6 +74,12 @@ class JwtAuthenticationEntryPoint : AuthenticationEntryPoint {
         response.status = HttpServletResponse.SC_UNAUTHORIZED
 
         // Write JSON response
-        response.writer.write(objectMapper.writeValueAsString(errorResponse))
+        try {
+            response.writer.write(objectMapper.writeValueAsString(errorResponse))
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to write authentication error response" }
+            // Fallback to simple message if JSON serialization fails
+            response.writer.write("{\"error\": \"Authentication failed\"}")
+        }
     }
 }

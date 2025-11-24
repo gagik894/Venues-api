@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
     }
-
+    
     // Include the parent project's version catalog
     versionCatalogs {
         create("libs") {

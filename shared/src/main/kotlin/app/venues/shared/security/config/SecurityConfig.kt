@@ -76,7 +76,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 class SecurityConfig(
-    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
+    private val jwtAccessDeniedHandler: JwtAccessDeniedHandler
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -196,9 +198,9 @@ class SecurityConfig(
             .exceptionHandling { exceptions ->
                 exceptions
                     // Delegate to custom entry point for consistent error responses
-                    .authenticationEntryPoint(JwtAuthenticationEntryPoint())
+                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                     // Delegate to custom handler for consistent error responses
-                    .accessDeniedHandler(JwtAccessDeniedHandler())
+                    .accessDeniedHandler(jwtAccessDeniedHandler)
             }
 
         // Add JWT authentication filter before username/password authentication

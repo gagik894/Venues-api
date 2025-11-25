@@ -67,6 +67,36 @@ class SeatingService(
     }
 
     /**
+     * Create a seating chart together with its full layout in a single request.
+     */
+    fun createSeatingChartWithLayout(
+        venueId: UUID,
+        request: SeatingChartLayoutRequest
+    ): SeatingChartDetailedResponse {
+        if (!venueApi.venueExists(venueId)) {
+            throw VenuesException.ResourceNotFound("Venue not found")
+        }
+
+        if (seatingChartRepository.existsByVenueIdAndName(venueId, request.chart.name)) {
+            throw VenuesException.ResourceConflict("Chart name already exists")
+        }
+
+        val chart = SeatingChart(
+            venueId = venueId,
+            name = request.chart.name,
+            width = request.chart.width,
+            height = request.chart.height,
+            backgroundUrl = request.chart.backgroundUrl
+        )
+
+        val saved = seatingChartRepository.save(chart)
+        applyLayout(saved, request)
+
+        logger.info { "Created seating chart ${saved.id} with full layout" }
+        return getSeatingChartDetailed(saved.id ?: error("Chart ID cannot be null after save"))
+    }
+
+    /**
      * Update existing seating chart.
      * @throws VenuesException.ResourceNotFound if chart not found
      * @throws VenuesException.AuthorizationFailure if chart doesn't belong to venue
@@ -101,6 +131,45 @@ class SeatingService(
             stats.gaCapacity,
             stats.zoneCount
         )
+    }
+
+    /**
+     * Replace chart metadata and its entire component tree (zones, seats, tables, GA areas).
+     */
+    fun replaceSeatingChartLayout(
+        chartId: UUID,
+        venueId: UUID,
+        request: SeatingChartLayoutRequest
+    ): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+
+        if (chart.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        if (chart.name != request.chart.name && seatingChartRepository.existsByVenueIdAndName(
+                venueId,
+                request.chart.name
+            )
+        ) {
+            throw VenuesException.ResourceConflict("Chart name already exists")
+        }
+
+        chart.name = request.chart.name
+        chart.resizeCanvas(request.chart.width, request.chart.height)
+        chart.backgroundUrl = request.chart.backgroundUrl
+
+        val existingZones = chartZoneRepository.findByChartId(chartId)
+        if (existingZones.isNotEmpty()) {
+            chartZoneRepository.deleteAll(existingZones)
+            chartZoneRepository.flush()
+        }
+
+        applyLayout(chart, request)
+        logger.info { "Replaced seating chart layout for $chartId" }
+
+        return getSeatingChartDetailed(chartId)
     }
 
     /**
@@ -158,221 +227,148 @@ class SeatingService(
         return mapper.toDetailedResponse(chart, venueName, allZones)
     }
 
-    // =================================================================================
-    // ZONE MANAGEMENT
-    // =================================================================================
-
-    /**
-     * Add zone (section/floor) to chart.
-     * @throws VenuesException.ResourceNotFound if chart or parent zone not found
-     * @throws VenuesException.ResourceConflict if code already exists or parent belongs to different chart
-     */
-    fun addZone(chartId: UUID, request: ZoneRequest): ZoneResponse {
-        val chart = seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
-
-        val parentZone = request.parentZoneId?.let {
-            chartZoneRepository.findById(it)
-                .orElseThrow { VenuesException.ResourceNotFound("Parent zone not found") }
+    private fun applyLayout(chart: SeatingChart, request: SeatingChartLayoutRequest) {
+        if (request.zones.isEmpty()) {
+            throw VenuesException.ValidationFailure("At least one zone is required")
         }
 
-        if (parentZone != null && parentZone.chart.id != chartId) {
-            throw VenuesException.ResourceConflict("Parent zone belongs to different chart")
+        ensureUnique(request.zones.map { it.code }, "zone codes")
+        ensureUnique(request.tables.map { it.code }, "table codes")
+        ensureUnique(request.gaAreas.map { it.code }, "GA area codes")
+
+        val zoneDrafts = request.zones.associate { dto ->
+            dto.code to ChartZone(
+                chart = chart,
+                parentZone = null,
+                name = dto.name,
+                code = dto.code,
+                x = dto.x,
+                y = dto.y,
+                rotation = dto.rotation,
+                boundaryPath = dto.boundaryPath,
+                displayColor = dto.displayColor
+            )
         }
 
-        if (chartZoneRepository.existsByChartIdAndCode(chartId, request.code)) {
-            throw VenuesException.ResourceConflict("Zone code already exists")
+        request.zones.forEach { dto ->
+            val zone = zoneDrafts.getValue(dto.code)
+            val parentCode = dto.parentCode
+            if (parentCode != null) {
+                val parent = zoneDrafts[parentCode]
+                    ?: throw VenuesException.ValidationFailure("Parent zone '$parentCode' not found for zone '${dto.code}'")
+                parent.addChildZone(zone)
+            } else {
+                chart.addZone(zone)
+            }
         }
 
-        val zone = ChartZone(
-            chart = chart,
-            parentZone = parentZone,
-            name = request.name,
-            code = request.code,
-            x = request.x,
-            y = request.y,
-            rotation = request.rotation,
-            boundaryPath = request.boundaryPath,
-            displayColor = request.displayColor
-        )
+        val persistedZones = chartZoneRepository.saveAll(zoneDrafts.values)
+        val zonesByCode = persistedZones.associateBy { it.code }
 
-        if (parentZone != null) {
-            parentZone.addChildZone(zone)
+        val seatsPerTable = request.seats
+            .mapNotNull { it.tableCode }
+            .groupingBy { it }
+            .eachCount()
+
+        val tableEntities = request.tables.map { dto ->
+            val zone = zonesByCode[dto.zoneCode]
+                ?: throw VenuesException.ValidationFailure("Zone '${dto.zoneCode}' not found for table '${dto.code}'")
+            val seatCount = seatsPerTable[dto.code] ?: 0
+            val resolvedCapacity = resolveSeatCapacity(dto, seatCount)
+            ChartTable(
+                zone = zone,
+                tableNumber = dto.tableNumber,
+                code = dto.code,
+                seatCapacity = resolvedCapacity,
+                categoryKey = dto.categoryKey,
+                shape = TableShape.valueOf(dto.shape.uppercase()),
+                x = dto.x,
+                y = dto.y,
+                width = dto.width,
+                height = dto.height,
+                rotation = dto.rotation
+            )
+        }
+        val tablesByCode = if (tableEntities.isNotEmpty()) {
+            chartTableRepository.saveAll(tableEntities).associateBy { it.code }
         } else {
-            chart.addZone(zone)
+            emptyMap()
         }
 
-        val saved = chartZoneRepository.save(zone)
-        logger.info { "Created zone: ${saved.code} in chart: $chartId" }
+        val gaEntities = request.gaAreas.map { dto ->
+            val zone = zonesByCode[dto.zoneCode]
+                ?: throw VenuesException.ValidationFailure("Zone '${dto.zoneCode}' not found for GA area '${dto.code}'")
+            GeneralAdmissionArea(
+                zone = zone,
+                name = dto.name,
+                code = dto.code,
+                capacity = dto.capacity,
+                categoryKey = dto.categoryKey,
+                boundaryPath = dto.boundaryPath,
+                displayColor = dto.displayColor
+            )
+        }
+        if (gaEntities.isNotEmpty()) {
+            gaAreaRepository.saveAll(gaEntities)
+        }
 
-        return mapper.toZoneResponse(saved)
-    }
-
-    // =================================================================================
-    // TABLE MANAGEMENT
-    // =================================================================================
-
-    /**
-     * Add physical table to zone.
-     * @throws VenuesException.ResourceNotFound if zone not found
-     * @throws VenuesException.ResourceConflict if zone belongs to different chart
-     */
-    fun addTable(chartId: UUID, request: TableRequest): TableResponse {
-        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
-
-        val table = ChartTable(
-            zone = zone,
-            tableNumber = request.tableNumber,
-            code = request.code,
-            seatCapacity = request.seatCapacity,
-            categoryKey = request.categoryKey,
-            shape = TableShape.valueOf(request.shape.uppercase()),
-            x = request.x,
-            y = request.y,
-            width = request.width,
-            height = request.height,
-            rotation = request.rotation
+        ensureUnique(
+            request.seats.map { "${it.zoneCode}:${it.rowLabel}:${it.seatNumber}" },
+            "seat definitions"
         )
 
-        val saved = chartTableRepository.save(table)
-        logger.info { "Created table: ${saved.code} in zone: ${zone.code}" }
-
-        return mapper.toTableResponse(saved)
-    }
-
-    // =================================================================================
-    // GA AREA MANAGEMENT
-    // =================================================================================
-
-    /**
-     * Add general admission area to zone.
-     * @throws VenuesException.ResourceNotFound if zone not found
-     * @throws VenuesException.ResourceConflict if zone belongs to different chart
-     */
-    fun addGaArea(chartId: UUID, request: GaAreaRequest): GaAreaResponse {
-        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
-
-        val ga = GeneralAdmissionArea(
-            zone = zone,
-            name = request.name,
-            code = request.code,
-            capacity = request.capacity,
-            categoryKey = request.categoryKey,
-            boundaryPath = request.boundaryPath,
-            displayColor = request.displayColor
-        )
-
-        val saved = gaAreaRepository.save(ga)
-        logger.info { "Created GA area: ${saved.code} with capacity ${saved.capacity}" }
-
-        return mapper.toGaAreaResponse(saved)
-    }
-
-    // =================================================================================
-    // SEAT MANAGEMENT
-    // =================================================================================
-
-    /**
-     * Add single seat to zone.
-     * @throws VenuesException.ResourceNotFound if zone or table not found
-     * @throws VenuesException.ResourceConflict if table/zone mismatch or duplicate code
-     */
-    fun addSeat(chartId: UUID, request: SeatRequest): SeatResponse {
-        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
-
-        val table = request.tableId?.let {
-            chartTableRepository.findById(it)
-                .orElseThrow { VenuesException.ResourceNotFound("Table not found") }
-        }
-
-        if (table != null && table.zone.id != zone.id) {
-            throw VenuesException.ResourceConflict("Table must belong to same zone as seat")
-        }
-
-        val seat = ChartSeat(
-            zone = zone,
-            row = request.rowLabel,
-            number = request.seatNumber,
-            x = request.x,
-            y = request.y,
-            category = request.categoryKey
-        )
-        seat.rotation = request.rotation
-        seat.isAccessible = request.isAccessible
-        seat.isObstructedView = request.isObstructed
-
-        if (table != null) {
-            table.attachSeat(seat)
-        }
-
-        val zoneId = zone.id ?: error("Zone ID cannot be null")
-        if (chartSeatRepository.existsByZoneIdAndCode(zoneId, seat.code)) {
-            throw VenuesException.ResourceConflict("Seat code already exists in zone")
-        }
-
-        val saved = chartSeatRepository.save(seat)
-        logger.info { "Created seat: ${saved.code}" }
-
-        return mapper.toSeatResponse(saved)
-    }
-
-    /**
-     * Add multiple seats in batch.
-     * @throws VenuesException.ResourceNotFound if zone not found
-     * @throws VenuesException.ValidationFailure if duplicate codes in batch
-     */
-    fun addSeatsBatch(chartId: UUID, request: BatchSeatRequest): List<SeatResponse> {
-        val zone = findZoneAndVerifyChart(request.zoneId, chartId)
-
-        val seats = request.seats.map { item ->
+        val seatEntities = request.seats.map { dto ->
+            val zone = zonesByCode[dto.zoneCode]
+                ?: throw VenuesException.ValidationFailure("Zone '${dto.zoneCode}' not found for seat ${dto.rowLabel}-${dto.seatNumber}")
             val seat = ChartSeat(
                 zone = zone,
-                row = item.rowLabel,
-                number = item.seatNumber,
-                x = item.x,
-                y = item.y,
-                category = item.categoryKey
+                row = dto.rowLabel,
+                number = dto.seatNumber,
+                x = dto.x,
+                y = dto.y,
+                category = dto.categoryKey
             )
-            seat.rotation = item.rotation
+            seat.rotation = dto.rotation
+            seat.isAccessible = dto.isAccessible
+            seat.isObstructedView = dto.isObstructed
+
+            val tableCode = dto.tableCode
+            if (tableCode != null) {
+                val table = tablesByCode[tableCode]
+                    ?: throw VenuesException.ValidationFailure("Table '$tableCode' not found for seat ${dto.rowLabel}-${dto.seatNumber}")
+                table.attachSeat(seat)
+            }
+
             seat
         }
-
-        if (seats.map { it.code }.distinct().size != seats.size) {
-            throw VenuesException.ValidationFailure("Duplicate seat codes in batch")
+        if (seatEntities.isNotEmpty()) {
+            chartSeatRepository.saveAll(seatEntities)
         }
-
-        val saved = chartSeatRepository.saveAll(seats)
-        logger.info { "Created ${saved.size} seats in zone: ${zone.code}" }
-
-        return saved.map { mapper.toSeatResponse(it) }
     }
 
-    /**
-     * Delete seat from chart.
-     * @throws VenuesException.ResourceNotFound if seat not found
-     */
-    fun deleteSeat(seatId: Long) {
-        if (!chartSeatRepository.existsById(seatId)) {
-            throw VenuesException.ResourceNotFound("Seat not found")
+    private fun resolveSeatCapacity(dto: TableLayoutRequest, seatCount: Int): Int {
+        val requested = dto.seatCapacity
+
+        if (seatCount > 0) {
+            if (requested != null && requested != seatCount) {
+                throw VenuesException.ValidationFailure(
+                    "Table '${dto.code}' seat capacity (${requested}) must equal the number of attached seats ($seatCount)"
+                )
+            }
+            return requested ?: seatCount
         }
 
-        chartSeatRepository.deleteById(seatId)
-        logger.info { "Deleted seat: $seatId" }
+        return requested
+            ?: throw VenuesException.ValidationFailure(
+                "Table '${dto.code}' must specify seat capacity when no seat definitions are provided"
+            )
     }
 
-    // =================================================================================
-    // PRIVATE HELPERS
-    // =================================================================================
-
-    private fun findZoneAndVerifyChart(zoneId: Long, chartId: UUID): ChartZone {
-        val zone = chartZoneRepository.findById(zoneId)
-            .orElseThrow { VenuesException.ResourceNotFound("Zone not found") }
-
-        if (zone.chart.id != chartId) {
-            throw VenuesException.ResourceConflict("Zone belongs to different chart")
+    private fun ensureUnique(values: List<String>, label: String) {
+        val duplicates = values.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        if (duplicates.isNotEmpty()) {
+            throw VenuesException.ValidationFailure("Duplicate $label detected: ${duplicates.joinToString(", ")}")
         }
-
-        return zone
     }
 
     private data class ChartStats(val seatCount: Int, val gaCapacity: Int, val zoneCount: Int)

@@ -57,6 +57,19 @@ class VenueSeatingController(
         return ApiResponse.success(chart, "Created successfully")
     }
 
+    @PostMapping("/layout")
+    @Operation(summary = "Create seating chart with layout")
+    fun createSeatingChartWithLayout(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: SeatingChartLayoutRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        val chart = seatingService.createSeatingChartWithLayout(venueId, request)
+        return ApiResponse.success(chart, "Created successfully")
+    }
+
     @GetMapping
     @Operation(summary = "Get seating chart overview")
     fun getSeatingChartsOverview(
@@ -110,6 +123,20 @@ class VenueSeatingController(
         return ApiResponse.success(chart, "Updated successfully")
     }
 
+    @PutMapping("/{chartId}/layout")
+    @Operation(summary = "Replace seating chart layout")
+    fun replaceSeatingChartLayout(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: SeatingChartLayoutRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        val chart = seatingService.replaceSeatingChartLayout(chartId, venueId, request)
+        return ApiResponse.success(chart, "Layout replaced")
+    }
+
     @DeleteMapping("/{chartId}")
     @Operation(summary = "Delete chart")
     fun deleteSeatingChart(
@@ -120,88 +147,6 @@ class VenueSeatingController(
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
 
         seatingService.deleteSeatingChart(chartId, venueId)
-        return ApiResponse.success(Unit, "Deleted successfully")
-    }
-
-    // ===========================================
-    // COMPONENTS (ZONES, TABLES, GA, SEATS)
-    // ===========================================
-
-    @PostMapping("/{chartId}/zones")
-    fun addZone(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: ZoneRequest
-    ): ApiResponse<ZoneResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        val zone = seatingService.addZone(chartId, request)
-        return ApiResponse.success(zone, "Zone added")
-    }
-
-    @PostMapping("/{chartId}/tables")
-    fun addTable(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: TableRequest
-    ): ApiResponse<TableResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        val table = seatingService.addTable(chartId, request)
-        return ApiResponse.success(table, "Table added")
-    }
-
-    @PostMapping("/{chartId}/ga-areas")
-    fun addGaArea(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: GaAreaRequest
-    ): ApiResponse<GaAreaResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        val ga = seatingService.addGaArea(chartId, request)
-        return ApiResponse.success(ga, "GA Area added")
-    }
-
-    @PostMapping("/{chartId}/seats")
-    fun addSeat(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatRequest
-    ): ApiResponse<SeatResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        val seat = seatingService.addSeat(chartId, request)
-        return ApiResponse.success(seat, "Seat added")
-    }
-
-    @PostMapping("/{chartId}/seats/batch")
-    fun addSeatsBatch(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: BatchSeatRequest
-    ): ApiResponse<List<SeatResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        val seats = seatingService.addSeatsBatch(chartId, request)
-        return ApiResponse.success(seats, "${seats.size} seats added")
-    }
-
-    @DeleteMapping("/{chartId}/seats/{seatId}")
-    fun deleteSeat(
-        @PathVariable venueId: UUID,
-        @PathVariable chartId: UUID,
-        @PathVariable seatId: Long,
-        @RequestAttribute staffId: UUID
-    ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
-
-        seatingService.deleteSeat(seatId)
         return ApiResponse.success(Unit, "Deleted successfully")
     }
 }

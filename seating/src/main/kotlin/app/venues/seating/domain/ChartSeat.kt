@@ -99,7 +99,7 @@ class ChartSeat(
         // Integrity Check: Ensure the code stored actually matches the seat data.
         // This prevents developer error where row="A" but code="ROW-B".
         val expectedKeyPart =
-            "ROW-${rowLabel.replace(" ", "").uppercase()}_SEAT-${seatNumber.replace(" ", "").uppercase()}"
+            "ROW-${SeatCodeFormatter.sanitize(rowLabel)}_SEAT-${SeatCodeFormatter.sanitize(seatNumber)}"
         require(code.contains(expectedKeyPart)) {
             "Data Integrity Error: Seat code '$code' does not match Row '$rowLabel' and Number '$seatNumber'"
         }

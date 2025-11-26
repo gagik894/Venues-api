@@ -45,6 +45,9 @@ class CartItemPersistence(
             unitPrice = price
         )
 
+        // Add to cart's collection for proper bidirectional relationship management
+        cart.seats.add(cartSeat)
+
         val saved = cartSeatRepository.save(cartSeat)
 
         logger.info { "Seat added to cart: $seatIdentifier, price=$price, cart=${cart.token}" }
@@ -82,6 +85,8 @@ class CartItemPersistence(
                 unitPrice = unitPrice,
                 quantity = quantityToAdd
             )
+            // Add to cart's collection for proper bidirectional relationship management
+            cart.gaItems.add(newItem)
             cartItemRepository.save(newItem) to false
         }
 

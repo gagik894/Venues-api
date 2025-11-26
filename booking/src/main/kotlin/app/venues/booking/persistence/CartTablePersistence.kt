@@ -37,6 +37,9 @@ class CartTablePersistence(
             unitPrice = unitPrice
         )
 
+        // Add to cart's collection for proper bidirectional relationship management
+        cart.tables.add(cartTable)
+
         val saved = cartTableRepository.save(cartTable)
         logger.debug { "Saved table $tableName to cart ${cart.token}" }
         return saved

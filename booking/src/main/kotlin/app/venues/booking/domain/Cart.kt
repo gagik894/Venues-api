@@ -71,7 +71,7 @@ class Cart(
         orphanRemoval = true,
         fetch = FetchType.LAZY
     )
-    var seats: MutableList<CartSeat> = mutableListOf()
+    var seats: MutableSet<CartSeat> = mutableSetOf()
 
     /**
      * General Admission (GA) ticket items in this cart.
@@ -87,7 +87,7 @@ class Cart(
         orphanRemoval = true,
         fetch = FetchType.LAZY
     )
-    var gaItems: MutableList<CartItem> = mutableListOf()
+    var gaItems: MutableSet<CartItem> = mutableSetOf()
 
     /**
      * Complete table bookings in this cart.
@@ -103,7 +103,7 @@ class Cart(
         orphanRemoval = true,
         fetch = FetchType.LAZY
     )
-    var tables: MutableList<CartTable> = mutableListOf()
+    var tables: MutableSet<CartTable> = mutableSetOf()
 
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 

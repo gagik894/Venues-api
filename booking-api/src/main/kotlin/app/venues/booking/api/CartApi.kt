@@ -14,7 +14,7 @@ interface CartApi {
      * @param token Optional existing cart token
      * @return Response DTO with token and message
      */
-    fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): AddToCartResponse
+    fun addSeatToCart(request: AddSeatToCartRequest, token: UUID? = null): CartSummaryResponse
 
     /**
      * Adds GA tickets to cart.
@@ -22,7 +22,7 @@ interface CartApi {
      * @param token Optional existing cart token
      * @return Response DTO with token and message
      */
-    fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): AddToCartResponse
+    fun addGAToCart(request: AddGAToCartRequest, token: UUID? = null): CartSummaryResponse
 
     /**
      * Adds a table to cart.
@@ -30,33 +30,33 @@ interface CartApi {
      * @param token Optional existing cart token
      * @return Response DTO with token and message
      */
-    fun addTableToCart(request: AddTableToCartRequest, token: UUID? = null): AddToCartResponse
+    fun addTableToCart(request: AddTableToCartRequest, token: UUID? = null): CartSummaryResponse
 
     /**
      * Removes a specific seat from cart.
      */
-    fun removeSeatFromCart(token: UUID, seatIdentifier: String)
+    fun removeSeatFromCart(token: UUID, seatIdentifier: String): CartSummaryResponse
 
     /**
      * Updates quantity of GA tickets in cart.
      * @param request DTO containing the new quantity
      */
-    fun updateGAQuantity(token: UUID, levelIdentifier: String, request: UpdateGAQuantityRequest)
+    fun updateGAQuantity(token: UUID, levelIdentifier: String, request: UpdateGAQuantityRequest): CartSummaryResponse
 
     /**
      * Removes all GA tickets for a level from cart.
      */
-    fun removeGAFromCart(token: UUID, levelIdentifier: String)
+    fun removeGAFromCart(token: UUID, levelIdentifier: String): CartSummaryResponse
 
     /**
      * Remove a table from cart.
      */
-    fun removeTableFromCart(token: UUID, tableIdentifier: String)
+    fun removeTableFromCart(token: UUID, tableIdentifier: String): CartSummaryResponse
 
     /**
      * Clears entire cart.
      */
-    fun clearCart(token: UUID)
+    fun clearCart(token: UUID): CartSummaryResponse
 
     /**
      * Apply a promo code to the cart.
@@ -64,5 +64,5 @@ interface CartApi {
      * @param code Promo code string
      * @return Response with new pricing details
      */
-    fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse
+    fun applyPromoCode(token: UUID, code: String): CartSummaryResponse
 }

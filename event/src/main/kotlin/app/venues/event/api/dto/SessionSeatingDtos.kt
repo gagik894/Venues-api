@@ -39,8 +39,7 @@ data class SessionSeatingResponse(
  * Simple flat structure for UI rendering.
  */
 data class SessionSeatResponse(
-    val seatId: Long,
-    val seatIdentifier: String,
+    val code: String,
     val seatNumber: String?,
     val rowLabel: String?,
 
@@ -48,8 +47,8 @@ data class SessionSeatResponse(
 
     // Level hierarchy from root to leaf (e.g., ["Orchestra", "Row A"])
     val levels: List<String>,
-    val zoneId: Long,
-    val tableId: Long?,
+    val zoneCode: String,
+    val tableCode: String,
     val categoryKey: String,
     val isAccessible: Boolean,
     val isObstructed: Boolean,
@@ -67,13 +66,13 @@ data class SessionSeatResponse(
  * General Admission area with capacity.
  */
 data class SessionGaAreaResponse(
-    val levelIdentifier: String,
+    val code: String,
     val levelName: String,
 
     val isBookable: Boolean,
 
     val levels: List<String>,  // Hierarchy (e.g., ["Balcony", "Standing Area"])
-    val zoneId: Long,
+    val zoneCode: String,
     val capacity: Int,
     val available: Int,
     val price: String?,
@@ -87,15 +86,14 @@ data class SessionGaAreaResponse(
  * Represents a group of seats that can be booked as a complete unit.
  */
 data class SessionTableResponse(
-    val tableId: Long,
     val tableName: String,
-    val tableIdentifier: String?,
+    val code: String,
 
     val isBookable: Boolean,
 
     // Level hierarchy (e.g., ["VIP Lounge", "VIP Table 1"])
     val levels: List<String>,
-    val zoneId: Long,
+    val zoneCode: String,
     val positionX: Double?,
     val positionY: Double?,
     // Table booking configuration
@@ -105,7 +103,7 @@ data class SessionTableResponse(
     val shape: String?,
     val bookingMode: String,  // TABLE_ONLY, FLEXIBLE, SEATS_ONLY
     val seatCount: Int,
-    val seatIdentifiers: List<String>,
+    val seatCodes: List<String>,
     val status: String,
     val price: String?,
     val priceTemplateName: String?,
@@ -113,10 +111,9 @@ data class SessionTableResponse(
 )
 
 data class SessionZoneResponse(
-    val id: Long,
     val name: String,
     val code: String,
-    val parentZoneId: Long?,
+    val parentZoneCode: String,
     val positionX: Double?,
     val positionY: Double?,
     val rotation: Double?,

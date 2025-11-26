@@ -39,8 +39,10 @@ class CartController(
         cookie.path = "/"
         cookie.maxAge = 60 * 30
         cookie.secure = cookieSecure
+        cookie.setAttribute("SameSite", "Strict")
         response.addCookie(cookie)
     }
+
 
     /**
      * Add seat to cart.
@@ -55,7 +57,7 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<AddToCartResponse> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding seat to cart: $request, token=$effectiveToken" }
 
@@ -65,7 +67,7 @@ class CartController(
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Seat added to cart"
         )
     }
 
@@ -82,7 +84,7 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<AddToCartResponse> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding GA to cart: $request, token=$effectiveToken" }
 
@@ -92,7 +94,7 @@ class CartController(
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "GA tickets added to cart"
         )
     }
 
@@ -109,7 +111,7 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<AddToCartResponse> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding Table to cart: $request, token=$effectiveToken" }
 
@@ -119,7 +121,7 @@ class CartController(
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Table added to cart"
         )
     }
 
@@ -164,16 +166,16 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable seatIdentifier: String
-    ): ApiResponse<Unit> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
         logger.debug { "Removing seat from cart: token=$effectiveToken, seatIdentifier=$seatIdentifier" }
 
-        cartService.removeSeatFromCart(effectiveToken, seatIdentifier)
+        val result = cartService.removeSeatFromCart(effectiveToken, seatIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Seat removed from cart"
         )
     }
@@ -191,16 +193,16 @@ class CartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable levelIdentifier: String,
         @Valid @RequestBody request: UpdateGAQuantityRequest
-    ): ApiResponse<Unit> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
         logger.debug { "Updating GA quantity: token=$effectiveToken, level=$levelIdentifier, qty=${request.quantity}" }
 
-        cartService.updateGAQuantity(effectiveToken, levelIdentifier, request)
+        val result = cartService.updateGAQuantity(effectiveToken, levelIdentifier, request)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "GA quantity updated successfully"
         )
     }
@@ -217,16 +219,16 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable levelIdentifier: String
-    ): ApiResponse<Unit> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
         logger.debug { "Removing GA item: token=$effectiveToken, level=$levelIdentifier" }
 
-        cartService.removeGAFromCart(effectiveToken, levelIdentifier)
+        val result = cartService.removeGAFromCart(effectiveToken, levelIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "GA item removed from cart"
         )
     }
@@ -243,16 +245,16 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable tableIdentifier: String
-    ): ApiResponse<Unit> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
         logger.debug { "Removing table: token=$effectiveToken, table=$tableIdentifier" }
 
-        cartService.removeTableFromCart(effectiveToken, tableIdentifier)
+        val result = cartService.removeTableFromCart(effectiveToken, tableIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Table removed from cart"
         )
     }
@@ -269,13 +271,13 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<Unit> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
         logger.debug { "Clearing cart: $effectiveToken" }
 
-        cartService.clearCart(effectiveToken)
+        val result = cartService.clearCart(effectiveToken)
 
         // Clear cookie
         val cookie = Cookie("cart_token", "")
@@ -285,7 +287,7 @@ class CartController(
         response.addCookie(cookie)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Cart cleared"
         )
     }
@@ -302,7 +304,7 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @Valid @RequestBody request: ApplyPromoCodeRequest
-    ): ApiResponse<PromoCodeAppliedResponse> {
+    ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 
@@ -312,7 +314,7 @@ class CartController(
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Promo code applied successfully"
         )
     }
 }

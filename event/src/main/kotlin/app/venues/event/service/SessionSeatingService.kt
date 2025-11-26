@@ -65,14 +65,20 @@ class SessionSeatingService(
         val tableConfigs = sessionTableConfigRepository.findBySessionId(sessionId)
         val tableConfigMap = tableConfigs.associateBy { it.tableId }
 
-        // Build zone hierarchy map for breadcrumb display and expose raw zones
+        // Build zone lookup maps
+        val zoneIdToCode = chartStructure.zones.associate { it.id to it.code }
+        chartStructure.zones.associate { zone ->
+            zone.id to zone.parentZoneId?.let { zoneIdToCode[it] }
+        }
+        val tableIdToCode = chartStructure.tables.associate { it.id to it.code }
+
+        // Build zone hierarchy map for breadcrumb display (by zone code)
         val zoneHierarchyMap = buildZoneHierarchyMap(chartStructure.zones)
         val zones = chartStructure.zones.map { zone ->
             SessionZoneResponse(
-                id = zone.id,
                 name = zone.name,
                 code = zone.code,
-                parentZoneId = zone.parentZoneId,
+                parentZoneCode = zone.parentZoneId?.let { zoneIdToCode[it] } ?: "",
                 positionX = zone.x,
                 positionY = zone.y,
                 rotation = zone.rotation,
@@ -92,14 +98,13 @@ class SessionSeatingService(
             val (price, templateName, color) = resolveSeatPricing(seatDto.categoryKey, config, session, event)
 
             SessionSeatResponse(
-                seatId = seatDto.id,
-                seatIdentifier = seatDto.code,
-                isBookable = status == "AVAILABLE",
+                code = seatDto.code,
                 seatNumber = seatDto.seatNumber,
                 rowLabel = seatDto.rowLabel,
+                isBookable = status == "AVAILABLE",
                 levels = zoneHierarchyMap[seatDto.zoneId] ?: listOf("Unknown"),
-                zoneId = seatDto.zoneId,
-                tableId = seatDto.tableId,
+                zoneCode = zoneIdToCode[seatDto.zoneId] ?: "",
+                tableCode = seatDto.tableId?.let { tableIdToCode[it] } ?: "",
                 categoryKey = seatDto.categoryKey,
                 isAccessible = seatDto.isAccessible,
                 isObstructed = seatDto.isObstructed,
@@ -124,11 +129,11 @@ class SessionSeatingService(
             val available = config.getAvailableCapacity() ?: 0
 
             SessionGaAreaResponse(
-                levelIdentifier = gaDto.code,
+                code = gaDto.code,
                 levelName = gaDto.name,
                 isBookable = config.status.name == "AVAILABLE",
                 levels = zoneHierarchyMap[gaDto.zoneId] ?: listOf(gaDto.name),
-                zoneId = gaDto.zoneId,
+                zoneCode = zoneIdToCode[gaDto.zoneId] ?: "",
                 capacity = capacity,
                 available = available,
                 price = config.priceTemplate?.price?.toString(),
@@ -150,12 +155,11 @@ class SessionSeatingService(
             val tableSeats = chartStructure.seats.filter { it.tableId == tableDto.id }
 
             SessionTableResponse(
-                tableId = tableDto.id,
                 tableName = tableDto.tableNumber,
-                tableIdentifier = tableDto.code,
+                code = tableDto.code,
                 isBookable = config.status.name == "AVAILABLE",
                 levels = zoneHierarchyMap[tableDto.zoneId] ?: listOf(tableDto.tableNumber),
-                zoneId = tableDto.zoneId,
+                zoneCode = zoneIdToCode[tableDto.zoneId] ?: "",
                 positionX = tableDto.x,
                 positionY = tableDto.y,
                 width = tableDto.width,
@@ -164,7 +168,7 @@ class SessionSeatingService(
                 shape = tableDto.shape,
                 bookingMode = config.bookingMode.name,
                 seatCount = tableSeats.size,
-                seatIdentifiers = tableSeats.map { it.code },
+                seatCodes = tableSeats.map { it.code },
                 status = config.status.name,
                 price = config.priceTemplate?.price?.toString(),
                 priceTemplateName = config.priceTemplate?.templateName,

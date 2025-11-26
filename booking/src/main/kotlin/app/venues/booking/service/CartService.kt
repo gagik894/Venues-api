@@ -423,29 +423,6 @@ class CartService(
             "Cart cleared: token=$token, seats=${seatIds.size}, GA=${gaUpdates.size}, tables=${tableIds.size}"
         }
 
-        // Return empty summary (or whatever getCartSummary returns for empty/deleted cart)
-        // Since the cart is deleted, getCartSummary might fail if it expects a cart to exist.
-        // However, the requirement is to return a summary.
-        // If the cart is deleted, we probably should return an empty summary structure or create a new empty cart.
-        // But clearCart usually implies the session is still active, just empty.
-        // CartSessionManager.findOrCreateCart might be needed if getCartSummary fails.
-        // Let's check getCartSummary implementation. It throws ResourceNotFound if cart is empty/missing?
-        // "if (seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()) { throw VenuesException.ResourceNotFound("Cart is empty") }"
-        // So we cannot call getCartSummary after deleting the cart.
-
-        // We should probably NOT delete the cart entity, but just clear its items.
-        // But the current implementation deletes the cart entity: cartRepository.delete(cart)
-
-        // If I change this to not delete the cart, I change behavior.
-        // If I want to return a summary, I need a cart.
-
-        // Re-creating an empty cart seems appropriate if we want to return a summary.
-        // Or we can construct an empty summary manually.
-
-        // Let's construct a manual empty summary to avoid DB calls and issues.
-        // But I need currency and eventTitle.
-        // I can get them from the session.
-
         val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Session not found")
 

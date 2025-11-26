@@ -64,5 +64,5 @@ interface CartApi {
      * @param code Promo code string
      * @return Response with new pricing details
      */
-    fun applyPromoCode(token: UUID, code: String): CartSummaryResponse
+    fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse
 }

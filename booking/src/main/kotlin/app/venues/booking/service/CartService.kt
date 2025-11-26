@@ -444,7 +444,7 @@ class CartService(
      * Validates the code with VenueApi and updates the cart with the discount.
      */
     @Transactional
-    override fun applyPromoCode(token: UUID, code: String): CartSummaryResponse {
+    override fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse {
         // Load cart with ALL items in single query (via @EntityGraph)
         val cart = cartSessionManager.getActiveCartWithItems(token)
 
@@ -452,6 +452,8 @@ class CartService(
         val session = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Session not found")
         val venueId = session.venueId
+
+        logger.debug { "Applying promo code '$code' for cart ${cart.token}, venueId=$venueId, sessionId=${cart.sessionId}" }
 
         // 2. Validate Promo Code via VenueApi
         val promoCode = venueApi.validatePromoCode(venueId, code)
@@ -499,6 +501,12 @@ class CartService(
 
         logger.info { "Applied promo code '$code' to cart ${cart.token}. Discount: $discount" }
 
-        return cartQueryApi.getCartSummary(token)
+        return PromoCodeAppliedResponse(
+            originalPrice = subtotal,
+            discountAmount = discount,
+            finalPrice = subtotal.subtract(discount),
+            promoCode = code,
+            message = "Promo code applied successfully"
+        )
     }
 }

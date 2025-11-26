@@ -25,11 +25,14 @@ class CartSessionManager(
         val existingCart = token?.let { cartRepository.findByToken(it) }
 
         if (existingCart != null) {
-            validateCartSession(existingCart, sessionId)
+            // If cart is expired or for different session, create a new one
+            if (existingCart.isExpired() || existingCart.sessionId != sessionId) {
+                return createNewCart(null, sessionId, userId)
+            }
             return extendCartExpiration(existingCart)
         }
 
-        return createNewCart(token, sessionId, userId)
+        return createNewCart(null, sessionId, userId)
     }
 
     fun getActiveCart(token: UUID): Cart {
@@ -72,18 +75,6 @@ class CartSessionManager(
         // Extend expiration on activity to prevent session timeout while user is active
         cart.extendExpiration(CART_TOUCH_ADD_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())
         return cartRepository.save(cart)
-    }
-
-    private fun validateCartSession(cart: Cart, sessionId: UUID) {
-        if (cart.isExpired()) {
-            throw VenuesException.ValidationFailure("Cart has expired. Please start a new cart.")
-        }
-
-        if (cart.sessionId != sessionId) {
-            throw VenuesException.ValidationFailure(
-                "Cannot add items from different event sessions to the same cart"
-            )
-        }
     }
 
     private fun extendCartExpiration(cart: Cart): Cart {

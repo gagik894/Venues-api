@@ -304,7 +304,7 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @Valid @RequestBody request: ApplyPromoCodeRequest
-    ): ApiResponse<CartSummaryResponse> {
+    ): ApiResponse<PromoCodeAppliedResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw IllegalArgumentException("Cart token is required")
 

@@ -49,7 +49,10 @@ class CartTablePersistence(
      * Remove table from cart.
      */
     fun removeTableFromCart(cart: Cart, tableId: Long) {
-        cartTableRepository.findByCartAndTableId(cart, tableId)?.let { cartTable ->
+        val cartTable = cart.tables.find { it.tableId == tableId }
+        if (cartTable != null) {
+            // Remove from cart's collection for proper bidirectional relationship management
+            cart.tables.remove(cartTable)
             cartTableRepository.delete(cartTable)
             logger.debug { "Removed table $tableId from cart ${cart.token}" }
         }

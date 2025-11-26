@@ -53,8 +53,19 @@ class CartQueryService(
         val gaItems = cart.gaItems
         val tables = cart.tables
 
+        // Return empty cart summary if no items (valid state after removing last item)
         if (seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()) {
-            throw VenuesException.ResourceNotFound("Cart is empty")
+            return cartMapper.toCartSummary(
+                token = token,
+                seats = emptyList(),
+                gaItems = emptyList(),
+                tables = emptyList(),
+                totalPrice = BigDecimal.ZERO,
+                currency = sessionDto.currency,
+                expiresAt = cart.expiresAt.toString(),
+                sessionId = cart.sessionId,
+                eventTitle = sessionDto.eventTitle
+            )
         }
 
         // 2. Collect all unique IDs needed for batch fetching

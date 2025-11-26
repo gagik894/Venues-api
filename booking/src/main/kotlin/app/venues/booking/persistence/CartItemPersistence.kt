@@ -129,10 +129,13 @@ class CartItemPersistence(
     ) {
         val sessionId = item.sessionId
         val gaAreaId = item.gaAreaId
+        val cart = item.cart
 
+        // Remove from cart's collection for proper bidirectional relationship management
+        cart.gaItems.remove(item)
         cartItemRepository.delete(item)
 
-        logger.info { "GA item removed: $levelIdentifier, cart=${item.cart.token}" }
+        logger.info { "GA item removed: $levelIdentifier, cart=${cart.token}" }
 
         publishGAAvailabilityEvent(sessionId, gaAreaId, levelIdentifier, levelName)
     }
@@ -152,10 +155,11 @@ class CartItemPersistence(
         sessionId: UUID,
         seatIdentifier: String,
     ) {
-        val cartSeats = cartSeatRepository.findByCart(cart)
-        val cartSeat = cartSeats.find { it.seatId == seatId }
+        val cartSeat = cart.seats.find { it.seatId == seatId }
             ?: throw VenuesException.ResourceNotFound("Seat not found in cart")
 
+        // Remove from cart's collection for proper bidirectional relationship management
+        cart.seats.remove(cartSeat)
         cartSeatRepository.delete(cartSeat)
 
         logger.info { "Seat removed from cart: $seatIdentifier, cart=${cart.token}" }

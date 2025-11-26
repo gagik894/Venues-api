@@ -242,13 +242,13 @@ class CartService(
      */
     @Transactional
     override fun removeSeatFromCart(token: UUID, seatIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCart(token)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
 
         // Get seat info from seating API
         val seatInfo = seatingApi.getSeatInfoByCode(seatIdentifier)
             ?: throw VenuesException.ResourceNotFound("Seat not found with code: $seatIdentifier")
 
-        // Remove from cart
+        // Remove from cart (also removes from cart.seats collection)
         cartItemPersistence.removeSeat(
             cart = cart,
             seatId = seatInfo.id,
@@ -328,7 +328,7 @@ class CartService(
      */
     @Transactional
     override fun removeGAFromCart(token: UUID, levelIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCart(token)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
 
         val gaInfo = seatingApi.getGaInfoByCode(levelIdentifier)
             ?: throw VenuesException.ResourceNotFound("GA area not found: $levelIdentifier")
@@ -358,7 +358,7 @@ class CartService(
      */
     @Transactional
     override fun removeTableFromCart(token: UUID, tableIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCart(token)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
 
         // Get table info by code
         val tableInfo = seatingApi.getTableInfoByCode(tableIdentifier)

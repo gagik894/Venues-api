@@ -50,6 +50,10 @@ class SeatingPortService(
             }
     }
 
+    override fun getSeatCount(chartId: UUID): Int {
+        return chartSeatRepository.countByZoneChartId(chartId).toInt()
+    }
+
     override fun getChartStructure(chartId: UUID): SeatingChartStructureDto? {
         val chart = seatingChartRepository.findById(chartId).orElse(null) ?: return null
 

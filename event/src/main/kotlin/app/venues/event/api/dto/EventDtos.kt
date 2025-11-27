@@ -192,6 +192,23 @@ data class PriceTemplateOverrideRequest(
     var price: BigDecimal
 )
 
+/**
+ * Request DTO for batch assigning price template to seats/tables/GA areas.
+ */
+data class AssignPriceTemplateRequest(
+    @field:NotNull(message = "Template ID is required")
+    val templateId: UUID,
+
+    /** Seat IDs to assign the template to. */
+    val seatIds: List<Long>? = null,
+
+    /** Table IDs to assign the template to. */
+    val tableIds: List<Long>? = null,
+
+    /** GA area IDs to assign the template to. */
+    val gaIds: List<Long>? = null
+)
+
 // ===========================================
 // TRANSLATION DTOs
 // ===========================================

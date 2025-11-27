@@ -171,3 +171,18 @@ data class InventoryStatsDto(
     val totalGaCapacity: Int,
     val availableGaCapacity: Int
 )
+
+/**
+ * Lightweight availability response for quick status checks.
+ * Used for event listings, availability badges, dashboard statistics.
+ */
+data class SeatAvailabilityResponse(
+    val sessionId: UUID,
+    val totalSeats: Int,
+    val availableSeats: Int,
+    val soldSeats: Int,
+    val reservedSeats: Int,
+    val blockedSeats: Int,
+    val totalGaCapacity: Int,
+    val availableGaCapacity: Int
+)

@@ -265,9 +265,9 @@ class VenueEventController(
             sessionId = sessionId,
             venueId = venueId,
             templateId = request.templateId,
-            seatIds = request.seatIds,
-            tableIds = request.tableIds,
-            gaIds = request.gaIds
+            seatIds = request.seatIds ?: emptyList(),
+            tableIds = request.tableIds ?: emptyList(),
+            gaIds = request.gaIds ?: emptyList()
         )
 
         return ApiResponse.success(
@@ -276,4 +276,3 @@ class VenueEventController(
         )
     }
 }
-

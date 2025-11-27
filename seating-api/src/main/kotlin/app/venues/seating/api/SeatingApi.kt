@@ -31,8 +31,18 @@ interface SeatingApi {
     fun getSeatingChartName(chartId: UUID): String
 
     /**
-     * Get complete chart structure for frontend rendering.
-     * Returns immutable snapshot of zones, tables, seats, and GA areas.
+     * Get total seat count for a chart (optimized - single COUNT query).
+     * Use this instead of getChartStructure when only count is needed.
+     * @return seat count or 0 if chart not found
+     */
+    fun getSeatCount(chartId: UUID): Int
+
+    /**
+     * Get complete chart structure for backend operations (admin, session setup).
+     * NOTE: For user-facing APIs, use the Split Strategy:
+     * - Static: GET /seating-charts/{chartId}/structure (cached)
+     * - Dynamic: GET /sessions/{sessionId}/inventory (real-time)
+     *
      * @return full structure or null if chart not found
      */
     fun getChartStructure(chartId: UUID): SeatingChartStructureDto?

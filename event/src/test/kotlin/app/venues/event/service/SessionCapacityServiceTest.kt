@@ -5,8 +5,6 @@ import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.seating.api.SeatingApi
-import app.venues.seating.api.dto.SeatDto
-import app.venues.seating.api.dto.SeatingChartStructureDto
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -46,21 +44,8 @@ class SessionCapacityServiceTest {
             priceRangeOverride = null
         )
 
-        val structure = SeatingChartStructureDto(
-            chartId = chartId,
-            chartName = "Main",
-            width = 100,
-            height = 100,
-            zones = emptyList(),
-            tables = emptyList(),
-            seats = listOf(
-                SeatDto(1L, 1L, null, "A1", "A", "1", "VIP", false, false, 0.0, 0.0, 0.0),
-                SeatDto(2L, 1L, null, "A2", "A", "2", "VIP", false, false, 0.0, 0.0, 0.0)
-            ),
-            gaAreas = emptyList()
-        )
-
-        every { seatingApi.getChartStructure(chartId) } returns structure
+        // Optimized: use COUNT query instead of fetching full structure
+        every { seatingApi.getSeatCount(chartId) } returns 2
         every { gaConfigRepository.sumCapacityBySessionId(session.id) } returns 50L
 
         service.recalculateForSession(session)

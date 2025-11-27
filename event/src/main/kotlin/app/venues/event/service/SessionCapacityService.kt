@@ -13,9 +13,9 @@ import java.util.*
 /**
  * Computes and persists aggregate ticket capacity for sessions.
  *
- * Seats are counted directly from the seating chart snapshot while GA capacity
- * is derived from session-level GA configs. Tables are ignored because their
- * seats are already included in the chart seat list.
+ * Seats are counted directly from the seating chart (optimized COUNT query)
+ * while GA capacity is derived from session-level GA configs.
+ * Tables are ignored because their seats are already included in the seat count.
  */
 @Service
 @Transactional
@@ -40,10 +40,8 @@ class SessionCapacityService(
             return
         }
 
-        val structure = seatingApi.getChartStructure(chartId)
-            ?: throw VenuesException.ResourceNotFound("Seating chart not found: $chartId")
-
-        val seatCount = structure.seats.size.toLong()
+        // Use optimized COUNT query instead of fetching full structure
+        val seatCount = seatingApi.getSeatCount(chartId).toLong()
         val gaCapacity = gaConfigRepository.sumCapacityBySessionId(session.id)
         val totalCapacity = seatCount + gaCapacity
 

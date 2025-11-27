@@ -2,6 +2,7 @@ package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.SeatAvailabilityResponse
+import app.venues.event.api.dto.SessionInventoryResponse
 import app.venues.event.api.dto.SessionSeatingResponse
 import app.venues.event.service.SessionSeatingService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -72,6 +73,55 @@ class SessionSeatingController(
         return ApiResponse.success(
             data = seating,
             message = "Session seating retrieved successfully"
+        )
+    }
+
+    /**
+     * Get lightweight session inventory (Split Strategy - Dynamic Layer).
+     *
+     * Returns only dynamic state (status, pricing) without geometry data.
+     * Designed to work alongside cached static structure:
+     * - Static: GET /seating-charts/{chartId}/structure (cached 24h)
+     * - Dynamic: GET /sessions/{sessionId}/inventory (real-time)
+     *
+     * Client merges the two responses using ID matching for optimal performance.
+     *
+     * @param sessionId Event session ID
+     * @return Lightweight inventory state keyed by ID
+     */
+    @GetMapping("/{sessionId}/inventory")
+    @Operation(
+        summary = "Get session inventory (lightweight)",
+        description = """
+            Get lightweight session inventory for real-time status updates.
+            
+            This endpoint is part of the Split Strategy for high-performance venues:
+            1. Cache static structure from GET /seating-charts/{chartId}/structure
+            2. Poll this endpoint for real-time status/pricing
+            3. Merge client-side using ID matching
+            
+            Returns:
+            - Seat states (status, price, color, templateName) keyed by seat ID
+            - Table states keyed by table ID
+            - GA area states keyed by GA area ID
+            - Price templates with override information
+            - Quick statistics
+            
+            NO geometry data (X, Y, rotation) is included.
+            Prices are in cents (smallest currency unit) for efficient transfer.
+            Status codes: A=Available, R=Reserved, S=Sold, B=Blocked
+        """
+    )
+    fun getSessionInventory(
+        @PathVariable sessionId: UUID
+    ): ApiResponse<SessionInventoryResponse> {
+        logger.debug { "Fetching session inventory for session: $sessionId" }
+
+        val inventory = sessionSeatingService.getSessionInventory(sessionId)
+
+        return ApiResponse.success(
+            data = inventory,
+            message = "Session inventory retrieved successfully"
         )
     }
 

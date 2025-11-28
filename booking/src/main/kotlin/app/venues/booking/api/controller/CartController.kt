@@ -3,6 +3,7 @@ package app.venues.booking.api.controller
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
+import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -139,7 +140,7 @@ class CartController(
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required (query param or cookie)")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Fetching cart: $effectiveToken" }
 
@@ -168,7 +169,7 @@ class CartController(
         @PathVariable seatIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Removing seat from cart: token=$effectiveToken, seatIdentifier=$seatIdentifier" }
 
@@ -195,7 +196,7 @@ class CartController(
         @Valid @RequestBody request: UpdateGAQuantityRequest
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Updating GA quantity: token=$effectiveToken, level=$levelIdentifier, qty=${request.quantity}" }
 
@@ -221,7 +222,7 @@ class CartController(
         @PathVariable levelIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Removing GA item: token=$effectiveToken, level=$levelIdentifier" }
 
@@ -247,7 +248,7 @@ class CartController(
         @PathVariable tableIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Removing table: token=$effectiveToken, table=$tableIdentifier" }
 
@@ -273,7 +274,7 @@ class CartController(
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Clearing cart: $effectiveToken" }
 
@@ -306,7 +307,7 @@ class CartController(
         @Valid @RequestBody request: ApplyPromoCodeRequest
     ): ApiResponse<PromoCodeAppliedResponse> {
         val effectiveToken = token ?: cookieToken
-        ?: throw IllegalArgumentException("Cart token is required")
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
         logger.debug { "Applying promo code: token=$effectiveToken, code=${request.code}" }
 

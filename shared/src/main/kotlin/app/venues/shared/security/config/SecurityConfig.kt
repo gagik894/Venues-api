@@ -125,6 +125,7 @@ class SecurityConfig(
                     // ⚠️ IMPORTANT: All other /api/v1/venues/** endpoints are PROTECTED
                     // Includes: seating-charts, events (management), etc.
 
+                    .requestMatchers(HttpMethod.GET, "/api/v1/seating-charts/{chartId}/structure").permitAll()
                     // ============================================
                     // PUBLIC EVENT BROWSING (Read-only)
                     // ============================================
@@ -145,6 +146,7 @@ class SecurityConfig(
                     // ============================================
                     .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/seating").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/inventory").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/availability").permitAll()
 
                     // ============================================

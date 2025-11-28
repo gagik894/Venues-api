@@ -20,7 +20,6 @@ class EventMapper {
      * @param seatingChartName Optional seating chart name (must be fetched from seating module)
      * @param includeStats Whether to include statistics (session counts)
      * @param language Optional language code for translations (e.g., "hy", "ru", "en")
-     * @param anchorTemplateNames Set of template names that are "Anchors" (match chart categories)
      */
     fun toResponse(
         event: Event,
@@ -143,8 +142,6 @@ class EventMapper {
         startDateTime: String?,
         language: String? = null
     ): EventSummaryResponse {
-        // Apply event translation if requested language exists
-        // Note: translations are loaded via @BatchSize if accessed
         val translation = language?.let { lang ->
             event.translations.find { it.language.equals(lang, ignoreCase = true) }
         }

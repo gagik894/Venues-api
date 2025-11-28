@@ -48,7 +48,7 @@ class EventService(
 ) {
     private val logger = KotlinLogging.logger {}
     private val staffVisibleStatuses: Set<EventStatus> =
-        EventStatus.values().filterNot { it == EventStatus.DELETED }.toSet()
+        EventStatus.entries.filterNot { it == EventStatus.DELETED }.toSet()
 
     // ===========================================
     // EVENT CRUD

@@ -197,6 +197,20 @@ class VenueEventController(
     // PRICE TEMPLATE MANAGEMENT
     // ===========================================
 
+    @GetMapping("/{eventId}/price-templates")
+    @Operation(summary = "List price templates")
+    fun listPriceTemplates(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<PriceTemplateResponse>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val templates = eventService.getPriceTemplates(eventId)
+        val response = templates.map { eventMapper.toPriceTemplateResponse(it) }
+        return ApiResponse.success(response, "Price templates retrieved")
+    }
+
+
     @PostMapping("/{eventId}/price-templates")
     @Operation(summary = "Create price template")
     fun createPriceTemplate(

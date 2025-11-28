@@ -512,6 +512,20 @@ class EventService(
     // ===========================================
 
     /**
+     * Get price templates for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventPriceTemplate entities.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     */
+    fun getPriceTemplates(eventId: UUID): List<EventPriceTemplate> {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        return event.priceTemplates.toList()
+    }
+
+    /**
      * Create a price template for an event.
      *
      * @param eventId The ID of the event.
@@ -581,8 +595,6 @@ class EventService(
         eventPriceService.deleteTemplate(event, templateId)
         eventRepository.save(event)
     }
-
-
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
         val existingTranslationsMap = event.translations.associateBy { it.language }

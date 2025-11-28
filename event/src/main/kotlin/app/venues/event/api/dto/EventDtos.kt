@@ -197,7 +197,7 @@ data class PriceTemplateOverrideRequest(
  */
 data class AssignPriceTemplateRequest(
     @field:NotNull(message = "Template ID is required")
-    val templateId: UUID,
+    var templateId: UUID,
 
     /** Seat IDs to assign the template to. */
     val seatIds: List<Long>? = null,

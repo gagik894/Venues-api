@@ -257,3 +257,83 @@ data class EventCategoryResponse(
     val displayOrder: Int,
 )
 
+// ===========================================
+// EVENT PRICING CONFIGURATION DTOs
+// ===========================================
+
+/**
+ * Response DTO for event-level pricing configuration.
+ *
+ * Aggregates pricing from all sessions to show a unified view:
+ * - If all sessions have same template -> priceTemplateId is set
+ * - If sessions differ -> priceTemplateId is null, isMixed is true
+ *
+ * Does NOT include availability info (sold/reserved status).
+ */
+data class EventPricingConfigurationResponse(
+    val eventId: UUID,
+    val seatingChartId: UUID?,
+
+    /** Price templates available for this event. */
+    val priceTemplates: List<PriceTemplateResponse>,
+
+    /** Seat pricing map: seatId -> pricing info. */
+    val seats: Map<Long, SeatPricingDto>,
+
+    /** Table pricing map: tableId -> pricing info. */
+    val tables: Map<Long, TablePricingDto>,
+
+    /** GA area pricing map: gaAreaId -> pricing info. */
+    val gaAreas: Map<Long, GAPricingDto>
+)
+
+/**
+ * DTO for seat pricing in the aggregated view.
+ *
+ * @property priceTemplateId Template ID if all sessions agree, null if mixed
+ * @property isMixed True if sessions have different templates for this seat
+ */
+data class SeatPricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * DTO for table pricing in the aggregated view.
+ */
+data class TablePricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * DTO for GA area pricing in the aggregated view.
+ */
+data class GAPricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * Request DTO for assigning price templates at the event level.
+ * Applies to ALL sessions of the event.
+ */
+data class EventPricingAssignRequest(
+    @field:NotNull(message = "Template ID is required")
+    var templateId: UUID,
+
+    /** Seat IDs to assign the template to. */
+    val seatIds: List<Long>? = null,
+
+    /** Table IDs to assign the template to. */
+    val tableIds: List<Long>? = null,
+
+    /** GA area IDs to assign the template to. */
+    val gaIds: List<Long>? = null
+)

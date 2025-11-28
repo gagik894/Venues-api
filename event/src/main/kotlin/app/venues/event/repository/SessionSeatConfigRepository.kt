@@ -190,7 +190,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         SET sc.priceTemplate = :template
         WHERE sc.session.id = :sessionId
         AND sc.seatId IN :seatIds
-        AND sc.status != app.venues.event.domain.ConfigStatus.SOLD
+        AND sc.status NOT IN (app.venues.event.domain.ConfigStatus.SOLD, app.venues.event.domain.ConfigStatus.RESERVED)
     """
     )
     fun batchUpdatePriceTemplate(

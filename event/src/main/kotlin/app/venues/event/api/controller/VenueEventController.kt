@@ -4,6 +4,7 @@ import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.EventStatus
+import app.venues.event.service.EventPricingService
 import app.venues.event.service.EventService
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.persistence.util.PageableMapper
@@ -39,6 +40,7 @@ import java.util.*
 )
 class VenueEventController(
     private val eventService: EventService,
+    private val eventPricingService: EventPricingService,
     private val venueSecurityService: VenueSecurityService,
     private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
@@ -287,6 +289,80 @@ class VenueEventController(
         return ApiResponse.success(
             data = Unit,
             message = "Price template assigned successfully"
+        )
+    }
+
+    // ===========================================
+    // EVENT-LEVEL PRICING CONFIGURATION
+    // ===========================================
+
+    /**
+     * Get event-level pricing configuration.
+     *
+     * Aggregates pricing from all sessions:
+     * - If all sessions have same template -> return that priceTemplateId
+     * - If sessions differ -> priceTemplateId is null, isMixed is true
+     */
+    @GetMapping("/{eventId}/pricing-configuration")
+    @Operation(
+        summary = "Get pricing configuration",
+        description = """
+            Get aggregated pricing configuration across all sessions.
+            
+            Logic:
+            - If all sessions have the same template for a seat -> return that priceTemplateId
+            - If sessions differ -> return priceTemplateId: null, isMixed: true
+            
+            Does NOT include availability info (sold/reserved status).
+            Use this when editing the Event to see the base configuration.
+            "Mixed" tells the admin that sessions have diverged.
+        """
+    )
+    fun getPricingConfiguration(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<EventPricingConfigurationResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Fetching pricing configuration for event: $eventId" }
+
+        val configuration = eventPricingService.getPricingConfiguration(eventId, venueId)
+
+        return ApiResponse.success(
+            data = configuration,
+            message = "Pricing configuration retrieved successfully"
+        )
+    }
+
+    /**
+     * Assign price template to ALL sessions of the event.
+     */
+    @PutMapping("/{eventId}/pricing")
+    @Operation(
+        summary = "Assign event-level pricing",
+        description = """
+            Batch assign a price template to seats, tables, or GA areas across ALL sessions.
+            
+            This applies the same pricing to every session of the event.
+            Use this when setting up consistent pricing across all sessions.
+        """
+    )
+    fun assignEventPricing(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @Valid @RequestBody request: EventPricingAssignRequest,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<Unit> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Assigning event-level pricing for event: $eventId by staff: $staffId" }
+
+        eventPricingService.assignEventPricing(eventId, venueId, request)
+
+        return ApiResponse.success(
+            data = Unit,
+            message = "Event pricing assigned successfully"
         )
     }
 }

@@ -99,5 +99,11 @@ interface EventSessionRepository : JpaRepository<EventSession, UUID> {
     """
     )
     fun decrementTicketsSold(sessionId: UUID, quantity: Int): Int
+
+    /**
+     * Get all session IDs for an event (for cross-module booking queries).
+     */
+    @Query("SELECT s.id FROM EventSession s WHERE s.event.id = :eventId")
+    fun findSessionIdsByEventId(eventId: UUID): List<UUID>
 }
 

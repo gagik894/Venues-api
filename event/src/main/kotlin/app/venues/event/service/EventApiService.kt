@@ -48,6 +48,11 @@ class EventApiService(
         )
     }
 
+    @Transactional(readOnly = true)
+    override fun getSessionIdsForEvent(eventId: UUID): List<UUID> {
+        return eventSessionRepository.findSessionIdsByEventId(eventId)
+    }
+
     @Transactional
     override fun reserveSeat(sessionId: UUID, seatId: Long): BigDecimal? {
         // 1. Try to find existing config

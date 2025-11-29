@@ -235,13 +235,61 @@ class BookingService(
     }
 
     // ===========================================
+    // STAFF QUERY METHODS
+    // ===========================================
+
+    /**
+     * Get all bookings for a venue (staff access).
+     */
+    @Transactional(readOnly = true)
+    fun getVenueBookings(venueId: UUID, status: BookingStatus?, pageable: Pageable): Page<BookingResponse> {
+        logger.debug { "Fetching bookings for venue: $venueId, status: $status" }
+
+        val bookings = if (status != null) {
+            bookingRepository.findByVenueIdAndStatus(venueId, status, pageable)
+        } else {
+            bookingRepository.findByVenueId(venueId, pageable)
+        }
+
+        return bookings.map { prepareBookingResponse(it) }
+    }
+
+    /**
+     * Get all bookings for a session within a venue (staff access).
+     */
+    @Transactional(readOnly = true)
+    fun getSessionBookings(sessionId: UUID, venueId: UUID, pageable: Pageable): Page<BookingResponse> {
+        logger.debug { "Fetching bookings for session: $sessionId, venue: $venueId" }
+
+        return bookingRepository.findBySessionIdAndVenueId(sessionId, venueId, pageable)
+            .map { prepareBookingResponse(it) }
+    }
+
+    /**
+     * Get all bookings for an event (across all sessions) within a venue (staff access).
+     */
+    @Transactional(readOnly = true)
+    fun getEventBookings(eventId: UUID, venueId: UUID, pageable: Pageable): Page<BookingResponse> {
+        logger.debug { "Fetching bookings for event: $eventId, venue: $venueId" }
+
+        val sessionIds = eventApi.getSessionIdsForEvent(eventId)
+        if (sessionIds.isEmpty()) {
+            return Page.empty(pageable)
+        }
+
+        return bookingRepository.findBySessionIdInAndVenueId(sessionIds, venueId, pageable)
+            .map { prepareBookingResponse(it) }
+    }
+
+    // ===========================================
     // RESPONSE PREPARATION
     // ===========================================
 
     /**
      * Prepare booking response with enriched data from other modules.
+     * Internal visibility to allow reuse by DirectSalesService.
      */
-    private fun prepareBookingResponse(booking: Booking): BookingResponse {
+    internal fun prepareBookingResponse(booking: Booking): BookingResponse {
         // Fetch session from event module
         val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
             ?: throw VenuesException.ResourceNotFound("Event session not found")

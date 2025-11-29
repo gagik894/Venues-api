@@ -33,6 +33,15 @@ interface EventApi {
      */
     fun getEventSessionInfo(sessionId: UUID): EventSessionDto?
 
+    /**
+     * Returns all session IDs for a given event.
+     * Used for event-level booking queries.
+     *
+     * @param eventId Event UUID.
+     * @return List of session UUIDs for the event.
+     */
+    fun getSessionIdsForEvent(eventId: UUID): List<UUID>
+
     // Seat Reservation
 
     /**

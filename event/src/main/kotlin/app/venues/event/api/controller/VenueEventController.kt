@@ -303,7 +303,7 @@ class VenueEventController(
      * - If all sessions have same template -> return that priceTemplateId
      * - If sessions differ -> priceTemplateId is null, isMixed is true
      */
-    @GetMapping("/{eventId}/pricing-configuration")
+    @GetMapping("/{eventId}/inventory")
     @Operation(
         summary = "Get pricing configuration",
         description = """

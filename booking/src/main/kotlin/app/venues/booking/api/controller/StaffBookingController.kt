@@ -3,8 +3,11 @@ package app.venues.booking.api.controller
 import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.DirectSaleRequest
+import app.venues.booking.api.dto.EventSalesOverview
+import app.venues.booking.api.dto.SessionSalesOverview
 import app.venues.booking.service.BookingService
 import app.venues.booking.service.DirectSalesService
+import app.venues.booking.service.SalesOverviewService
 import app.venues.common.model.ApiResponse
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.service.VenueSecurityService
@@ -24,6 +27,7 @@ import java.util.*
  * - Create direct sales (bypass cart flow)
  * - View all venue bookings
  * - View bookings by event or session
+ * - View sales overviews
  */
 @RestController
 @PreAuthorize("hasRole('STAFF') or hasRole('SUPER_ADMIN')")
@@ -35,6 +39,7 @@ import java.util.*
 class StaffBookingController(
     private val directSalesService: DirectSalesService,
     private val bookingService: BookingService,
+    private val salesOverviewService: SalesOverviewService,
     private val venueSecurityService: VenueSecurityService
 ) {
     private val logger = KotlinLogging.logger {}
@@ -203,6 +208,54 @@ class StaffBookingController(
         return ApiResponse.success(
             data = Unit,
             message = "Booking invalidated successfully"
+        )
+    }
+
+    // ==================== Sales Overview Endpoints ====================
+
+    /**
+     * Get sales overview for a specific session.
+     */
+    @GetMapping("/sales/sessions/{sessionId}")
+    @Operation(
+        summary = "Get session sales overview",
+        description = "Get ticket counts and revenue for a specific session within the venue"
+    )
+    fun getSessionSalesOverview(
+        @PathVariable venueId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<SessionSalesOverview> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.info { "Staff $staffId requesting sales overview for session $sessionId in venue $venueId" }
+        val overview = salesOverviewService.getSessionSalesOverview(sessionId, venueId)
+        return ApiResponse.success(
+            data = overview,
+            message = "Session sales overview retrieved successfully"
+        )
+    }
+
+    /**
+     * Get sales overview for a specific event (aggregated across all sessions).
+     */
+    @GetMapping("/sales/events/{eventId}")
+    @Operation(
+        summary = "Get event sales overview",
+        description = "Get aggregated ticket counts and revenue for all sessions of an event within the venue"
+    )
+    fun getEventSalesOverview(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<EventSalesOverview> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.info { "Staff $staffId requesting sales overview for event $eventId in venue $venueId" }
+        val overview = salesOverviewService.getEventSalesOverview(eventId, venueId)
+        return ApiResponse.success(
+            data = overview,
+            message = "Event sales overview retrieved successfully"
         )
     }
 }

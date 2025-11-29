@@ -2,6 +2,7 @@ package app.venues.event.api
 
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.api.dto.SessionTicketStatsDto
 import java.math.BigDecimal
 import java.util.*
 
@@ -292,4 +293,22 @@ interface EventApi {
      * @return true if the decrement succeeded, false if there were not enough sold tickets.
      */
     fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
+
+    // Ticket Stats
+
+    /**
+     * Returns ticket statistics for a session.
+     *
+     * @param sessionId Event session ID.
+     * @return Session ticket stats or null if session not found.
+     */
+    fun getSessionTicketStats(sessionId: UUID): SessionTicketStatsDto?
+
+    /**
+     * Returns ticket statistics for all sessions of an event.
+     *
+     * @param eventId Event ID.
+     * @return List of session ticket stats (empty if event not found or has no sessions).
+     */
+    fun getEventTicketStats(eventId: UUID): List<SessionTicketStatsDto>
 }

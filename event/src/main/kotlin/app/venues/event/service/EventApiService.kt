@@ -3,6 +3,7 @@ package app.venues.event.service
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.api.dto.SessionTicketStatsDto
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventSession
@@ -365,5 +366,35 @@ class EventApiService(
             logger.warn { "Failed to decrement ticketsSold for session $sessionId by $quantity because there are not enough sold tickets" }
         }
         return updated > 0
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSessionTicketStats(sessionId: UUID): SessionTicketStatsDto? {
+        val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+        val event = session.event
+
+        return SessionTicketStatsDto(
+            sessionId = session.id,
+            eventId = event.id,
+            currency = event.currency,
+            ticketsSold = session.ticketsSold,
+            ticketsTotal = session.ticketsCount
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEventTicketStats(eventId: UUID): List<SessionTicketStatsDto> {
+        val sessions = eventSessionRepository.findByEventIdOrderByStartTimeAsc(eventId)
+
+        return sessions.map { session ->
+            val event = session.event
+            SessionTicketStatsDto(
+                sessionId = session.id,
+                eventId = event.id,
+                currency = event.currency,
+                ticketsSold = session.ticketsSold,
+                ticketsTotal = session.ticketsCount
+            )
+        }
     }
 }

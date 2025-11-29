@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
 
@@ -71,5 +72,47 @@ interface BookingRepository : JpaRepository<Booking, UUID> {
      */
     @Query("SELECT b FROM Booking b WHERE b.sessionId IN :sessionIds AND b.venueId = :venueId ORDER BY b.createdAt DESC")
     fun findBySessionIdInAndVenueId(sessionIds: List<UUID>, venueId: UUID, pageable: Pageable): Page<Booking>
+
+    // ===========================================
+    // SALES OVERVIEW AGGREGATION
+    // ===========================================
+
+    /**
+     * Calculate total revenue for a session (confirmed bookings only).
+     */
+    @Query("SELECT COALESCE(SUM(b.totalPrice), 0) FROM Booking b WHERE b.sessionId = :sessionId AND b.status = 'CONFIRMED'")
+    fun sumRevenueBySessionId(sessionId: UUID): BigDecimal
+
+    /**
+     * Count confirmed bookings for a session.
+     */
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.sessionId = :sessionId AND b.status = 'CONFIRMED'")
+    fun countConfirmedBySessionId(sessionId: UUID): Int
+
+    /**
+     * Calculate total revenue for multiple sessions (confirmed bookings only).
+     */
+    @Query("SELECT COALESCE(SUM(b.totalPrice), 0) FROM Booking b WHERE b.sessionId IN :sessionIds AND b.status = 'CONFIRMED'")
+    fun sumRevenueBySessionIds(sessionIds: List<UUID>): BigDecimal
+
+    /**
+     * Count confirmed bookings for multiple sessions.
+     */
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.sessionId IN :sessionIds AND b.status = 'CONFIRMED'")
+    fun countConfirmedBySessionIds(sessionIds: List<UUID>): Int
+
+    /**
+     * Get revenue per session for a list of session IDs.
+     * Returns pairs of (sessionId, revenue).
+     */
+    @Query("SELECT b.sessionId, COALESCE(SUM(b.totalPrice), 0) FROM Booking b WHERE b.sessionId IN :sessionIds AND b.status = 'CONFIRMED' GROUP BY b.sessionId")
+    fun sumRevenueGroupedBySessionIds(sessionIds: List<UUID>): List<Array<Any>>
+
+    /**
+     * Get booking count per session for a list of session IDs.
+     * Returns pairs of (sessionId, count).
+     */
+    @Query("SELECT b.sessionId, COUNT(b) FROM Booking b WHERE b.sessionId IN :sessionIds AND b.status = 'CONFIRMED' GROUP BY b.sessionId")
+    fun countConfirmedGroupedBySessionIds(sessionIds: List<UUID>): List<Array<Any>>
 }
 

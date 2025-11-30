@@ -52,10 +52,7 @@ class Cart(
 
 ) : AbstractUuidEntity() {
 
-    @Column(name = "last_activity_at", nullable = false)
-    @Access(AccessType.FIELD)
-    var lastActivityAt: Instant = Instant.now()
-        protected set
+
 
     /**
      * Individual seat selections in this cart.
@@ -108,7 +105,7 @@ class Cart(
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
     /**
-     * Extends the cart's expiration time and updates its activity.
+     * Extends the cart's expiration time.
      * Respects a hard limit relative to creation time to prevent infinite holding.
      *
      * @param minutes Number of minutes to extend from current time.
@@ -120,16 +117,8 @@ class Cart(
         val hardLimit = this.createdAt.plusSeconds(maxTtlMinutes * 60)
 
         this.expiresAt = if (proposed.isAfter(hardLimit)) hardLimit else proposed
-        this.lastActivityAt = now
     }
 
-    /**
-     * Updates the last activity time without extending expiration.
-     * Used for read-only operations like viewing cart summary.
-     */
-    fun touch() {
-        this.lastActivityAt = Instant.now()
-    }
 
     /**
      * Calculates the total price of all items in the cart using snapshotted prices.

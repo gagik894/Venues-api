@@ -16,23 +16,43 @@ class CartSessionManager(
     private val cartRepository: CartRepository
 ) {
     companion object {
-        const val CART_EXPIRATION_MINUTES = 10
-        const val CART_TOUCH_ADD_MINUTES = 5
-        const val MAX_CART_TTL_MINUTES = 20 // Hard limit to prevent infinite holding
+        // Customer cart expiration
+        const val CART_EXPIRATION_MINUTES = 7 // Initial expiration for customer carts
+        const val CART_EXTENSION_MINUTES = 5 // Extension on each action for customers
+        const val CUSTOMER_MAX_CART_TTL_MINUTES = 20 // Max lifetime from creation for customers
+
+        // Staff cart expiration
+        const val STAFF_CART_EXPIRATION_MINUTES = 20 // Initial expiration for staff carts
+        const val STAFF_CART_EXTENSION_MINUTES = 10 // Extension on each action for staff
+        const val STAFF_MAX_CART_TTL_MINUTES = 30 // Max lifetime from creation for staff
     }
 
-    fun findOrCreateCart(token: UUID?, sessionId: UUID, userId: UUID? = null): Cart {
+    /**
+     * Find existing cart by token or create a new one.
+     *
+     * @param token Optional cart token to find existing cart
+     * @param sessionId Event session ID
+     * @param userId Optional user ID
+     * @param isStaffCart Whether this is a staff cart (affects expiration timing)
+     * @return Cart entity (existing or newly created)
+     */
+    fun findOrCreateCart(
+        token: UUID?,
+        sessionId: UUID,
+        userId: UUID? = null,
+        isStaffCart: Boolean = false
+    ): Cart {
         val existingCart = token?.let { cartRepository.findByToken(it) }
 
         if (existingCart != null) {
             // If cart is expired or for different session, create a new one
             if (existingCart.isExpired() || existingCart.sessionId != sessionId) {
-                return createNewCart(null, sessionId, userId)
+                return createNewCart(null, sessionId, userId, isStaffCart)
             }
-            return extendCartExpiration(existingCart)
+            return extendCartExpiration(existingCart, isStaffCart)
         }
 
-        return createNewCart(null, sessionId, userId)
+        return createNewCart(null, sessionId, userId, isStaffCart)
     }
 
     fun getActiveCart(token: UUID): Cart {
@@ -71,23 +91,42 @@ class CartSessionManager(
         return cart
     }
 
-    fun touchCart(cart: Cart): Cart {
-        // Extend expiration on activity to prevent session timeout while user is active
-        cart.extendExpiration(CART_TOUCH_ADD_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())
+    /**
+     * Extends cart expiration time.
+     * Uses staff or customer timing based on isStaffCart flag.
+     */
+    private fun extendCartExpiration(cart: Cart, isStaffCart: Boolean): Cart {
+        val (extensionMinutes, maxTtlMinutes) = if (isStaffCart) {
+            STAFF_CART_EXTENSION_MINUTES.toLong() to STAFF_MAX_CART_TTL_MINUTES.toLong()
+        } else {
+            CART_EXTENSION_MINUTES.toLong() to CUSTOMER_MAX_CART_TTL_MINUTES.toLong()
+        }
+
+        cart.extendExpiration(extensionMinutes, maxTtlMinutes)
         return cartRepository.save(cart)
     }
 
-    private fun extendCartExpiration(cart: Cart): Cart {
-        cart.extendExpiration(CART_EXPIRATION_MINUTES.toLong(), MAX_CART_TTL_MINUTES.toLong())
-        return cartRepository.save(cart)
-    }
-
-    private fun createNewCart(token: UUID?, sessionId: UUID, userId: UUID?): Cart {
+    /**
+     * Creates a new cart with appropriate expiration time.
+     * Uses staff or customer initial expiration based on isStaffCart flag.
+     */
+    private fun createNewCart(
+        token: UUID?,
+        sessionId: UUID,
+        userId: UUID?,
+        isStaffCart: Boolean
+    ): Cart {
+        val initialExpirationMinutes = if (isStaffCart) {
+            STAFF_CART_EXPIRATION_MINUTES
+        } else {
+            CART_EXPIRATION_MINUTES
+        }
+        
         val newCart = Cart(
             token = token ?: UUID.randomUUID(),
             userId = userId,
             sessionId = sessionId,
-            expiresAt = Instant.now().plusSeconds(CART_EXPIRATION_MINUTES * 60L),
+            expiresAt = Instant.now().plusSeconds(initialExpirationMinutes * 60L),
         )
 
         return cartRepository.save(newCart)

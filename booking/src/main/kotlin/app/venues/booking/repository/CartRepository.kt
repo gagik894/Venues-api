@@ -53,17 +53,16 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     fun deleteExpired(now: Instant): Int
 
     /**
-     * Extend cart expiration (touch session)
+     * Extend cart expiration
      */
     @Modifying
     @Query(
         """
         UPDATE Cart c
-        SET c.expiresAt = :newExpiration,
-            c.lastActivityAt = :now
+        SET c.expiresAt = :newExpiration
         WHERE c.token = :token
     """
     )
-    fun extendExpiration(token: UUID, newExpiration: Instant, now: Instant): Int
+    fun extendExpiration(token: UUID, newExpiration: Instant): Int
 }
 

@@ -61,9 +61,10 @@ class CartService(
     /**
      * Gets or creates cart for the given session.
      * Validates that cart belongs to the same session if it already exists.
+     * @param isStaffCart Whether this is a staff cart (affects expiration timing)
      */
-    private fun getOrCreateCartForSession(token: UUID?, sessionId: UUID) =
-        cartSessionManager.findOrCreateCart(token, sessionId)
+    private fun getOrCreateCartForSession(token: UUID?, sessionId: UUID, isStaffCart: Boolean = false) =
+        cartSessionManager.findOrCreateCart(token, sessionId, isStaffCart = isStaffCart)
 
     /**
      * Builds standard success response for add-to-cart operations.
@@ -80,7 +81,7 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?): CartSummaryResponse {
+    override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?, isStaffCart: Boolean): CartSummaryResponse {
         logger.debug { "Adding seat to cart: ${request.code}" }
 
         val violations = validator.validate(request)
@@ -96,7 +97,7 @@ class CartService(
             ?: throw VenuesException.ValidationFailure("Seat not found with code: ${request.code}")
 
         // Get or create cart session
-        val cart = getOrCreateCartForSession(token, request.sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
 
         // Validate seat not already in cart
         if (cartItemPersistence.checkSeatAlreadyInCart(cart, seatInfo.id)) {
@@ -135,7 +136,7 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    override fun addGAToCart(request: AddGAToCartRequest, token: UUID?): CartSummaryResponse {
+    override fun addGAToCart(request: AddGAToCartRequest, token: UUID?, isStaffCart: Boolean): CartSummaryResponse {
         logger.debug { "Adding GA to cart: ${request.code}, quantity=${request.quantity}" }
 
         val violations = validator.validate(request)
@@ -151,7 +152,7 @@ class CartService(
             ?: throw VenuesException.ValidationFailure("GA area not found with code: ${request.code}")
 
         // Get or create cart session
-        val cart = getOrCreateCartForSession(token, request.sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
 
         // Check for existing GA item for this area
         val existingItem = cartItemPersistence.findExistingGAItem(cart, gaInfo.id)
@@ -200,7 +201,11 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    override fun addTableToCart(request: AddTableToCartRequest, token: UUID?): CartSummaryResponse {
+    override fun addTableToCart(
+        request: AddTableToCartRequest,
+        token: UUID?,
+        isStaffCart: Boolean
+    ): CartSummaryResponse {
         logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.code}" }
 
         val violations = validator.validate(request)
@@ -212,7 +217,7 @@ class CartService(
         validateSessionExists(request.sessionId)
 
         // Get or create cart
-        val cart = getOrCreateCartForSession(token, request.sessionId)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
 
         // Validate table limit
         cartLimitValidator.validateAddTableLimit(cart)

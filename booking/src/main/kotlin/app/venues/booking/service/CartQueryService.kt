@@ -43,7 +43,6 @@ class CartQueryService(
     override fun getCartSummary(token: UUID): CartSummaryResponse {
         // Load cart with ALL items in single query (via @EntityGraph)
         val cart = cartSessionManager.getActiveCartWithItems(token)
-        cartSessionManager.touchCart(cart)
 
         val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Session not found")

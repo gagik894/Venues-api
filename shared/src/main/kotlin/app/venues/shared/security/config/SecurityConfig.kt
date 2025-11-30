@@ -234,6 +234,8 @@ class SecurityConfig(
                 "http://localhost:4200",  // Angular dev server
                 "http://localhost:8080"   // Same origin
             )
+            // If a wildcard is required while `allowCredentials = true`, use:
+            allowedOriginPatterns = listOf("*")
 
             // Allowed HTTP methods
             allowedMethods = listOf(

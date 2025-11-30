@@ -38,6 +38,7 @@ include(":venue")
 include(":seating")
 include(":event")
 include(":booking")
+include(":ticket")
 include(":platform")
 include(":location")
 include(":staff")
@@ -51,7 +52,8 @@ include(":payment-api")
 include(":organization-api")
 include(":staff-api")
 include(":event-api")
+include(":booking-api")
+include(":ticket-api")
 
 
 rootProject.name = "Venues-api"
-include("booking-api")

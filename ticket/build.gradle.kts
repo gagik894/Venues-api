@@ -9,8 +9,6 @@ plugins {
 
 group = "app.venues"
 version = "0.0.1-SNAPSHOT"
-description = "booking"
-
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -28,30 +26,33 @@ dependencyManagement {
 }
 
 dependencies {
-    // Expose shared module as part of public API
-    api(project(":shared"))
+    // API Dependencies
+    implementation(project(":ticket-api"))
+    implementation(project(":shared"))
+    implementation(project(":event-api"))
+    implementation(project(":seating-api"))
+    implementation(project(":booking-api"))
 
-    // API Contract Modules - depend on interfaces, not implementations
-    // This enforces Hexagonal Architecture boundaries
-    api(project(":user-api"))      // UserApi for user information
-    api(project(":seating-api"))   // SeatingApi for seat/level information
-    api(project(":booking-api"))
-    api(project(":venue-api"))    // Venue module - for venue and level details
-    // Event module - we use the API interface
-    api(project(":event-api"))
-    api(project(":ticket-api"))    // Ticket module - for ticket generation
-
-    // Spring Boot starters - internal implementation details
+    // Spring
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
 
-    // Database driver
+    // Kotlin
+    implementation(kotlin("stdlib"))
+    implementation(kotlin("reflect"))
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+
+    // Logging
+    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
+
+    // QR Code
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.zxing:javase:3.5.3")
+
+    // Database
     runtimeOnly("org.postgresql:postgresql")
-
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

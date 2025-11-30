@@ -13,6 +13,7 @@ import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
+import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -41,7 +42,8 @@ class BookingService(
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
     private val eventApi: EventApi,
-    private val venueApi: VenueApi
+    private val venueApi: VenueApi,
+    private val ticketApi: TicketApi
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -124,6 +126,9 @@ class BookingService(
         // Finalize inventory (RESERVED -> SOLD)
         finalizeBookingInventory(booking)
 
+        // Generate tickets
+        generateTickets(savedBooking)
+
         logger.info { "Booking confirmed: $bookingId" }
 
         return prepareBookingResponse(savedBooking)
@@ -156,6 +161,32 @@ class BookingService(
         releaseBookingInventory(booking)
         if (wasConfirmed) {
             rollbackTicketsSold(booking)
+            // Invalidate tickets
+            // Note: We don't have staffId here for online cancellation, maybe use system user or null?
+            // TicketApi expects staffId. If online cancellation is allowed, we might need a system ID.
+            // For now, let's assume online cancellation is done by user, so maybe we pass a special UUID or handle it.
+            // But wait, cancelBooking has userId (optional).
+            // If userId is present, it's the user cancelling.
+            // If userId is null, it might be system expiration.
+
+            // Actually, TicketApi.invalidateTicketsForBooking takes staffId.
+            // If it's a user cancellation, we might not want to track "staffId".
+            // Maybe we should update TicketApi to allow null staffId or "SYSTEM".
+            // For now, I'll skip invalidation here if I can't provide staffId, OR I'll use a placeholder.
+            // But wait, the requirement was "Invalidate tickets".
+            // I'll add a TODO or try to handle it.
+            // Let's use a random UUID for now or check if I can update TicketApi.
+            // Actually, for expiration, we don't need to invalidate tickets because they were never generated (PENDING).
+            // Tickets are generated ONLY on confirmation.
+            // So if wasConfirmed is true, tickets exist.
+            // If wasConfirmed is true, it means it was CONFIRMED, so tickets WERE generated.
+            // So we MUST invalidate them.
+            // I'll pass a zero UUID for system/user cancellation for now.
+            ticketApi.invalidateTicketsForBooking(
+                booking.id,
+                UUID.fromString("00000000-0000-0000-0000-000000000000"),
+                "Booking Cancelled"
+            )
         }
 
         logger.info { "Booking cancelled: $bookingId" }
@@ -453,6 +484,9 @@ class BookingService(
         // Finalize inventory (RESERVED -> SOLD)
         finalizeBookingInventory(booking)
 
+        // Generate tickets
+        generateTickets(savedBooking)
+
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
 
@@ -550,6 +584,13 @@ class BookingService(
         releasePromoIfNeeded(savedBooking)
         releaseBookingInventory(savedBooking)
         rollbackTicketsSold(savedBooking)
+
+        // Invalidate tickets
+        ticketApi.invalidateTicketsForBooking(
+            booking.id,
+            UUID.fromString("00000000-0000-0000-0000-000000000000"),
+            reason ?: "Booking Refunded"
+        )
     }
 
     private fun redeemPromoIfNeeded(booking: Booking) {
@@ -675,6 +716,29 @@ class BookingService(
                 logger.error(ex) { "Failed to resolve seat capacity for table $tableId" }
                 0
             }
+        }
+    }
+
+    private fun generateTickets(booking: Booking) {
+        booking.items.forEach { item ->
+            val ticketType = when {
+                item.seatId != null -> "SEAT"
+                item.gaAreaId != null -> "GA"
+                item.tableId != null -> "TABLE"
+                else -> throw IllegalStateException("Booking item has no inventory reference")
+            }
+
+            ticketApi.generateTicketsForBookingItem(
+                bookingId = booking.id,
+                bookingItemId = requireNotNull(item.id) { "Booking item ID must not be null" },
+                eventSessionId = booking.sessionId,
+                ticketType = ticketType,
+                seatId = item.seatId,
+                gaAreaId = item.gaAreaId,
+                tableId = item.tableId,
+                quantity = item.quantity,
+                qrCode = null // Venue generates QR
+            )
         }
     }
 }

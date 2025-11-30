@@ -19,8 +19,3 @@ ALTER TABLE chart_tables
 ALTER TABLE chart_ga_areas
     ALTER COLUMN category_key SET NOT NULL;
 
-/*
-Verification:
-SELECT COUNT(*) FROM chart_tables WHERE category_key IS NULL;
-SELECT COUNT(*) FROM chart_ga_areas WHERE category_key IS NULL;
-*/

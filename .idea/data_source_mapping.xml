@@ -7,6 +7,5 @@
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V2__Seed_static_data.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/test.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/event/src/main/kotlin/app/venues/event/repository/SessionGAConfigRepository.kt" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
-    <file url="file://$PROJECT_DIR$/fix-flyway.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
   </component>
 </project>

@@ -773,7 +773,6 @@ create table carts
     promo_code      varchar(50),
     discount_amount numeric(10, 2),
 
-    last_activity_at timestamp(6) with time zone not null,
     created_at       timestamp(6) with time zone not null,
     last_modified_at timestamp(6) with time zone not null
 );

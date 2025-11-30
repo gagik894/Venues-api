@@ -4,7 +4,7 @@ import app.venues.common.model.ApiResponse
 import app.venues.ticket.api.dto.CreateSessionRequest
 import app.venues.ticket.api.dto.ScannerSessionDto
 import app.venues.ticket.api.dto.TicketDto
-import app.venues.ticket.domain.Ticket
+import app.venues.ticket.api.mapper.TicketMapper
 import app.venues.ticket.repository.TicketRepository
 import app.venues.ticket.service.ScannerSessionService
 import app.venues.ticket.service.TicketGenerationService
@@ -24,7 +24,8 @@ class StaffTicketController(
     private val ticketRepository: TicketRepository,
     private val ticketGenerationService: TicketGenerationService,
     private val scannerSessionService: ScannerSessionService,
-    private val venueSecurityService: VenueSecurityService
+    private val venueSecurityService: VenueSecurityService,
+    private val ticketMapper: TicketMapper
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -38,7 +39,7 @@ class StaffTicketController(
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         logger.debug { "Staff $staffId fetching tickets for booking $bookingId in venue $venueId" }
 
-        val tickets = ticketRepository.findByBookingId(bookingId).map { it.toDto() }
+        val tickets = ticketRepository.findByBookingId(bookingId).map { ticketMapper.toDto(it) }
         return ApiResponse.success(tickets, "Tickets retrieved successfully")
     }
 
@@ -98,15 +99,4 @@ class StaffTicketController(
         )
         return ApiResponse.success(session, "Scanner session created successfully")
     }
-
-    private fun Ticket.toDto() = TicketDto(
-        id = id,
-        ticketNumber = null,
-        qrCode = qrCode,
-        ticketType = ticketType.name,
-        status = status.name,
-        maxScanCount = maxScanCount,
-        scanCount = getScanCount(),
-        remainingScans = getRemainingScans()
-    )
 }

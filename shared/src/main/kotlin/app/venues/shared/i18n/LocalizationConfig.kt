@@ -27,9 +27,9 @@ class LocalizationConfig(
     fun messageSource(): MessageSource {
         return ResourceBundleMessageSource().apply {
             setBasename("messages")
-            defaultEncoding = "UTF-8"
-            isFallbackToSystemLocale = false
-            isUseCodeAsDefaultMessage = true // Show message key if translation is missing
+            setDefaultEncoding("UTF-8")
+            setFallbackToSystemLocale(false)
+            setUseCodeAsDefaultMessage(true) // Show message key if translation is missing
         }
     }
 }

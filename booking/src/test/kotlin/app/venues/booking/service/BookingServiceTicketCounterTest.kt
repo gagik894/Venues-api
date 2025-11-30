@@ -50,6 +50,8 @@ class BookingServiceTicketCounterTest {
         eventApi = mockk()
         venueApi = mockk(relaxed = true)
         ticketApi = mockk(relaxed = true)
+        val emailService = mockk<app.venues.shared.email.EmailService>(relaxed = true)
+        val emailTemplateService = mockk<app.venues.shared.email.EmailTemplateService>(relaxed = true)
 
         val bookingFulfillmentService = BookingFulfillmentService(
             eventApi,
@@ -69,7 +71,9 @@ class BookingServiceTicketCounterTest {
             eventApi,
             venueApi,
             ticketApi,
-            bookingFulfillmentService
+            bookingFulfillmentService,
+            emailService,
+            emailTemplateService
         )
 
         every {

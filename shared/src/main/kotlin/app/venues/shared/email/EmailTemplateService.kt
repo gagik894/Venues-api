@@ -1,7 +1,7 @@
 package app.venues.shared.email
 
-import app.venues.shared.i18n.LocaleContextHolder
 import org.springframework.context.MessageSource
+import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine

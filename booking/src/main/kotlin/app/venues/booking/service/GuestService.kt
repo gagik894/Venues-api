@@ -20,8 +20,13 @@ class GuestService(
 
     /**
      * Find guest by email or create new one.
+     *
+     * @param email Guest's email address
+     * @param name Guest's name
+     * @param phone Guest's phone number (optional)
+     * @param preferredLanguage Guest's preferred language from Accept-Language header
      */
-    fun findOrCreateGuest(email: String, name: String, phone: String?): Guest {
+    fun findOrCreateGuest(email: String, name: String, phone: String?, preferredLanguage: String = "en"): Guest {
         val normalizedEmail = email.lowercase().trim()
 
         return guestRepository.findByEmailIgnoreCase(normalizedEmail)?.also {
@@ -35,6 +40,11 @@ class GuestService(
                 it.phone = phone
                 updated = true
             }
+            // Update language preference to the latest one used
+            if (it.preferredLanguage != preferredLanguage) {
+                it.preferredLanguage = preferredLanguage
+                updated = true
+            }
             if (updated) {
                 guestRepository.save(it)
                 logger.debug { "Updated guest info: $normalizedEmail" }
@@ -44,10 +54,11 @@ class GuestService(
             val newGuest = Guest(
                 email = normalizedEmail,
                 name = name,
-                phone = phone
+                phone = phone,
+                preferredLanguage = preferredLanguage
             )
             guestRepository.save(newGuest).also {
-                logger.info { "Created new guest: $normalizedEmail" }
+                logger.info { "Created new guest: $normalizedEmail with language: $preferredLanguage" }
             }
         }
     }

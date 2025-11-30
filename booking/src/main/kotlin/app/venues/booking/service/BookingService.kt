@@ -21,6 +21,7 @@ import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -70,7 +71,8 @@ class BookingService(
 
         // Determine user or guest
         val guest = if (userId == null) {
-            guestService.findOrCreateGuest(request.email, request.name, request.phone)
+            val locale = LocaleContextHolder.getLocale().language
+            guestService.findOrCreateGuest(request.email, request.name, request.phone, locale)
         } else null
 
         val creationResult = bookingCreationService.assembleBooking(

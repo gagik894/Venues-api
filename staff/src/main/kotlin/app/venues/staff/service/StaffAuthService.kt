@@ -10,6 +10,7 @@ import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.repository.StaffIdentityRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -101,6 +102,9 @@ class StaffAuthService(
             verificationToken = UUID.randomUUID().toString(),
             verificationTokenExpiresAt = Instant.now().plusSeconds(86400) // 24 hours
         )
+
+        // Capture staff's preferred language from Accept-Language header
+        staffIdentity.preferredLanguage = LocaleContextHolder.getLocale().language
 
         val saved = staffRepository.save(staffIdentity)
 

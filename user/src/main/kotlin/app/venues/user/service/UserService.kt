@@ -10,6 +10,7 @@ import app.venues.user.api.dto.UserUpdateRequest
 import app.venues.user.domain.User
 import app.venues.user.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -112,6 +113,9 @@ class UserService(
             lastName = request.lastName.trim(),
             phoneNumber = request.phoneNumber?.trim()
         )
+
+        // Capture user's preferred language from Accept-Language header
+        user.preferredLanguage = LocaleContextHolder.getLocale().language
 
         // Save to database
         val savedUser = userRepository.save(user)

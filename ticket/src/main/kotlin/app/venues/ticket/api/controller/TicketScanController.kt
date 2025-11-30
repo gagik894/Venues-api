@@ -25,11 +25,10 @@ class TicketScanController(
         }
 
         val token = authHeader.substring(7)
-        val session = sessionApi.validateSession(token)
-
-        if (session == null) {
-            return ApiResponse.success(ScanResult.invalidSession(), "Invalid or expired scanner session")
-        }
+        val session = sessionApi.validateSession(token) ?: return ApiResponse.success(
+            ScanResult.invalidSession(),
+            "Invalid or expired scanner session"
+        )
 
         val result = scanApi.scanTicket(
             qrCode = request.qrCode,

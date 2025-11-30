@@ -6,6 +6,7 @@ import app.venues.booking.api.dto.ConfirmBookingRequest
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
+import app.venues.booking.domain.SalesChannel
 import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
 import app.venues.event.api.EventApi
@@ -13,6 +14,7 @@ import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.GaInfoDto
 import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.mockk.*
@@ -33,6 +35,7 @@ class BookingServiceTicketCounterTest {
     private lateinit var seatingApi: SeatingApi
     private lateinit var eventApi: EventApi
     private lateinit var venueApi: VenueApi
+    private lateinit var ticketApi: TicketApi
     private lateinit var service: BookingService
 
     @BeforeEach
@@ -46,6 +49,7 @@ class BookingServiceTicketCounterTest {
         seatingApi = mockk()
         eventApi = mockk()
         venueApi = mockk(relaxed = true)
+        ticketApi = mockk(relaxed = true)
 
         service = BookingService(
             bookingRepository,
@@ -56,7 +60,8 @@ class BookingServiceTicketCounterTest {
             userApi,
             seatingApi,
             eventApi,
-            venueApi
+            venueApi,
+            ticketApi
         )
 
         every {
@@ -104,7 +109,9 @@ class BookingServiceTicketCounterTest {
             externalOrderNumber = null,
             serviceFeeAmount = BigDecimal.ZERO,
             discountAmount = BigDecimal.ZERO,
-            promoCode = null
+            promoCode = null,
+            salesChannel = SalesChannel.WEBSITE,
+            staffId = null
         )
         val seatItem = BookingItem(booking, quantity = 1, unitPrice = BigDecimal("40.00"), seatId = 10L)
         val gaItem = BookingItem(booking, quantity = 3, unitPrice = BigDecimal("20.00"), gaAreaId = 20L)
@@ -153,6 +160,19 @@ class BookingServiceTicketCounterTest {
         service.confirmBooking(bookingId, request, booking.userId)
 
         verify { eventApi.incrementTicketsSold(sessionId, 8) }
+        verify {
+            ticketApi.generateTicketsForBookingItem(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        }
     }
 
     @Test
@@ -169,7 +189,9 @@ class BookingServiceTicketCounterTest {
             externalOrderNumber = null,
             serviceFeeAmount = BigDecimal.ZERO,
             discountAmount = BigDecimal.ZERO,
-            promoCode = null
+            promoCode = null,
+            salesChannel = SalesChannel.WEBSITE,
+            staffId = null
         )
         val seatItem = BookingItem(booking, quantity = 1, unitPrice = BigDecimal("30.00"), seatId = 11L)
         val gaItem = BookingItem(booking, quantity = 2, unitPrice = BigDecimal("15.00"), gaAreaId = 21L)
@@ -206,5 +228,6 @@ class BookingServiceTicketCounterTest {
         service.cancelBooking(bookingId, CancelBookingRequest("Customer request"), booking.userId)
 
         verify { eventApi.decrementTicketsSold(sessionId, 3) }
+        verify { ticketApi.invalidateTicketsForBooking(bookingId, any(), any()) }
     }
 }

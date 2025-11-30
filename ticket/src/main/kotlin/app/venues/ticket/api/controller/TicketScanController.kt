@@ -1,35 +1,27 @@
 package app.venues.ticket.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.ticket.api.ScannerSessionApi
 import app.venues.ticket.api.TicketScanApi
 import app.venues.ticket.api.dto.ScanRequest
 import app.venues.ticket.api.dto.ScanResult
-import org.springframework.web.bind.annotation.*
+import app.venues.ticket.api.dto.ScannerSessionDto
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/v1/tickets/scan")
 class TicketScanController(
-    private val scanApi: TicketScanApi,
-    private val sessionApi: ScannerSessionApi
+    private val scanApi: TicketScanApi
 ) {
 
     @PostMapping
     fun scanTicket(
-        @RequestHeader("Authorization") authHeader: String,
+        @AuthenticationPrincipal session: ScannerSessionDto,
         @RequestBody request: ScanRequest
     ): ApiResponse<ScanResult> {
-        // Validate Bearer token (Scanner Session Token)
-        if (!authHeader.startsWith("Bearer ")) {
-            return ApiResponse.success(ScanResult.error("Missing Bearer token"), "Invalid authorization header")
-        }
-
-        val token = authHeader.substring(7)
-        val session = sessionApi.validateSession(token) ?: return ApiResponse.success(
-            ScanResult.invalidSession(),
-            "Invalid or expired scanner session"
-        )
-
         val result = scanApi.scanTicket(
             qrCode = request.qrCode,
             sessionId = session.id,

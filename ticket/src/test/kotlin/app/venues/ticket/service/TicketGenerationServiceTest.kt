@@ -48,7 +48,6 @@ class TicketGenerationServiceTest {
             val t = firstArg<Ticket>()
             TicketDto(
                 id = t.id,
-                ticketNumber = null,
                 qrCode = t.qrCode,
                 ticketType = t.ticketType.name,
                 status = t.status.name,
@@ -110,7 +109,6 @@ class TicketGenerationServiceTest {
             val t = firstArg<Ticket>()
             TicketDto(
                 id = t.id,
-                ticketNumber = null,
                 qrCode = t.qrCode,
                 ticketType = t.ticketType.name,
                 status = t.status.name,

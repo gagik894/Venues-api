@@ -59,3 +59,13 @@ data class ScanRequest(
     val deviceInfo: String?,
     val scanLocation: String?
 )
+
+data class TicketResponse(
+    val id: UUID,
+    val qrCode: String,
+    val ticketType: String,
+    val status: String,
+    val maxScanCount: Int,
+    val scanCount: Int,
+    val remainingScans: Int
+)

@@ -4,7 +4,6 @@ import java.util.*
 
 data class TicketDto(
     val id: UUID,
-    val ticketNumber: String?, // Kept optional in DTO if needed for display, though removed from entity
     val qrCode: String,
     val ticketType: String,
     val status: String,

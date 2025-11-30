@@ -4,7 +4,7 @@ import app.venues.common.model.ApiResponse
 import app.venues.ticket.api.ScannerSessionApi
 import app.venues.ticket.api.dto.CreateSessionRequest
 import app.venues.ticket.api.dto.ScannerSessionDto
-import app.venues.ticket.api.dto.TicketDto
+import app.venues.ticket.api.dto.TicketResponse
 import app.venues.ticket.api.mapper.TicketMapper
 import app.venues.ticket.repository.TicketRepository
 import app.venues.ticket.service.TicketGenerationService
@@ -35,11 +35,11 @@ class StaffTicketController(
         @PathVariable venueId: UUID,
         @PathVariable bookingId: UUID,
         @RequestAttribute staffId: UUID
-    ): ApiResponse<List<TicketDto>> {
+    ): ApiResponse<List<TicketResponse>> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         logger.debug { "Staff $staffId fetching tickets for booking $bookingId in venue $venueId" }
 
-        val tickets = ticketRepository.findByBookingId(bookingId).map { ticketMapper.toDto(it) }
+        val tickets = ticketRepository.findByBookingId(bookingId).map { ticketMapper.toResponse(it) }
         return ApiResponse.success(tickets, "Tickets retrieved successfully")
     }
 

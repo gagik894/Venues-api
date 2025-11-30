@@ -36,6 +36,17 @@ class TicketAdminController(
         return ResponseEntity.ok().build()
     }
 
+    @PostMapping("/invalidate-item")
+    fun invalidateTicketsForItem(
+        @RequestParam bookingId: UUID,
+        @RequestParam bookingItemId: Long,
+        @RequestParam staffId: UUID,
+        @RequestParam reason: String
+    ): ResponseEntity<Void> {
+        ticketGenerationService.invalidateTicketsForBookingItem(bookingId, bookingItemId, staffId, reason)
+        return ResponseEntity.ok().build()
+    }
+
     @PostMapping("/sessions")
     fun createScannerSession(@RequestBody request: CreateSessionRequest): ScannerSessionDto {
         // In real app, get staffId from SecurityContext

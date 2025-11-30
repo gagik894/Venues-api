@@ -19,7 +19,9 @@ import java.util.*
  * @param sessionId The [UUID] of the `EventSession` this booking applies to.
  * @param totalPrice The total monetary value of the booking.
  * @param currency The 3-letter ISO currency code (default "AMD").
- * @param platformId The [UUID] of the external platform initiating the booking (if applicable).
+ * @param salesChannel The channel through which this booking was created (WEBSITE, DIRECT_SALE, PLATFORM).
+ * @param platformId The [UUID] of the external platform initiating the booking (only for PLATFORM sales).
+ * @param staffId The [UUID] of the staff member who created this booking (only for DIRECT_SALE).
  * @param venueId The [UUID] of the venue (denormalized for faster reporting).
  * @param externalOrderNumber An optional reference number from an external system.
  */
@@ -31,7 +33,10 @@ import java.util.*
         Index(name = "idx_booking_guest_id", columnList = "guest_id"),
         Index(name = "idx_booking_session_id", columnList = "session_id"),
         Index(name = "idx_booking_platform_id", columnList = "platform_id"),
-        Index(name = "idx_booking_venue_id", columnList = "venue_id")
+        Index(name = "idx_booking_venue_id", columnList = "venue_id"),
+        Index(name = "idx_booking_sales_channel", columnList = "sales_channel"),
+        Index(name = "idx_booking_staff_id", columnList = "staff_id"),
+        Index(name = "idx_booking_channel_status", columnList = "sales_channel, status")
     ]
 )
 class Booking(
@@ -51,8 +56,15 @@ class Booking(
     @Column(name = "currency", nullable = false, length = 3)
     var currency: String = "AMD",
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sales_channel", nullable = false, length = 20)
+    var salesChannel: SalesChannel,
+
     @Column(name = "platform_id")
     var platformId: UUID?,
+
+    @Column(name = "staff_id")
+    var staffId: UUID?,
 
     @Column(name = "venue_id")
     var venueId: UUID?,
@@ -78,7 +90,25 @@ class Booking(
     init {
         require(serviceFeeAmount.signum() >= 0) { "serviceFeeAmount must be >= 0" }
         require(discountAmount.signum() >= 0) { "discountAmount must be >= 0" }
-        // Total price check is complex because it depends on calculation order (base + fee - discount)
+
+        // Validate sales channel constraints
+        when (salesChannel) {
+            SalesChannel.PLATFORM -> {
+                require(platformId != null) {
+                    "PLATFORM sales must have platformId set"
+                }
+            }
+
+            SalesChannel.DIRECT_SALE -> {
+                require(staffId != null) {
+                    "DIRECT_SALE must have staffId set to track which staff member made the sale"
+                }
+            }
+
+            SalesChannel.WEBSITE -> {
+                // No additional constraints for website sales
+            }
+        }
     }
 
     // --- Internal State (Encapsulated) ---

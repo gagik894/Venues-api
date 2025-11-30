@@ -93,7 +93,9 @@ class BookingCreationService(
             sessionId = snapshot.session.sessionId,
             totalPrice = total,
             currency = snapshot.session.currency,
+            salesChannel = app.venues.booking.domain.SalesChannel.WEBSITE,  // Customer online purchase
             platformId = context.platformId,
+            staffId = null,  // Not a direct sale
             venueId = snapshot.session.venueId
         ).apply {
             discountAmount = discount

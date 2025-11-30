@@ -99,7 +99,9 @@ class DirectSalesService(
             sessionId = request.sessionId,
             totalPrice = pricing.total,
             currency = session.currency,
+            salesChannel = app.venues.booking.domain.SalesChannel.DIRECT_SALE,  // Staff in-person sale
             platformId = null,
+            staffId = staffId,  // Track which staff made the sale
             venueId = venueId
         ).apply {
             discountAmount = discount

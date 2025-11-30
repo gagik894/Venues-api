@@ -21,4 +21,11 @@ interface TicketApi {
         staffId: UUID,
         reason: String
     )
+
+    fun invalidateTicketsForBookingItem(
+        bookingId: UUID,
+        bookingItemId: Long,
+        staffId: UUID,
+        reason: String
+    )
 }

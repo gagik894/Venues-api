@@ -126,4 +126,7 @@ class Ticket(
     fun getScanCount(): Int = scans.size
 
     fun getRemainingScans(): Int = maxScanCount - scans.size
+
+    @Version
+    var version: Long = 0
 }

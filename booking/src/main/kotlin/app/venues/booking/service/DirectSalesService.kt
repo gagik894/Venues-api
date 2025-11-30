@@ -33,6 +33,7 @@ class DirectSalesService(
     private val seatingApi: SeatingApi,
     private val venueApi: VenueApi,
     private val bookingService: BookingService,
+    private val ticketApi: app.venues.ticket.api.TicketApi,
     @Value("\${app.booking.service-fee-percent:0}")
     private val serviceFeePercent: BigDecimal
 ) {
@@ -143,12 +144,38 @@ class DirectSalesService(
         // 13. Record tickets sold
         recordTicketsSold(confirmedBooking)
 
+        // 14. Generate tickets
+        generateTickets(confirmedBooking)
+
         logger.info {
             "Direct sale completed: bookingId=${confirmedBooking.id}, " +
                     "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId"
         }
 
         return bookingService.prepareBookingResponse(confirmedBooking)
+    }
+
+    private fun generateTickets(booking: Booking) {
+        booking.items.forEach { item ->
+            val ticketType = when {
+                item.seatId != null -> "SEAT"
+                item.gaAreaId != null -> "GA"
+                item.tableId != null -> "TABLE"
+                else -> throw IllegalStateException("Booking item has no inventory reference")
+            }
+
+            ticketApi.generateTicketsForBookingItem(
+                bookingId = booking.id,
+                bookingItemId = requireNotNull(item.id) { "Booking item ID must not be null" },
+                eventSessionId = booking.sessionId,
+                ticketType = ticketType,
+                seatId = item.seatId,
+                gaAreaId = item.gaAreaId,
+                tableId = item.tableId,
+                quantity = item.quantity,
+                qrCode = null // Venue generates QR
+            )
+        }
     }
 
     /**

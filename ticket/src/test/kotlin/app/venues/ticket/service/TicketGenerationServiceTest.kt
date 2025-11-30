@@ -179,4 +179,53 @@ class TicketGenerationServiceTest {
             })
         }
     }
+
+
+    @Test
+    fun `should invalidate tickets for booking item`() {
+        // Given
+        val bookingId = UUID.randomUUID()
+        val bookingItemId = 1L
+        val staffId = UUID.randomUUID()
+        val reason = "Refunded Item"
+
+        val ticket1 = Ticket(
+            bookingId = bookingId,
+            bookingItemId = bookingItemId,
+            eventSessionId = UUID.randomUUID(),
+            qrCode = "T1",
+            ticketType = TicketType.SEAT,
+            seatId = 100L,
+            maxScanCount = 1
+        )
+        // Ticket for another item in same booking (should NOT be invalidated)
+        val ticket2 = Ticket(
+            bookingId = bookingId,
+            bookingItemId = 2L,
+            eventSessionId = UUID.randomUUID(),
+            qrCode = "T2",
+            ticketType = TicketType.SEAT,
+            seatId = 101L,
+            maxScanCount = 1
+        )
+
+        every { ticketRepository.findByBookingItemId(bookingItemId) } returns listOf(ticket1)
+        every { ticketRepository.saveAll(any<List<Ticket>>()) } returns listOf(ticket1)
+
+        // When
+        service.invalidateTicketsForBookingItem(bookingId, bookingItemId, staffId, reason)
+
+        // Then
+        assertEquals(TicketStatus.INVALIDATED, ticket1.status)
+        assertEquals(staffId, ticket1.invalidatedByStaffId)
+        assertEquals(reason, ticket1.invalidationReason)
+
+        assertEquals(TicketStatus.VALID, ticket2.status) // Should remain valid
+
+        verify {
+            ticketRepository.saveAll(match<List<Ticket>> { tickets ->
+                tickets.size == 1 && tickets[0].qrCode == "T1" && tickets[0].status == TicketStatus.INVALIDATED
+            })
+        }
+    }
 }

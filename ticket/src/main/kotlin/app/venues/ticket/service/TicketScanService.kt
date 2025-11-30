@@ -18,7 +18,8 @@ class TicketScanService(
     private val ticketRepository: TicketRepository,
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
-    private val bookingApi: BookingApi
+    private val bookingApi: BookingApi,
+    private val scannerSessionRepository: app.venues.ticket.repository.ScannerSessionRepository
 ) : TicketScanApi {
 
     @Transactional
@@ -34,7 +35,23 @@ class TicketScanService(
             return ScanResult.notFound()
         }
 
-        // 2. Validate status
+        // 2. Validate scanner session
+        val scannerSession = scannerSessionRepository.findById(sessionId)
+            .orElse(null) ?: return ScanResult.invalidSession()
+
+        if (!scannerSession.isValid()) {
+            return ScanResult.invalidSession()
+        }
+
+        // 3. Validate event match
+        val eventSession = eventApi.getEventSessionInfo(ticket.eventSessionId)
+            ?: return ScanResult.error("Event session not found")
+
+        if (eventSession.eventId != scannerSession.eventId) {
+            return ScanResult.error("Ticket belongs to a different event")
+        }
+
+        // 4. Validate status
         if (ticket.status == TicketStatus.INVALIDATED) {
             return ScanResult.error("Ticket invalidated: ${ticket.invalidationReason}")
         }
@@ -42,19 +59,18 @@ class TicketScanService(
             return ScanResult.error("Ticket expired")
         }
 
-        // 3. Check scan count
+        // 5. Check scan count
         if (!ticket.canBeScanned()) {
             return ScanResult.alreadyScanned(ticket.getScanCount(), ticket.maxScanCount)
         }
 
-        // 4. Perform scan
+        // 6. Perform scan
         val scan = ticket.scan(sessionId)
         scan.deviceInfo = deviceInfo
         scan.scanLocation = scanLocation
         ticketRepository.save(ticket)
 
-        // 5. Fetch info for display
-        val eventSession = eventApi.getEventSessionInfo(ticket.eventSessionId)
+        // 7. Fetch info for display (booking already fetched if needed, but we do it lazily or here)
         val booking = try {
             bookingApi.getBookingById(ticket.bookingId)
         } catch (e: Exception) {

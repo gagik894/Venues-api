@@ -28,6 +28,8 @@
             <option value="$PROJECT_DIR$/shared" />
             <option value="$PROJECT_DIR$/staff" />
             <option value="$PROJECT_DIR$/staff-api" />
+            <option value="$PROJECT_DIR$/ticket" />
+            <option value="$PROJECT_DIR$/ticket-api" />
             <option value="$PROJECT_DIR$/user" />
             <option value="$PROJECT_DIR$/user-api" />
             <option value="$PROJECT_DIR$/venue" />

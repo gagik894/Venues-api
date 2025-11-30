@@ -72,6 +72,15 @@ class TicketGenerationService(
         ticketRepository.saveAll(tickets)
     }
 
+    @Transactional
+    override fun invalidateTicketsForBookingItem(bookingId: UUID, bookingItemId: Long, staffId: UUID, reason: String) {
+        val tickets = ticketRepository.findByBookingItemId(bookingItemId)
+        // Verify bookingId matches to be safe
+        tickets.filter { it.bookingId == bookingId }
+            .forEach { it.invalidate(staffId, reason) }
+        ticketRepository.saveAll(tickets)
+    }
+
     private fun Ticket.toDto() = TicketDto(
         id = id,
         ticketNumber = null,

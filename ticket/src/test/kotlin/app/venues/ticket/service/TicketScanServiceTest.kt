@@ -23,6 +23,7 @@ class TicketScanServiceTest {
 
     private val ticketRepository = mockk<TicketRepository>()
     private val ticketScanRepository = mockk<TicketScanRepository>()
+    private val scannerSessionRepository = mockk<app.venues.ticket.repository.ScannerSessionRepository>()
     private val eventApi = mockk<EventApi>()
     private val bookingApi = mockk<BookingApi>()
     private val seatingApi = mockk<SeatingApi>()
@@ -31,7 +32,8 @@ class TicketScanServiceTest {
         ticketRepository = ticketRepository,
         eventApi = eventApi,
         seatingApi = seatingApi,
-        bookingApi = bookingApi
+        bookingApi = bookingApi,
+        scannerSessionRepository = scannerSessionRepository
     )
 
     @Test
@@ -54,10 +56,16 @@ class TicketScanServiceTest {
         every { ticketRepository.findByQrCode(qrCode) } returns ticket
         every { ticketRepository.save(any()) } returns ticket
 
+        // Mock Scanner Session
+        val scannerSession = mockk<app.venues.ticket.domain.ScannerSession>()
+        every { scannerSession.isValid() } returns true
+        every { scannerSession.eventId } returns ticket.eventSessionId
+        every { scannerSessionRepository.findById(scannerSessionId) } returns Optional.of(scannerSession)
+
         // Mock external APIs
         every { eventApi.getEventSessionInfo(any()) } returns EventSessionDto(
             sessionId = UUID.randomUUID(),
-            eventId = UUID.randomUUID(),
+            eventId = ticket.eventSessionId, // Match scanner session
             venueId = UUID.randomUUID(),
             eventTitle = "Concert",
             eventDescription = "Desc",
@@ -106,16 +114,30 @@ class TicketScanServiceTest {
         )
         ticket.scan(UUID.randomUUID()) // Already scanned
 
-        println("DEBUG: Ticket status=${ticket.status}, scans=${ticket.getScanCount()}, max=${ticket.maxScanCount}")
-
         val scannerSessionId = UUID.randomUUID()
 
         every { ticketRepository.findByQrCode(qrCode) } returns ticket
 
+        // Mock Scanner Session
+        val scannerSession = mockk<app.venues.ticket.domain.ScannerSession>()
+        every { scannerSession.isValid() } returns true
+        every { scannerSession.eventId } returns ticket.eventSessionId
+        every { scannerSessionRepository.findById(scannerSessionId) } returns Optional.of(scannerSession)
+
+        // Mock Event Session (needed for validation)
+        every { eventApi.getEventSessionInfo(any()) } returns EventSessionDto(
+            sessionId = UUID.randomUUID(),
+            eventId = ticket.eventSessionId,
+            eventTitle = "Concert",
+            eventDescription = "Desc",
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(7200),
+            venueId = UUID.randomUUID()
+        )
+
         // When
         val result = service.scanTicket(qrCode, scannerSessionId, null, null)
-
-        println("DEBUG: Result success=${result.success}, message=${result.message}")
 
         // Then
         assertFalse(result.success, "Expected failure but got success: ${result.message}")
@@ -142,6 +164,24 @@ class TicketScanServiceTest {
         val scannerSessionId = UUID.randomUUID()
 
         every { ticketRepository.findByQrCode(qrCode) } returns ticket
+
+        // Mock Scanner Session
+        val scannerSession = mockk<app.venues.ticket.domain.ScannerSession>()
+        every { scannerSession.isValid() } returns true
+        every { scannerSession.eventId } returns ticket.eventSessionId
+        every { scannerSessionRepository.findById(scannerSessionId) } returns Optional.of(scannerSession)
+
+        // Mock Event Session (needed for validation)
+        every { eventApi.getEventSessionInfo(any()) } returns EventSessionDto(
+            sessionId = UUID.randomUUID(),
+            eventId = ticket.eventSessionId,
+            eventTitle = "Concert",
+            eventDescription = "Desc",
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(7200),
+            venueId = UUID.randomUUID()
+        )
 
         // When
         val result = service.scanTicket(qrCode, scannerSessionId, null, null)
@@ -175,10 +215,16 @@ class TicketScanServiceTest {
         every { ticketRepository.findByQrCode(qrCode) } returns ticket
         every { ticketRepository.save(any()) } returns ticket
 
+        // Mock Scanner Session
+        val scannerSession = mockk<app.venues.ticket.domain.ScannerSession>()
+        every { scannerSession.isValid() } returns true
+        every { scannerSession.eventId } returns ticket.eventSessionId
+        every { scannerSessionRepository.findById(scannerSessionId) } returns Optional.of(scannerSession)
+
         // Mock external APIs
         every { eventApi.getEventSessionInfo(any()) } returns EventSessionDto(
             sessionId = UUID.randomUUID(),
-            eventId = UUID.randomUUID(),
+            eventId = ticket.eventSessionId, // Match scanner session
             venueId = UUID.randomUUID(),
             eventTitle = "Concert",
             eventDescription = "Desc",
@@ -206,5 +252,51 @@ class TicketScanServiceTest {
         assertTrue(result.success)
         assertEquals(3, ticket.getScanCount())
         assertEquals(TicketStatus.VALID, ticket.status) // Still valid because count < max
+    }
+
+    @Test
+    fun `should fail if ticket belongs to different event`() {
+        // Given
+        val qrCode = "TKT-MISMATCH"
+        val eventSessionId = UUID.randomUUID()
+        val scannerEventId = UUID.randomUUID() // Different event
+
+        val ticket = Ticket(
+            bookingId = UUID.randomUUID(),
+            bookingItemId = 1L,
+            eventSessionId = eventSessionId,
+            qrCode = qrCode,
+            ticketType = TicketType.SEAT,
+            seatId = 1L, // Required for validation
+            maxScanCount = 1
+        )
+        val scannerSessionId = UUID.randomUUID()
+
+        every { ticketRepository.findByQrCode(qrCode) } returns ticket
+
+        // Mock Scanner Session
+        val scannerSession = mockk<app.venues.ticket.domain.ScannerSession>()
+        every { scannerSession.isValid() } returns true
+        every { scannerSession.eventId } returns scannerEventId
+        every { scannerSessionRepository.findById(scannerSessionId) } returns Optional.of(scannerSession)
+
+        // Mock Event Session
+        every { eventApi.getEventSessionInfo(any()) } returns EventSessionDto(
+            sessionId = UUID.randomUUID(),
+            eventId = UUID.randomUUID(), // Different from scannerEventId
+            eventTitle = "Other Event",
+            eventDescription = "Desc",
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(7200),
+            venueId = UUID.randomUUID()
+        )
+
+        // When
+        val result = service.scanTicket(qrCode, scannerSessionId, null, null)
+
+        // Then
+        assertFalse(result.success)
+        assertEquals("Ticket belongs to a different event", result.message)
     }
 }

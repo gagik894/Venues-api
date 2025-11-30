@@ -1,12 +1,12 @@
 package app.venues.ticket.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.ticket.api.ScannerSessionApi
 import app.venues.ticket.api.dto.CreateSessionRequest
 import app.venues.ticket.api.dto.ScannerSessionDto
 import app.venues.ticket.api.dto.TicketDto
 import app.venues.ticket.api.mapper.TicketMapper
 import app.venues.ticket.repository.TicketRepository
-import app.venues.ticket.service.ScannerSessionService
 import app.venues.ticket.service.TicketGenerationService
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -23,7 +23,7 @@ import java.util.*
 class StaffTicketController(
     private val ticketRepository: TicketRepository,
     private val ticketGenerationService: TicketGenerationService,
-    private val scannerSessionService: ScannerSessionService,
+    private val scannerSessionApi: ScannerSessionApi,
     private val venueSecurityService: VenueSecurityService,
     private val ticketMapper: TicketMapper
 ) {
@@ -89,7 +89,7 @@ class StaffTicketController(
             throw IllegalArgumentException("Venue ID mismatch")
         }
 
-        val session = scannerSessionService.createSession(
+        val session = scannerSessionApi.createSession(
             eventId = request.eventId,
             sessionName = request.sessionName,
             validUntil = request.validUntil,

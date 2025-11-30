@@ -170,7 +170,7 @@ class SecurityConfig(
                     // ============================================
                     .requestMatchers(HttpMethod.GET, "/api/v1/health/**").permitAll()
                     .requestMatchers("/actuator/**").permitAll()
-
+                    .requestMatchers("/api/test/**").permitAll()
                     // ============================================
                     // SWAGGER / API DOCUMENTATION
                     // ============================================

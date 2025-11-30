@@ -32,7 +32,8 @@ class VenueService(
     private val cityRepository: CityRepository,
     private val categoryRepository: VenueCategoryRepository,
     private val venueMapper: VenueMapper,
-    private val promoCodeService: VenuePromoCodeService
+    private val promoCodeService: VenuePromoCodeService,
+    private val venueSettingsService: VenueSettingsService
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -520,6 +521,20 @@ class VenueService(
     @Transactional
     override fun releasePromoCode(venueId: UUID, code: String) {
         promoCodeService.releasePromoCode(venueId, code)
+    }
+
+    /**
+     * Get venue's SMTP configuration (implements VenueApi interface).
+     */
+    override fun getSmtpConfig(venueId: UUID): SmtpConfigDto? {
+        val config = venueSettingsService.getSmtpConfig(venueId) ?: return null
+        return SmtpConfigDto(
+            email = config.email,
+            password = config.password,
+            host = config.host,
+            port = config.port,
+            tls = config.tls
+        )
     }
 }
 

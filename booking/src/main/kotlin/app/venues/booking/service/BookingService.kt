@@ -13,6 +13,10 @@ import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.email.EmailBookingItem
+import app.venues.shared.email.EmailConfig
+import app.venues.shared.email.EmailService
+import app.venues.shared.email.EmailTemplateService
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
@@ -44,7 +48,9 @@ class BookingService(
     private val eventApi: EventApi,
     private val venueApi: VenueApi,
     private val ticketApi: TicketApi,
-    private val bookingFulfillmentService: BookingFulfillmentService
+    private val bookingFulfillmentService: BookingFulfillmentService,
+    private val emailService: EmailService,
+    private val emailTemplateService: EmailTemplateService
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -132,7 +138,77 @@ class BookingService(
 
         logger.info { "Booking confirmed: $bookingId" }
 
+        // Send confirmation email
+        try {
+            sendConfirmationEmail(savedBooking)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send confirmation email for booking $bookingId" }
+        }
+
         return prepareBookingResponse(savedBooking)
+    }
+
+    private fun sendConfirmationEmail(booking: Booking) {
+        val sessionDto = eventApi.getEventSessionInfo(booking.sessionId) ?: return
+        val venueId = booking.venueId
+
+        val venueName = if (venueId != null) venueApi.getVenueName(venueId) else "Venues App"
+
+        // Get customer info
+        val customerEmail = booking.userId?.let { userApi.getUserEmail(it) } ?: booking.guest?.email ?: return
+        val customerName = booking.userId?.let { userApi.getUserFullName(it) } ?: booking.guest?.name ?: "Customer"
+
+        // Prepare items
+        val items = booking.items.map { item ->
+            EmailBookingItem(
+                description = item.priceTemplateName ?: "Ticket", // Fallback description
+                quantity = item.quantity,
+                price = item.unitPrice.toString()
+            )
+        }
+
+        // Generate content
+        val zoneId = java.time.ZoneId.systemDefault()
+        val content = emailTemplateService.generateBookingConfirmationEmail(
+            name = customerName,
+            bookingReference = booking.externalOrderNumber ?: booking.id.toString().take(8).uppercase(),
+            bookingUrl = "https://venues.app/bookings/${booking.id}", // TODO: Configurable URL
+            eventTitle = sessionDto.eventTitle,
+            eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+            eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+            venueName = venueName,
+            items = items,
+            totalPrice = booking.totalPrice.toString()
+        )
+
+        // Get venue SMTP config
+        val smtpDto = if (venueId != null) venueApi.getSmtpConfig(venueId) else null
+        val emailConfig = smtpDto?.let {
+            EmailConfig(
+                host = it.host,
+                port = it.port,
+                username = it.email,
+                password = it.password,
+                startTls = it.tls
+            )
+        }
+
+        if (emailConfig != null) {
+            emailService.sendVenueEmail(
+                config = emailConfig,
+                to = customerEmail,
+                subject = "Booking Confirmation - $venueName",
+                content = content,
+                isHtml = true
+            )
+        } else {
+            emailService.sendGlobalEmail(
+                to = customerEmail,
+                subject = "Booking Confirmation - $venueName",
+                content = content,
+                isHtml = true
+            )
+        }
     }
 
     /**
@@ -299,9 +375,9 @@ class BookingService(
 
     /**
      * Prepare booking response with enriched data from other modules.
-     * Internal visibility to allow reuse by DirectSalesService.
+     * Public visibility to allow reuse by DirectSalesService.
      */
-    internal fun prepareBookingResponse(booking: Booking): BookingResponse {
+    fun prepareBookingResponse(booking: Booking): BookingResponse {
         // Fetch session from event module
         val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
             ?: throw VenuesException.ResourceNotFound("Event session not found")

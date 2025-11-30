@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout('Welcome to Venues!', ~{::content})}">
+
+<body>
+<div th:fragment="content">
+    <p>Hello <span th:text="${name}">User</span>,</p>
+    <p>Welcome to ArmTick.am! We're excited to have you on board.</p>
+    <p>Please verify your email address to get started:</p>
+    <a th:href="${verificationUrl}" class="button">Verify Email</a>
+    <p>If you didn't create an account, you can safely ignore this email.</p>
+</div>
+</body>
+
+</html>

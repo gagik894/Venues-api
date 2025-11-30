@@ -1,6 +1,8 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.shared.email.EmailService
+import app.venues.shared.email.EmailTemplateService
 import app.venues.shared.security.jwt.JwtService
 import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
@@ -38,7 +40,9 @@ class StaffAuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     private val failedLoginService: FailedStaffLoginService,
-    private val staffContextBuilder: StaffContextBuilder
+    private val staffContextBuilder: StaffContextBuilder,
+    private val emailService: EmailService,
+    private val emailTemplateService: EmailTemplateService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -102,7 +106,24 @@ class StaffAuthService(
 
         logger.info { "Staff registered successfully: ${saved.email}, ID=${saved.id}" }
 
-        // TODO: Send verification email
+        // Send verification email
+        try {
+            // TODO: Replace with actual frontend URL from config
+            val verificationUrl = "https://venues.app/verify-staff?token=${saved.verificationToken}"
+            val emailContent = emailTemplateService.generateStaffVerificationEmail(
+                name = "${saved.firstName} ${saved.lastName}",
+                verificationUrl = verificationUrl
+            )
+            emailService.sendGlobalEmail(
+                to = saved.email,
+                subject = "Verify Your Staff Account",
+                content = emailContent,
+                isHtml = true
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send verification email to ${saved.email}" }
+            // Don't fail registration if email fails, but log it
+        }
 
         // Generate JWT token with appropriate role
         // Role mapping:

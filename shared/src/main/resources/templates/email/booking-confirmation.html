@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout('Booking Confirmation', ~{::content})}">
+
+<body>
+<div th:fragment="content">
+    <p>Hello <span th:text="${name}">Customer</span>,</p>
+    <p>Thank you for your purchase! Your booking has been confirmed.</p>
+
+    <h3>Event Details</h3>
+    <table class="info-table">
+        <tr>
+            <th>Event</th>
+            <td th:text="${eventTitle}">Event Title</td>
+        </tr>
+        <tr>
+            <th>Date</th>
+            <td th:text="${eventDate}">Date</td>
+        </tr>
+        <tr>
+            <th>Time</th>
+            <td th:text="${eventTime}">Time</td>
+        </tr>
+        <tr>
+            <th>Venue</th>
+            <td th:text="${venueName}">Venue Name</td>
+        </tr>
+    </table>
+
+    <h3>Order Summary</h3>
+    <p><strong>Booking Reference:</strong> <span th:text="${bookingReference}">REF123</span></p>
+
+    <table class="info-table">
+        <thead>
+        <tr>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Price</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="item : ${items}">
+            <td th:text="${item.description}">Ticket Type</td>
+            <td th:text="${item.quantity}">1</td>
+            <td th:text="${item.price}">$10.00</td>
+        </tr>
+        <tr>
+            <td colspan="2" style="text-align: right; font-weight: bold;">Total:</td>
+            <td style="font-weight: bold;" th:text="${totalPrice}">$10.00</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p>Please present this email or your booking reference at the venue entrance.</p>
+    <a th:href="${bookingUrl}" class="button">View Booking</a>
+</div>
+</body>
+
+</html>

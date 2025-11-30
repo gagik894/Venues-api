@@ -85,5 +85,14 @@ interface VenueApi {
      * Returns a map of venueId to VenueBasicInfoDto.
      */
     fun getVenueBasicInfoBatch(venueIds: Set<UUID>): Map<UUID, VenueBasicInfoDto>
+
+    /**
+     * Get venue's SMTP configuration.
+     * Used by other modules (e.g. Booking) to send white-labeled emails.
+     *
+     * @param venueId Venue UUID
+     * @return SMTP config or null if not configured
+     */
+    fun getSmtpConfig(venueId: UUID): app.venues.venue.api.dto.SmtpConfigDto?
 }
 

@@ -96,13 +96,21 @@ class CartSessionManager(
      * Uses staff or customer timing based on isStaffCart flag.
      */
     private fun extendCartExpiration(cart: Cart, isStaffCart: Boolean): Cart {
-        val (extensionMinutes, maxTtlMinutes) = if (isStaffCart) {
-            STAFF_CART_EXTENSION_MINUTES.toLong() to STAFF_MAX_CART_TTL_MINUTES.toLong()
+        val (extensionMinutes, initialExpirationMinutes, maxTtlMinutes) = if (isStaffCart) {
+            Triple(
+                STAFF_CART_EXTENSION_MINUTES.toLong(),
+                STAFF_CART_EXPIRATION_MINUTES.toLong(),
+                STAFF_MAX_CART_TTL_MINUTES.toLong()
+            )
         } else {
-            CART_EXTENSION_MINUTES.toLong() to CUSTOMER_MAX_CART_TTL_MINUTES.toLong()
+            Triple(
+                CART_EXTENSION_MINUTES.toLong(),
+                CART_EXPIRATION_MINUTES.toLong(),
+                CUSTOMER_MAX_CART_TTL_MINUTES.toLong()
+            )
         }
 
-        cart.extendExpiration(extensionMinutes, maxTtlMinutes)
+        cart.extendExpiration(extensionMinutes, initialExpirationMinutes, maxTtlMinutes)
         return cartRepository.save(cart)
     }
 

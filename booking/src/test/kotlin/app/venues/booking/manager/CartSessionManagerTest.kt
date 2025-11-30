@@ -164,6 +164,7 @@ class CartSessionManagerTest {
         // Act - try to extend by 5 more minutes (would be 21 min total from creation)
         cart.extendExpiration(
             CartSessionManager.CART_EXTENSION_MINUTES.toLong(),
+            CartSessionManager.CART_EXPIRATION_MINUTES.toLong(),
             CartSessionManager.CUSTOMER_MAX_CART_TTL_MINUTES.toLong()
         )
 
@@ -193,6 +194,7 @@ class CartSessionManagerTest {
         // Act - try to extend by 10 more minutes (would be 35 min total from creation)
         cart.extendExpiration(
             CartSessionManager.STAFF_CART_EXTENSION_MINUTES.toLong(),
+            CartSessionManager.STAFF_CART_EXPIRATION_MINUTES.toLong(),
             CartSessionManager.STAFF_MAX_CART_TTL_MINUTES.toLong()
         )
 

@@ -105,18 +105,38 @@ class Cart(
     fun isExpired(): Boolean = Instant.now().isAfter(expiresAt)
 
     /**
-     * Extends the cart's expiration time.
-     * Respects a hard limit relative to creation time to prevent infinite holding.
+     * Extends the cart's expiration time by adding to remaining time.
      *
-     * @param minutes Number of minutes to extend from current time.
-     * @param maxTtlMinutes Maximum total lifetime from cart creation.
+     * Logic:
+     * 1. Add extension minutes to current remaining time
+     * 2. Cap at initial expiration minutes from NOW (7 for customers, 20 for staff)
+     * 3. Cap at max TTL from creation (20 for customers, 30 for staff)
+     *
+     * Example (customer): Cart expires in 2 min, add 5 min extension
+     * → 2 + 5 = 7 min from NOW ✅
+     *
+     * Example (customer): Cart expires in 5 min, add 5 min extension
+     * → 5 + 5 = 10 min, capped at 7 min from NOW ✅
+     *
+     * @param extensionMinutes Minutes to add to remaining time
+     * @param initialExpirationMinutes Cap: max minutes from NOW (7 or 20)
+     * @param maxTtlMinutes Cap: max total lifetime from creation (20 or 30)
      */
-    fun extendExpiration(minutes: Long, maxTtlMinutes: Long) {
+    fun extendExpiration(extensionMinutes: Long, initialExpirationMinutes: Long, maxTtlMinutes: Long) {
         val now = Instant.now()
-        val proposed = now.plusSeconds(minutes * 60)
-        val hardLimit = this.createdAt.plusSeconds(maxTtlMinutes * 60)
-
-        this.expiresAt = if (proposed.isAfter(hardLimit)) hardLimit else proposed
+        val remainingSeconds = expiresAt.epochSecond - now.epochSecond
+        
+        // Add extension to remaining time
+        val newRemainingSeconds = remainingSeconds + (extensionMinutes * 60)
+        
+        // Cap 1: Don't exceed initial expiration from NOW
+        val cappedAtInitial = minOf(newRemainingSeconds, initialExpirationMinutes * 60)
+        
+        // Cap 2: Don't exceed max TTL from creation
+        val hardLimitSeconds = (createdAt.epochSecond + maxTtlMinutes * 60) - now.epochSecond
+        val finalRemainingSeconds = minOf(cappedAtInitial, hardLimitSeconds)
+        
+        this.expiresAt = now.plusSeconds(finalRemainingSeconds)
     }
 
 

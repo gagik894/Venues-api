@@ -269,5 +269,24 @@ class SeatingPortService(
             )
         }
     }
+
+    override fun getZoneHierarchy(zoneId: Long): List<SectionInfoDto> {
+        val hierarchy = mutableListOf<SectionInfoDto>()
+        var currentZone = chartZoneRepository.findById(zoneId).orElse(null)
+
+        while (currentZone != null) {
+            hierarchy.add(
+                0, // Add to beginning to maintain Root -> Leaf order
+                SectionInfoDto(
+                    id = currentZone.id ?: error("Zone ID cannot be null"),
+                    code = currentZone.code,
+                    name = currentZone.name
+                )
+            )
+            currentZone = currentZone.parentZone
+        }
+
+        return hierarchy
+    }
 }
 

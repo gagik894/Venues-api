@@ -36,10 +36,16 @@ data class ScanResult(
 data class TicketScanInfoDto(
     val eventTitle: String?,
     val customerName: String?,
-    val seatInfo: String?,
+    val seatDetail: TicketSeatDetailDto?,
     val ticketType: String,
     val scanCount: Int,
     val maxScans: Int
+)
+
+data class TicketSeatDetailDto(
+    val sectionNames: List<String>,
+    val rowLabel: String?,
+    val seatNumber: String?
 )
 
 data class ScannerSessionDto(

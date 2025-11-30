@@ -6,6 +6,7 @@ import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.seating.api.dto.SectionInfoDto
 import app.venues.seating.api.dto.TableInfoDto
 import app.venues.ticket.domain.Ticket
 import app.venues.ticket.domain.TicketStatus
@@ -86,13 +87,20 @@ class TicketScanServiceTest {
             categoryKey = "CAT"
         )
 
+        every { seatingApi.getZoneHierarchy(1L) } returns listOf(
+            SectionInfoDto(10L, "VIP_ZONE", "VIP Area"),
+            SectionInfoDto(1L, "ROW_A", "Row A")
+        )
+
         // When
         val result = service.scanTicket(qrCode, scannerSessionId, null, null)
 
         // Then
         assertTrue(result.success)
         assertEquals("John Doe", result.ticketInfo?.customerName)
-        assertEquals("A1", result.ticketInfo?.seatInfo)
+        assertEquals(listOf("VIP Area", "Row A"), result.ticketInfo?.seatDetail?.sectionNames)
+        assertEquals("A", result.ticketInfo?.seatDetail?.rowLabel)
+        assertEquals("1", result.ticketInfo?.seatDetail?.seatNumber)
         assertEquals(TicketStatus.SCANNED, ticket.status)
         assertEquals(1, ticket.getScanCount())
     }
@@ -243,6 +251,10 @@ class TicketScanServiceTest {
             zoneId = 1L,
             zoneName = "VIP",
             categoryKey = "CAT"
+        )
+
+        every { seatingApi.getZoneHierarchy(1L) } returns listOf(
+            SectionInfoDto(10L, "VIP_ZONE", "VIP Area")
         )
 
         // When

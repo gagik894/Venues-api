@@ -122,4 +122,12 @@ interface SeatingApi {
      * @return list of seats in the table (empty if table has no seats)
      */
     fun getSeatsForTable(tableId: Long): List<SeatInfoDto>
+
+    /**
+     * Get the full hierarchy of zones for a given zone ID.
+     * Returns a list of SectionInfoDto ordered from Root -> Leaf.
+     * @param zoneId The ID of the zone (leaf or intermediate)
+     * @return List of zones in the hierarchy
+     */
+    fun getZoneHierarchy(zoneId: Long): List<SectionInfoDto>
 }

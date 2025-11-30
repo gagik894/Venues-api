@@ -6,6 +6,7 @@ import app.venues.seating.api.SeatingApi
 import app.venues.ticket.api.TicketScanApi
 import app.venues.ticket.api.dto.ScanResult
 import app.venues.ticket.api.dto.TicketScanInfoDto
+import app.venues.ticket.api.dto.TicketSeatDetailDto
 import app.venues.ticket.domain.TicketStatus
 import app.venues.ticket.domain.TicketType
 import app.venues.ticket.repository.TicketRepository
@@ -77,16 +78,48 @@ class TicketScanService(
             null // Handle case where booking might not be found or other error
         }
 
-        val seatInfo = when (ticket.ticketType) {
-            TicketType.SEAT -> ticket.seatId?.let { seatingApi.getSeatInfo(it)?.code }
-            TicketType.TABLE -> ticket.tableId?.let { seatingApi.getTableInfo(it)?.code }
-            TicketType.GA -> ticket.gaAreaId?.let { seatingApi.getGaInfo(it)?.name }
+        val seatDetail = when (ticket.ticketType) {
+            TicketType.SEAT -> ticket.seatId?.let { seatId ->
+                val seat = seatingApi.getSeatInfo(seatId)
+                seat?.let {
+                    val hierarchy = seatingApi.getZoneHierarchy(it.zoneId)
+                    TicketSeatDetailDto(
+                        sectionNames = hierarchy.map { zone -> zone.name },
+                        rowLabel = it.rowLabel,
+                        seatNumber = it.seatNumber
+                    )
+                }
+            }
+
+            TicketType.TABLE -> ticket.tableId?.let { tableId ->
+                val table = seatingApi.getTableInfo(tableId)
+                table?.let {
+                    val hierarchy = seatingApi.getZoneHierarchy(it.zoneId)
+                    TicketSeatDetailDto(
+                        sectionNames = hierarchy.map { zone -> zone.name },
+                        rowLabel = "Table",
+                        seatNumber = it.tableNumber
+                    )
+                }
+            }
+
+            TicketType.GA -> ticket.gaAreaId?.let { gaId ->
+                val ga = seatingApi.getGaInfo(gaId)
+                ga?.let {
+                    val hierarchy = seatingApi.getZoneHierarchy(it.zoneId)
+                    TicketSeatDetailDto(
+                        sectionNames = hierarchy.map { zone -> zone.name } + it.name,
+                        rowLabel = null,
+                        seatNumber = null
+                    )
+                }
+            }
         }
 
         val info = TicketScanInfoDto(
             eventTitle = eventSession?.eventTitle ?: "Unknown Event",
             customerName = booking?.customerName,
-            seatInfo = seatInfo,
+            seatDetail = seatDetail,
             ticketType = ticket.ticketType.name,
             scanCount = ticket.getScanCount(),
             maxScans = ticket.maxScanCount

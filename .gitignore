@@ -49,3 +49,5 @@ bin/
 
 ### Uploads ###
 /uploads
+
+.env

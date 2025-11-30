@@ -43,7 +43,8 @@ class BookingService(
     private val seatingApi: SeatingApi,
     private val eventApi: EventApi,
     private val venueApi: VenueApi,
-    private val ticketApi: TicketApi
+    private val ticketApi: TicketApi,
+    private val bookingFulfillmentService: BookingFulfillmentService
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -79,7 +80,7 @@ class BookingService(
         // Save booking
         val savedBooking = bookingRepository.save(creationResult.booking)
 
-        redeemPromoIfNeeded(savedBooking)
+        bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
 
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
@@ -124,10 +125,10 @@ class BookingService(
         val savedBooking = bookingRepository.save(booking)
 
         // Finalize inventory (RESERVED -> SOLD)
-        finalizeBookingInventory(booking)
+        bookingFulfillmentService.finalizeBookingInventory(booking)
 
         // Generate tickets
-        generateTickets(savedBooking)
+        bookingFulfillmentService.generateTickets(savedBooking)
 
         logger.info { "Booking confirmed: $bookingId" }
 
@@ -156,32 +157,12 @@ class BookingService(
         booking.cancel(request.reason)
         val savedBooking = bookingRepository.save(booking)
 
-        releasePromoIfNeeded(savedBooking)
+        bookingFulfillmentService.releasePromoIfNeeded(savedBooking)
         // Release inventory (RESERVED/SOLD -> AVAILABLE)
-        releaseBookingInventory(booking)
+        bookingFulfillmentService.releaseBookingInventory(booking)
         if (wasConfirmed) {
-            rollbackTicketsSold(booking)
+            bookingFulfillmentService.rollbackTicketsSold(booking)
             // Invalidate tickets
-            // Note: We don't have staffId here for online cancellation, maybe use system user or null?
-            // TicketApi expects staffId. If online cancellation is allowed, we might need a system ID.
-            // For now, let's assume online cancellation is done by user, so maybe we pass a special UUID or handle it.
-            // But wait, cancelBooking has userId (optional).
-            // If userId is present, it's the user cancelling.
-            // If userId is null, it might be system expiration.
-
-            // Actually, TicketApi.invalidateTicketsForBooking takes staffId.
-            // If it's a user cancellation, we might not want to track "staffId".
-            // Maybe we should update TicketApi to allow null staffId or "SYSTEM".
-            // For now, I'll skip invalidation here if I can't provide staffId, OR I'll use a placeholder.
-            // But wait, the requirement was "Invalidate tickets".
-            // I'll add a TODO or try to handle it.
-            // Let's use a random UUID for now or check if I can update TicketApi.
-            // Actually, for expiration, we don't need to invalidate tickets because they were never generated (PENDING).
-            // Tickets are generated ONLY on confirmation.
-            // So if wasConfirmed is true, tickets exist.
-            // If wasConfirmed is true, it means it was CONFIRMED, so tickets WERE generated.
-            // So we MUST invalidate them.
-            // I'll pass a zero UUID for system/user cancellation for now.
             ticketApi.invalidateTicketsForBooking(
                 booking.id,
                 UUID.fromString("00000000-0000-0000-0000-000000000000"),
@@ -210,8 +191,8 @@ class BookingService(
         booking.cancel("Booking expired")
         val savedBooking = bookingRepository.save(booking)
 
-        releasePromoIfNeeded(savedBooking)
-        releaseBookingInventory(savedBooking)
+        bookingFulfillmentService.releasePromoIfNeeded(savedBooking)
+        bookingFulfillmentService.releaseBookingInventory(savedBooking)
     }
 
     /**
@@ -479,13 +460,13 @@ class BookingService(
         // Save booking
         val savedBooking = bookingRepository.save(booking)
 
-        redeemPromoIfNeeded(savedBooking)
+        bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
 
         // Finalize inventory (RESERVED -> SOLD)
-        finalizeBookingInventory(booking)
+        bookingFulfillmentService.finalizeBookingInventory(booking)
 
         // Generate tickets
-        generateTickets(savedBooking)
+        bookingFulfillmentService.generateTickets(savedBooking)
 
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
@@ -539,7 +520,7 @@ class BookingService(
         booking.confirm(paymentId)
         val savedBooking = bookingRepository.save(booking)
 
-        finalizeBookingInventory(savedBooking)
+        bookingFulfillmentService.finalizeBookingInventory(savedBooking)
     }
 
     /**
@@ -560,10 +541,10 @@ class BookingService(
         booking.cancel("Payment failed or cancelled")
         val savedBooking = bookingRepository.save(booking)
 
-        releasePromoIfNeeded(savedBooking)
-        releaseBookingInventory(savedBooking)
+        bookingFulfillmentService.releasePromoIfNeeded(savedBooking)
+        bookingFulfillmentService.releaseBookingInventory(savedBooking)
         if (wasConfirmed) {
-            rollbackTicketsSold(savedBooking)
+            bookingFulfillmentService.rollbackTicketsSold(savedBooking)
         }
     }
 
@@ -581,9 +562,9 @@ class BookingService(
         }
         booking.cancel(reason ?: "Booking refunded")
         val savedBooking = bookingRepository.save(booking)
-        releasePromoIfNeeded(savedBooking)
-        releaseBookingInventory(savedBooking)
-        rollbackTicketsSold(savedBooking)
+        bookingFulfillmentService.releasePromoIfNeeded(savedBooking)
+        bookingFulfillmentService.releaseBookingInventory(savedBooking)
+        bookingFulfillmentService.rollbackTicketsSold(savedBooking)
 
         // Invalidate tickets
         ticketApi.invalidateTicketsForBooking(
@@ -591,154 +572,5 @@ class BookingService(
             UUID.fromString("00000000-0000-0000-0000-000000000000"),
             reason ?: "Booking Refunded"
         )
-    }
-
-    private fun redeemPromoIfNeeded(booking: Booking) {
-        val code = booking.promoCode
-        val venueId = booking.venueId
-        if (code != null && venueId != null) {
-            venueApi.redeemPromoCode(venueId, code)
-            logger.debug { "Redeemed promo code $code for booking ${booking.id}" }
-        }
-    }
-
-    private fun releasePromoIfNeeded(booking: Booking) {
-        val code = booking.promoCode
-        val venueId = booking.venueId
-        if (code != null && venueId != null) {
-            try {
-                venueApi.releasePromoCode(venueId, code)
-                logger.debug { "Released promo code $code for booking ${booking.id}" }
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to release promo code $code for booking ${booking.id}" }
-            }
-        }
-    }
-
-    /**
-     * Finalize inventory (RESERVED -> SOLD).
-     */
-    private fun finalizeBookingInventory(booking: Booking) {
-        // 1. Finalize Seats
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
-        }
-
-        // 2. Finalize GA
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
-        }
-
-        // 3. Finalize Tables
-        val tableIds = booking.items.mapNotNull { it.tableId }
-        if (tableIds.isNotEmpty()) {
-            eventApi.sellTablesBatch(booking.sessionId, tableIds)
-        }
-
-        recordTicketsSold(booking)
-    }
-
-    /**
-     * Release inventory (RESERVED/SOLD -> AVAILABLE).
-     */
-    private fun releaseBookingInventory(booking: Booking) {
-        // 1. Release Seats
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.releaseSeatsBatch(booking.sessionId, seatIds)
-        }
-
-        // 2. Release GA
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
-        }
-
-        // 3. Release Tables
-        val tableIds = booking.items.mapNotNull { it.tableId }
-        if (tableIds.isNotEmpty()) {
-            eventApi.releaseTablesBatch(booking.sessionId, tableIds)
-        }
-    }
-
-    private fun recordTicketsSold(booking: Booking) {
-        val quantity = calculateTicketQuantity(booking)
-        if (quantity == 0) {
-            return
-        }
-        val updated = eventApi.incrementTicketsSold(booking.sessionId, quantity)
-        if (!updated) {
-            logger.warn { "Failed to increment tickets sold for booking ${booking.id} in session ${booking.sessionId}" }
-        }
-    }
-
-    private fun rollbackTicketsSold(booking: Booking) {
-        val quantity = calculateTicketQuantity(booking)
-        if (quantity == 0) {
-            return
-        }
-        val updated = eventApi.decrementTicketsSold(booking.sessionId, quantity)
-        if (!updated) {
-            logger.warn { "Failed to decrement tickets sold for booking ${booking.id} in session ${booking.sessionId}" }
-        }
-    }
-
-    private fun calculateTicketQuantity(booking: Booking): Int {
-        if (booking.items.isEmpty()) {
-            return 0
-        }
-
-        val seatTickets = booking.items.count { it.seatId != null }
-        val gaTickets = booking.items.filter { it.gaAreaId != null }.sumOf { it.quantity }
-        val tableTickets = calculateTableTicketQuantity(booking)
-        return seatTickets + gaTickets + tableTickets
-    }
-
-    private fun calculateTableTicketQuantity(booking: Booking): Int {
-        val tableIds = booking.items.mapNotNull { it.tableId }.toSet()
-        if (tableIds.isEmpty()) {
-            return 0
-        }
-
-        return tableIds.sumOf { tableId ->
-            try {
-                val seats = seatingApi.getSeatsForTable(tableId)
-                if (seats.isNotEmpty()) {
-                    seats.size
-                } else {
-                    seatingApi.getTableInfo(tableId)?.seatCapacity ?: 0
-                }
-            } catch (ex: Exception) {
-                logger.error(ex) { "Failed to resolve seat capacity for table $tableId" }
-                0
-            }
-        }
-    }
-
-    private fun generateTickets(booking: Booking) {
-        booking.items.forEach { item ->
-            val ticketType = when {
-                item.seatId != null -> "SEAT"
-                item.gaAreaId != null -> "GA"
-                item.tableId != null -> "TABLE"
-                else -> throw IllegalStateException("Booking item has no inventory reference")
-            }
-
-            ticketApi.generateTicketsForBookingItem(
-                bookingId = booking.id,
-                bookingItemId = requireNotNull(item.id) { "Booking item ID must not be null" },
-                eventSessionId = booking.sessionId,
-                ticketType = ticketType,
-                seatId = item.seatId,
-                gaAreaId = item.gaAreaId,
-                tableId = item.tableId,
-                quantity = item.quantity,
-                qrCodes = null // Venue generates QR
-            )
-        }
     }
 }

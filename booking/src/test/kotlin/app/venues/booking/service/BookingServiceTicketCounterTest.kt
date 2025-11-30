@@ -51,6 +51,13 @@ class BookingServiceTicketCounterTest {
         venueApi = mockk(relaxed = true)
         ticketApi = mockk(relaxed = true)
 
+        val bookingFulfillmentService = BookingFulfillmentService(
+            eventApi,
+            seatingApi,
+            venueApi,
+            ticketApi
+        )
+
         service = BookingService(
             bookingRepository,
             cartRepository,
@@ -61,7 +68,8 @@ class BookingServiceTicketCounterTest {
             seatingApi,
             eventApi,
             venueApi,
-            ticketApi
+            ticketApi,
+            bookingFulfillmentService
         )
 
         every {

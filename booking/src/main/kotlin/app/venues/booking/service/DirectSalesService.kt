@@ -34,6 +34,7 @@ class DirectSalesService(
     private val venueApi: VenueApi,
     private val bookingService: BookingService,
     private val ticketApi: app.venues.ticket.api.TicketApi,
+    private val bookingFulfillmentService: BookingFulfillmentService,
     @Value("\${app.booking.service-fee-percent:0}")
     private val serviceFeePercent: BigDecimal
 ) {
@@ -130,22 +131,19 @@ class DirectSalesService(
         val savedBooking = bookingRepository.save(booking)
 
         // 10. Redeem promo if applicable
-        if (promoCode != null) {
-            venueApi.redeemPromoCode(venueId, promoCode.code)
-        }
+        bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
 
-        // 11. Finalize inventory (RESERVED -> SOLD)
-        finalizeInventory(savedBooking)
+
 
         // 12. Confirm booking immediately (since payment already received)
         savedBooking.confirm(null)
         val confirmedBooking = bookingRepository.save(savedBooking)
 
-        // 13. Record tickets sold
-        recordTicketsSold(confirmedBooking)
+        // 13. Finalize inventory (RESERVED -> SOLD) & Record tickets sold
+        bookingFulfillmentService.finalizeBookingInventory(confirmedBooking)
 
         // 14. Generate tickets
-        generateTickets(confirmedBooking)
+        bookingFulfillmentService.generateTickets(confirmedBooking)
 
         logger.info {
             "Direct sale completed: bookingId=${confirmedBooking.id}, " +
@@ -155,28 +153,7 @@ class DirectSalesService(
         return bookingService.prepareBookingResponse(confirmedBooking)
     }
 
-    private fun generateTickets(booking: Booking) {
-        booking.items.forEach { item ->
-            val ticketType = when {
-                item.seatId != null -> "SEAT"
-                item.gaAreaId != null -> "GA"
-                item.tableId != null -> "TABLE"
-                else -> throw IllegalStateException("Booking item has no inventory reference")
-            }
 
-            ticketApi.generateTicketsForBookingItem(
-                bookingId = booking.id,
-                bookingItemId = requireNotNull(item.id) { "Booking item ID must not be null" },
-                eventSessionId = booking.sessionId,
-                ticketType = ticketType,
-                seatId = item.seatId,
-                gaAreaId = item.gaAreaId,
-                tableId = item.tableId,
-                quantity = item.quantity,
-                qrCodes = null // Venue generates QR
-            )
-        }
-    }
 
     private fun calculatePromoDiscount(
         venueId: UUID,
@@ -342,49 +319,7 @@ class DirectSalesService(
             .divide(hundred, 2, RoundingMode.HALF_UP)
     }
 
-    private fun finalizeInventory(booking: Booking) {
-        // Finalize Seats (RESERVED -> SOLD)
-        val seatIds = booking.items.mapNotNull { it.seatId }
-        if (seatIds.isNotEmpty()) {
-            eventApi.sellSeatsBatch(booking.sessionId, seatIds)
-        }
 
-        // Finalize GA
-        val gaItems = booking.items.filter { it.gaAreaId != null }
-        if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
-            eventApi.sellGaBatch(booking.sessionId, gaQuantities)
-        }
-
-        // Finalize Tables
-        val tableIds = booking.items.mapNotNull { it.tableId }
-        if (tableIds.isNotEmpty()) {
-            eventApi.sellTablesBatch(booking.sessionId, tableIds)
-        }
-    }
-
-    private fun recordTicketsSold(booking: Booking) {
-        val quantity = calculateTicketQuantity(booking)
-        if (quantity > 0) {
-            eventApi.incrementTicketsSold(booking.sessionId, quantity)
-        }
-    }
-
-    private fun calculateTicketQuantity(booking: Booking): Int {
-        val seatTickets = booking.items.count { it.seatId != null }
-        val gaTickets = booking.items.filter { it.gaAreaId != null }.sumOf { it.quantity }
-        val tableTickets = booking.items.mapNotNull { it.tableId }.sumOf { tableId ->
-            try {
-                val seats = seatingApi.getSeatsForTable(tableId)
-                if (seats.isNotEmpty()) seats.size
-                else seatingApi.getTableInfo(tableId)?.seatCapacity ?: 0
-            } catch (e: Exception) {
-                logger.error(e) { "Failed to get seat capacity for table $tableId" }
-                0
-            }
-        }
-        return seatTickets + gaTickets + tableTickets
-    }
 
     private data class ReservedItem(
         val seatId: Long? = null,

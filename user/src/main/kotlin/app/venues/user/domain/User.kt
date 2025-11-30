@@ -58,6 +58,13 @@ class User(
     @Column(name = "referrer_id")
     var referrerId: UUID? = null,
 
+    /**
+     * The user's preferred language for email communications.
+     * Supports: 'en' (English), 'hy' (Armenian), 'ru' (Russian)
+     */
+    @Column(name = "preferred_language", length = 5, nullable = false)
+    var preferredLanguage: String = "en"
+
     ) : AbstractUuidEntity() {
 
     companion object {

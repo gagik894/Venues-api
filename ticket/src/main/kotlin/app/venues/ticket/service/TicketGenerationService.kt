@@ -3,6 +3,7 @@ package app.venues.ticket.service
 import app.venues.seating.api.SeatingApi
 import app.venues.ticket.api.TicketApi
 import app.venues.ticket.api.dto.TicketDto
+import app.venues.ticket.api.mapper.TicketMapper
 import app.venues.ticket.domain.Ticket
 import app.venues.ticket.domain.TicketType
 import app.venues.ticket.repository.TicketRepository
@@ -14,7 +15,8 @@ import java.util.*
 class TicketGenerationService(
     private val ticketRepository: TicketRepository,
     private val qrCodeService: QRCodeService,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val ticketMapper: TicketMapper
 ) : TicketApi {
 
     @Transactional
@@ -62,7 +64,7 @@ class TicketGenerationService(
             )
         }
 
-        return ticketRepository.saveAll(tickets).map { it.toDto() }
+        return ticketRepository.saveAll(tickets).map { ticketMapper.toDto(it) }
     }
 
     @Transactional
@@ -80,15 +82,4 @@ class TicketGenerationService(
             .forEach { it.invalidate(staffId, reason) }
         ticketRepository.saveAll(tickets)
     }
-
-    private fun Ticket.toDto() = TicketDto(
-        id = id,
-        ticketNumber = null,
-        qrCode = qrCode,
-        ticketType = ticketType.name,
-        status = status.name,
-        maxScanCount = maxScanCount,
-        scanCount = getScanCount(),
-        remainingScans = getRemainingScans()
-    )
 }

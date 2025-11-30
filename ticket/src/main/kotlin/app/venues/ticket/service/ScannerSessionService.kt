@@ -2,6 +2,7 @@ package app.venues.ticket.service
 
 import app.venues.ticket.api.ScannerSessionApi
 import app.venues.ticket.api.dto.ScannerSessionDto
+import app.venues.ticket.api.mapper.ScannerSessionMapper
 import app.venues.ticket.domain.ScannerSession
 import app.venues.ticket.repository.ScannerSessionRepository
 import org.springframework.stereotype.Service
@@ -12,7 +13,7 @@ import java.util.*
 @Service
 class ScannerSessionService(
     private val sessionRepository: ScannerSessionRepository,
-    private val qrCodeService: QRCodeService
+    private val scannerSessionMapper: ScannerSessionMapper
 ) : ScannerSessionApi {
 
     @Transactional
@@ -43,9 +44,8 @@ class ScannerSessionService(
 
         // QR Content: SCAN:{eventId}:{secretToken}
         val qrContent = "SCAN:$eventId:$secretToken"
-        val qrImage = qrCodeService.generateQrCodeImageBase64(qrContent)
 
-        return savedSession.toDto(qrContent, qrImage)
+        return scannerSessionMapper.toDto(savedSession, qrContent)
     }
 
     @Transactional(readOnly = true)
@@ -56,19 +56,7 @@ class ScannerSessionService(
             return null
         }
 
-        return session.toDto(
-            qrCodeData = "HIDDEN", // Don't return sensitive QR data on validation
-            qrCodeImage = "" // Don't generate image on validation
-        )
+        return scannerSessionMapper.toDto(session, "HIDDEN")
     }
 
-    private fun ScannerSession.toDto(qrCodeData: String, qrCodeImage: String) = ScannerSessionDto(
-        id = id,
-        sessionName = sessionName,
-        secretToken = secretToken,
-        qrCodeData = qrCodeData, // Contains the QR content string
-        qrCodeImage = qrCodeImage,
-        validUntil = validUntil,
-        active = active
-    )
 }

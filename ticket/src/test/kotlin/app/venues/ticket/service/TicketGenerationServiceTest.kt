@@ -2,6 +2,8 @@ package app.venues.ticket.service
 
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.TableInfoDto
+import app.venues.ticket.api.dto.TicketDto
+import app.venues.ticket.api.mapper.TicketMapper
 import app.venues.ticket.domain.Ticket
 import app.venues.ticket.domain.TicketStatus
 import app.venues.ticket.domain.TicketType
@@ -20,11 +22,13 @@ class TicketGenerationServiceTest {
     private val ticketRepository = mockk<TicketRepository>()
     private val qrCodeService = mockk<QRCodeService>()
     private val seatingApi = mockk<SeatingApi>()
+    private val ticketMapper = mockk<TicketMapper>()
 
     private val service = TicketGenerationService(
         ticketRepository = ticketRepository,
         qrCodeService = qrCodeService,
-        seatingApi = seatingApi
+        seatingApi = seatingApi,
+        ticketMapper = ticketMapper
     )
 
     @Test
@@ -39,6 +43,19 @@ class TicketGenerationServiceTest {
         val slot = slot<List<Ticket>>()
         every { ticketRepository.saveAll(capture(slot)) } answers {
             slot.captured
+        }
+        every { ticketMapper.toDto(any()) } answers {
+            val t = firstArg<Ticket>()
+            TicketDto(
+                id = t.id,
+                ticketNumber = null,
+                qrCode = t.qrCode,
+                ticketType = t.ticketType.name,
+                status = t.status.name,
+                maxScanCount = t.maxScanCount,
+                scanCount = t.getScanCount(),
+                remainingScans = t.getRemainingScans()
+            )
         }
 
         // When
@@ -88,6 +105,19 @@ class TicketGenerationServiceTest {
         val slot = slot<List<Ticket>>()
         every { ticketRepository.saveAll(capture(slot)) } answers {
             slot.captured
+        }
+        every { ticketMapper.toDto(any()) } answers {
+            val t = firstArg<Ticket>()
+            TicketDto(
+                id = t.id,
+                ticketNumber = null,
+                qrCode = t.qrCode,
+                ticketType = t.ticketType.name,
+                status = t.status.name,
+                maxScanCount = t.maxScanCount,
+                scanCount = t.getScanCount(),
+                remainingScans = t.getRemainingScans()
+            )
         }
 
         // When

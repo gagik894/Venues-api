@@ -42,7 +42,6 @@ data class ScannerSessionDto(
     val sessionName: String,
     val secretToken: String,
     val qrCodeData: String,
-    val qrCodeImage: String?, // Base64 image
     val validUntil: Instant,
     val active: Boolean
 )

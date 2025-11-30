@@ -67,7 +67,7 @@ class TicketGenerationServiceTest {
             gaAreaId = null,
             tableId = null,
             quantity = 1,
-            qrCode = null
+            qrCodes = null
         )
 
         // Then
@@ -128,7 +128,7 @@ class TicketGenerationServiceTest {
             gaAreaId = null,
             tableId = tableId,
             quantity = 1,
-            qrCode = null
+            qrCodes = null
         )
 
         // Then
@@ -157,7 +157,7 @@ class TicketGenerationServiceTest {
                 gaAreaId = null,
                 tableId = tableId,
                 quantity = 1,
-                qrCode = null
+                qrCodes = null
             )
         }
     }
@@ -255,5 +255,41 @@ class TicketGenerationServiceTest {
                 tickets.size == 1 && tickets[0].qrCode == "T1" && tickets[0].status == TicketStatus.INVALIDATED
             })
         }
+    }
+
+    @Test
+    fun `should use provided qr codes for bulk generation`() {
+        // Given
+        val bookingId = UUID.randomUUID()
+        val bookingItemId = 1L
+        val eventSessionId = UUID.randomUUID()
+        val qrCodes = listOf("QR-1", "QR-2", "QR-3")
+        val quantity = 3
+
+        val slot = slot<List<Ticket>>()
+        every { ticketRepository.saveAll(capture(slot)) } answers {
+            slot.captured
+        }
+        every { ticketMapper.toDto(any()) } returns mockk()
+
+        // When
+        service.generateTicketsForBookingItem(
+            bookingId = bookingId,
+            bookingItemId = bookingItemId,
+            eventSessionId = eventSessionId,
+            ticketType = "GA",
+            seatId = null,
+            gaAreaId = 10L,
+            tableId = null,
+            quantity = quantity,
+            qrCodes = qrCodes
+        )
+
+        // Then
+        val savedTickets = slot.captured
+        assertEquals(3, savedTickets.size)
+        assertEquals("QR-1", savedTickets[0].qrCode)
+        assertEquals("QR-2", savedTickets[1].qrCode)
+        assertEquals("QR-3", savedTickets[2].qrCode)
     }
 }

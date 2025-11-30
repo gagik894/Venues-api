@@ -13,7 +13,7 @@ interface TicketApi {
         gaAreaId: Long? = null,
         tableId: Long? = null,
         quantity: Int,
-        qrCode: String? = null
+        qrCodes: List<String>? = null
     ): List<TicketDto>
 
     fun invalidateTicketsForBooking(

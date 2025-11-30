@@ -737,7 +737,7 @@ class BookingService(
                 gaAreaId = item.gaAreaId,
                 tableId = item.tableId,
                 quantity = item.quantity,
-                qrCode = null // Venue generates QR
+                qrCodes = null // Venue generates QR
             )
         }
     }

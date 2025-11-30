@@ -270,6 +270,7 @@ class SeatingPortService(
         }
     }
 
+    @org.springframework.cache.annotation.Cacheable("zoneHierarchy")
     override fun getZoneHierarchy(zoneId: Long): List<SectionInfoDto> {
         val hierarchy = mutableListOf<SectionInfoDto>()
         var currentZone = chartZoneRepository.findById(zoneId).orElse(null)

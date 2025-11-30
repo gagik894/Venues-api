@@ -173,14 +173,11 @@ class DirectSalesService(
                 gaAreaId = item.gaAreaId,
                 tableId = item.tableId,
                 quantity = item.quantity,
-                qrCode = null // Venue generates QR
+                qrCodes = null // Venue generates QR
             )
         }
     }
 
-    /**
-     * Validates promo code and calculates discount amount.
-     */
     private fun calculatePromoDiscount(
         venueId: UUID,
         promoCodeString: String?,

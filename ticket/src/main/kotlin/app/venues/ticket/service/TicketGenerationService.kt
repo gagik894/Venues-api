@@ -29,7 +29,7 @@ class TicketGenerationService(
         gaAreaId: Long?,
         tableId: Long?,
         quantity: Int,
-        qrCode: String?
+        qrCodes: List<String>?
     ): List<TicketDto> {
 
         val type = TicketType.valueOf(ticketType)
@@ -44,18 +44,20 @@ class TicketGenerationService(
             1
         }
 
-        val tickets = (1..quantity).map {
+        // Validate QR codes if provided
+        if (qrCodes != null) {
+            require(qrCodes.size == quantity) {
+                "Number of QR codes (${qrCodes.size}) must match quantity ($quantity)"
+            }
+        }
+
+        val tickets = (0 until quantity).map { index ->
             Ticket(
                 bookingId = bookingId,
                 bookingItemId = bookingItemId,
                 eventSessionId = eventSessionId,
                 // Use provided QR code (platform) or generate new one (venue)
-                // Note: If quantity > 1 (e.g. GA), we generate unique QR for each unless provided
-                // If platform provides ONE QR for multiple tickets, we might need logic here.
-                // Assuming platform provides distinct QR per ticket or we handle it upstream.
-                // For now, if qrCode is provided and quantity > 1, this will fail unique constraint.
-                // Realistically, platform integrations usually sync individual tickets.
-                qrCode = if (qrCode != null && quantity == 1) qrCode else qrCodeService.generateTicketQrCode(),
+                qrCode = qrCodes?.get(index) ?: qrCodeService.generateTicketQrCode(),
                 ticketType = type,
                 seatId = seatId,
                 gaAreaId = gaAreaId,

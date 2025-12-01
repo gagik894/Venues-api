@@ -9,12 +9,19 @@ import java.util.*
 /**
  * Event fired when a booking is confirmed and tickets are generated.
  * Triggers async email notification.
+ *
+ * @param bookingId The confirmed booking UUID
+ * @param venueId The venue ID (for SMTP config)
+ * @param customerEmail Customer email address
+ * @param customerName Customer display name
+ * @param locale Customer's preferred language (e.g., "en", "hy", "ru")
  */
 data class BookingConfirmedEvent(
     val bookingId: UUID,
     val venueId: UUID?,
     val customerEmail: String,
-    val customerName: String
+    val customerName: String,
+    val locale: String = "en"
 )
 
 /**

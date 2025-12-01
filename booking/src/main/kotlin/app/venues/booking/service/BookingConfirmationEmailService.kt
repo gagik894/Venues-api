@@ -47,10 +47,11 @@ class BookingConfirmationEmailService(
      * Send booking confirmation email with tickets and QR codes.
      *
      * @param booking The confirmed booking entity
+     * @param locale The locale for email internationalization (e.g., "en", "hy", "ru")
      */
-    fun sendConfirmationEmail(booking: Booking) {
+    fun sendConfirmationEmail(booking: Booking, locale: String? = null) {
         try {
-            doSendConfirmationEmail(booking)
+            doSendConfirmationEmail(booking, locale)
         } catch (e: Exception) {
             logger.error(e) { "Failed to send confirmation email for booking ${booking.id}" }
         }
@@ -61,17 +62,21 @@ class BookingConfirmationEmailService(
      * Fetches booking from repository.
      *
      * @param bookingId The booking UUID
+     * @param locale The locale for email internationalization (e.g., "en", "hy", "ru")
      */
-    fun sendConfirmationEmail(bookingId: UUID) {
+    fun sendConfirmationEmail(bookingId: UUID, locale: String? = null) {
         val booking = bookingRepository.findById(bookingId).orElse(null)
         if (booking == null) {
             logger.warn { "Booking not found for email: $bookingId" }
             return
         }
-        sendConfirmationEmail(booking)
+        sendConfirmationEmail(booking, locale)
     }
 
-    private fun doSendConfirmationEmail(booking: Booking) {
+    private fun doSendConfirmationEmail(booking: Booking, localeCode: String?) {
+        // Resolve locale for i18n
+        val locale = resolveLocale(localeCode)
+
         // Fetch session details
         val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
         if (sessionDto == null) {
@@ -102,7 +107,7 @@ class BookingConfirmationEmailService(
         // Get tickets and generate QR codes with seat info
         val emailTickets = generateEmailTickets(booking.id)
 
-        // Generate email content
+        // Generate email content with i18n
         val zoneId = ZoneId.systemDefault()
         val content = emailTemplateService.generateBookingConfirmationEmail(
             name = customerName,
@@ -115,7 +120,8 @@ class BookingConfirmationEmailService(
             venueName = venueName,
             items = items,
             totalPrice = "${booking.currency} ${booking.totalPrice}",
-            tickets = emailTickets
+            tickets = emailTickets,
+            locale = locale
         )
 
         // Send email
@@ -133,6 +139,18 @@ class BookingConfirmationEmailService(
         return booking.userId?.let { userApi.getUserFullName(it) }
             ?: booking.guest?.name
             ?: "Customer"
+    }
+
+    /**
+     * Resolve Locale from language code string.
+     * Supports "en", "hy", "ru" with English as default.
+     */
+    private fun resolveLocale(localeCode: String?): Locale {
+        return when (localeCode?.lowercase()) {
+            "hy" -> Locale("hy")
+            "ru" -> Locale("ru")
+            else -> Locale.ENGLISH
+        }
     }
 
     private fun generateEmailTickets(bookingId: UUID): List<EmailTicket> {

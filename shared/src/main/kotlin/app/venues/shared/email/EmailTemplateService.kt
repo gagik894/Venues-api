@@ -5,12 +5,13 @@ import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
+import java.util.Locale
 
 /**
  * Service for generating HTML email content using Thymeleaf templates.
  *
  * Follows SRP by focusing solely on template rendering.
- * Uses `LocaleContextHolder` to get the current locale and `MessageSource` for translations.
+ * Uses explicit locale when provided, or falls back to `LocaleContextHolder`.
  */
 @Service
 class EmailTemplateService(
@@ -19,30 +20,30 @@ class EmailTemplateService(
 ) {
 
     /**
-     * Creates a Thymeleaf context with the current locale set.
-     * This ensures that template expressions like #{message.key} resolve correctly.
+     * Creates a Thymeleaf context with the specified locale.
+     * Falls back to LocaleContextHolder if no locale provided.
      */
-    private fun createContext(): Context {
-        val locale = LocaleContextHolder.getLocale()
-        return Context(locale)
+    private fun createContext(locale: Locale? = null): Context {
+        val resolvedLocale = locale ?: LocaleContextHolder.getLocale()
+        return Context(resolvedLocale)
     }
 
-    fun generateStaffVerificationEmail(name: String, verificationUrl: String): String {
-        val context = createContext()
+    fun generateStaffVerificationEmail(name: String, verificationUrl: String, locale: Locale? = null): String {
+        val context = createContext(locale)
         context.setVariable("name", name)
         context.setVariable("verificationUrl", verificationUrl)
         return templateEngine.process("email/staff-verification", context)
     }
 
-    fun generateUserVerificationEmail(name: String, verificationUrl: String): String {
-        val context = createContext()
+    fun generateUserVerificationEmail(name: String, verificationUrl: String, locale: Locale? = null): String {
+        val context = createContext(locale)
         context.setVariable("name", name)
         context.setVariable("verificationUrl", verificationUrl)
         return templateEngine.process("email/user-verification", context)
     }
 
-    fun generatePasswordResetEmail(name: String, resetUrl: String): String {
-        val context = createContext()
+    fun generatePasswordResetEmail(name: String, resetUrl: String, locale: Locale? = null): String {
+        val context = createContext(locale)
         context.setVariable("name", name)
         context.setVariable("resetUrl", resetUrl)
         return templateEngine.process("email/password-reset", context)
@@ -58,9 +59,10 @@ class EmailTemplateService(
         venueName: String,
         items: List<EmailBookingItem>,
         totalPrice: String,
-        tickets: List<EmailTicket> = emptyList()
+        tickets: List<EmailTicket> = emptyList(),
+        locale: Locale? = null
     ): String {
-        val context = createContext()
+        val context = createContext(locale)
         context.setVariable("name", name)
         context.setVariable("bookingReference", bookingReference)
         context.setVariable("bookingUrl", bookingUrl)

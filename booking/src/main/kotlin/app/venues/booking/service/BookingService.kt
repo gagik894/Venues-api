@@ -155,12 +155,18 @@ class BookingService(
             ?: booking.guest?.name
             ?: "Customer"
 
+        // Get customer's preferred language
+        val locale = booking.userId?.let { userApi.getUserLanguage(it) }
+            ?: booking.guest?.preferredLanguage
+            ?: "en"
+
         eventPublisher.publishEvent(
             BookingConfirmedEvent(
                 bookingId = booking.id,
                 venueId = booking.venueId,
                 customerEmail = customerEmail,
-                customerName = customerName
+                customerName = customerName,
+                locale = locale
             )
         )
         logger.debug { "Published BookingConfirmedEvent for booking ${booking.id}" }

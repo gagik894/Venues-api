@@ -34,7 +34,7 @@ class BookingEmailEventListener(
         logger.debug { "Received BookingConfirmedEvent for booking ${event.bookingId}" }
 
         try {
-            emailService.sendConfirmationEmail(event.bookingId)
+            emailService.sendConfirmationEmail(event.bookingId, event.locale)
         } catch (e: Exception) {
             // Log but don't rethrow - email failure should not affect booking
             logger.error(e) { "Failed to send confirmation email for booking ${event.bookingId}" }

@@ -74,6 +74,12 @@ class UserService(
         return userRepository.existsById(userId)
     }
 
+    override fun getUserLanguage(userId: UUID): String? {
+        return userRepository.findById(userId)
+            .map { it.preferredLanguage }
+            .orElse(null)
+    }
+
     // ===========================================
     // INTERNAL BUSINESS LOGIC
     // ===========================================

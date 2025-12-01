@@ -148,12 +148,14 @@ class DirectSalesService(
         bookingFulfillmentService.generateTickets(confirmedBooking)
 
         // 15. Publish event for async email sending
+        // Direct sales use default locale (English) since they're staff-initiated
         eventPublisher.publishEvent(
             BookingConfirmedEvent(
                 bookingId = confirmedBooking.id,
                 venueId = venueId,
                 customerEmail = request.customerEmail,
-                customerName = request.customerName
+                customerName = request.customerName,
+                locale = "en"
             )
         )
 

@@ -4,11 +4,7 @@ import app.venues.booking.domain.Booking
 import app.venues.booking.repository.BookingRepository
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
-import app.venues.shared.email.EmailBookingItem
-import app.venues.shared.email.EmailConfig
-import app.venues.shared.email.EmailService
-import app.venues.shared.email.EmailTemplateService
-import app.venues.shared.email.EmailTicket
+import app.venues.shared.email.*
 import app.venues.shared.qrcode.QRCodeService
 import app.venues.ticket.api.TicketApi
 import app.venues.ticket.api.dto.TicketDto
@@ -16,6 +12,7 @@ import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.ZoneId
 import java.util.*
 
@@ -59,11 +56,12 @@ class BookingConfirmationEmailService(
 
     /**
      * Send booking confirmation email by booking ID.
-     * Fetches booking from repository.
+     * Fetches booking from repository within a transaction to ensure lazy loading works.
      *
      * @param bookingId The booking UUID
      * @param locale The locale for email internationalization (e.g., "en", "hy", "ru")
      */
+    @Transactional(readOnly = true)
     fun sendConfirmationEmail(bookingId: UUID, locale: String? = null) {
         val booking = bookingRepository.findById(bookingId).orElse(null)
         if (booking == null) {

@@ -5,7 +5,10 @@ import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.dto.CreateVenueRequest
 import app.venues.venue.api.dto.UpdateVenueRequest
 import app.venues.venue.api.dto.VenueAdminResponse
+import app.venues.venue.api.service.VenueSecurityService
+import app.venues.venue.dto.SmtpConfig
 import app.venues.venue.service.VenueService
+import app.venues.venue.service.VenueSettingsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -18,13 +21,15 @@ import java.util.*
 
 /**
  * REST controller for venue administration.
- * Requires ADMIN or VENUE_OWNER role. Can use UUIDs internally.
+ * Requires ADMIN or STAFF role with venue permission.
  */
 @RestController
 @RequestMapping("/api/v1/admin/venues")
 @Tag(name = "Venue Administration", description = "Admin-only venue management endpoints")
 class VenueAdminController(
-    private val venueService: VenueService
+    private val venueService: VenueService,
+    private val venueSettingsService: VenueSettingsService,
+    private val venueSecurityService: VenueSecurityService
 ) {
 
     @PostMapping
@@ -115,5 +120,92 @@ class VenueAdminController(
     ): ApiResponse<Unit> {
         venueService.deleteVenue(id)
         return ApiResponse.success(Unit, "Venue deleted successfully")
+    }
+
+    // ===========================================
+    // SMTP CONFIGURATION
+    // ===========================================
+
+    @PutMapping("/{id}/smtp")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STAFF')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @Operation(
+        summary = "Set SMTP configuration",
+        description = "Configure SMTP settings for venue email notifications. " +
+                "Credentials are encrypted at rest."
+    )
+    fun setSmtpConfig(
+        @PathVariable id: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody config: SmtpConfig
+    ): ApiResponse<SmtpConfigResponse?> {
+        venueSecurityService.requireVenueManagementPermission(staffId, id)
+        venueSettingsService.updateSmtpConfig(id, config)
+        val masked = venueSettingsService.getSmtpConfigMasked(id)
+        return ApiResponse.success(
+            SmtpConfigResponse.from(masked),
+            "SMTP configuration updated successfully"
+        )
+    }
+
+    @GetMapping("/{id}/smtp")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STAFF')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @Operation(
+        summary = "Get SMTP configuration",
+        description = "Retrieve SMTP settings for venue. Password is masked for security."
+    )
+    fun getSmtpConfig(
+        @PathVariable id: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<SmtpConfigResponse?> {
+        venueSecurityService.requireVenueManagementPermission(staffId, id)
+        val config = venueSettingsService.getSmtpConfigMasked(id)
+        return ApiResponse.success(
+            config?.let { SmtpConfigResponse.from(it) },
+            if (config != null) "SMTP configuration retrieved" else "No SMTP configuration found"
+        )
+    }
+
+    @DeleteMapping("/{id}/smtp")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STAFF')")
+    @SecurityRequirement(name = "bearer-jwt")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+        summary = "Delete SMTP configuration",
+        description = "Remove SMTP settings for venue. Venue will use global SMTP for emails."
+    )
+    fun deleteSmtpConfig(
+        @PathVariable id: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<Unit> {
+        venueSecurityService.requireVenueManagementPermission(staffId, id)
+        venueSettingsService.updateSmtpConfig(id, null)
+        return ApiResponse.success(Unit, "SMTP configuration deleted")
+    }
+}
+
+/**
+ * Response DTO for SMTP config with masked password.
+ */
+data class SmtpConfigResponse(
+    val email: String,
+    val password: String,  // Masked
+    val host: String,
+    val port: Int,
+    val tls: Boolean
+) {
+    companion object {
+        fun from(config: SmtpConfig?): SmtpConfigResponse? {
+            return config?.let {
+                SmtpConfigResponse(
+                    email = it.email,
+                    password = it.password,
+                    host = it.host,
+                    port = it.port,
+                    tls = it.tls
+                )
+            }
+        }
     }
 }

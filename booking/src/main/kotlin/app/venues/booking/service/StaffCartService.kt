@@ -2,14 +2,18 @@ package app.venues.booking.service
 
 import app.venues.booking.api.StaffCartApi
 import app.venues.booking.api.dto.BookingResponse
-import app.venues.booking.api.dto.DirectSaleItemRequest
-import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.booking.api.dto.StaffCartCheckoutRequest
+import app.venues.booking.domain.SalesChannel
+import app.venues.booking.event.BookingConfirmedEvent
 import app.venues.booking.manager.CartSessionManager
+import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
+import app.venues.booking.service.model.BookingCreationContext
+import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
-import app.venues.seating.api.SeatingApi
+import app.venues.event.api.EventApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -22,8 +26,8 @@ import java.util.*
  *
  * Design:
  * - Reuses existing CartService for all cart manipulation (add/remove items)
- * - Provides checkout functionality that converts cart to DirectSaleRequest
- * - Delegates booking creation to DirectSalesService for consistency
+ * - Uses BookingCreationService to assemble booking from cart (items already reserved)
+ * - Immediately confirms and finalizes booking (payment assumed received)
  * - Cleans up cart after successful checkout
  */
 @Service
@@ -31,8 +35,13 @@ import java.util.*
 class StaffCartService(
     private val cartSessionManager: CartSessionManager,
     private val cartRepository: CartRepository,
-    private val directSalesService: DirectSalesService,
-    private val seatingApi: SeatingApi
+    private val bookingRepository: BookingRepository,
+    private val bookingCreationService: BookingCreationService,
+    private val bookingFulfillmentService: BookingFulfillmentService,
+    private val bookingService: BookingService,
+    private val guestService: GuestService,
+    private val eventApi: EventApi,
+    private val eventPublisher: ApplicationEventPublisher
 ) : StaffCartApi {
 
     private val logger = KotlinLogging.logger {}
@@ -41,11 +50,15 @@ class StaffCartService(
      * Checkout staff cart and create a confirmed booking.
      *
      * Flow:
-     * 1. Load cart with all items
+     * 1. Load cart with all items (already reserved in inventory)
      * 2. Validate cart is not empty
-     * 3. Build DirectSaleRequest from cart contents
-     * 4. Delegate to DirectSalesService for booking creation
-     * 5. Delete cart (inventory already finalized by DirectSalesService)
+     * 3. Create guest for customer
+     * 4. Assemble booking from cart using BookingCreationService
+     * 5. Set staff-specific fields (salesChannel, staffId)
+     * 6. Save and confirm booking immediately
+     * 7. Finalize inventory (RESERVED -> SOLD) and generate tickets
+     * 8. Delete cart
+     * 9. Send confirmation email
      *
      * @param token Cart token
      * @param request Checkout details (customer info, payment reference, promo code)
@@ -62,7 +75,7 @@ class StaffCartService(
     ): BookingResponse {
         logger.info { "Staff $staffId checking out cart $token for venue $venueId" }
 
-        // 1. Load cart with all items (using @EntityGraph for performance)
+        // 1. Load cart with all items (already reserved)
         val cart = cartSessionManager.getActiveCartWithItems(token)
 
         // 2. Validate cart has items
@@ -70,72 +83,84 @@ class StaffCartService(
             throw VenuesException.ValidationFailure("Cannot checkout an empty cart")
         }
 
-        // 3. Build items list for DirectSaleRequest
-        val items = mutableListOf<DirectSaleItemRequest>()
-
-        // Add seats
-        cart.seats.forEach { seat ->
-            val seatInfo = seatingApi.getSeatInfo(seat.seatId)
-                ?: throw VenuesException.ResourceNotFound("Seat not found: ${seat.seatId}")
-
-            items.add(
-                DirectSaleItemRequest(
-                    seatCode = seatInfo.code,
-                    quantity = 1
-                )
-            )
+        // 3. Apply promo code if provided
+        if (!request.promoCode.isNullOrBlank()) {
+            cart.promoCode = request.promoCode
         }
 
-        // Add GA items
-        cart.gaItems.forEach { gaItem ->
-            val gaInfo = seatingApi.getGaInfo(gaItem.gaAreaId)
-                ?: throw VenuesException.ResourceNotFound("GA area not found: ${gaItem.gaAreaId}")
+        // 4. Fetch session info
+        val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
 
-            items.add(
-                DirectSaleItemRequest(
-                    gaAreaCode = gaInfo.code,
-                    quantity = gaItem.quantity
-                )
-            )
-        }
-
-        // Add tables
-        cart.tables.forEach { table ->
-            val tableInfo = seatingApi.getTableInfo(table.tableId)
-                ?: throw VenuesException.ResourceNotFound("Table not found: ${table.tableId}")
-
-            items.add(
-                DirectSaleItemRequest(
-                    tableCode = tableInfo.code,
-                    quantity = 1
-                )
-            )
-        }
-
-        // 4. Build DirectSaleRequest
-        val directSaleRequest = DirectSaleRequest(
-            sessionId = cart.sessionId,
-            customerEmail = request.customerEmail,
-            customerName = request.customerName,
-            customerPhone = request.customerPhone,
-            items = items,
-            paymentReference = request.paymentReference,
-            promoCode = request.promoCode
+        // 5. Build cart snapshot
+        val cartSnapshot = CartSnapshot(
+            cart = cart,
+            seats = cart.seats.toList(),
+            gaItems = cart.gaItems.toList(),
+            tables = cart.tables.toList(),
+            session = sessionDto
         )
 
-        // 5. Create booking via DirectSalesService
-        // This handles: inventory finalization, promo redemption, booking confirmation
-        val booking = directSalesService.createDirectSale(directSaleRequest, venueId, staffId)
+        // 6. Create guest for customer
+        val guest = guestService.findOrCreateGuest(
+            request.customerEmail,
+            request.customerName,
+            request.customerPhone
+        )
 
-        // 6. Delete cart (inventory already moved from RESERVED to SOLD)
-        // We don't need to release inventory since DirectSalesService finalized it
-        cartRepository.delete(cart)
+        // 7. Assemble booking from cart (items already reserved, no re-reservation needed)
+        val creationResult = bookingCreationService.assembleBooking(
+            snapshot = cartSnapshot,
+            context = BookingCreationContext(
+                userId = null,  // Staff sale, no user account
+                guest = guest,
+                platformId = null,
+                paymentReference = request.paymentReference
+            )
+        )
 
-        logger.info {
-            "Staff cart checkout completed: bookingId=${booking.id}, " +
-                    "cartToken=$token, staffId=$staffId, itemCount=${items.size}"
+        // 8. Override with staff-specific fields
+        val booking = creationResult.booking.apply {
+            salesChannel = SalesChannel.DIRECT_SALE
+            this.staffId = staffId
+            externalOrderNumber = request.paymentReference
         }
 
-        return booking
+        // 9. Save booking
+        val savedBooking = bookingRepository.save(booking)
+
+        // 10. Redeem promo if applicable
+        bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
+
+        // 11. Confirm booking immediately (payment assumed received)
+        savedBooking.confirm(null)
+        val confirmedBooking = bookingRepository.save(savedBooking)
+
+        // 12. Finalize inventory (RESERVED -> SOLD) and record tickets sold
+        bookingFulfillmentService.finalizeBookingInventory(confirmedBooking)
+
+        // 13. Generate tickets
+        bookingFulfillmentService.generateTickets(confirmedBooking)
+
+        // 14. Delete cart (inventory already finalized)
+        cartRepository.delete(cart)
+
+        // 15. Publish event for async email sending
+        eventPublisher.publishEvent(
+            BookingConfirmedEvent(
+                bookingId = confirmedBooking.id,
+                venueId = venueId,
+                customerEmail = request.customerEmail,
+                customerName = request.customerName,
+                locale = guest.preferredLanguage
+            )
+        )
+
+        logger.info {
+            "Staff cart checkout completed: bookingId=${confirmedBooking.id}, " +
+                    "cartToken=$token, staffId=$staffId, total=${creationResult.pricing.total}"
+        }
+
+        return bookingService.prepareBookingResponse(confirmedBooking)
     }
 }

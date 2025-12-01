@@ -81,6 +81,7 @@ class BookingConfirmationEmailService(
     private fun doSendConfirmationEmail(booking: Booking, localeCode: String?) {
         // Resolve locale for i18n
         val locale = resolveLocale(localeCode)
+        val languageCode = locale.language // e.g., "en", "hy", "ru"
 
         // Fetch session details
         val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
@@ -89,8 +90,14 @@ class BookingConfirmationEmailService(
             return
         }
 
+        // Get translated venue and event names
         val venueId = booking.venueId
-        val venueName = venueId?.let { venueApi.getVenueName(it) } ?: "Venues App"
+        val venueName = venueId?.let {
+            venueApi.getVenueNameTranslated(it, languageCode)
+        } ?: "Venues App"
+
+        val eventTitle = eventApi.getEventTitleTranslated(sessionDto.eventId, languageCode)
+            ?: sessionDto.eventTitle
 
         // Get customer info
         val customerEmail = getCustomerEmail(booking)
@@ -112,63 +119,43 @@ class BookingConfirmationEmailService(
         // Get tickets and generate QR codes with seat info
         val emailTickets = generateEmailTickets(booking.id)
 
-        // Decide whether to use inline tickets or PDF attachment
-        val usePdfAttachment = emailTickets.size > PDF_THRESHOLD
+        // Always use PDF attachment (no inline tickets)
         val attachments = mutableListOf<EmailAttachment>()
 
         // Generate email content with i18n
         val zoneId = ZoneId.systemDefault()
-        val content = if (usePdfAttachment) {
-            // Generate PDF and attach it
-            val pdfBytes = pdfTicketService.generateTicketsPdf(
-                eventTitle = sessionDto.eventTitle,
-                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
-                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
-                venueName = venueName,
-                bookingReference = booking.externalOrderNumber ?: booking.id.toString().take(8).uppercase(),
-                tickets = emailTickets,
-                locale = locale
-            )
-            attachments.add(
-                EmailAttachment(
-                    filename = "tickets-${booking.externalOrderNumber ?: booking.id.toString().take(8)}.pdf",
-                    contentType = "application/pdf",
-                    data = pdfBytes
-                )
-            )
 
-            // Email content without inline tickets (PDF attached)
-            emailTemplateService.generateBookingConfirmationEmail(
-                name = customerName,
-                bookingReference = booking.externalOrderNumber
-                    ?: booking.id.toString().take(8).uppercase(),
-                bookingUrl = "https://venues.app/bookings/${booking.id}",
-                eventTitle = sessionDto.eventTitle,
-                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
-                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
-                venueName = venueName,
-                items = items,
-                totalPrice = "${booking.currency} ${booking.totalPrice}",
-                tickets = emptyList(), // No inline tickets, PDF attached
-                locale = locale
+        // Generate PDF and attach it
+        val pdfBytes = pdfTicketService.generateTicketsPdf(
+            eventTitle = eventTitle,
+            eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+            eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+            venueName = venueName,
+            bookingReference = booking.externalOrderNumber ?: booking.id.toString().take(8).uppercase(),
+            tickets = emailTickets,
+            locale = locale
+        )
+        attachments.add(
+            EmailAttachment(
+                filename = "tickets-${booking.externalOrderNumber ?: booking.id.toString().take(8)}.pdf",
+                contentType = "application/pdf",
+                data = pdfBytes
             )
-        } else {
-            // Inline tickets in email (few tickets)
-            emailTemplateService.generateBookingConfirmationEmail(
-                name = customerName,
-                bookingReference = booking.externalOrderNumber
-                    ?: booking.id.toString().take(8).uppercase(),
-                bookingUrl = "https://venues.app/bookings/${booking.id}",
-                eventTitle = sessionDto.eventTitle,
-                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
-                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
-                venueName = venueName,
-                items = items,
-                totalPrice = "${booking.currency} ${booking.totalPrice}",
-                tickets = emailTickets,
-                locale = locale
-            )
-        }
+        )
+
+        // Email content without inline tickets (PDF attached)
+        val content = emailTemplateService.generateBookingConfirmationEmail(
+            name = customerName,
+            bookingReference = booking.externalOrderNumber
+                ?: booking.id.toString().take(8).uppercase(),
+            eventTitle = eventTitle,
+            eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+            eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+            venueName = venueName,
+            items = items,
+            totalPrice = "${booking.currency} ${booking.totalPrice}",
+            locale = locale
+        )
 
         // Send email
         sendEmail(venueId, customerEmail, venueName, content, attachments)

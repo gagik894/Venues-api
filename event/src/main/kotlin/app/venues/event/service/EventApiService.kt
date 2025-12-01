@@ -8,10 +8,7 @@ import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventSession
 import app.venues.event.domain.SessionSeatConfig
-import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionGAConfigRepository
-import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.event.repository.SessionTableConfigRepository
+import app.venues.event.repository.*
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.dao.DataIntegrityViolationException
@@ -24,6 +21,7 @@ import kotlin.jvm.optionals.getOrNull
 @Service
 class EventApiService(
     private val eventSessionRepository: EventSessionRepository,
+    private val eventRepository: EventRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
@@ -47,6 +45,20 @@ class EventApiService(
             startTime = session.startTime,
             endTime = session.endTime
         )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEventTitleTranslated(eventId: UUID, language: String?): String? {
+        val event = eventRepository.findById(eventId).getOrNull() ?: return null
+
+        // If no language specified or language is default, return default title
+        if (language.isNullOrBlank()) {
+            return event.title
+        }
+
+        // Try to find translation for requested language
+        val translation = event.translations.find { it.language.equals(language, ignoreCase = true) }
+        return translation?.title ?: event.title
     }
 
     @Transactional(readOnly = true)

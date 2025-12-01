@@ -116,17 +116,21 @@ class PdfTicketService(
 
         // Ticket type
         val ticketTypeLabel = getTicketTypeLabel(ticket.ticketType, locale)
-        val ticketTypePara = Paragraph(ticketTypeLabel, ticketTypeFont)
+        val ticketTypePara = Paragraph(ticketTypeLabel, headerFont)
         ticketTypePara.alignment = Element.ALIGN_CENTER
-        ticketTypePara.spacingAfter = 10f
+        ticketTypePara.spacingAfter = 5f
         document.add(ticketTypePara)
 
-        // Seat info
+        // Seat info (prominent display)
         if (!ticket.seatInfo.isNullOrBlank()) {
-            val seatPara = Paragraph(ticket.seatInfo, normalFont)
+            val seatFont = Font(Font.HELVETICA, 18f, Font.BOLD, Color(34, 139, 34)) // Green color
+            val seatPara = Paragraph(ticket.seatInfo, seatFont)
             seatPara.alignment = Element.ALIGN_CENTER
-            seatPara.spacingAfter = 10f
+            seatPara.spacingAfter = 15f
             document.add(seatPara)
+        } else {
+            // Add spacing even if no seat info
+            document.add(Chunk.NEWLINE)
         }
 
         // Ticket number

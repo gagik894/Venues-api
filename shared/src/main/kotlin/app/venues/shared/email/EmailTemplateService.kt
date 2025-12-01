@@ -5,7 +5,7 @@ import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
-import java.util.Locale
+import java.util.*
 
 /**
  * Service for generating HTML email content using Thymeleaf templates.
@@ -52,27 +52,23 @@ class EmailTemplateService(
     fun generateBookingConfirmationEmail(
         name: String,
         bookingReference: String,
-        bookingUrl: String,
         eventTitle: String,
         eventDate: String,
         eventTime: String,
         venueName: String,
         items: List<EmailBookingItem>,
         totalPrice: String,
-        tickets: List<EmailTicket> = emptyList(),
         locale: Locale? = null
     ): String {
         val context = createContext(locale)
         context.setVariable("name", name)
         context.setVariable("bookingReference", bookingReference)
-        context.setVariable("bookingUrl", bookingUrl)
         context.setVariable("eventTitle", eventTitle)
         context.setVariable("eventDate", eventDate)
         context.setVariable("eventTime", eventTime)
         context.setVariable("venueName", venueName)
         context.setVariable("items", items)
         context.setVariable("totalPrice", totalPrice)
-        context.setVariable("tickets", tickets)
         return templateEngine.process("email/booking-confirmation", context)
     }
 }

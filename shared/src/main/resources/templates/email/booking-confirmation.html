@@ -50,32 +50,10 @@
 </tbody>
 </table>
 
-<p th:text="#{email.booking.entrance.instructions}">Please present this email or your booking reference at the venue entrance.</p>
-
-    <!-- Tickets Section (inline) -->
-<div th:if="${tickets != null and !tickets.isEmpty()}" style="margin-top: 30px;">
-<h2 th:text="#{email.booking.tickets.title}">Your Tickets</h2>
-<p th:text="#{email.booking.tickets.instructions}">Please show these QR codes at the venue entrance for scanning.</p>
-
-<div th:each="ticket : ${tickets}" style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;">
-<div style="display: flex; align-items: center; gap: 20px;">
-<div style="flex: 1;">
-<p style="margin: 5px 0; font-weight: bold;" th:text="${ticket.ticketNumber}">Ticket 1 of 3</p>
-<p style="margin: 5px 0;" th:text="#{|email.booking.ticket.type.${ticket.ticketType}|}">Seat Ticket</p>
-<p th:if="${ticket.seatInfo}" style="margin: 5px 0; color: #666;" th:text="${ticket.seatInfo}">Section A, Row 5, Seat 12</p>
-</div>
-<div style="text-align: center;">
-<img th:src="'data:image/png;base64,' + ${ticket.qrCodeBase64}" alt="QR Code" style="width: 150px; height: 150px; border: 2px solid #333;"/>
-<p style="margin: 5px 0; font-size: 12px; color: #666;" th:text="#{email.booking.ticket.scan}">Scan at entrance</p>
-</div>
-</div>
-</div>
-</div>
-
-    <!-- PDF Attachment Notice (when tickets are in PDF) -->
-    <div th:if="${tickets == null or tickets.isEmpty()}"
-         style="margin-top: 30px; padding: 20px; background-color: #f0f8ff; border: 2px solid #4CAF50; border-radius: 8px;">
-        <h2 style="color: #4CAF50;" th:text="#{email.booking.pdf.attached.title}">📎 Your Tickets Are Attached</h2>
+    <!-- PDF Attachment Notice -->
+    <div style="margin-top: 30px; padding: 20px; background-color: #f0f8ff; border: 2px solid #4CAF50; border-radius: 8px;">
+        <h2 style="color: #4CAF50; margin-top: 0;" th:text="#{email.booking.pdf.attached.title}">📎 Your Tickets Are
+            Attached</h2>
         <p th:text="#{email.booking.pdf.attached.message}">Your tickets are attached to this email as a PDF file. You
             can view them on your device or print them for entry.</p>
         <ul style="margin: 10px 0; padding-left: 20px;">
@@ -85,7 +63,8 @@
         </ul>
     </div>
 
-<a th:href="${bookingUrl}" class="button" th:text="#{email.booking.view.button}">View Booking</a>
+    <p style="margin-top: 30px; color: #666; font-size: 14px;" th:text="#{email.booking.thanks.footer}">Thank you for
+        choosing us. We look forward to seeing you at the event!</p>
 </div>
 </body>
 

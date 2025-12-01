@@ -35,6 +35,15 @@ interface EventApi {
     fun getEventSessionInfo(sessionId: UUID): EventSessionDto?
 
     /**
+     * Get event title with translation support.
+     *
+     * @param eventId Event UUID.
+     * @param language Language code (e.g., "hy", "ru", "en"). Null returns default title.
+     * @return Translated title if available, or default title, or null if event not found.
+     */
+    fun getEventTitleTranslated(eventId: UUID, language: String?): String?
+
+    /**
      * Returns all session IDs for a given event.
      * Used for event-level booking queries.
      *

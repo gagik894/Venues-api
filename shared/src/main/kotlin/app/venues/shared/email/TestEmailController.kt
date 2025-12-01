@@ -34,7 +34,6 @@ class TestEmailController(
         return emailTemplateService.generateBookingConfirmationEmail(
             name = "John Doe",
             bookingReference = "REF123456",
-            bookingUrl = "https://venues.app/bookings/123",
             eventTitle = "Grand Concert",
             eventDate = "2025-12-25",
             eventTime = "19:00",
@@ -52,7 +51,6 @@ class TestEmailController(
         val content = emailTemplateService.generateBookingConfirmationEmail(
             name = "John Doe",
             bookingReference = "REF123456",
-            bookingUrl = "https://venues.app/bookings/123",
             eventTitle = "Grand Concert",
             eventDate = "2025-12-25",
             eventTime = "19:00",

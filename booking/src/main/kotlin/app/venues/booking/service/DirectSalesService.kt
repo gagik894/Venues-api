@@ -5,6 +5,7 @@ import app.venues.booking.api.dto.DirectSaleItemRequest
 import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
+import app.venues.booking.event.BookingConfirmedEvent
 import app.venues.booking.repository.BookingRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
@@ -13,6 +14,7 @@ import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.PromoCodeDto
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -33,8 +35,8 @@ class DirectSalesService(
     private val seatingApi: SeatingApi,
     private val venueApi: VenueApi,
     private val bookingService: BookingService,
-    private val ticketApi: app.venues.ticket.api.TicketApi,
     private val bookingFulfillmentService: BookingFulfillmentService,
+    private val eventPublisher: ApplicationEventPublisher,
     @Value("\${app.booking.service-fee-percent:0}")
     private val serviceFeePercent: BigDecimal
 ) {
@@ -144,6 +146,16 @@ class DirectSalesService(
 
         // 14. Generate tickets
         bookingFulfillmentService.generateTickets(confirmedBooking)
+
+        // 15. Publish event for async email sending
+        eventPublisher.publishEvent(
+            BookingConfirmedEvent(
+                bookingId = confirmedBooking.id,
+                venueId = venueId,
+                customerEmail = request.customerEmail,
+                customerName = request.customerName
+            )
+        )
 
         logger.info {
             "Direct sale completed: bookingId=${confirmedBooking.id}, " +

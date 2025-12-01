@@ -60,6 +60,10 @@ dependencies {
     // Logging
     api("io.github.oshai:kotlin-logging-jvm:5.1.0")
 
+    // QR Code generation
+    api("com.google.zxing:core:3.5.3")
+    api("com.google.zxing:javase:3.5.3")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

@@ -84,4 +84,10 @@ class TicketGenerationService(
             .forEach { it.invalidate(staffId, reason) }
         ticketRepository.saveAll(tickets)
     }
+
+    @Transactional(readOnly = true)
+    override fun getTicketsForBooking(bookingId: UUID): List<TicketDto> {
+        return ticketRepository.findByBookingId(bookingId)
+            .map { ticketMapper.toDto(it) }
+    }
 }

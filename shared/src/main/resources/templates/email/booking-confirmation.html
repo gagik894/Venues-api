@@ -1,58 +1,89 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout('Booking Confirmation', ~{::content})}">
+\u003c!DOCTYPE html\u003e
+\u003chtml xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout('Booking Confirmation',
+~{::content})}"\u003e
 
-<body>
-<div th:fragment="content">
-    <p>Hello <span th:text="${name}">Customer</span>,</p>
-    <p>Thank you for your purchase! Your booking has been confirmed.</p>
+\u003cbody\u003e
+\u003cdiv th:fragment="content"\u003e
+\u003cp\u003eHello \u003cspan th:text="${name}"\u003eCustomer\u003c/span\u003e,\u003c/p\u003e
+\u003cp\u003eThank you for your purchase! Your booking has been confirmed.\u003c/p\u003e
 
-    <h3>Event Details</h3>
-    <table class="info-table">
-        <tr>
-            <th>Event</th>
-            <td th:text="${eventTitle}">Event Title</td>
-        </tr>
-        <tr>
-            <th>Date</th>
-            <td th:text="${eventDate}">Date</td>
-        </tr>
-        <tr>
-            <th>Time</th>
-            <td th:text="${eventTime}">Time</td>
-        </tr>
-        <tr>
-            <th>Venue</th>
-            <td th:text="${venueName}">Venue Name</td>
-        </tr>
-    </table>
+\u003ch3\u003eEvent Details\u003c/h3\u003e
+\u003ctable class="info-table"\u003e
+\u003ctr\u003e
+\u003cth\u003eEvent\u003c/th\u003e
+\u003ctd th:text="${eventTitle}"\u003eEvent Title\u003c/td\u003e
+\u003c/tr\u003e
+\u003ctr\u003e
+\u003cth\u003eDate\u003c/th\u003e
+\u003ctd th:text="${eventDate}"\u003eDate\u003c/td\u003e
+\u003c/tr\u003e
+\u003ctr\u003e
+\u003cth\u003eTime\u003c/th\u003e
+\u003ctd th:text="${eventTime}"\u003eTime\u003c/td\u003e
+\u003c/tr\u003e
+\u003ctr\u003e
+\u003cth\u003eVenue\u003c/th\u003e
+\u003ctd th:text="${venueName}"\u003eVenue Name\u003c/td\u003e
+\u003c/tr\u003e
+\u003c/table\u003e
 
-    <h3>Order Summary</h3>
-    <p><strong>Booking Reference:</strong> <span th:text="${bookingReference}">REF123</span></p>
+\u003ch3\u003eOrder Summary\u003c/h3\u003e
+\u003cp\u003e\u003cstrong\u003eBooking Reference:\u003c/strong\u003e \u003cspan
+th:text="${bookingReference}"\u003eREF123\u003c/span\u003e\u003c/p\u003e
 
-    <table class="info-table">
-        <thead>
-        <tr>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Price</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="item : ${items}">
-            <td th:text="${item.description}">Ticket Type</td>
-            <td th:text="${item.quantity}">1</td>
-            <td th:text="${item.price}">$10.00</td>
-        </tr>
-        <tr>
-            <td colspan="2" style="text-align: right; font-weight: bold;">Total:</td>
-            <td style="font-weight: bold;" th:text="${totalPrice}">$10.00</td>
-        </tr>
-        </tbody>
-    </table>
+\u003ctable class="info-table"\u003e
+\u003cthead\u003e
+\u003ctr\u003e
+\u003cth\u003eItem\u003c/th\u003e
+\u003cth\u003eQty\u003c/th\u003e
+\u003cth\u003ePrice\u003c/th\u003e
+\u003c/tr\u003e
+\u003c/thead\u003e
+\u003ctbody\u003e
+\u003ctr th:each="item : ${items}"\u003e
+\u003ctd th:text="${item.description}"\u003eTicket Type\u003c/td\u003e
+\u003ctd th:text="${item.quantity}"\u003e1\u003c/td\u003e
+\u003ctd th:text="${item.price}"\u003e$10.00\u003c/td\u003e
+\u003c/tr\u003e
+\u003ctr\u003e
+\u003ctd colspan="2" style="text-align: right; font-weight: bold;"\u003eTotal:\u003c/td\u003e
+\u003ctd style="font-weight: bold;" th:text="${totalPrice}"\u003e$10.00\u003c/td\u003e
+\u003c/tr\u003e
+\u003c/tbody\u003e
+\u003c/table\u003e
 
-    <p>Please present this email or your booking reference at the venue entrance.</p>
-    <a th:href="${bookingUrl}" class="button">View Booking</a>
-</div>
-</body>
+\u003cp th:text="#{email.booking.entrance.instructions}"\u003ePlease present this email or your booking reference at the
+venue entrance.\u003c/p\u003e
 
-</html>
+\u003c!-- Tickets Section --\u003e
+\u003cdiv th:if="${tickets != null and !tickets.isEmpty()}" style="margin-top: 30px;"\u003e
+\u003ch2 th:text="#{email.booking.tickets.title}"\u003eYour Tickets\u003c/h2\u003e
+\u003cp th:text="#{email.booking.tickets.instructions}"\u003ePlease show these QR codes at the venue entrance for
+scanning.\u003c/p\u003e
+
+\u003cdiv th:each="ticket : ${tickets}" style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius:
+5px; background-color: #f9f9f9;"\u003e
+\u003cdiv style="display: flex; align-items: center; gap: 20px;"\u003e
+\u003cdiv style="flex: 1;"\u003e
+\u003cp style="margin: 5px 0; font-weight: bold;" th:text="${ticket.ticketNumber}"\u003eTicket 1 of 3\u003c/p\u003e
+\u003cp style="margin: 5px 0;" th:text="#{|email.booking.ticket.type.${ticket.ticketType}|}"\u003eSeat
+Ticket\u003c/p\u003e
+\u003cp th:if="${ticket.seatInfo}" style="margin: 5px 0; color: #666;" th:text="${ticket.seatInfo}"\u003eSection A, Row
+5, Seat 12\u003c/p\u003e
+\u003c/div\u003e
+\u003cdiv style="text-align: center;"\u003e
+\u003cimg th:src="'data:image/png;base64,' + ${ticket.qrCodeBase64}"
+alt="QR Code"
+style="width: 150px; height: 150px; border: 2px solid #333;"/\u003e
+\u003cp style="margin: 5px 0; font-size: 12px; color: #666;" th:text="#{email.booking.ticket.scan}"\u003eScan at
+entrance\u003c/p\u003e
+\u003c/div\u003e
+\u003c/div\u003e
+\u003c/div\u003e
+\u003c/div\u003e
+
+\u003ca th:href="${bookingUrl}" class="button" th:text="#{email.booking.view.button}"\u003eView Booking\u003c/a\u003e
+\u003c/div\u003e
+\u003c/body\u003e
+
+\u003c/html\u003e

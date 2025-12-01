@@ -57,7 +57,8 @@ class EmailTemplateService(
         eventTime: String,
         venueName: String,
         items: List<EmailBookingItem>,
-        totalPrice: String
+        totalPrice: String,
+        tickets: List<EmailTicket> = emptyList()
     ): String {
         val context = createContext()
         context.setVariable("name", name)
@@ -69,6 +70,7 @@ class EmailTemplateService(
         context.setVariable("venueName", venueName)
         context.setVariable("items", items)
         context.setVariable("totalPrice", totalPrice)
+        context.setVariable("tickets", tickets)
         return templateEngine.process("email/booking-confirmation", context)
     }
 }
@@ -77,4 +79,11 @@ data class EmailBookingItem(
     val description: String,
     val quantity: Int,
     val price: String
+)
+
+data class EmailTicket(
+    val qrCodeBase64: String,
+    val ticketType: String,
+    val seatInfo: String?,
+    val ticketNumber: String
 )

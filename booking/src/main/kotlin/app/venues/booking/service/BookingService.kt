@@ -6,6 +6,7 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
+import app.venues.booking.event.BookingConfirmedEvent
 import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.service.model.BookingCreationContext
@@ -13,14 +14,11 @@ import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
-import app.venues.shared.email.EmailBookingItem
-import app.venues.shared.email.EmailConfig
-import app.venues.shared.email.EmailService
-import app.venues.shared.email.EmailTemplateService
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -50,8 +48,7 @@ class BookingService(
     private val venueApi: VenueApi,
     private val ticketApi: TicketApi,
     private val bookingFulfillmentService: BookingFulfillmentService,
-    private val emailService: EmailService,
-    private val emailTemplateService: EmailTemplateService
+    private val eventPublisher: ApplicationEventPublisher
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -140,77 +137,33 @@ class BookingService(
 
         logger.info { "Booking confirmed: $bookingId" }
 
-        // Send confirmation email
-        try {
-            sendConfirmationEmail(savedBooking)
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to send confirmation email for booking $bookingId" }
-        }
+        // Publish event for async email sending
+        publishBookingConfirmedEvent(savedBooking)
 
         return prepareBookingResponse(savedBooking)
     }
 
-    private fun sendConfirmationEmail(booking: Booking) {
-        val sessionDto = eventApi.getEventSessionInfo(booking.sessionId) ?: return
-        val venueId = booking.venueId
+    /**
+     * Publish booking confirmed event for async processing (email, webhooks, etc.)
+     */
+    private fun publishBookingConfirmedEvent(booking: Booking) {
+        val customerEmail = booking.userId?.let { userApi.getUserEmail(it) }
+            ?: booking.guest?.email
+            ?: return
 
-        val venueName = if (venueId != null) venueApi.getVenueName(venueId) else "Venues App"
+        val customerName = booking.userId?.let { userApi.getUserFullName(it) }
+            ?: booking.guest?.name
+            ?: "Customer"
 
-        // Get customer info
-        val customerEmail = booking.userId?.let { userApi.getUserEmail(it) } ?: booking.guest?.email ?: return
-        val customerName = booking.userId?.let { userApi.getUserFullName(it) } ?: booking.guest?.name ?: "Customer"
-
-        // Prepare items
-        val items = booking.items.map { item ->
-            EmailBookingItem(
-                description = item.priceTemplateName ?: "Ticket", // Fallback description
-                quantity = item.quantity,
-                price = item.unitPrice.toString()
+        eventPublisher.publishEvent(
+            BookingConfirmedEvent(
+                bookingId = booking.id,
+                venueId = booking.venueId,
+                customerEmail = customerEmail,
+                customerName = customerName
             )
-        }
-
-        // Generate content
-        val zoneId = java.time.ZoneId.systemDefault()
-        val content = emailTemplateService.generateBookingConfirmationEmail(
-            name = customerName,
-            bookingReference = booking.externalOrderNumber ?: booking.id.toString().take(8).uppercase(),
-            bookingUrl = "https://venues.app/bookings/${booking.id}", // TODO: Configurable URL
-            eventTitle = sessionDto.eventTitle,
-            eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
-            eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
-            venueName = venueName,
-            items = items,
-            totalPrice = booking.totalPrice.toString()
         )
-
-        // Get venue SMTP config
-        val smtpDto = if (venueId != null) venueApi.getSmtpConfig(venueId) else null
-        val emailConfig = smtpDto?.let {
-            EmailConfig(
-                host = it.host,
-                port = it.port,
-                username = it.email,
-                password = it.password,
-                startTls = it.tls
-            )
-        }
-
-        if (emailConfig != null) {
-            emailService.sendVenueEmail(
-                config = emailConfig,
-                to = customerEmail,
-                subject = "Booking Confirmation - $venueName",
-                content = content,
-                isHtml = true
-            )
-        } else {
-            emailService.sendGlobalEmail(
-                to = customerEmail,
-                subject = "Booking Confirmation - $venueName",
-                content = content,
-                isHtml = true
-            )
-        }
+        logger.debug { "Published BookingConfirmedEvent for booking ${booking.id}" }
     }
 
     /**
@@ -548,6 +501,9 @@ class BookingService(
 
         // Delete cart (CASCADE deletes items)
         deleteCart(cartToken)
+
+        // Publish event for async email sending
+        publishBookingConfirmedEvent(savedBooking)
 
         logger.info {
             "Booking created from platform $platformId: bookingId=${savedBooking.id}, " +

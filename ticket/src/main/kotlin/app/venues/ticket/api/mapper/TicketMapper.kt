@@ -16,7 +16,10 @@ class TicketMapper {
             status = ticket.status.name,
             maxScanCount = ticket.maxScanCount,
             scanCount = ticket.getScanCount(),
-            remainingScans = ticket.getRemainingScans()
+            remainingScans = ticket.getRemainingScans(),
+            seatId = ticket.seatId,
+            gaAreaId = ticket.gaAreaId,
+            tableId = ticket.tableId
         )
     }
 

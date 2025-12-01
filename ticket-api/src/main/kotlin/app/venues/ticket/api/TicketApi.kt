@@ -28,4 +28,9 @@ interface TicketApi {
         staffId: UUID,
         reason: String
     )
+
+    /**
+     * Retrieve all tickets for a booking (for email generation).
+     */
+    fun getTicketsForBooking(bookingId: UUID): List<TicketDto>
 }

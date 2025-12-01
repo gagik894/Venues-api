@@ -7,6 +7,17 @@ import java.util.*
  */
 
 /**
+ * Event fired when a booking is confirmed and tickets are generated.
+ * Triggers async email notification.
+ */
+data class BookingConfirmedEvent(
+    val bookingId: UUID,
+    val venueId: UUID?,
+    val customerEmail: String,
+    val customerName: String
+)
+
+/**
  * Event fired when a seat is added to cart (reserved)
  */
 data class SeatReservedEvent(

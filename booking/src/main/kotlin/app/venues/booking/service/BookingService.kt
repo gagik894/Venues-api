@@ -545,7 +545,7 @@ class BookingService(
 
     /**
      * Confirms a booking after successful payment.
-     * This should finalize the sale and generate tickets.
+     * This should finalize the sale, generate tickets, and send confirmation email.
      */
     override fun confirmBooking(bookingId: UUID, paymentId: UUID) {
         logger.info { "Confirming booking via internal API: $bookingId, payment: $paymentId" }
@@ -560,7 +560,14 @@ class BookingService(
         booking.confirm(paymentId)
         val savedBooking = bookingRepository.save(booking)
 
+        // Finalize inventory (RESERVED -> SOLD)
         bookingFulfillmentService.finalizeBookingInventory(savedBooking)
+
+        // Generate tickets for the confirmed booking
+        bookingFulfillmentService.generateTickets(savedBooking)
+
+        // Send confirmation email with tickets
+        publishBookingConfirmedEvent(savedBooking)
     }
 
     /**

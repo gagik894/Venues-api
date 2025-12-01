@@ -2,20 +2,22 @@ package app.venues.booking.event
 
 import app.venues.booking.service.BookingConfirmationEmailService
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
 
 /**
  * Async event listener for booking-related email notifications.
  *
- * Listens to booking events and triggers email sending asynchronously
- * to avoid blocking the main request thread.
+ * Uses @TransactionalEventListener to ensure email is only sent after
+ * the booking transaction commits successfully.
  *
  * Benefits:
  * - Non-blocking: API responses are not delayed by email sending
  * - Fault-tolerant: Email failures don't affect booking confirmation
  * - Scalable: Email sending can be scaled independently
+ * - Transaction-safe: No email sent if transaction rolls back
  */
 @Component
 class BookingEmailEventListener(
@@ -26,10 +28,10 @@ class BookingEmailEventListener(
     /**
      * Handle booking confirmed event - send confirmation email with tickets.
      *
-     * Runs asynchronously to avoid blocking the booking confirmation response.
+     * Runs asynchronously after transaction commits.
      */
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handleBookingConfirmed(event: BookingConfirmedEvent) {
         logger.debug { "Received BookingConfirmedEvent for booking ${event.bookingId}" }
 

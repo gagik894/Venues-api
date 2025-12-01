@@ -52,7 +52,7 @@
 
 <p th:text="#{email.booking.entrance.instructions}">Please present this email or your booking reference at the venue entrance.</p>
 
-<!-- Tickets Section -->
+    <!-- Tickets Section (inline) -->
 <div th:if="${tickets != null and !tickets.isEmpty()}" style="margin-top: 30px;">
 <h2 th:text="#{email.booking.tickets.title}">Your Tickets</h2>
 <p th:text="#{email.booking.tickets.instructions}">Please show these QR codes at the venue entrance for scanning.</p>
@@ -71,6 +71,19 @@
 </div>
 </div>
 </div>
+
+    <!-- PDF Attachment Notice (when tickets are in PDF) -->
+    <div th:if="${tickets == null or tickets.isEmpty()}"
+         style="margin-top: 30px; padding: 20px; background-color: #f0f8ff; border: 2px solid #4CAF50; border-radius: 8px;">
+        <h2 style="color: #4CAF50;" th:text="#{email.booking.pdf.attached.title}">📎 Your Tickets Are Attached</h2>
+        <p th:text="#{email.booking.pdf.attached.message}">Your tickets are attached to this email as a PDF file. You
+            can view them on your device or print them for entry.</p>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li th:text="#{email.booking.pdf.instruction.open}">Open the attached PDF file</li>
+            <li th:text="#{email.booking.pdf.instruction.show}">Show the QR codes at the venue entrance</li>
+            <li th:text="#{email.booking.pdf.instruction.print}">Or print the tickets if you prefer</li>
+        </ul>
+    </div>
 
 <a th:href="${bookingUrl}" class="button" th:text="#{email.booking.view.button}">View Booking</a>
 </div>

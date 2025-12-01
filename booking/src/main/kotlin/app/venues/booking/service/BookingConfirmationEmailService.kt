@@ -5,6 +5,7 @@ import app.venues.booking.repository.BookingRepository
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.email.*
+import app.venues.shared.pdf.PdfTicketService
 import app.venues.shared.qrcode.QRCodeService
 import app.venues.ticket.api.TicketApi
 import app.venues.ticket.api.dto.TicketDto
@@ -25,6 +26,7 @@ import java.util.*
  * - Generating QR codes for tickets
  * - Resolving seat/GA/table info for ticket display
  * - Composing and sending emails via venue or global SMTP
+ * - Attaching PDF tickets when there are many tickets (>3)
  */
 @Service
 class BookingConfirmationEmailService(
@@ -36,9 +38,14 @@ class BookingConfirmationEmailService(
     private val userApi: UserApi,
     private val venueApi: VenueApi,
     private val emailService: EmailService,
-    private val emailTemplateService: EmailTemplateService
+    private val emailTemplateService: EmailTemplateService,
+    private val pdfTicketService: PdfTicketService
 ) {
     private val logger = KotlinLogging.logger {}
+
+    companion object {
+        const val PDF_THRESHOLD = 3 // Use PDF attachment if more than 3 tickets
+    }
 
     /**
      * Send booking confirmation email with tickets and QR codes.
@@ -105,25 +112,66 @@ class BookingConfirmationEmailService(
         // Get tickets and generate QR codes with seat info
         val emailTickets = generateEmailTickets(booking.id)
 
+        // Decide whether to use inline tickets or PDF attachment
+        val usePdfAttachment = emailTickets.size > PDF_THRESHOLD
+        val attachments = mutableListOf<EmailAttachment>()
+
         // Generate email content with i18n
         val zoneId = ZoneId.systemDefault()
-        val content = emailTemplateService.generateBookingConfirmationEmail(
-            name = customerName,
-            bookingReference = booking.externalOrderNumber
-                ?: booking.id.toString().take(8).uppercase(),
-            bookingUrl = "https://venues.app/bookings/${booking.id}",
-            eventTitle = sessionDto.eventTitle,
-            eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
-            eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
-            venueName = venueName,
-            items = items,
-            totalPrice = "${booking.currency} ${booking.totalPrice}",
-            tickets = emailTickets,
-            locale = locale
-        )
+        val content = if (usePdfAttachment) {
+            // Generate PDF and attach it
+            val pdfBytes = pdfTicketService.generateTicketsPdf(
+                eventTitle = sessionDto.eventTitle,
+                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+                venueName = venueName,
+                bookingReference = booking.externalOrderNumber ?: booking.id.toString().take(8).uppercase(),
+                tickets = emailTickets,
+                locale = locale
+            )
+            attachments.add(
+                EmailAttachment(
+                    filename = "tickets-${booking.externalOrderNumber ?: booking.id.toString().take(8)}.pdf",
+                    contentType = "application/pdf",
+                    data = pdfBytes
+                )
+            )
+
+            // Email content without inline tickets (PDF attached)
+            emailTemplateService.generateBookingConfirmationEmail(
+                name = customerName,
+                bookingReference = booking.externalOrderNumber
+                    ?: booking.id.toString().take(8).uppercase(),
+                bookingUrl = "https://venues.app/bookings/${booking.id}",
+                eventTitle = sessionDto.eventTitle,
+                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+                venueName = venueName,
+                items = items,
+                totalPrice = "${booking.currency} ${booking.totalPrice}",
+                tickets = emptyList(), // No inline tickets, PDF attached
+                locale = locale
+            )
+        } else {
+            // Inline tickets in email (few tickets)
+            emailTemplateService.generateBookingConfirmationEmail(
+                name = customerName,
+                bookingReference = booking.externalOrderNumber
+                    ?: booking.id.toString().take(8).uppercase(),
+                bookingUrl = "https://venues.app/bookings/${booking.id}",
+                eventTitle = sessionDto.eventTitle,
+                eventDate = sessionDto.startTime.atZone(zoneId).toLocalDate().toString(),
+                eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
+                venueName = venueName,
+                items = items,
+                totalPrice = "${booking.currency} ${booking.totalPrice}",
+                tickets = emailTickets,
+                locale = locale
+            )
+        }
 
         // Send email
-        sendEmail(venueId, customerEmail, venueName, content)
+        sendEmail(venueId, customerEmail, venueName, content, attachments)
 
         logger.info { "Confirmation email sent for booking ${booking.id} to $customerEmail" }
     }
@@ -164,7 +212,7 @@ class BookingConfirmationEmailService(
 
             EmailTicket(
                 qrCodeBase64 = qrCodeBase64,
-                ticketType = formatTicketType(ticket.ticketType),
+                ticketType = ticket.ticketType,  // Pass raw type for i18n (SEAT, GA, TABLE)
                 seatInfo = seatInfo,
                 ticketNumber = "Ticket ${index + 1} of ${tickets.size}"
             )
@@ -173,6 +221,7 @@ class BookingConfirmationEmailService(
 
     /**
      * Resolve human-readable seat/GA/table info for ticket display.
+     * Builds full hierarchy path like "Right Tribune > Sector 5 > Row A > Seat 10"
      */
     private fun resolveSeatInfo(ticket: TicketDto): String? {
         val seatId = ticket.seatId
@@ -180,47 +229,82 @@ class BookingConfirmationEmailService(
         val tableId = ticket.tableId
 
         return when {
-            seatId != null -> {
-                try {
-                    val seatInfo = seatingApi.getSeatInfo(seatId)
-                    seatInfo?.let { "Seat: ${it.code}" }
-                } catch (e: Exception) {
-                    logger.debug { "Could not resolve seat info for $seatId" }
-                    null
-                }
-            }
-            gaAreaId != null -> {
-                try {
-                    val gaInfo = seatingApi.getGaInfo(gaAreaId)
-                    gaInfo?.let { "General Admission: ${it.name}" }
-                } catch (e: Exception) {
-                    logger.debug { "Could not resolve GA info for $gaAreaId" }
-                    null
-                }
-            }
-            tableId != null -> {
-                try {
-                    val tableInfo = seatingApi.getTableInfo(tableId)
-                    tableInfo?.let { "Table: ${it.tableNumber}" }
-                } catch (e: Exception) {
-                    logger.debug { "Could not resolve table info for $tableId" }
-                    null
-                }
-            }
+            seatId != null -> resolveSeatPath(seatId)
+            gaAreaId != null -> resolveGaPath(gaAreaId)
+            tableId != null -> resolveTablePath(tableId)
             else -> null
         }
     }
 
-    private fun formatTicketType(ticketType: String): String {
-        return when (ticketType) {
-            "SEAT" -> "Reserved Seat"
-            "GA" -> "General Admission"
-            "TABLE" -> "Table Reservation"
-            else -> ticketType
+    /**
+     * Build full seat path: "Zone1 > Zone2 > Row X > Seat Y"
+     */
+    private fun resolveSeatPath(seatId: Long): String? {
+        return try {
+            val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
+            val hierarchy = seatingApi.getZoneHierarchy(seatInfo.zoneId)
+
+            val pathParts = mutableListOf<String>()
+            // Add zone hierarchy (from root to leaf)
+            hierarchy.forEach { zone -> pathParts.add(zone.name) }
+            // Add row and seat
+            if (seatInfo.rowLabel.isNotBlank()) {
+                pathParts.add("Row ${seatInfo.rowLabel}")
+            }
+            pathParts.add("Seat ${seatInfo.seatNumber}")
+
+            pathParts.joinToString(" › ")
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve seat path for $seatId: ${e.message}" }
+            null
         }
     }
 
-    private fun sendEmail(venueId: UUID?, customerEmail: String, venueName: String, content: String) {
+    /**
+     * Build GA area path: "Zone1 > Zone2 > GA Area Name"
+     */
+    private fun resolveGaPath(gaAreaId: Long): String? {
+        return try {
+            val gaInfo = seatingApi.getGaInfo(gaAreaId) ?: return null
+            val hierarchy = seatingApi.getZoneHierarchy(gaInfo.zoneId)
+
+            val pathParts = mutableListOf<String>()
+            hierarchy.forEach { zone -> pathParts.add(zone.name) }
+            pathParts.add(gaInfo.name)
+
+            pathParts.joinToString(" › ")
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve GA path for $gaAreaId: ${e.message}" }
+            null
+        }
+    }
+
+    /**
+     * Build table path: "Zone1 > Zone2 > Table X"
+     */
+    private fun resolveTablePath(tableId: Long): String? {
+        return try {
+            val tableInfo = seatingApi.getTableInfo(tableId) ?: return null
+            val hierarchy = seatingApi.getZoneHierarchy(tableInfo.zoneId)
+
+            val pathParts = mutableListOf<String>()
+            hierarchy.forEach { zone -> pathParts.add(zone.name) }
+            pathParts.add("Table ${tableInfo.tableNumber}")
+
+            pathParts.joinToString(" › ")
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve table path for $tableId: ${e.message}" }
+            null
+        }
+    }
+
+    private fun sendEmail(
+        venueId: UUID?,
+        customerEmail: String,
+        venueName: String,
+        content: String,
+        attachments: List<EmailAttachment> = emptyList()
+    ) {
         val subject = "Your Tickets - $venueName"
 
         val smtpDto = venueId?.let { venueApi.getSmtpConfig(it) }
@@ -235,19 +319,21 @@ class BookingConfirmationEmailService(
         }
 
         if (emailConfig != null) {
-            emailService.sendVenueEmail(
+            emailService.sendVenueEmailWithAttachments(
                 config = emailConfig,
                 to = customerEmail,
                 subject = subject,
                 content = content,
-                isHtml = true
+                isHtml = true,
+                attachments = attachments
             )
         } else {
-            emailService.sendGlobalEmail(
+            emailService.sendGlobalEmailWithAttachments(
                 to = customerEmail,
                 subject = subject,
                 content = content,
-                isHtml = true
+                isHtml = true,
+                attachments = attachments
             )
         }
     }

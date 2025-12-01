@@ -64,6 +64,9 @@ dependencies {
     api("com.google.zxing:core:3.5.3")
     api("com.google.zxing:javase:3.5.3")
 
+    // PDF generation for ticket attachments
+    api("com.github.librepdf:openpdf:2.0.3")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

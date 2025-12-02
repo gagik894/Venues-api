@@ -2,6 +2,7 @@ package app.venues.event.api
 
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.api.dto.SessionInventoryResponse
 import app.venues.event.api.dto.SessionTicketStatsDto
 import java.math.BigDecimal
 import java.util.*
@@ -33,6 +34,17 @@ interface EventApi {
      * @return [EventSessionDto] with session details, or null if not found.
      */
     fun getEventSessionInfo(sessionId: UUID): EventSessionDto?
+
+    /**
+     * Returns the dynamic inventory snapshot for a session (seat, GA, table state).
+     *
+     * Used by downstream modules for analytics and dashboards without duplicating
+     * the heavy inventory mapping logic from the event module.
+     *
+     * @param sessionId Event session ID.
+     * @return [SessionInventoryResponse] or null if the session cannot be resolved.
+     */
+    fun getSessionInventory(sessionId: UUID): SessionInventoryResponse?
 
     /**
      * Get event title with translation support.

@@ -10,4 +10,6 @@ interface TicketRepository : JpaRepository<Ticket, UUID> {
     fun findByQrCode(qrCode: String): Ticket?
     fun findByBookingId(bookingId: UUID): List<Ticket>
     fun findByBookingItemId(bookingItemId: Long): List<Ticket>
+
+    fun countByEventSessionId(eventSessionId: UUID): Long
 }

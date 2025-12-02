@@ -1,8 +1,10 @@
 package app.venues.event.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
 import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.api.dto.SessionInventoryResponse
 import app.venues.event.api.dto.SessionTicketStatsDto
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventPriceTemplate
@@ -26,7 +28,8 @@ class EventApiService(
     private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val seatingApi: SeatingApi,
-    private val seatConfigSparseService: SeatConfigSparseService
+    private val seatConfigSparseService: SeatConfigSparseService,
+    private val sessionSeatingService: SessionSeatingService
 ) : EventApi {
     private val logger = KotlinLogging.logger {}
 
@@ -45,6 +48,15 @@ class EventApiService(
             startTime = session.startTime,
             endTime = session.endTime
         )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSessionInventory(sessionId: UUID): SessionInventoryResponse? {
+        return try {
+            sessionSeatingService.getSessionInventory(sessionId)
+        } catch (ex: VenuesException.ResourceNotFound) {
+            null
+        }
     }
 
     @Transactional(readOnly = true)

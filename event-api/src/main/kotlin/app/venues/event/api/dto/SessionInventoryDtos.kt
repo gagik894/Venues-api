@@ -16,32 +16,10 @@ data class SessionInventoryResponse(
     val sessionId: UUID,
     val eventId: UUID,
     val seatingChartId: UUID,
-
-    /**
-     * Seat states keyed by seat ID.
-     * Client merges with static structure using ID matching.
-     */
     val seats: Map<Long, SeatStateDto>,
-
-    /**
-     * Table states keyed by table ID.
-     */
     val tables: Map<Long, TableStateDto>,
-
-    /**
-     * GA area states keyed by GA area ID.
-     */
     val gaAreas: Map<Long, GaAreaStateDto>,
-
-    /**
-     * Price templates for the event/session.
-     * Clients use templateName to display pricing labels.
-     */
     val priceTemplates: List<InventoryPriceTemplateDto>,
-
-    /**
-     * Quick availability statistics.
-     */
     val stats: InventoryStatsDto
 )
 
@@ -50,25 +28,9 @@ data class SessionInventoryResponse(
  * NO geometry - only status, pricing, and display info.
  */
 data class SeatStateDto(
-    /**
-     * Short status code: A=Available, R=Reserved, S=Sold, B=Blocked
-     */
     val status: String,
-
-    /**
-     * Price in smallest currency unit (cents) for efficient transfer.
-     * Null if not priced.
-     */
     val price: Long?,
-
-    /**
-     * Display color from price template (hex code).
-     */
     val color: String?,
-
-    /**
-     * Price template name for display (e.g., "VIP", "Standard").
-     */
     val templateName: String?
 )
 
@@ -77,30 +39,10 @@ data class SeatStateDto(
  * NO geometry - only status, pricing, and booking info.
  */
 data class TableStateDto(
-    /**
-     * Short status code: A=Available, R=Reserved, S=Sold, B=Blocked
-     */
     val status: String,
-
-    /**
-     * Price in smallest currency unit (cents).
-     * For TABLE_ONLY mode, this is the whole table price.
-     */
     val price: Long?,
-
-    /**
-     * Display color from price template (hex code).
-     */
     val color: String?,
-
-    /**
-     * Price template name for display.
-     */
     val templateName: String?,
-
-    /**
-     * Booking mode: TABLE_ONLY, SEATS_ONLY, FLEXIBLE
-     */
     val bookingMode: String
 )
 
@@ -109,34 +51,11 @@ data class TableStateDto(
  * NO geometry - only status, capacity, and pricing.
  */
 data class GaAreaStateDto(
-    /**
-     * Short status code: A=Available, B=Blocked
-     */
     val status: String,
-
-    /**
-     * Remaining capacity (capacity - soldCount).
-     */
     val available: Int,
-
-    /**
-     * Number of tickets sold.
-     */
     val soldCount: Int,
-
-    /**
-     * Price in smallest currency unit (cents).
-     */
     val price: Long?,
-
-    /**
-     * Display color from price template (hex code).
-     */
     val color: String?,
-
-    /**
-     * Price template name for display.
-     */
     val templateName: String?
 )
 
@@ -147,15 +66,7 @@ data class InventoryPriceTemplateDto(
     val id: UUID,
     val templateName: String,
     val color: String?,
-
-    /**
-     * Price in smallest currency unit (cents).
-     */
     val price: Long,
-
-    /**
-     * True if this is a session-specific override of an event template.
-     */
     val isOverride: Boolean
 )
 

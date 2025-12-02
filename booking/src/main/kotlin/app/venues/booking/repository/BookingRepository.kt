@@ -102,6 +102,12 @@ interface BookingRepository : JpaRepository<Booking, UUID> {
     fun countConfirmedBySessionIds(sessionIds: List<UUID>): Int
 
     /**
+     * Count pending bookings for the provided sessions.
+     */
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.sessionId IN :sessionIds AND b.status = 'PENDING'")
+    fun countPendingBySessionIds(sessionIds: List<UUID>): Long
+
+    /**
      * Get revenue per session for a list of session IDs.
      * Returns pairs of (sessionId, revenue).
      */

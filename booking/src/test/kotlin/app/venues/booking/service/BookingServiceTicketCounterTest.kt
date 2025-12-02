@@ -20,6 +20,7 @@ import app.venues.venue.api.VenueApi
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
@@ -36,6 +37,7 @@ class BookingServiceTicketCounterTest {
     private lateinit var eventApi: EventApi
     private lateinit var venueApi: VenueApi
     private lateinit var ticketApi: TicketApi
+    private lateinit var eventPublisher: ApplicationEventPublisher
     private lateinit var service: BookingService
 
     @BeforeEach
@@ -45,14 +47,12 @@ class BookingServiceTicketCounterTest {
         guestService = mockk(relaxed = true)
         creationService = mockk(relaxed = true)
         bookingMapper = mockk()
-        userApi = mockk()
+        userApi = mockk(relaxed = true)
         seatingApi = mockk()
         eventApi = mockk()
         venueApi = mockk(relaxed = true)
         ticketApi = mockk(relaxed = true)
-        val emailService = mockk<app.venues.shared.email.EmailService>(relaxed = true)
-        val emailTemplateService = mockk<app.venues.shared.email.EmailTemplateService>(relaxed = true)
-        val qrCodeService = mockk<app.venues.ticket.service.QRCodeService>(relaxed = true)
+        eventPublisher = mockk(relaxed = true)
 
         val bookingFulfillmentService = BookingFulfillmentService(
             eventApi,
@@ -73,9 +73,7 @@ class BookingServiceTicketCounterTest {
             venueApi,
             ticketApi,
             bookingFulfillmentService,
-            emailService,
-            emailTemplateService,
-            qrCodeService
+            eventPublisher
         )
 
         every {

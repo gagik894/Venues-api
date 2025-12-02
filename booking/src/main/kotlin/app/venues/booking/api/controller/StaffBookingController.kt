@@ -1,12 +1,10 @@
 package app.venues.booking.api.controller
 
 import app.venues.booking.api.domain.BookingStatus
-import app.venues.booking.api.dto.BookingResponse
-import app.venues.booking.api.dto.DirectSaleRequest
-import app.venues.booking.api.dto.EventSalesOverview
-import app.venues.booking.api.dto.SessionSalesOverview
+import app.venues.booking.api.dto.*
 import app.venues.booking.service.BookingService
 import app.venues.booking.service.DirectSalesService
+import app.venues.booking.service.EventStatsService
 import app.venues.booking.service.SalesOverviewService
 import app.venues.common.model.ApiResponse
 import app.venues.shared.persistence.util.PageableMapper
@@ -40,7 +38,8 @@ class StaffBookingController(
     private val directSalesService: DirectSalesService,
     private val bookingService: BookingService,
     private val salesOverviewService: SalesOverviewService,
-    private val venueSecurityService: VenueSecurityService
+    private val venueSecurityService: VenueSecurityService,
+    private val eventStatsService: EventStatsService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -233,6 +232,50 @@ class StaffBookingController(
         return ApiResponse.success(
             data = overview,
             message = "Session sales overview retrieved successfully"
+        )
+    }
+
+    /**
+     * Get rich sales + inventory stats for a session (real-time dashboard).
+     */
+    @GetMapping("/sales/sessions/{sessionId}/stats")
+    @Operation(
+        summary = "Get session statistics",
+        description = "Returns detailed performance metrics (inventory, revenue, attendance) for a specific session"
+    )
+    fun getSessionStats(
+        @PathVariable venueId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<EventStatsResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.info { "Staff $staffId requesting stats for session $sessionId in venue $venueId" }
+        val stats = eventStatsService.getSessionStats(sessionId, venueId)
+        return ApiResponse.success(
+            data = stats,
+            message = "Session statistics retrieved successfully"
+        )
+    }
+
+    /**
+     * Get aggregated statistics for all sessions of an event.
+     */
+    @GetMapping("/sales/events/{eventId}/stats")
+    @Operation(
+        summary = "Get event statistics",
+        description = "Returns detailed performance metrics aggregated across every session of an event"
+    )
+    fun getEventStats(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<EventStatsResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.info { "Staff $staffId requesting stats for event $eventId in venue $venueId" }
+        val stats = eventStatsService.getEventStats(eventId, venueId)
+        return ApiResponse.success(
+            data = stats,
+            message = "Event statistics retrieved successfully"
         )
     }
 

@@ -29,11 +29,20 @@ class VenueReportsService(
         val startInstant = startDate.atStartOfDay(ZoneOffset.UTC).toInstant()
         val endInstant = endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
 
+        val currencies = bookingStatisticsRepository.findVenueCurrencies(venueId, startInstant, endInstant)
+        if (currencies.size > 1) {
+            throw VenuesException.ValidationFailure(
+                "Venue $venueId has multiple booking currencies in the selected range; reporting requires a single currency"
+            )
+        }
+        val currency = currencies.firstOrNull() ?: ""
+
         val overviewProjection = bookingStatisticsRepository.aggregateVenueOverview(venueId, startInstant, endInstant)
         val overview = ReportsOverview(
             totalOrders = overviewProjection?.getOrders() ?: 0,
             totalRevenue = overviewProjection?.getRevenue() ?: BigDecimal.ZERO,
-            totalTicketsSold = overviewProjection?.getTicketsSold() ?: 0
+            totalTicketsSold = overviewProjection?.getTicketsSold() ?: 0,
+            currency = currency
         )
 
         val byDate = bookingStatisticsRepository
@@ -63,6 +72,7 @@ class VenueReportsService(
         }
 
         return ReportsData(
+            currency = currency,
             overview = overview,
             byDate = byDate,
             byPlatform = byPlatform

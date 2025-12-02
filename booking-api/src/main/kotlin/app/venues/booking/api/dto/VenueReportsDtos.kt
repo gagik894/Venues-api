@@ -6,7 +6,8 @@ import java.time.LocalDate
 data class ReportsOverview(
     val totalOrders: Long,
     val totalRevenue: BigDecimal,
-    val totalTicketsSold: Long
+    val totalTicketsSold: Long,
+    val currency: String
 )
 
 data class ReportsByDate(
@@ -24,6 +25,7 @@ data class ReportsByPlatform(
 )
 
 data class ReportsData(
+    val currency: String,
     val overview: ReportsOverview,
     val byDate: List<ReportsByDate>,
     val byPlatform: List<ReportsByPlatform>

@@ -98,6 +98,7 @@ data class AttendanceStats(
 
 data class EventStatsResponse(
     val scope: StatsScope,
+    val currency: String,
     val overview: OverviewStats,
     val platforms: Map<String, PlatformStats>,
     val promoCodes: Map<String, PromoCodeStats>,

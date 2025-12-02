@@ -201,6 +201,23 @@ interface BookingStatisticsRepository : JpaRepository<Booking, UUID> {
         startInclusive: Instant,
         endExclusive: Instant
     ): List<VenuePlatformProjection>
+
+    @Query(
+        """
+        SELECT DISTINCT b.currency
+        FROM Booking b
+        WHERE b.venueId = :venueId
+          AND b.status = 'CONFIRMED'
+          AND b.confirmedAt IS NOT NULL
+          AND b.confirmedAt >= :startInclusive
+          AND b.confirmedAt < :endExclusive
+        """
+    )
+    fun findVenueCurrencies(
+        venueId: UUID,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): List<String>
 }
 
 interface SessionSalesProjection {

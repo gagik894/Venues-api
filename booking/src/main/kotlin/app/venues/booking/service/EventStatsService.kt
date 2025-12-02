@@ -76,6 +76,12 @@ class EventStatsService(
         scope: StatsScope,
         sessionInfoMap: Map<UUID, EventSessionDto>
     ): EventStatsResponse {
+        val currencies = sessionInfoMap.values.map { it.currency }.distinct()
+        if (currencies.size > 1) {
+            throw VenuesException.ValidationFailure("Session currencies do not match for stats scope ${scope.type}")
+        }
+        val currency = currencies.first()
+
         val inventories = sessionIds.associateWith { sessionId ->
             eventApi.getSessionInventory(sessionId)
                 ?: throw VenuesException.ResourceNotFound("Inventory snapshot missing for session $sessionId")
@@ -149,6 +155,7 @@ class EventStatsService(
 
         return EventStatsResponse(
             scope = scope,
+            currency = currency,
             overview = overview,
             platforms = platformMap,
             promoCodes = promoCodeMap,

@@ -31,6 +31,10 @@ class VenueReportsServiceTest {
         } returns OverviewStub(orders = 5, revenue = BigDecimal("250.00"), tickets = 20)
 
         every {
+            bookingStatisticsRepository.findVenueCurrencies(any(), any(), any())
+        } returns listOf("AMD")
+
+        every {
             bookingStatisticsRepository.aggregateVenueByDate(any(), any(), any())
         } returns listOf(
             DateStub(LocalDate.parse("2025-01-02"), 2, BigDecimal("100.00"), 8),
@@ -54,6 +58,8 @@ class VenueReportsServiceTest {
 
         assertEquals(5, result.overview.totalOrders)
         assertEquals(BigDecimal("250.00"), result.overview.totalRevenue)
+        assertEquals("AMD", result.currency)
+        assertEquals("AMD", result.overview.currency)
         assertEquals(2, result.byDate.size)
         assertEquals("WEB", result.byPlatform.first().platform)
         assertEquals("11111111-1111-1111-1111-111111111111", result.byPlatform.last().platform)
@@ -64,6 +70,21 @@ class VenueReportsServiceTest {
         val venueId = UUID.randomUUID()
         val startDate = LocalDate.parse("2025-02-01")
         val endDate = LocalDate.parse("2025-01-01")
+
+        assertThrows(VenuesException.ValidationFailure::class.java) {
+            service.getVenueReports(venueId, startDate, endDate)
+        }
+    }
+
+    @Test
+    fun `throws when multiple currencies detected`() {
+        val venueId = UUID.randomUUID()
+        val startDate = LocalDate.parse("2025-01-01")
+        val endDate = LocalDate.parse("2025-01-02")
+
+        every {
+            bookingStatisticsRepository.findVenueCurrencies(any(), any(), any())
+        } returns listOf("USD", "EUR")
 
         assertThrows(VenuesException.ValidationFailure::class.java) {
             service.getVenueReports(venueId, startDate, endDate)

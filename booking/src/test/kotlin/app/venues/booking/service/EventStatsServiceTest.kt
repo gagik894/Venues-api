@@ -1,18 +1,13 @@
 package app.venues.booking.service
 
-import app.venues.booking.api.dto.*
+import app.venues.booking.api.dto.StatsScopeType
 import app.venues.booking.repository.*
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
-import app.venues.event.api.dto.EventSessionDto
-import app.venues.event.api.dto.InventoryPriceTemplateDto
-import app.venues.event.api.dto.InventoryStatsDto
-import app.venues.event.api.dto.SessionInventoryResponse
-import app.venues.event.api.dto.SeatStateDto
+import app.venues.event.api.dto.*
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.SeatInfoDto
 import app.venues.ticket.api.TicketAttendanceApi
-import app.venues.ticket.api.dto.AttendanceRequestDto
 import app.venues.ticket.api.dto.AttendanceSummaryDto
 import io.mockk.every
 import io.mockk.mockk
@@ -22,7 +17,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 class EventStatsServiceTest {
 
@@ -154,6 +149,7 @@ class EventStatsServiceTest {
         val response = service.getSessionStats(sessionId, venueId)
 
         assertEquals(StatsScopeType.SESSION, response.scope.type)
+        assertEquals("USD", response.currency)
         assertEquals(1L, response.overview.totalTickets)
         assertEquals(1L, response.overview.soldTickets)
         assertEquals(BigDecimal("50.00"), response.overview.totalRevenue)
@@ -173,6 +169,39 @@ class EventStatsServiceTest {
         every { eventApi.getSessionIdsForEvent(eventId) } returns emptyList()
 
         assertThrows(VenuesException.ResourceNotFound::class.java) {
+            service.getEventStats(eventId, venueId)
+        }
+    }
+
+    @Test
+    fun `throws when sessions have mixed currencies`() {
+        val eventId = UUID.randomUUID()
+        val venueId = UUID.randomUUID()
+        val sessionIds = listOf(UUID.randomUUID(), UUID.randomUUID())
+
+        every { eventApi.getSessionIdsForEvent(eventId) } returns sessionIds
+        every { eventApi.getEventSessionInfo(sessionIds[0]) } returns EventSessionDto(
+            sessionId = sessionIds[0],
+            eventId = eventId,
+            venueId = venueId,
+            eventTitle = "Multi",
+            eventDescription = null,
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now()
+        )
+        every { eventApi.getEventSessionInfo(sessionIds[1]) } returns EventSessionDto(
+            sessionId = sessionIds[1],
+            eventId = eventId,
+            venueId = venueId,
+            eventTitle = "Multi",
+            eventDescription = null,
+            currency = "EUR",
+            startTime = Instant.now(),
+            endTime = Instant.now()
+        )
+
+        assertThrows(VenuesException.ValidationFailure::class.java) {
             service.getEventStats(eventId, venueId)
         }
     }

@@ -117,7 +117,7 @@ class BookingConfirmationEmailService(
         }
 
         // Get tickets and generate QR codes with seat info
-        val emailTickets = generateEmailTickets(booking.id)
+        val emailTickets = generateEmailTickets(booking.id, locale)
 
         // Always use PDF attachment (no inline tickets)
         val attachments = mutableListOf<EmailAttachment>()
@@ -186,7 +186,7 @@ class BookingConfirmationEmailService(
         }
     }
 
-    private fun generateEmailTickets(bookingId: UUID): List<EmailTicket> {
+    private fun generateEmailTickets(bookingId: UUID, locale: Locale): List<EmailTicket> {
         val tickets = ticketApi.getTicketsForBooking(bookingId)
         if (tickets.isEmpty()) {
             logger.debug { "No tickets found for booking $bookingId" }
@@ -195,12 +195,12 @@ class BookingConfirmationEmailService(
 
         return tickets.mapIndexed { index, ticket ->
             val qrCodeBase64 = qrCodeService.generateQrCodeImageBase64(ticket.qrCode)
-            val seatInfo = resolveSeatInfo(ticket)
+            val seatInfoLines = resolveSeatInfoLines(ticket, locale)
 
             EmailTicket(
                 qrCodeBase64 = qrCodeBase64,
                 ticketType = ticket.ticketType,  // Pass raw type for i18n (SEAT, GA, TABLE)
-                seatInfo = seatInfo,
+                seatInfoLines = seatInfoLines,
                 ticketNumber = "Ticket ${index + 1} of ${tickets.size}"
             )
         }
@@ -208,80 +208,23 @@ class BookingConfirmationEmailService(
 
     /**
      * Resolve human-readable seat/GA/table info for ticket display.
-     * Builds full hierarchy path like "Right Tribune > Sector 5 > Row A > Seat 10"
+     * Delegates to SeatingApi for location line resolution.
+     * Returns a list of lines for multi-line display in PDF.
+     * Example for seat: ["Right Tribune", "Sector 5", "Row 3", "Seat 10"]
+     * Example for GA: ["Fan Zone"]
+     * Example for table: ["VIP Section", "Table 5"]
      */
-    private fun resolveSeatInfo(ticket: TicketDto): String? {
+    private fun resolveSeatInfoLines(ticket: TicketDto, locale: Locale): List<String> {
+        val languageCode = locale.language
         val seatId = ticket.seatId
         val gaAreaId = ticket.gaAreaId
         val tableId = ticket.tableId
 
         return when {
-            seatId != null -> resolveSeatPath(seatId)
-            gaAreaId != null -> resolveGaPath(gaAreaId)
-            tableId != null -> resolveTablePath(tableId)
-            else -> null
-        }
-    }
-
-    /**
-     * Build full seat path: "Zone1 > Zone2 > Row X > Seat Y"
-     */
-    private fun resolveSeatPath(seatId: Long): String? {
-        return try {
-            val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
-            val hierarchy = seatingApi.getZoneHierarchy(seatInfo.zoneId)
-
-            val pathParts = mutableListOf<String>()
-            // Add zone hierarchy (from root to leaf)
-            hierarchy.forEach { zone -> pathParts.add(zone.name) }
-            // Add row and seat
-            if (seatInfo.rowLabel.isNotBlank()) {
-                pathParts.add("Row ${seatInfo.rowLabel}")
-            }
-            pathParts.add("Seat ${seatInfo.seatNumber}")
-
-            pathParts.joinToString(" › ")
-        } catch (e: Exception) {
-            logger.debug { "Could not resolve seat path for $seatId: ${e.message}" }
-            null
-        }
-    }
-
-    /**
-     * Build GA area path: "Zone1 > Zone2 > GA Area Name"
-     */
-    private fun resolveGaPath(gaAreaId: Long): String? {
-        return try {
-            val gaInfo = seatingApi.getGaInfo(gaAreaId) ?: return null
-            val hierarchy = seatingApi.getZoneHierarchy(gaInfo.zoneId)
-
-            val pathParts = mutableListOf<String>()
-            hierarchy.forEach { zone -> pathParts.add(zone.name) }
-            pathParts.add(gaInfo.name)
-
-            pathParts.joinToString(" › ")
-        } catch (e: Exception) {
-            logger.debug { "Could not resolve GA path for $gaAreaId: ${e.message}" }
-            null
-        }
-    }
-
-    /**
-     * Build table path: "Zone1 > Zone2 > Table X"
-     */
-    private fun resolveTablePath(tableId: Long): String? {
-        return try {
-            val tableInfo = seatingApi.getTableInfo(tableId) ?: return null
-            val hierarchy = seatingApi.getZoneHierarchy(tableInfo.zoneId)
-
-            val pathParts = mutableListOf<String>()
-            hierarchy.forEach { zone -> pathParts.add(zone.name) }
-            pathParts.add("Table ${tableInfo.tableNumber}")
-
-            pathParts.joinToString(" › ")
-        } catch (e: Exception) {
-            logger.debug { "Could not resolve table path for $tableId: ${e.message}" }
-            null
+            seatId != null -> seatingApi.getSeatLocationLines(seatId, languageCode)
+            gaAreaId != null -> seatingApi.getGaLocationLines(gaAreaId, languageCode)
+            tableId != null -> seatingApi.getTableLocationLines(tableId, languageCode)
+            else -> emptyList()
         }
     }
 

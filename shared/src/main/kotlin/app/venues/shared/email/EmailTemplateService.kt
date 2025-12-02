@@ -82,6 +82,6 @@ data class EmailBookingItem(
 data class EmailTicket(
     val qrCodeBase64: String,
     val ticketType: String,
-    val seatInfo: String?,
+    val seatInfoLines: List<String>,  // Each line: zone levels, row, seat/table/GA name
     val ticketNumber: String
 )

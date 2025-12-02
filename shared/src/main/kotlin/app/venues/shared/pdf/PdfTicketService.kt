@@ -114,23 +114,24 @@ class PdfTicketService(
         divider.spacingAfter = 20f
         document.add(divider)
 
-        // Ticket type
-        val ticketTypeLabel = getTicketTypeLabel(ticket.ticketType, locale)
-        val ticketTypePara = Paragraph(ticketTypeLabel, headerFont)
-        ticketTypePara.alignment = Element.ALIGN_CENTER
-        ticketTypePara.spacingAfter = 5f
-        document.add(ticketTypePara)
-
-        // Seat info (prominent display)
-        if (!ticket.seatInfo.isNullOrBlank()) {
-            val seatFont = Font(Font.HELVETICA, 18f, Font.BOLD, Color(34, 139, 34)) // Green color
-            val seatPara = Paragraph(ticket.seatInfo, seatFont)
-            seatPara.alignment = Element.ALIGN_CENTER
-            seatPara.spacingAfter = 15f
-            document.add(seatPara)
-        } else {
-            // Add spacing even if no seat info
+        // Seat/Location info (prominent multi-line display)
+        // Each line displays a hierarchy level, ending with the specific seat/table/GA
+        if (ticket.seatInfoLines.isNotEmpty()) {
+            val locationFont = Font(Font.HELVETICA, 14f, Font.BOLD, Color.DARK_GRAY)
+            ticket.seatInfoLines.forEach { line ->
+                val linePara = Paragraph(line, locationFont)
+                linePara.alignment = Element.ALIGN_CENTER
+                linePara.spacingAfter = 4f
+                document.add(linePara)
+            }
             document.add(Chunk.NEWLINE)
+        } else {
+            // Fallback: show ticket type label if no location info
+            val ticketTypeLabel = getTicketTypeLabel(ticket.ticketType, locale)
+            val ticketTypePara = Paragraph(ticketTypeLabel, headerFont)
+            ticketTypePara.alignment = Element.ALIGN_CENTER
+            ticketTypePara.spacingAfter = 15f
+            document.add(ticketTypePara)
         }
 
         // Ticket number

@@ -4,6 +4,8 @@ import app.venues.common.exception.VenuesException
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.*
 import app.venues.seating.repository.*
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.MessageSource
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -20,8 +22,11 @@ class SeatingPortService(
     private val chartZoneRepository: ChartZoneRepository,
     private val chartSeatRepository: ChartSeatRepository,
     private val chartTableRepository: ChartTableRepository,
-    private val gaAreaRepository: GeneralAdmissionAreaRepository
+    private val gaAreaRepository: GeneralAdmissionAreaRepository,
+    private val messageSource: MessageSource
 ) : SeatingApi {
+
+    private val logger = KotlinLogging.logger {}
 
 
     override fun getChartInfo(chartId: UUID): SeatingChartInfoDto? {
@@ -289,5 +294,90 @@ class SeatingPortService(
 
         return hierarchy
     }
-}
 
+    @org.springframework.cache.annotation.Cacheable("seatLocationLines")
+    override fun getSeatLocationLines(seatId: Long, locale: String?): List<String> {
+        return try {
+            val seatInfo = getSeatInfo(seatId) ?: return emptyList()
+            val hierarchy = getZoneHierarchy(seatInfo.zoneId)
+            val resolvedLocale = resolveLocale(locale)
+
+            val lines = mutableListOf<String>()
+            // Add zone hierarchy (from root to leaf)
+            hierarchy.forEach { zone -> lines.add(zone.name) }
+            // Add row and seat with i18n
+            if (seatInfo.rowLabel.isNotBlank()) {
+                val rowLabel = getMessage("ticket.location.row", resolvedLocale)
+                lines.add("$rowLabel ${seatInfo.rowLabel}")
+            }
+            val seatLabel = getMessage("ticket.location.seat", resolvedLocale)
+            lines.add("$seatLabel ${seatInfo.seatNumber}")
+
+            lines
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve seat location for $seatId: ${e.message}" }
+            emptyList()
+        }
+    }
+
+    @org.springframework.cache.annotation.Cacheable("gaLocationLines")
+    override fun getGaLocationLines(gaAreaId: Long, locale: String?): List<String> {
+        return try {
+            val gaInfo = getGaInfo(gaAreaId) ?: return emptyList()
+            val hierarchy = getZoneHierarchy(gaInfo.zoneId)
+
+            val lines = mutableListOf<String>()
+            hierarchy.forEach { zone -> lines.add(zone.name) }
+            // Add GA area name if different from last zone
+            if (lines.isEmpty() || lines.last() != gaInfo.name) {
+                lines.add(gaInfo.name)
+            }
+
+            lines
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve GA location for $gaAreaId: ${e.message}" }
+            emptyList()
+        }
+    }
+
+    @org.springframework.cache.annotation.Cacheable("tableLocationLines")
+    override fun getTableLocationLines(tableId: Long, locale: String?): List<String> {
+        return try {
+            val tableInfo = getTableInfo(tableId) ?: return emptyList()
+            val hierarchy = getZoneHierarchy(tableInfo.zoneId)
+            val resolvedLocale = resolveLocale(locale)
+
+            val lines = mutableListOf<String>()
+            hierarchy.forEach { zone -> lines.add(zone.name) }
+            val tableLabel = getMessage("ticket.location.table", resolvedLocale)
+            lines.add("$tableLabel ${tableInfo.tableNumber}")
+
+            lines
+        } catch (e: Exception) {
+            logger.debug { "Could not resolve table location for $tableId: ${e.message}" }
+            emptyList()
+        }
+    }
+
+    /**
+     * Resolve Locale from language code string.
+     */
+    private fun resolveLocale(localeCode: String?): Locale {
+        return when (localeCode?.lowercase()) {
+            "hy" -> Locale("hy")
+            "ru" -> Locale("ru")
+            else -> Locale.ENGLISH
+        }
+    }
+
+    /**
+     * Get i18n message with fallback to key.
+     */
+    private fun getMessage(key: String, locale: Locale): String {
+        return try {
+            messageSource.getMessage(key, null, key, locale) ?: key
+        } catch (e: Exception) {
+            key
+        }
+    }
+}

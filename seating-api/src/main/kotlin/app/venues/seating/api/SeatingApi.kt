@@ -130,4 +130,36 @@ interface SeatingApi {
      * @return List of zones in the hierarchy
      */
     fun getZoneHierarchy(zoneId: Long): List<SectionInfoDto>
+
+    // --- Location Display Operations ---
+
+    /**
+     * Get formatted location lines for a seat (for tickets, emails, PDFs).
+     * Returns hierarchy + row + seat, each on separate line for multi-line display.
+     * Example: ["Right Tribune", "Sector 5", "Row 3", "Seat 10"]
+     * @param seatId The seat ID
+     * @param locale The locale for i18n (e.g., "en", "hy", "ru")
+     * @return List of location lines, or empty if seat not found
+     */
+    fun getSeatLocationLines(seatId: Long, locale: String?): List<String>
+
+    /**
+     * Get formatted location lines for a GA area (for tickets, emails, PDFs).
+     * Returns hierarchy + GA name.
+     * Example: ["Main Hall", "Fan Zone"]
+     * @param gaAreaId The GA area ID
+     * @param locale The locale for i18n
+     * @return List of location lines, or empty if GA not found
+     */
+    fun getGaLocationLines(gaAreaId: Long, locale: String?): List<String>
+
+    /**
+     * Get formatted location lines for a table (for tickets, emails, PDFs).
+     * Returns hierarchy + table number.
+     * Example: ["VIP Section", "Table 5"]
+     * @param tableId The table ID
+     * @param locale The locale for i18n
+     * @return List of location lines, or empty if table not found
+     */
+    fun getTableLocationLines(tableId: Long, locale: String?): List<String>
 }

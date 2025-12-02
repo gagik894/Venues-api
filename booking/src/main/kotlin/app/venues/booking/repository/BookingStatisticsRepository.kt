@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import java.util.*
 
@@ -134,6 +135,72 @@ interface BookingStatisticsRepository : JpaRepository<Booking, UUID> {
         """
     )
     fun aggregateTableSales(sessionIds: List<UUID>): List<TableSalesProjection>
+
+    @Query(
+        """
+                SELECT COUNT(DISTINCT b.id) AS orders,
+                             COALESCE(SUM(b.totalPrice), 0) AS revenue,
+                             COALESCE(SUM(bi.quantity), 0) AS ticketsSold
+                FROM BookingItem bi
+                JOIN bi.booking b
+                WHERE b.venueId = :venueId
+                    AND b.status = 'CONFIRMED'
+                    AND b.confirmedAt IS NOT NULL
+                    AND b.confirmedAt >= :startInclusive
+                    AND b.confirmedAt < :endExclusive
+                """
+    )
+    fun aggregateVenueOverview(
+        venueId: UUID,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): VenueOverviewProjection?
+
+    @Query(
+        """
+                SELECT function('date', b.confirmedAt) AS bookingDate,
+                             COUNT(DISTINCT b.id) AS orders,
+                             COALESCE(SUM(b.totalPrice), 0) AS revenue,
+                             COALESCE(SUM(bi.quantity), 0) AS ticketsSold
+                FROM BookingItem bi
+                JOIN bi.booking b
+                WHERE b.venueId = :venueId
+                    AND b.status = 'CONFIRMED'
+                    AND b.confirmedAt IS NOT NULL
+                    AND b.confirmedAt >= :startInclusive
+                    AND b.confirmedAt < :endExclusive
+                GROUP BY function('date', b.confirmedAt)
+                ORDER BY function('date', b.confirmedAt)
+                """
+    )
+    fun aggregateVenueByDate(
+        venueId: UUID,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): List<VenueDateProjection>
+
+    @Query(
+        """
+                SELECT b.salesChannel AS salesChannel,
+                             b.platformId AS platformId,
+                             COUNT(DISTINCT b.id) AS orders,
+                             COALESCE(SUM(b.totalPrice), 0) AS revenue,
+                             COALESCE(SUM(bi.quantity), 0) AS ticketsSold
+                FROM BookingItem bi
+                JOIN bi.booking b
+                WHERE b.venueId = :venueId
+                    AND b.status = 'CONFIRMED'
+                    AND b.confirmedAt IS NOT NULL
+                    AND b.confirmedAt >= :startInclusive
+                    AND b.confirmedAt < :endExclusive
+                GROUP BY b.salesChannel, b.platformId
+                """
+    )
+    fun aggregateVenueByPlatform(
+        venueId: UUID,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): List<VenuePlatformProjection>
 }
 
 interface SessionSalesProjection {
@@ -189,4 +256,25 @@ interface TableSalesProjection {
     fun getTemplateName(): String
     fun getSoldTickets(): Long
     fun getTotalRevenue(): BigDecimal
+}
+
+interface VenueOverviewProjection {
+    fun getOrders(): Long
+    fun getRevenue(): BigDecimal
+    fun getTicketsSold(): Long
+}
+
+interface VenueDateProjection {
+    fun getBookingDate(): LocalDate
+    fun getOrders(): Long
+    fun getRevenue(): BigDecimal
+    fun getTicketsSold(): Long
+}
+
+interface VenuePlatformProjection {
+    fun getSalesChannel(): String
+    fun getPlatformId(): UUID?
+    fun getOrders(): Long
+    fun getRevenue(): BigDecimal
+    fun getTicketsSold(): Long
 }

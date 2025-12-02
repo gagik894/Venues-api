@@ -2,6 +2,7 @@ package app.venues.booking.service
 
 import app.venues.booking.api.dto.*
 import app.venues.booking.repository.*
+import app.venues.booking.service.util.PlatformKeyFormatter
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.EventSessionDto
@@ -111,7 +112,7 @@ class EventStatsService(
             }
 
         val platformMap = platformStats.associate { projection ->
-            val key = buildPlatformKey(projection.getSalesChannel(), projection.getPlatformId())
+            val key = PlatformKeyFormatter.format(projection.getSalesChannel(), projection.getPlatformId())
             key to PlatformStats(
                 soldTickets = projection.getSoldTickets(),
                 totalRevenue = projection.getTotalRevenue(),
@@ -322,7 +323,7 @@ class EventStatsService(
             .take(5)
             .map { projection ->
                 BestPerformer(
-                    name = buildPlatformKey(projection.getSalesChannel(), projection.getPlatformId()),
+                    name = PlatformKeyFormatter.format(projection.getSalesChannel(), projection.getPlatformId()),
                     count = projection.getSoldTickets(),
                     totalRevenue = projection.getTotalRevenue()
                 )
@@ -386,13 +387,6 @@ class EventStatsService(
             seating = zoneStats,
             templates = templateStats
         )
-    }
-
-    private fun buildPlatformKey(channel: String, platformId: UUID?): String {
-        return when (channel) {
-            "PLATFORM" -> platformId?.toString() ?: "PLATFORM"
-            else -> channel
-        }
     }
 
     private fun centsToBigDecimal(value: Long?): BigDecimal =

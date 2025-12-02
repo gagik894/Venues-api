@@ -2,10 +2,7 @@ package app.venues.booking.api.controller
 
 import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.*
-import app.venues.booking.service.BookingService
-import app.venues.booking.service.DirectSalesService
-import app.venues.booking.service.EventStatsService
-import app.venues.booking.service.SalesOverviewService
+import app.venues.booking.service.*
 import app.venues.common.model.ApiResponse
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.service.VenueSecurityService
@@ -16,6 +13,7 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.time.LocalDate
 import java.util.*
 
 /**
@@ -39,7 +37,8 @@ class StaffBookingController(
     private val bookingService: BookingService,
     private val salesOverviewService: SalesOverviewService,
     private val venueSecurityService: VenueSecurityService,
-    private val eventStatsService: EventStatsService
+    private val eventStatsService: EventStatsService,
+    private val venueReportsService: VenueReportsService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -276,6 +275,29 @@ class StaffBookingController(
         return ApiResponse.success(
             data = stats,
             message = "Event statistics retrieved successfully"
+        )
+    }
+
+    /**
+     * Get venue-level reports for a date range of confirmed orders.
+     */
+    @GetMapping("/reports/orders")
+    @Operation(
+        summary = "Get venue order reports",
+        description = "Returns aggregated orders, revenue, and tickets sold for the venue within the provided date range"
+    )
+    fun getVenueOrderReports(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestParam startDate: LocalDate,
+        @RequestParam endDate: LocalDate
+    ): ApiResponse<ReportsData> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.info { "Staff $staffId requesting venue reports for $venueId between $startDate and $endDate" }
+        val reports = venueReportsService.getVenueReports(venueId, startDate, endDate)
+        return ApiResponse.success(
+            data = reports,
+            message = "Venue order reports retrieved successfully"
         )
     }
 

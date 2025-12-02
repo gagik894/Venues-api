@@ -281,7 +281,7 @@ class StaffBookingController(
     /**
      * Get venue-level reports for a date range of confirmed orders.
      */
-    @GetMapping("/reports/orders")
+    @GetMapping("/reports")
     @Operation(
         summary = "Get venue order reports",
         description = "Returns aggregated orders, revenue, and tickets sold for the venue within the provided date range"

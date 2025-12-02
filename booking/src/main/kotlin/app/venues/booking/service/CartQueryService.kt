@@ -46,6 +46,7 @@ class CartQueryService(
 
         val sessionDto = eventApi.getEventSessionInfo(cart.sessionId)
             ?: throw VenuesException.ResourceNotFound("Session not found")
+        val currency = sessionDto.currency
 
         // Collections are already loaded via @EntityGraph - no additional queries
         val seats = cart.seats
@@ -60,7 +61,7 @@ class CartQueryService(
                 gaItems = emptyList(),
                 tables = emptyList(),
                 totalPrice = BigDecimal.ZERO,
-                currency = sessionDto.currency,
+                currency = currency,
                 expiresAt = cart.expiresAt.toString(),
                 sessionId = cart.sessionId,
                 eventTitle = sessionDto.eventTitle
@@ -104,7 +105,8 @@ class CartQueryService(
                     rowLabel = seatInfo.rowLabel,
                     levelName = seatInfo.zoneName,
                     price = cartSeat.unitPrice,
-                    priceTemplateName = templateName
+                    priceTemplateName = templateName,
+                    currency = currency
                 )
             }
         }
@@ -122,7 +124,8 @@ class CartQueryService(
                     code = gaInfo.code,
                     levelName = gaInfo.name,
                     unitPrice = cartItem.unitPrice,
-                    priceTemplateName = templateName
+                    priceTemplateName = templateName,
+                    currency = currency
                 )
             }
         }
@@ -136,14 +139,13 @@ class CartQueryService(
                 cartMapper.toCartTableResponse(
                     code = tableInfo.code,
                     tableName = tableInfo.tableNumber,
-                    price = cartTable.unitPrice
+                    price = cartTable.unitPrice,
+                    currency = currency
                 )
             }
         }
 
-        val total = seatResponses.sumOf { BigDecimal(it.price) }
-            .add(gaItemResponses.sumOf { BigDecimal(it.totalPrice) })
-            .add(tableResponses.sumOf { it.price })
+        val total = cart.getTotalPrice()
 
         return cartMapper.toCartSummary(
             token = token,
@@ -151,7 +153,7 @@ class CartQueryService(
             gaItems = gaItemResponses,
             tables = tableResponses,
             totalPrice = total,
-            currency = sessionDto.currency,
+            currency = currency,
             expiresAt = cart.expiresAt.toString(),
             sessionId = cart.sessionId,
             eventTitle = sessionDto.eventTitle

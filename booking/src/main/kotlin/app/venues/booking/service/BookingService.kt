@@ -11,6 +11,7 @@ import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.service.model.BookingCreationContext
 import app.venues.booking.service.model.CartSnapshot
+import app.venues.booking.support.toMoney
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
@@ -339,6 +340,7 @@ class BookingService(
      * Public visibility to allow reuse by DirectSalesService.
      */
     fun prepareBookingResponse(booking: Booking): BookingResponse {
+        val currency = booking.currency
         // Fetch session from event module
         val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
             ?: throw VenuesException.ResourceNotFound("Event session not found")
@@ -374,8 +376,8 @@ class BookingService(
                 levelName = levelName,
                 tableId = item.tableId,
                 quantity = item.quantity,
-                unitPrice = item.unitPrice.toString(),
-                totalPrice = item.getTotalPrice().toString(),
+                unitPrice = item.unitPrice.toMoney(currency),
+                totalPrice = item.getTotalPrice().toMoney(currency),
                 priceTemplateName = item.priceTemplateName
             )
         }

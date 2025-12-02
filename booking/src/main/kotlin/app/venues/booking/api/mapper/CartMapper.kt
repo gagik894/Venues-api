@@ -4,6 +4,7 @@ import app.venues.booking.api.dto.CartGAItemResponse
 import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.dto.CartTableResponse
+import app.venues.booking.support.toMoney
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
@@ -32,14 +33,15 @@ class CartMapper {
         rowLabel: String?,
         levelName: String,
         price: BigDecimal,
-        priceTemplateName: String?
+        priceTemplateName: String?,
+        currency: String
     ): CartSeatResponse {
         return CartSeatResponse(
             code = code,
             number = seatNumber,
             rowLabel = rowLabel,
             levelName = levelName,
-            price = price.toString(),
+            price = price.toMoney(currency),
             priceTemplateName = priceTemplateName
         )
     }
@@ -57,7 +59,8 @@ class CartMapper {
         code: String?,
         levelName: String,
         unitPrice: BigDecimal,
-        priceTemplateName: String?
+        priceTemplateName: String?,
+        currency: String
     ): CartGAItemResponse {
         val totalPrice = unitPrice.multiply(BigDecimal(quantity))
 
@@ -65,8 +68,8 @@ class CartMapper {
             code = code,
             name = levelName,
             quantity = quantity,
-            unitPrice = unitPrice.toString(),
-            totalPrice = totalPrice.toString(),
+            unitPrice = unitPrice.toMoney(currency),
+            totalPrice = totalPrice.toMoney(currency),
             priceTemplateName = priceTemplateName
         )
     }
@@ -81,12 +84,13 @@ class CartMapper {
     fun toCartTableResponse(
         code: String,
         tableName: String,
-        price: BigDecimal
+        price: BigDecimal,
+        currency: String
     ): CartTableResponse {
         return CartTableResponse(
             code = code,
             number = tableName,
-            price = price
+            price = price.toMoney(currency)
         )
     }
 
@@ -109,7 +113,7 @@ class CartMapper {
             seats = seats,
             gaItems = gaItems,
             tables = tables,
-            totalPrice = totalPrice.toString(),
+            totalPrice = totalPrice.toMoney(currency),
             currency = currency,
             expiresAt = expiresAt,
             sessionId = sessionId,

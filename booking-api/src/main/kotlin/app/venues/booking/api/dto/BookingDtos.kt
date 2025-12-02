@@ -59,8 +59,8 @@ data class BookingItemResponse(
     val levelName: String?,
     val tableId: Long?,
     val quantity: Int,
-    val unitPrice: String,
-    val totalPrice: String,
+    val unitPrice: MoneyAmount,
+    val totalPrice: MoneyAmount,
     val priceTemplateName: String?
 )
 
@@ -77,9 +77,9 @@ data class BookingResponse(
     val customerEmail: String,
     val customerName: String,
     val items: List<BookingItemResponse>,
-    val totalPrice: String,
-    val serviceFeeAmount: String,
-    val discountAmount: String,
+    val totalPrice: MoneyAmount,
+    val serviceFeeAmount: MoneyAmount,
+    val discountAmount: MoneyAmount,
     val promoCode: String?,
     val currency: String,
     val status: BookingStatus,

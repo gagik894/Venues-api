@@ -9,6 +9,7 @@ import app.venues.booking.persistence.CartItemPersistence
 import app.venues.booking.persistence.CartTablePersistence
 import app.venues.booking.persistence.InventoryReservationHandler
 import app.venues.booking.repository.CartRepository
+import app.venues.booking.support.toMoney
 import app.venues.booking.validation.CartLimitValidator
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
@@ -436,7 +437,7 @@ class CartService(
             seats = emptyList(),
             gaItems = emptyList(),
             tables = emptyList(),
-            totalPrice = "0.00",
+            totalPrice = MoneyAmount.zero(sessionDto.currency),
             currency = sessionDto.currency,
             expiresAt = "", // or some default
             sessionId = cart.sessionId,
@@ -506,10 +507,11 @@ class CartService(
 
         logger.info { "Applied promo code '$code' to cart ${cart.token}. Discount: $discount" }
 
+        val currency = session.currency
         return PromoCodeAppliedResponse(
-            originalPrice = subtotal,
-            discountAmount = discount,
-            finalPrice = subtotal.subtract(discount),
+            originalPrice = subtotal.toMoney(currency),
+            discountAmount = discount.toMoney(currency),
+            finalPrice = subtotal.subtract(discount).toMoney(currency),
             promoCode = code,
             message = "Promo code applied successfully"
         )

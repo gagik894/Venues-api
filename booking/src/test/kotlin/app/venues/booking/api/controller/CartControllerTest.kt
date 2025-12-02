@@ -2,6 +2,7 @@ package app.venues.booking.api.controller
 
 import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.booking.api.dto.CartSummaryResponse
+import app.venues.booking.api.dto.MoneyAmount
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -32,7 +33,7 @@ class CartControllerTest {
         seats = emptyList(),
         gaItems = emptyList(),
         tables = emptyList(),
-        totalPrice = "0.00",
+        totalPrice = MoneyAmount.zero("USD"),
         currency = "USD",
         expiresAt = "2023-01-01T12:00:00Z",
         sessionId = sessionId,
@@ -63,7 +64,8 @@ class CartControllerTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.token").value(token.toString()))
-            .andExpect(jsonPath("$.data.totalPrice").value("0.00"))
+            .andExpect(jsonPath("$.data.totalPrice.amount").value(0))
+            .andExpect(jsonPath("$.data.totalPrice.currency").value("USD"))
 
         verify(cartService).addSeatToCart(request, token)
     }

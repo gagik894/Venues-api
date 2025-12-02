@@ -3,7 +3,6 @@ package app.venues.booking.api.dto
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
-import java.math.BigDecimal
 import java.util.*
 
 // ===========================================
@@ -72,7 +71,7 @@ data class CartSeatResponse(
     val number: String?,
     val rowLabel: String?,
     val levelName: String,
-    val price: String,
+    val price: MoneyAmount,
     val priceTemplateName: String?
 )
 
@@ -83,8 +82,8 @@ data class CartGAItemResponse(
     val code: String?,
     val name: String,
     val quantity: Int,
-    val unitPrice: String,
-    val totalPrice: String,
+    val unitPrice: MoneyAmount,
+    val totalPrice: MoneyAmount,
     val priceTemplateName: String?
 )
 
@@ -94,7 +93,7 @@ data class CartGAItemResponse(
 data class CartTableResponse(
     val code: String,
     val number: String,
-    val price: BigDecimal
+    val price: MoneyAmount
 )
 
 /**
@@ -105,7 +104,7 @@ data class CartSummaryResponse(
     val seats: List<CartSeatResponse>,
     val gaItems: List<CartGAItemResponse>,
     val tables: List<CartTableResponse> = emptyList(),
-    val totalPrice: String,
+    val totalPrice: MoneyAmount,
     val currency: String,
     val expiresAt: String,
     val sessionId: UUID,
@@ -125,9 +124,9 @@ data class AddToCartResponse(
  * Response after applying a promo code
  */
 data class PromoCodeAppliedResponse(
-    val originalPrice: BigDecimal,
-    val discountAmount: BigDecimal,
-    val finalPrice: BigDecimal,
+    val originalPrice: MoneyAmount,
+    val discountAmount: MoneyAmount,
+    val finalPrice: MoneyAmount,
     val promoCode: String,
     val message: String
 )

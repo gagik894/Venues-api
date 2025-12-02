@@ -2,7 +2,9 @@ package app.venues.booking.api.mapper
 
 import app.venues.booking.api.dto.BookingItemResponse
 import app.venues.booking.api.dto.BookingResponse
+import app.venues.booking.api.dto.MoneyAmount
 import app.venues.booking.domain.Booking
+import app.venues.booking.support.toMoney
 import org.springframework.stereotype.Component
 
 /**
@@ -35,6 +37,7 @@ class BookingMapper {
         customerName: String,
         itemsData: List<BookingItemData>
     ): BookingResponse {
+        val currency = booking.currency
         return BookingResponse(
             id = booking.id.toString(),
             sessionId = booking.sessionId,
@@ -45,16 +48,16 @@ class BookingMapper {
             customerEmail = customerEmail,
             customerName = customerName,
             items = itemsData.map { toItemResponse(it) },
-            totalPrice = booking.totalPrice.toString(),
-            serviceFeeAmount = booking.serviceFeeAmount.toString(),
-            discountAmount = booking.discountAmount.toString(),
+            totalPrice = booking.totalPrice.toMoney(currency),
+            serviceFeeAmount = booking.serviceFeeAmount.toMoney(currency),
+            discountAmount = booking.discountAmount.toMoney(currency),
             promoCode = booking.promoCode,
             currency = booking.currency,
             status = booking.status,
             confirmedAt = booking.confirmedAt?.toString(),
             cancelledAt = booking.cancelledAt?.toString(),
             cancellationReason = booking.cancellationReason,
-            paymentId = booking.paymentId.toString(),
+            paymentId = booking.paymentId?.toString(),
             createdAt = booking.createdAt.toString()
         )
     }
@@ -89,8 +92,8 @@ data class BookingItemData(
     val levelName: String?,
     val tableId: Long?,
     val quantity: Int,
-    val unitPrice: String,
-    val totalPrice: String,
+    val unitPrice: MoneyAmount,
+    val totalPrice: MoneyAmount,
     val priceTemplateName: String?
 )
 

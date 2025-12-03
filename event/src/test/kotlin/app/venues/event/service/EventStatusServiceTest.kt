@@ -524,11 +524,12 @@ class EventStatusServiceTest {
 
     @Test
     fun `bulkChangeSessionStatus - should handle partial failures`() {
-        // Given
+        // Given - test transition to PAUSED status
+        // PAUSED can be reached from ON_SALE but not from CANCELLED or already PAUSED
         val sessionIds = listOf(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
-        val session1 = createTestSession(SessionStatus.ON_SALE, sessionIds[0])
-        val session2 = createTestSession(SessionStatus.CANCELLED, sessionIds[1]) // Invalid for transition
-        val session3 = createTestSession(SessionStatus.PAUSED, sessionIds[2])
+        val session1 = createTestSession(SessionStatus.ON_SALE, sessionIds[0])      // ON_SALE → PAUSED: valid
+        val session2 = createTestSession(SessionStatus.CANCELLED, sessionIds[1])    // CANCELLED → PAUSED: invalid
+        val session3 = createTestSession(SessionStatus.SOLD_OUT, sessionIds[2])     // SOLD_OUT → PAUSED: invalid
 
         every { eventSessionRepository.findById(sessionIds[0]) } returns Optional.of(session1)
         every { eventSessionRepository.findById(sessionIds[1]) } returns Optional.of(session2)
@@ -539,15 +540,15 @@ class EventStatusServiceTest {
         val results = eventStatusService.bulkChangeSessionStatus(
             sessionIds = sessionIds,
             venueId = testVenueId,
-            targetStatus = SessionStatus.ON_SALE,
-            reason = "Resume sales"
+            targetStatus = SessionStatus.PAUSED,
+            reason = "Pause sales"
         )
 
         // Then
         assertEquals(3, results.size)
-        assertTrue(results[sessionIds[0]]!!.isSuccess)
-        assertTrue(results[sessionIds[1]]!!.isFailure) // Should fail for CANCELLED
-        assertTrue(results[sessionIds[2]]!!.isSuccess)
+        assertTrue(results[sessionIds[0]]!!.isSuccess)  // ON_SALE → PAUSED succeeds
+        assertTrue(results[sessionIds[1]]!!.isFailure)  // CANCELLED → PAUSED fails
+        assertTrue(results[sessionIds[2]]!!.isFailure)  // SOLD_OUT → PAUSED fails
     }
 
     // ===========================================

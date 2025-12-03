@@ -216,7 +216,6 @@ data class PlatformSellResponse(
     val bookingReference: String,
     val message: String,
     val totalAmount: String,
-    val currency: String,
     val seats: List<ReservedSeatInfo>?,
     val gaTickets: List<ReservedGAInfo>?
 )

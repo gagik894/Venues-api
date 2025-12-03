@@ -52,7 +52,6 @@ class BookingMapper {
             serviceFeeAmount = booking.serviceFeeAmount.toMoney(currency),
             discountAmount = booking.discountAmount.toMoney(currency),
             promoCode = booking.promoCode,
-            currency = booking.currency,
             status = booking.status,
             confirmedAt = booking.confirmedAt?.toString(),
             cancelledAt = booking.cancelledAt?.toString(),

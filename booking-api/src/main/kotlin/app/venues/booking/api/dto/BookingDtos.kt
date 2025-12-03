@@ -82,7 +82,6 @@ data class BookingResponse(
     val serviceFeeAmount: MoneyAmount,
     val discountAmount: MoneyAmount,
     val promoCode: String?,
-    val currency: String,
     val status: BookingStatus,
     val confirmedAt: String?,
     val cancelledAt: String?,

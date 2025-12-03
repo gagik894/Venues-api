@@ -322,7 +322,6 @@ class PlatformService(
             bookingReference = bookingDto.id.toString(),
             message = "Booking confirmed successfully",
             totalAmount = bookingDto.totalPrice.toString(),
-            currency = bookingDto.currency,
             seats = seats.takeIf { it.isNotEmpty() },
             gaTickets = gaTickets.takeIf { it.isNotEmpty() }
         )

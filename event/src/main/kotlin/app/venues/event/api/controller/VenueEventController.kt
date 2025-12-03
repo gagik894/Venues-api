@@ -4,8 +4,10 @@ import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.EventStatus
+import app.venues.event.domain.SessionStatus
 import app.venues.event.service.EventPricingService
 import app.venues.event.service.EventService
+import app.venues.event.service.EventStatusService
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.VenueApi
@@ -41,6 +43,7 @@ import java.util.*
 class VenueEventController(
     private val eventService: EventService,
     private val eventPricingService: EventPricingService,
+    private val eventStatusService: EventStatusService,
     private val venueSecurityService: VenueSecurityService,
     private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
@@ -363,6 +366,166 @@ class VenueEventController(
         return ApiResponse.success(
             data = Unit,
             message = "Event pricing assigned successfully"
+        )
+    }
+
+    // ===========================================
+    // STATUS MANAGEMENT
+    // ===========================================
+
+    /**
+     * Change event status.
+     * Allows staff to transition events between statuses with validation.
+     */
+    @PutMapping("/{eventId}/status")
+    @Operation(
+        summary = "Change event status",
+        description = """
+            Update event status with proper validation.
+            
+            Allowed transitions:
+            - DRAFT → PUBLISHED (publish event)
+            - DRAFT → DELETED (discard draft)
+            - PUBLISHED → SUSPENDED (temporary removal)
+            - PUBLISHED → ARCHIVED (event finished)
+            - PUBLISHED → DELETED (permanent removal)
+            - SUSPENDED → PUBLISHED (resume event)
+            - SUSPENDED → DELETED (permanent removal)
+            - ARCHIVED → DELETED (cleanup)
+            
+            Validation errors will be returned if transition is not allowed.
+        """
+    )
+    fun changeEventStatus(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @Valid @RequestBody request: EventStatusChangeRequest,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<StatusChangeResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Changing event status: eventId=$eventId, targetStatus=${request.status}, staff=$staffId" }
+
+        val event = eventStatusService.changeEventStatus(
+            eventId = eventId,
+            venueId = venueId,
+            targetStatus = request.status,
+            reason = request.reason
+        )
+
+        val allowedTransitions = eventStatusService.getAllowedEventTransitions(eventId, venueId)
+
+        return ApiResponse.success(
+            data = StatusChangeResponse(
+                success = true,
+                currentStatus = event.status.name,
+                allowedTransitions = allowedTransitions.map { it.name },
+                message = "Event status changed to ${event.status}"
+            ),
+            message = "Event status updated successfully"
+        )
+    }
+
+    /**
+     * Get allowed event status transitions.
+     * Returns possible status changes from current state.
+     */
+    @GetMapping("/{eventId}/status/transitions")
+    @Operation(
+        summary = "Get allowed event status transitions",
+        description = "Returns list of statuses that the event can transition to from its current state."
+    )
+    fun getAllowedEventTransitions(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<EventStatus>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        val allowedTransitions = eventStatusService.getAllowedEventTransitions(eventId, venueId)
+
+        return ApiResponse.success(
+            data = allowedTransitions.toList(),
+            message = "Allowed transitions retrieved"
+        )
+    }
+
+    /**
+     * Change session status.
+     * Allows staff to transition sessions between statuses with validation.
+     */
+    @PutMapping("/{eventId}/sessions/{sessionId}/status")
+    @Operation(
+        summary = "Change session status",
+        description = """
+            Update session status with proper validation.
+            
+            Allowed transitions:
+            - ON_SALE → PAUSED (temporary halt)
+            - ON_SALE → SOLD_OUT (mark sold out)
+            - ON_SALE → SALES_CLOSED (session started)
+            - ON_SALE → CANCELLED (cancel session)
+            - PAUSED → ON_SALE (resume sales)
+            - PAUSED → SOLD_OUT, SALES_CLOSED, CANCELLED
+            - SOLD_OUT → SALES_CLOSED, CANCELLED
+            - SALES_CLOSED → CANCELLED
+            
+            Cancelling a session will trigger refund workflows.
+        """
+    )
+    fun changeSessionStatus(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @Valid @RequestBody request: SessionStatusChangeRequest,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<StatusChangeResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        logger.debug { "Changing session status: sessionId=$sessionId, targetStatus=${request.status}, staff=$staffId" }
+
+        val session = eventStatusService.changeSessionStatus(
+            sessionId = sessionId,
+            venueId = venueId,
+            targetStatus = request.status,
+            reason = request.reason
+        )
+
+        val allowedTransitions = eventStatusService.getAllowedSessionTransitions(sessionId, venueId)
+
+        return ApiResponse.success(
+            data = StatusChangeResponse(
+                success = true,
+                currentStatus = session.status.name,
+                allowedTransitions = allowedTransitions.map { it.name },
+                message = "Session status changed to ${session.status}"
+            ),
+            message = "Session status updated successfully"
+        )
+    }
+
+    /**
+     * Get allowed session status transitions.
+     * Returns possible status changes from current state.
+     */
+    @GetMapping("/{eventId}/sessions/{sessionId}/status/transitions")
+    @Operation(
+        summary = "Get allowed session status transitions",
+        description = "Returns list of statuses that the session can transition to from its current state."
+    )
+    fun getAllowedSessionTransitions(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<SessionStatus>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+
+        val allowedTransitions = eventStatusService.getAllowedSessionTransitions(sessionId, venueId)
+
+        return ApiResponse.success(
+            data = allowedTransitions.toList(),
+            message = "Allowed transitions retrieved"
         )
     }
 }

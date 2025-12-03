@@ -336,3 +336,42 @@ data class EventPricingAssignRequest(
     /** GA area IDs to assign the template to. */
     val gaIds: List<Long>? = null
 )
+
+// ===========================================
+// STATUS MANAGEMENT DTOs
+// ===========================================
+
+/**
+ * Request DTO for changing event status.
+ * Staff endpoint for status transitions.
+ */
+data class EventStatusChangeRequest(
+    @field:NotNull(message = "Target status is required")
+    val status: EventStatus,
+
+    @field:Size(max = 500, message = "Reason must not exceed 500 characters")
+    val reason: String? = null
+)
+
+/**
+ * Request DTO for changing session status.
+ * Staff endpoint for status transitions.
+ */
+data class SessionStatusChangeRequest(
+    @field:NotNull(message = "Target status is required")
+    val status: SessionStatus,
+
+    @field:Size(max = 500, message = "Reason must not exceed 500 characters")
+    val reason: String? = null
+)
+
+/**
+ * Response DTO for status change operations.
+ * Includes the result and allowed next transitions.
+ */
+data class StatusChangeResponse(
+    val success: Boolean,
+    val currentStatus: String,
+    val allowedTransitions: List<String>,
+    val message: String
+)

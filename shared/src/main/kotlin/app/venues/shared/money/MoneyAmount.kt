@@ -16,6 +16,7 @@ data class MoneyAmount(
 ) {
     init {
         require(currency.isNotBlank()) { "Currency must not be blank" }
+        require(amount >= BigDecimal.ZERO) { "Amount must be non-negative" }
     }
 
     companion object {

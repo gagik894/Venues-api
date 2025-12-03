@@ -11,10 +11,10 @@ import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
 import app.venues.booking.service.model.BookingCreationContext
 import app.venues.booking.service.model.CartSnapshot
-import app.venues.booking.support.toMoney
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.money.toMoney
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi

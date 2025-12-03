@@ -2,6 +2,7 @@ package app.venues.event.api.mapper
 
 import app.venues.event.api.dto.*
 import app.venues.event.domain.*
+import app.venues.shared.money.toMoney
 import org.springframework.stereotype.Component
 
 /**
@@ -98,7 +99,7 @@ class EventMapper {
             id = template.id,
             templateName = template.templateName,
             color = template.color,
-            price = template.price.toString(),
+            price = template.price.toMoney(template.event.currency),
             isRemovable = !template.isAnchor
         )
     }

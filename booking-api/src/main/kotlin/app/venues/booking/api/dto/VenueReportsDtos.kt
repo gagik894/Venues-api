@@ -1,11 +1,11 @@
 package app.venues.booking.api.dto
 
-import java.math.BigDecimal
+import app.venues.shared.money.MoneyAmount
 import java.time.LocalDate
 
 data class ReportsOverview(
     val totalOrders: Long,
-    val totalRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
     val totalTicketsSold: Long,
     val currency: String
 )
@@ -13,14 +13,14 @@ data class ReportsOverview(
 data class ReportsByDate(
     val date: LocalDate,
     val orders: Long,
-    val revenue: BigDecimal,
+    val revenue: MoneyAmount,
     val ticketsSold: Long
 )
 
 data class ReportsByPlatform(
     val platform: String,
     val orders: Long,
-    val revenue: BigDecimal,
+    val revenue: MoneyAmount,
     val ticketsSold: Long
 )
 

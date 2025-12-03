@@ -11,6 +11,7 @@ import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.GaInfoDto
 import app.venues.seating.api.dto.SeatInfoDto
 import app.venues.seating.api.dto.TableInfoDto
+import app.venues.shared.money.toMoney
 import app.venues.ticket.api.TicketAttendanceApi
 import app.venues.ticket.api.dto.AttendanceRequestDto
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -102,9 +103,10 @@ class EventStatsService(
 
         val (totalTickets, totalPossibleRevenue) = computeCapacityAndPotential(inventories)
 
-        val zoneStats = buildZoneStats(inventories, seatSales, gaSales, tableSales)
-        val templateStats = buildTemplateStats(inventories, templateSales)
-        val bestPerformers = buildBestPerformers(zoneStats, templateStats, promoStats, platformStats, dayStats)
+        val zoneStats = buildZoneStats(inventories, seatSales, gaSales, tableSales, currency)
+        val templateStats = buildTemplateStats(inventories, templateSales, currency)
+        val bestPerformers =
+            buildBestPerformers(zoneStats, templateStats, promoStats, platformStats, dayStats, currency)
 
         val promoCodeMap = promoStats
             .filter { it.getPromoCode() != "NONE" }
@@ -112,8 +114,8 @@ class EventStatsService(
                 projection.getPromoCode() to PromoCodeStats(
                     totalTickets = projection.getSoldTickets(),
                     soldTickets = projection.getSoldTickets(),
-                    totalRevenue = projection.getTotalRevenue(),
-                    totalPromoLoss = projection.getTotalPromoLoss()
+                    totalRevenue = projection.getTotalRevenue().toMoney(currency),
+                    totalPromoLoss = projection.getTotalPromoLoss().toMoney(currency)
                 )
             }
 
@@ -121,20 +123,21 @@ class EventStatsService(
             val key = PlatformKeyFormatter.format(projection.getSalesChannel(), projection.getPlatformId())
             key to PlatformStats(
                 soldTickets = projection.getSoldTickets(),
-                totalRevenue = projection.getTotalRevenue(),
-                totalPromoLoss = projection.getTotalPromoLoss(),
+                totalRevenue = projection.getTotalRevenue().toMoney(currency),
+                totalPromoLoss = projection.getTotalPromoLoss().toMoney(currency),
                 templates = emptyMap(),
                 seating = emptyMap(),
                 totalTickets = projection.getSoldTickets(),
                 totalPossibleRevenue = projection.getTotalRevenue().add(projection.getTotalPromoLoss())
+                    .toMoney(currency)
             )
         }
 
         val dayMap = dayStats.associate { projection ->
             projection.getBookingDate() to DayStats(
                 soldTickets = projection.getSoldTickets(),
-                totalRevenue = projection.getTotalRevenue(),
-                totalPromoLoss = projection.getTotalPromoLoss(),
+                totalRevenue = projection.getTotalRevenue().toMoney(currency),
+                totalPromoLoss = projection.getTotalPromoLoss().toMoney(currency),
                 levels = emptyMap(),
                 templates = emptyMap(),
                 promoCodes = emptyMap(),
@@ -148,8 +151,8 @@ class EventStatsService(
             totalTickets = totalTickets,
             soldTickets = soldTickets,
             pendingOrders = pendingOrders,
-            totalRevenue = totalRevenue,
-            totalPossibleRevenue = totalPossibleRevenue,
+            totalRevenue = totalRevenue.toMoney(currency),
+            totalPossibleRevenue = totalPossibleRevenue.toMoney(currency),
             bestPerformers = bestPerformers
         )
 
@@ -196,7 +199,8 @@ class EventStatsService(
         inventories: Map<UUID, SessionInventoryResponse>,
         seatSales: List<SeatSalesProjection>,
         gaSales: List<GaSalesProjection>,
-        tableSales: List<TableSalesProjection>
+        tableSales: List<TableSalesProjection>,
+        currency: String
     ): Map<String, ZoneStats> {
         val seatRevenueMap = seatSales.associateBy({ it.getSeatId() }, { it.getTotalRevenue() })
         val gaRevenueMap = gaSales.associateBy({ it.getGaAreaId() }, { it.getTotalRevenue() })
@@ -242,13 +246,14 @@ class EventStatsService(
         }
 
         return zoneAccumulator.mapValues { (_, bucket) ->
-            bucket.toZoneStats()
+            bucket.toZoneStats(currency)
         }
     }
 
     private fun buildTemplateStats(
         inventories: Map<UUID, SessionInventoryResponse>,
-        templateSales: List<TemplateSalesProjection>
+        templateSales: List<TemplateSalesProjection>,
+        currency: String
     ): Map<String, TemplateStats> {
         val revenueMap = templateSales.associateBy({ it.getTemplateName() }, { it.getTotalRevenue() })
         val templateAccumulator = mutableMapOf<String, MutableTemplateBucket>()
@@ -282,7 +287,7 @@ class EventStatsService(
 
         return templateAccumulator.mapValues { (templateName, bucket) ->
             bucket.totalRevenue = revenueMap[templateName] ?: BigDecimal.ZERO
-            bucket.toTemplateStats()
+            bucket.toTemplateStats(currency)
         }
     }
 
@@ -301,7 +306,8 @@ class EventStatsService(
         templates: Map<String, TemplateStats>,
         promoStats: List<PromoCodeStatsProjection>,
         platformStats: List<PlatformStatsProjection>,
-        dayStats: List<DayStatsProjection>
+        dayStats: List<DayStatsProjection>,
+        currency: String
     ): BestPerformers {
         val seatingPerformers = zones.entries
             .sortedByDescending { it.value.soldTickets }
@@ -321,7 +327,7 @@ class EventStatsService(
                 BestPerformer(
                     name = projection.getPromoCode(),
                     count = projection.getSoldTickets(),
-                    totalRevenue = projection.getTotalRevenue()
+                    totalRevenue = projection.getTotalRevenue().toMoney(currency)
                 )
             }
 
@@ -332,7 +338,7 @@ class EventStatsService(
                 BestPerformer(
                     name = PlatformKeyFormatter.format(projection.getSalesChannel(), projection.getPlatformId()),
                     count = projection.getSoldTickets(),
-                    totalRevenue = projection.getTotalRevenue()
+                    totalRevenue = projection.getTotalRevenue().toMoney(currency)
                 )
             }
 
@@ -343,7 +349,7 @@ class EventStatsService(
                 BestPerformer(
                     name = projection.getBookingDate().toString(),
                     count = projection.getSoldTickets(),
-                    totalRevenue = projection.getTotalRevenue()
+                    totalRevenue = projection.getTotalRevenue().toMoney(currency)
                 )
             }
 
@@ -425,12 +431,12 @@ private data class MutableZoneBucket(
     var closedSeats: Long = 0,
     var totalRevenue: BigDecimal = BigDecimal.ZERO
 ) {
-    fun toZoneStats(): ZoneStats = ZoneStats(
+    fun toZoneStats(currency: String): ZoneStats = ZoneStats(
         totalTickets = totalTickets,
         soldTickets = soldTickets,
         availableTickets = availableTickets,
         closedSeats = closedSeats,
-        totalRevenue = totalRevenue,
+        totalRevenue = totalRevenue.toMoney(currency),
         seating = emptyMap()
     )
 }
@@ -443,12 +449,12 @@ private data class MutableTemplateBucket(
     var totalRevenue: BigDecimal = BigDecimal.ZERO,
     val color: String?
 ) {
-    fun toTemplateStats(): TemplateStats = TemplateStats(
+    fun toTemplateStats(currency: String): TemplateStats = TemplateStats(
         totalTickets = totalTickets,
         soldTickets = soldTickets,
         availableTickets = availableTickets,
         closedSeats = closedSeats,
-        totalRevenue = totalRevenue,
+        totalRevenue = totalRevenue.toMoney(currency),
         presentUsers = 0,
         color = color
     )

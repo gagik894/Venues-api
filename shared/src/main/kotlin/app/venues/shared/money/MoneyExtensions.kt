@@ -1,6 +1,5 @@
-package app.venues.booking.support
+package app.venues.shared.money
 
-import app.venues.shared.money.MoneyAmount
 import java.math.BigDecimal
 
 fun BigDecimal.toMoney(currency: String): MoneyAmount = MoneyAmount(this, currency)

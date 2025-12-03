@@ -8,6 +8,7 @@ import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventSession
 import app.venues.event.domain.EventSessionPriceOverride
 import app.venues.event.repository.EventSessionRepository
+import app.venues.event.support.requireCurrency
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -121,7 +122,10 @@ class EventSessionService(
             val override = EventSessionPriceOverride(
                 session = session,
                 templateName = overrideRequest.templateName,
-                price = overrideRequest.price
+                price = overrideRequest.price.requireCurrency(
+                    session.event.currency,
+                    "Price override '${overrideRequest.templateName}'"
+                )
             )
             session.priceTemplateOverrides.add(override)
         }

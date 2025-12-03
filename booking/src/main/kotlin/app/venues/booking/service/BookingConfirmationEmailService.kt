@@ -5,6 +5,7 @@ import app.venues.booking.repository.BookingRepository
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.email.*
+import app.venues.shared.money.toMoney
 import app.venues.shared.pdf.PdfTicketService
 import app.venues.shared.qrcode.QRCodeService
 import app.venues.ticket.api.TicketApi
@@ -112,7 +113,7 @@ class BookingConfirmationEmailService(
             EmailBookingItem(
                 description = item.priceTemplateName ?: "Ticket",
                 quantity = item.quantity,
-                price = "${booking.currency} ${item.unitPrice}"
+                price = item.unitPrice.toMoney(booking.currency)
             )
         }
 
@@ -153,7 +154,7 @@ class BookingConfirmationEmailService(
             eventTime = sessionDto.startTime.atZone(zoneId).toLocalTime().toString(),
             venueName = venueName,
             items = items,
-            totalPrice = "${booking.currency} ${booking.totalPrice}",
+            totalPrice = booking.totalPrice.toMoney(booking.currency),
             locale = locale
         )
 

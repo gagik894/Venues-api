@@ -5,6 +5,7 @@ import app.venues.event.api.dto.PriceTemplateRequest
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.repository.EventRepository
+import app.venues.event.support.requireCurrency
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -53,14 +54,15 @@ class EventPriceService(
                 // Update existing
                 val template = existingTemplatesMap[request.id]!!
                 template.templateName = request.templateName
-                template.price = request.price
+                template.price =
+                    request.price.requireCurrency(event.currency, "Price template '${request.templateName}'")
                 template.color = request.color
             } else {
                 // Create new
                 val template = EventPriceTemplate(
                     event = event,
                     templateName = request.templateName,
-                    price = request.price,
+                    price = request.price.requireCurrency(event.currency, "Price template '${request.templateName}'"),
                     color = request.color
                 )
                 event.priceTemplates.add(template)
@@ -75,7 +77,7 @@ class EventPriceService(
         val template = EventPriceTemplate(
             event = event,
             templateName = request.templateName,
-            price = request.price,
+            price = request.price.requireCurrency(event.currency, "Price template '${request.templateName}'"),
             color = request.color
         )
         event.priceTemplates.add(template)
@@ -90,7 +92,7 @@ class EventPriceService(
             ?: throw VenuesException.ResourceNotFound("Price template not found: $templateId")
 
         template.templateName = request.templateName
-        template.price = request.price
+        template.price = request.price.requireCurrency(event.currency, "Price template '${request.templateName}'")
         template.color = request.color
 
         return template

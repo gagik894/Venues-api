@@ -218,6 +218,20 @@ interface BookingStatisticsRepository : JpaRepository<Booking, UUID> {
         startInclusive: Instant,
         endExclusive: Instant
     ): List<String>
+
+    @Query(
+        value = """
+            SELECT b.currency
+            FROM bookings b
+            WHERE b.venue_id = :venueId
+              AND b.status = 'CONFIRMED'
+              AND b.confirmed_at IS NOT NULL
+            ORDER BY b.confirmed_at DESC
+            LIMIT 1
+        """,
+        nativeQuery = true
+    )
+    fun findMostRecentVenueCurrency(venueId: UUID): String?
 }
 
 interface SessionSalesProjection {

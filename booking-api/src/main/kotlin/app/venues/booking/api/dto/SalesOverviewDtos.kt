@@ -1,6 +1,6 @@
 package app.venues.booking.api.dto
 
-import java.math.BigDecimal
+import app.venues.shared.money.MoneyAmount
 import java.util.*
 
 /**
@@ -11,7 +11,7 @@ data class SessionSalesOverview(
     val eventId: UUID,
     val ticketsSold: Int,
     val ticketsTotal: Int?,
-    val totalRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
     val confirmedBookingsCount: Int,
     val currency: String
 )
@@ -23,7 +23,7 @@ data class EventSalesOverview(
     val eventId: UUID,
     val ticketsSold: Int,
     val ticketsTotal: Int?,
-    val totalRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
     val confirmedBookingsCount: Int,
     val currency: String,
     val sessions: List<SessionSalesOverview>

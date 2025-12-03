@@ -8,6 +8,7 @@ import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.money.toMoney
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -59,7 +60,7 @@ class EventPricingService(
             PriceTemplateResponse(
                 id = template.id,
                 templateName = template.templateName,
-                price = template.price.toPlainString(),
+                price = template.price.toMoney(event.currency),
                 color = template.color,
                 isRemovable = !template.isAnchor
             )

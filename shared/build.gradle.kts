@@ -26,6 +26,8 @@ dependencyManagement {
 }
 
 dependencies {
+    api(platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES))
+
     // Common module dependency
     api(project(":common"))
 

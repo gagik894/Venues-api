@@ -3,8 +3,8 @@ package app.venues.booking.api.mapper
 import app.venues.booking.api.dto.BookingItemResponse
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.domain.Booking
-import app.venues.booking.support.toMoney
 import app.venues.shared.money.MoneyAmount
+import app.venues.shared.money.toMoney
 import org.springframework.stereotype.Component
 
 /**

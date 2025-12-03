@@ -41,11 +41,11 @@
 <tr th:each="item : ${items}">
 <td th:text="${item.description}">Ticket Type</td>
 <td th:text="${item.quantity}">1</td>
-<td th:text="${item.price}">$10.00</td>
+    <td th:text="${item.price.currency + ' ' + item.price.amount}">$10.00</td>
 </tr>
 <tr>
 <td colspan="2" style="text-align: right; font-weight: bold;" th:text="#{email.booking.total.label}">Total:</td>
-<td style="font-weight: bold;" th:text="${totalPrice}">$10.00</td>
+    <td style="font-weight: bold;" th:text="${totalPrice.currency + ' ' + totalPrice.amount}">$10.00</td>
 </tr>
 </tbody>
 </table>

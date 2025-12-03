@@ -5,6 +5,7 @@ import app.venues.booking.api.dto.SessionSalesOverview
 import app.venues.booking.repository.BookingRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
+import app.venues.shared.money.toMoney
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -49,7 +50,7 @@ class SalesOverviewService(
             eventId = ticketStats.eventId,
             ticketsSold = ticketStats.ticketsSold,
             ticketsTotal = ticketStats.ticketsTotal,
-            totalRevenue = totalRevenue,
+            totalRevenue = totalRevenue.toMoney(ticketStats.currency),
             confirmedBookingsCount = confirmedBookingsCount,
             currency = ticketStats.currency
         )
@@ -89,7 +90,7 @@ class SalesOverviewService(
                 eventId = stats.eventId,
                 ticketsSold = stats.ticketsSold,
                 ticketsTotal = stats.ticketsTotal,
-                totalRevenue = revenueBySession[stats.sessionId] ?: BigDecimal.ZERO,
+                totalRevenue = (revenueBySession[stats.sessionId] ?: BigDecimal.ZERO).toMoney(stats.currency),
                 confirmedBookingsCount = countBySession[stats.sessionId] ?: 0,
                 currency = stats.currency
             )
@@ -102,14 +103,16 @@ class SalesOverviewService(
         } else {
             null // If any session has unlimited tickets, total is unknown
         }
-        val totalRevenue = sessionOverviews.sumOf { it.totalRevenue }
+        val totalRevenueAmount = sessionOverviews.fold(BigDecimal.ZERO) { acc, overview ->
+            acc + overview.totalRevenue.amount
+        }
         val totalConfirmedBookings = sessionOverviews.sumOf { it.confirmedBookingsCount }
 
         return EventSalesOverview(
             eventId = eventId,
             ticketsSold = totalTicketsSold,
             ticketsTotal = totalTicketsTotal,
-            totalRevenue = totalRevenue,
+            totalRevenue = totalRevenueAmount.toMoney(currency),
             confirmedBookingsCount = totalConfirmedBookings,
             currency = currency,
             sessions = sessionOverviews

@@ -1,6 +1,6 @@
 package app.venues.booking.api.dto
 
-import java.math.BigDecimal
+import app.venues.shared.money.MoneyAmount
 import java.time.LocalDate
 import java.util.*
 
@@ -19,7 +19,7 @@ enum class StatsScopeType {
 data class BestPerformer(
     val name: String,
     val count: Long,
-    val totalRevenue: BigDecimal
+    val totalRevenue: MoneyAmount
 )
 
 data class BestPerformers(
@@ -34,8 +34,8 @@ data class OverviewStats(
     val totalTickets: Long,
     val soldTickets: Long,
     val pendingOrders: Long,
-    val totalRevenue: BigDecimal,
-    val totalPossibleRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
+    val totalPossibleRevenue: MoneyAmount,
     val bestPerformers: BestPerformers
 )
 
@@ -44,7 +44,7 @@ data class TemplateStats(
     val soldTickets: Long,
     val availableTickets: Long,
     val closedSeats: Long,
-    val totalRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
     val presentUsers: Long,
     val color: String?
 )
@@ -54,31 +54,31 @@ data class ZoneStats(
     val soldTickets: Long,
     val availableTickets: Long,
     val closedSeats: Long,
-    val totalRevenue: BigDecimal,
+    val totalRevenue: MoneyAmount,
     val seating: Map<String, ZoneStats> = emptyMap()
 )
 
 data class PlatformStats(
     val soldTickets: Long,
-    val totalRevenue: BigDecimal,
-    val totalPromoLoss: BigDecimal,
+    val totalRevenue: MoneyAmount,
+    val totalPromoLoss: MoneyAmount,
     val templates: Map<String, TemplateStats>,
     val seating: Map<String, ZoneStats>,
     val totalTickets: Long,
-    val totalPossibleRevenue: BigDecimal
+    val totalPossibleRevenue: MoneyAmount
 )
 
 data class PromoCodeStats(
     val totalTickets: Long,
     val soldTickets: Long,
-    val totalRevenue: BigDecimal,
-    val totalPromoLoss: BigDecimal
+    val totalRevenue: MoneyAmount,
+    val totalPromoLoss: MoneyAmount
 )
 
 data class DayStats(
     val soldTickets: Long,
-    val totalRevenue: BigDecimal,
-    val totalPromoLoss: BigDecimal,
+    val totalRevenue: MoneyAmount,
+    val totalPromoLoss: MoneyAmount,
     val levels: Map<String, ZoneStats>,
     val templates: Map<String, TemplateStats>,
     val promoCodes: Map<String, PromoCodeStats>,

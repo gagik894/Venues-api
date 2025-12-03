@@ -4,7 +4,7 @@ import app.venues.booking.api.dto.CartGAItemResponse
 import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.dto.CartTableResponse
-import app.venues.booking.support.toMoney
+import app.venues.shared.money.toMoney
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*

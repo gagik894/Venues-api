@@ -2,6 +2,7 @@ package app.venues.event.api.dto
 
 import app.venues.event.domain.EventStatus
 import app.venues.event.domain.SessionStatus
+import app.venues.shared.money.MoneyAmount
 import jakarta.validation.constraints.*
 import java.math.BigDecimal
 import java.time.Instant
@@ -162,8 +163,7 @@ data class PriceTemplateRequest(
     val color: String? = null,
 
     @field:NotNull(message = "Price is required")
-    @field:DecimalMin(value = "0.0", message = "Price must be non-negative")
-    var price: BigDecimal,
+    var price: MoneyAmount,
 
     @field:Min(value = 0, message = "Display order must be non-negative")
     val displayOrder: Int = 0
@@ -176,7 +176,7 @@ data class PriceTemplateResponse(
     val id: UUID,
     val templateName: String,
     val color: String?,
-    val price: String,
+    val price: MoneyAmount,
     val isRemovable: Boolean = true // UI hint: false if it's an "Anchor" template
 )
 
@@ -188,8 +188,7 @@ data class PriceTemplateOverrideRequest(
     val templateName: String,
 
     @field:NotNull(message = "Price is required")
-    @field:DecimalMin(value = "0.0", message = "Price must be non-negative")
-    var price: BigDecimal
+    var price: MoneyAmount
 )
 
 /**

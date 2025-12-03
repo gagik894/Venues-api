@@ -1,11 +1,11 @@
 package app.venues.booking.service
 
-import app.venues.booking.api.dto.ReportsData
 import app.venues.booking.repository.BookingStatisticsRepository
 import app.venues.booking.repository.VenueDateProjection
 import app.venues.booking.repository.VenueOverviewProjection
 import app.venues.booking.repository.VenuePlatformProjection
 import app.venues.common.exception.VenuesException
+import app.venues.shared.money.MoneyAmount
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -54,15 +54,47 @@ class VenueReportsServiceTest {
             )
         )
 
-        val result: ReportsData = service.getVenueReports(venueId, startDate, endDate)
+        val result = service.getVenueReports(venueId, startDate, endDate)
 
         assertEquals(5, result.overview.totalOrders)
-        assertEquals(BigDecimal("250.00"), result.overview.totalRevenue)
+        assertEquals(MoneyAmount(BigDecimal("250.00"), "AMD"), result.overview.totalRevenue)
         assertEquals("AMD", result.currency)
         assertEquals("AMD", result.overview.currency)
         assertEquals(2, result.byDate.size)
         assertEquals("WEB", result.byPlatform.first().platform)
         assertEquals("11111111-1111-1111-1111-111111111111", result.byPlatform.last().platform)
+    }
+
+    @Test
+    fun `falls back to most recent currency when range has no bookings`() {
+        val venueId = UUID.randomUUID()
+        val startDate = LocalDate.parse("2025-01-01")
+        val endDate = LocalDate.parse("2025-01-02")
+
+        every { bookingStatisticsRepository.findVenueCurrencies(any(), any(), any()) } returns emptyList()
+        every { bookingStatisticsRepository.findMostRecentVenueCurrency(venueId) } returns "EUR"
+        every { bookingStatisticsRepository.aggregateVenueOverview(any(), any(), any()) } returns null
+        every { bookingStatisticsRepository.aggregateVenueByDate(any(), any(), any()) } returns emptyList()
+        every { bookingStatisticsRepository.aggregateVenueByPlatform(any(), any(), any()) } returns emptyList()
+
+        val result = service.getVenueReports(venueId, startDate, endDate)
+
+        assertEquals("EUR", result.currency)
+        assertEquals(BigDecimal.ZERO, result.overview.totalRevenue.amount)
+    }
+
+    @Test
+    fun `throws when currency cannot be determined`() {
+        val venueId = UUID.randomUUID()
+        val startDate = LocalDate.parse("2025-01-01")
+        val endDate = LocalDate.parse("2025-01-02")
+
+        every { bookingStatisticsRepository.findVenueCurrencies(any(), any(), any()) } returns emptyList()
+        every { bookingStatisticsRepository.findMostRecentVenueCurrency(venueId) } returns null
+
+        assertThrows(VenuesException.ValidationFailure::class.java) {
+            service.getVenueReports(venueId, startDate, endDate)
+        }
     }
 
     @Test

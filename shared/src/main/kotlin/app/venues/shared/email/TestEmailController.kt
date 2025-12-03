@@ -1,6 +1,8 @@
 package app.venues.shared.email
 
+import app.venues.shared.money.toMoney
 import org.springframework.web.bind.annotation.*
+import java.math.BigDecimal
 
 @RestController
 @RequestMapping("api/test/email")
@@ -39,10 +41,10 @@ class TestEmailController(
             eventTime = "19:00",
             venueName = "Opera House",
             items = listOf(
-                EmailBookingItem("VIP Ticket", 2, "50.00"),
-                EmailBookingItem("Regular Ticket", 1, "30.00")
+                EmailBookingItem("VIP Ticket", 2, BigDecimal("50.00").toMoney("USD")),
+                EmailBookingItem("Regular Ticket", 1, BigDecimal("30.00").toMoney("USD"))
             ),
-            totalPrice = "130.00"
+            totalPrice = BigDecimal("130.00").toMoney("USD")
         )
     }
 
@@ -56,10 +58,10 @@ class TestEmailController(
             eventTime = "19:00",
             venueName = "Opera House",
             items = listOf(
-                EmailBookingItem("VIP Ticket", 2, "50.00"),
-                EmailBookingItem("Regular Ticket", 1, "30.00")
+                EmailBookingItem("VIP Ticket", 2, BigDecimal("50.00").toMoney("USD")),
+                EmailBookingItem("Regular Ticket", 1, BigDecimal("30.00").toMoney("USD"))
             ),
-            totalPrice = "130.00"
+            totalPrice = BigDecimal("130.00").toMoney("USD")
         )
         emailService.sendGlobalEmail(to, "Booking Confirmation Test", content, isHtml = true)
     }

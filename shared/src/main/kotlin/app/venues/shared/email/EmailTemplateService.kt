@@ -1,5 +1,6 @@
 package app.venues.shared.email
 
+import app.venues.shared.money.MoneyAmount
 import org.springframework.context.MessageSource
 import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.stereotype.Service
@@ -57,7 +58,7 @@ class EmailTemplateService(
         eventTime: String,
         venueName: String,
         items: List<EmailBookingItem>,
-        totalPrice: String,
+        totalPrice: MoneyAmount,
         locale: Locale? = null
     ): String {
         val context = createContext(locale)
@@ -76,7 +77,7 @@ class EmailTemplateService(
 data class EmailBookingItem(
     val description: String,
     val quantity: Int,
-    val price: String
+    val price: MoneyAmount
 )
 
 data class EmailTicket(

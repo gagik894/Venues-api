@@ -7,9 +7,11 @@ import app.venues.booking.api.dto.ReportsOverview
 import app.venues.booking.repository.BookingStatisticsRepository
 import app.venues.booking.service.util.PlatformKeyFormatter
 import app.venues.common.exception.VenuesException
+import app.venues.shared.money.toMoney
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.*
@@ -29,18 +31,12 @@ class VenueReportsService(
         val startInstant = startDate.atStartOfDay(ZoneOffset.UTC).toInstant()
         val endInstant = endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
 
-        val currencies = bookingStatisticsRepository.findVenueCurrencies(venueId, startInstant, endInstant)
-        if (currencies.size > 1) {
-            throw VenuesException.ValidationFailure(
-                "Venue $venueId has multiple booking currencies in the selected range; reporting requires a single currency"
-            )
-        }
-        val currency = currencies.firstOrNull() ?: ""
+        val currency = resolveReportingCurrency(venueId, startInstant, endInstant)
 
         val overviewProjection = bookingStatisticsRepository.aggregateVenueOverview(venueId, startInstant, endInstant)
         val overview = ReportsOverview(
             totalOrders = overviewProjection?.getOrders() ?: 0,
-            totalRevenue = overviewProjection?.getRevenue() ?: BigDecimal.ZERO,
+            totalRevenue = (overviewProjection?.getRevenue() ?: BigDecimal.ZERO).toMoney(currency),
             totalTicketsSold = overviewProjection?.getTicketsSold() ?: 0,
             currency = currency
         )
@@ -51,7 +47,7 @@ class VenueReportsService(
                 ReportsByDate(
                     date = projection.getBookingDate(),
                     orders = projection.getOrders(),
-                    revenue = projection.getRevenue(),
+                    revenue = projection.getRevenue().toMoney(currency),
                     ticketsSold = projection.getTicketsSold()
                 )
             }
@@ -62,7 +58,7 @@ class VenueReportsService(
                 ReportsByPlatform(
                     platform = PlatformKeyFormatter.format(projection.getSalesChannel(), projection.getPlatformId()),
                     orders = projection.getOrders(),
-                    revenue = projection.getRevenue(),
+                    revenue = projection.getRevenue().toMoney(currency),
                     ticketsSold = projection.getTicketsSold()
                 )
             }
@@ -77,5 +73,24 @@ class VenueReportsService(
             byDate = byDate,
             byPlatform = byPlatform
         )
+    }
+
+    private fun resolveReportingCurrency(
+        venueId: UUID,
+        startInclusive: Instant,
+        endExclusive: Instant
+    ): String {
+        val currencies = bookingStatisticsRepository.findVenueCurrencies(venueId, startInclusive, endExclusive)
+        if (currencies.size > 1) {
+            throw VenuesException.ValidationFailure(
+                "Venue $venueId has multiple booking currencies in the selected range; reporting requires a single currency"
+            )
+        }
+
+        return currencies.firstOrNull()
+            ?: bookingStatisticsRepository.findMostRecentVenueCurrency(venueId)
+            ?: throw VenuesException.ValidationFailure(
+                "Venue $venueId has no confirmed bookings; currency cannot be determined for venue reports"
+            )
     }
 }

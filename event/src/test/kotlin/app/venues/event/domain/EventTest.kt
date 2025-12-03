@@ -304,10 +304,11 @@ class EventTest {
         val event = createTestEvent()
         setEventStatus(event, EventStatus.PUBLISHED)
 
-        val exception = assertThrows<IllegalStateException> {
+        val exception = assertThrows<IllegalArgumentException> {
             event.transitionTo(EventStatus.DRAFT)
         }
-        assertTrue(exception.message!!.contains("Cannot transition back to DRAFT"))
+
+        assertTrue(exception.message!!.contains("Cannot transition from PUBLISHED to DRAFT"))
     }
 
     // Helper methods

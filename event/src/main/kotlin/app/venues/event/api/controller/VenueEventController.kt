@@ -9,6 +9,7 @@ import app.venues.event.service.EventPricingService
 import app.venues.event.service.EventService
 import app.venues.event.service.EventStatusService
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.VenueApi
 import app.venues.venue.api.service.VenueSecurityService
@@ -51,29 +52,34 @@ class VenueEventController(
 ) {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * List all events for a venue (staff view).
+     *
+     * Language is resolved from Accept-Language header.
+     */
     @GetMapping
     @Operation(
         summary = "List venue events (staff)",
-        description = "Returns all events for the venue, including drafts and suspended events."
+        description = "Returns all events for the venue, including drafts and suspended events. Use Accept-Language header for translations."
     )
     fun listVenueEvents(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?,
         @RequestParam(required = false, name = "status") statuses: List<EventStatus>?
     ): ApiResponse<Page<EventSummaryResponse>> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val language = LocaleHelper.currentLanguage()
 
-        logger.debug { "Listing staff events for venue=$venueId statuses=$statuses" }
+        logger.debug { "Listing staff events for venue=$venueId statuses=$statuses language=$language" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getStaffEventSummariesByVenue(
             venueId = venueId,
             pageable = pageable,
             statuses = statuses?.toSet(),
-            language = lang
+            language = language
         )
 
         return ApiResponse.success(
@@ -82,27 +88,32 @@ class VenueEventController(
         )
     }
 
+    /**
+     * Get event details (staff view).
+     *
+     * Language is resolved from Accept-Language header.
+     */
     @GetMapping("/{eventId}")
     @Operation(
         summary = "Get event details (staff)",
-        description = "Returns event details for staff, including hidden events."
+        description = "Returns event details for staff, including hidden events. Use Accept-Language header for translations."
     )
     fun getVenueEvent(
         @PathVariable venueId: UUID,
         @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID,
-        @RequestParam(required = false) lang: String?
+        @RequestAttribute staffId: UUID
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val language = LocaleHelper.currentLanguage()
 
-        logger.debug { "Fetching staff event details: event=$eventId venue=$venueId" }
+        logger.debug { "Fetching staff event details: event=$eventId venue=$venueId language=$language" }
 
         val event = eventService.getEventForVenueStaff(eventId, venueId)
         val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return ApiResponse.success(
-            data = eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = lang),
+            data = eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = language),
             message = "Event retrieved successfully"
         )
     }

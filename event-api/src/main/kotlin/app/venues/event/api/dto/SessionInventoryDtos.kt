@@ -1,5 +1,6 @@
 package app.venues.event.api.dto
 
+import app.venues.shared.money.MoneyAmount
 import java.util.*
 
 /**
@@ -29,8 +30,6 @@ data class SessionInventoryResponse(
  */
 data class SeatStateDto(
     val status: String,
-    val price: Long?,
-    val color: String?,
     val templateName: String?
 )
 
@@ -40,8 +39,6 @@ data class SeatStateDto(
  */
 data class TableStateDto(
     val status: String,
-    val price: Long?,
-    val color: String?,
     val templateName: String?,
     val bookingMode: String
 )
@@ -54,8 +51,6 @@ data class GaAreaStateDto(
     val status: String,
     val available: Int,
     val soldCount: Int,
-    val price: Long?,
-    val color: String?,
     val templateName: String?
 )
 
@@ -66,7 +61,7 @@ data class InventoryPriceTemplateDto(
     val id: UUID,
     val templateName: String,
     val color: String?,
-    val price: Long,
+    val price: MoneyAmount,
     val isOverride: Boolean
 )
 

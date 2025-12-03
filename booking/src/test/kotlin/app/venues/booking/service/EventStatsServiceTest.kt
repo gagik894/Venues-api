@@ -7,6 +7,7 @@ import app.venues.event.api.EventApi
 import app.venues.event.api.dto.*
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.shared.money.MoneyAmount
 import app.venues.ticket.api.TicketAttendanceApi
 import app.venues.ticket.api.dto.AttendanceSummaryDto
 import io.mockk.every
@@ -70,8 +71,6 @@ class EventStatsServiceTest {
             seats = mapOf(
                 10L to SeatStateDto(
                     status = "S",
-                    price = 5_000,
-                    color = "#F00",
                     templateName = "VIP"
                 )
             ),
@@ -82,7 +81,7 @@ class EventStatsServiceTest {
                     id = UUID.randomUUID(),
                     templateName = "VIP",
                     color = "#F00",
-                    price = 5_000,
+                    price = MoneyAmount(BigDecimal("50.00"), "USD"),
                     isOverride = false
                 )
             ),

@@ -9,6 +9,7 @@ import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.money.toMoney
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -83,8 +84,6 @@ class SessionSeatingService(
             val (price, templateName, color) = resolveSeatPricingFromConfig(config, sessionOverrideMap)
             config.seatId to SeatStateDto(
                 status = config.status.toShortCode(),
-                price = price?.movePointRight(2)?.toLong(),
-                color = color,
                 templateName = templateName
             )
         }
@@ -92,13 +91,9 @@ class SessionSeatingService(
         // Map table states
         val tableStates = tableConfigs.associate { config ->
             val template = config.priceTemplate
-            val override = template?.let { sessionOverrideMap[it.templateName] }
-            val finalPrice = override?.price ?: template?.price
 
             config.tableId to TableStateDto(
                 status = config.status.toShortCode(),
-                price = finalPrice?.movePointRight(2)?.toLong(),
-                color = template?.color,
                 templateName = template?.templateName,
                 bookingMode = config.bookingMode.name
             )
@@ -115,8 +110,6 @@ class SessionSeatingService(
                 status = config.status.toShortCode(),
                 available = available,
                 soldCount = config.soldCount,
-                price = finalPrice?.movePointRight(2)?.toLong(),
-                color = template?.color,
                 templateName = template?.templateName
             )
         }
@@ -128,7 +121,7 @@ class SessionSeatingService(
                 id = template.id,
                 templateName = template.templateName,
                 color = template.color,
-                price = (override?.price ?: template.price).movePointRight(2).toLong(),
+                price = override?.price?.toMoney(event.currency) ?: template.price.toMoney(event.currency),
                 isOverride = override != null
             )
         }

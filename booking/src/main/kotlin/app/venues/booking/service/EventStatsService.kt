@@ -174,24 +174,35 @@ class EventStatsService(
         var totalPotential = BigDecimal.ZERO
         inventories.values.forEach { inventory ->
             totalTickets += inventory.stats.totalSeats + inventory.stats.totalGaCapacity
+            val templatePrices = buildTemplatePriceLookup(inventory)
+            val missingTemplates = mutableSetOf<String>()
             totalPotential = totalPotential
-                .add(sumSeatPotential(inventory))
-                .add(sumGaPotential(inventory))
+                .add(sumSeatPotential(inventory, templatePrices, missingTemplates))
+                .add(sumGaPotential(inventory, templatePrices, missingTemplates))
         }
         return totalTickets to totalPotential
     }
 
-    private fun sumSeatPotential(inventory: SessionInventoryResponse): BigDecimal {
+    private fun sumSeatPotential(
+        inventory: SessionInventoryResponse,
+        templatePrices: Map<String, BigDecimal>,
+        missingTemplates: MutableSet<String>
+    ): BigDecimal {
         return inventory.seats.values.fold(BigDecimal.ZERO) { acc, seatState ->
-            acc + centsToBigDecimal(seatState.price)
+            acc + resolveTemplatePrice(seatState.templateName, templatePrices, missingTemplates, inventory.sessionId)
         }
     }
 
-    private fun sumGaPotential(inventory: SessionInventoryResponse): BigDecimal {
+    private fun sumGaPotential(
+        inventory: SessionInventoryResponse,
+        templatePrices: Map<String, BigDecimal>,
+        missingTemplates: MutableSet<String>
+    ): BigDecimal {
         return inventory.gaAreas.values.fold(BigDecimal.ZERO) { acc, gaState ->
-            val totalCapacity = gaState.available + gaState.soldCount
-            val price = centsToBigDecimal(gaState.price)
-            acc + price.multiply(BigDecimal.valueOf(totalCapacity.toLong()))
+            val totalCapacity = (gaState.available + gaState.soldCount).toLong()
+            val price =
+                resolveTemplatePrice(gaState.templateName, templatePrices, missingTemplates, inventory.sessionId)
+            acc + price.multiply(BigDecimal.valueOf(totalCapacity))
         }
     }
 
@@ -402,8 +413,28 @@ class EventStatsService(
         )
     }
 
-    private fun centsToBigDecimal(value: Long?): BigDecimal =
-        value?.let { BigDecimal.valueOf(it, 2) } ?: BigDecimal.ZERO
+    private fun buildTemplatePriceLookup(inventory: SessionInventoryResponse): Map<String, BigDecimal> {
+        // Inventory payload carries pricing by template only; map once per snapshot to avoid per-seat lookups.
+        return inventory.priceTemplates.associate { template ->
+            template.templateName to template.price.amount
+        }
+    }
+
+    private fun resolveTemplatePrice(
+        templateName: String?,
+        templatePrices: Map<String, BigDecimal>,
+        missingTemplates: MutableSet<String>,
+        sessionId: UUID
+    ): BigDecimal {
+        if (templateName.isNullOrBlank()) {
+            return BigDecimal.ZERO
+        }
+        val price = templatePrices[templateName]
+        if (price == null && missingTemplates.add(templateName)) {
+            logger.warn { "Price template '$templateName' missing in inventory for session $sessionId; defaulting to 0" }
+        }
+        return price ?: BigDecimal.ZERO
+    }
 
     private fun fetchSeatMetadata(seatIds: Set<Long>): Map<Long, SeatInfoDto?> {
         val missing = seatIds.filterNot { seatCache.containsKey(it) }

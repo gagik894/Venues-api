@@ -96,7 +96,6 @@ class BookingServiceTicketCounterTest {
                 serviceFeeAmount = MoneyAmount(bookingArg.serviceFeeAmount, bookingArg.currency),
                 discountAmount = MoneyAmount(bookingArg.discountAmount, bookingArg.currency),
                 promoCode = bookingArg.promoCode,
-                currency = bookingArg.currency,
                 status = bookingArg.status,
                 confirmedAt = bookingArg.confirmedAt?.toString(),
                 cancelledAt = bookingArg.cancelledAt?.toString(),

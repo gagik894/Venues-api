@@ -3,6 +3,7 @@ package app.venues.location.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.location.api.dto.*
 import app.venues.location.service.LocationService
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -216,20 +217,19 @@ class LocationController(
      * Get compact city list for dropdowns.
      *
      * Returns lightweight representation suitable for UI dropdowns.
+     * Language resolved from Accept-Language header.
      *
-     * @param lang Language code for names (default: en)
      * @return List of compact city data
      */
     @GetMapping("/cities/compact")
     @Operation(
         summary = "Get compact city list",
-        description = "Returns lightweight city list for dropdowns and selectors"
+        description = "Returns lightweight city list for dropdowns and selectors. Localization via Accept-Language header."
     )
-    fun getCitiesCompact(
-        @RequestParam(required = false, defaultValue = "en") lang: String
-    ): ApiResponse<List<CityCompact>> {
-        logger.debug { "GET /api/v1/locations/cities/compact?lang=$lang" }
-        val cities = locationService.getCitiesCompact(lang)
+    fun getCitiesCompact(): ApiResponse<List<CityCompact>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/compact (Accept-Language: $language)" }
+        val cities = locationService.getCitiesCompact(language)
         return ApiResponse.success(
             data = cities,
             message = "Compact city list retrieved successfully"

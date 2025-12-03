@@ -1,6 +1,7 @@
 package app.venues.venue.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.dto.CreateVenueRequest
 import app.venues.venue.api.dto.UpdateVenueRequest
@@ -67,15 +68,15 @@ class VenueAdminController(
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
         summary = "List all venues",
-        description = "Returns all venues including non-active (admin only)."
+        description = "Returns all venues including non-active (admin only). Localization via Accept-Language header."
     )
     fun listAllVenues(
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false, defaultValue = "en") lang: String
+        @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<VenueAdminResponse>> {
+        val language = LocaleHelper.currentLanguage()
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val venues = venueService.listAllVenues(pageable, lang)
+        val venues = venueService.listAllVenues(pageable, language)
         return ApiResponse.success(venues, "Venues retrieved successfully")
     }
 

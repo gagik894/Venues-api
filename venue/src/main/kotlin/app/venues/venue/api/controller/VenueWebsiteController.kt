@@ -1,6 +1,7 @@
 package app.venues.venue.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.venue.api.dto.AboutPageDto
 import app.venues.venue.api.dto.ContactPageDto
 import app.venues.venue.api.dto.HomePageDto
@@ -8,7 +9,10 @@ import app.venues.venue.api.dto.WebsiteLayoutDto
 import app.venues.venue.service.VenueWebsiteService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import java.util.*
 
 @RestController
@@ -19,42 +23,45 @@ class VenueWebsiteController(
 ) {
 
     @GetMapping("/layout")
-    @Operation(summary = "Get website layout", description = "Returns header, footer, and theme configuration.")
+    @Operation(
+        summary = "Get website layout",
+        description = "Returns header, footer, and theme configuration. Localization via Accept-Language header."
+    )
     fun getLayout(
-        @PathVariable venueId: UUID,
-        @RequestParam(defaultValue = "en") lang: String
+        @PathVariable venueId: UUID
     ): ApiResponse<WebsiteLayoutDto> {
-        val data = venueWebsiteService.getWebsiteLayout(venueId, lang)
+        val language = LocaleHelper.currentLanguage()
+        val data = venueWebsiteService.getWebsiteLayout(venueId, language)
         return ApiResponse.success(data, "Layout retrieved successfully")
     }
 
     @GetMapping("/pages/home")
-    @Operation(summary = "Get home page content")
+    @Operation(summary = "Get home page content", description = "Localization via Accept-Language header.")
     fun getHomePage(
-        @PathVariable venueId: UUID,
-        @RequestParam(defaultValue = "en") lang: String
+        @PathVariable venueId: UUID
     ): ApiResponse<HomePageDto> {
-        val data = venueWebsiteService.getHomePage(venueId, lang)
+        val language = LocaleHelper.currentLanguage()
+        val data = venueWebsiteService.getHomePage(venueId, language)
         return ApiResponse.success(data, "Home page retrieved successfully")
     }
 
     @GetMapping("/pages/about")
-    @Operation(summary = "Get about page content")
+    @Operation(summary = "Get about page content", description = "Localization via Accept-Language header.")
     fun getAboutPage(
-        @PathVariable venueId: UUID,
-        @RequestParam(defaultValue = "en") lang: String
+        @PathVariable venueId: UUID
     ): ApiResponse<AboutPageDto> {
-        val data = venueWebsiteService.getAboutPage(venueId, lang)
+        val language = LocaleHelper.currentLanguage()
+        val data = venueWebsiteService.getAboutPage(venueId, language)
         return ApiResponse.success(data, "About page retrieved successfully")
     }
 
     @GetMapping("/pages/contact")
-    @Operation(summary = "Get contact page content")
+    @Operation(summary = "Get contact page content", description = "Localization via Accept-Language header.")
     fun getContactPage(
-        @PathVariable venueId: UUID,
-        @RequestParam(defaultValue = "en") lang: String
+        @PathVariable venueId: UUID
     ): ApiResponse<ContactPageDto> {
-        val data = venueWebsiteService.getContactPage(venueId, lang)
+        val language = LocaleHelper.currentLanguage()
+        val data = venueWebsiteService.getContactPage(venueId, language)
         return ApiResponse.success(data, "Contact page retrieved successfully")
     }
 }

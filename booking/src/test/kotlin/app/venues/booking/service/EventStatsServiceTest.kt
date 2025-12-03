@@ -6,7 +6,7 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.*
 import app.venues.seating.api.SeatingApi
-import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.seating.api.dto.*
 import app.venues.shared.money.MoneyAmount
 import app.venues.ticket.api.TicketAttendanceApi
 import app.venues.ticket.api.dto.AttendanceSummaryDto
@@ -64,10 +64,12 @@ class EventStatsServiceTest {
             endTime = Instant.parse("2025-01-01T22:00:00Z")
         )
 
+        val seatingChartId = UUID.randomUUID()
+
         val inventory = SessionInventoryResponse(
             sessionId = sessionId,
             eventId = eventId,
-            seatingChartId = UUID.randomUUID(),
+            seatingChartId = seatingChartId,
             seats = mapOf(
                 10L to SeatStateDto(
                     status = "S",
@@ -94,6 +96,44 @@ class EventStatsServiceTest {
                 totalGaCapacity = 0,
                 availableGaCapacity = 0
             )
+        )
+
+        val chartStructure = SeatingChartStructureDto(
+            chartId = seatingChartId,
+            chartName = "Main",
+            width = 100,
+            height = 100,
+            zones = listOf(
+                ZoneDto(
+                    id = 1L,
+                    name = "VIP Zone",
+                    code = "VIP",
+                    parentZoneId = null,
+                    x = 0.0,
+                    y = 0.0,
+                    rotation = 0.0,
+                    boundaryPath = null,
+                    displayColor = null
+                )
+            ),
+            tables = emptyList<TableDto>(),
+            seats = listOf(
+                SeatDto(
+                    id = 10L,
+                    zoneId = 1L,
+                    tableId = null,
+                    code = "A-10",
+                    rowLabel = "A",
+                    seatNumber = "10",
+                    categoryKey = "VIP",
+                    isAccessible = false,
+                    isObstructed = false,
+                    x = 0.0,
+                    y = 0.0,
+                    rotation = 0.0
+                )
+            ),
+            gaAreas = emptyList<GaAreaDto>()
         )
 
         every { eventApi.getEventSessionInfo(sessionId) } returns sessionInfo
@@ -133,17 +173,7 @@ class EventStatsServiceTest {
             )
         )
 
-        every { seatingApi.getSeatInfoBatch(listOf(10L)) } returns listOf(
-            SeatInfoDto(
-                id = 10L,
-                code = "A-10",
-                seatNumber = "10",
-                rowLabel = "A",
-                zoneId = 1L,
-                zoneName = "VIP Zone",
-                categoryKey = "VIP"
-            )
-        )
+        every { seatingApi.getChartStructure(seatingChartId) } returns chartStructure
 
         val response = service.getSessionStats(sessionId, venueId)
 

@@ -10,6 +10,7 @@ import app.venues.event.api.dto.SessionInventoryResponse
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.GaInfoDto
 import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.seating.api.dto.SeatingChartStructureDto
 import app.venues.seating.api.dto.TableInfoDto
 import app.venues.shared.money.toMoney
 import app.venues.ticket.api.TicketAttendanceApi
@@ -33,6 +34,7 @@ class EventStatsService(
 
     private val logger = KotlinLogging.logger {}
 
+    private val chartIndexCache = ConcurrentHashMap<UUID, ChartIndex>()
     private val seatCache = ConcurrentHashMap<Long, SeatInfoDto>()
     private val gaCache = ConcurrentHashMap<Long, GaInfoDto>()
     private val tableCache = ConcurrentHashMap<Long, TableInfoDto>()
@@ -88,6 +90,16 @@ class EventStatsService(
                 ?: throw VenuesException.ResourceNotFound("Inventory snapshot missing for session $sessionId")
         }
 
+        val sessionContexts = inventories.mapValues { (_, inventory) ->
+            val chartIndex = getChartIndex(inventory.seatingChartId)
+            SessionInventoryContext(
+                inventory = inventory,
+                chartIndex = chartIndex,
+                seatStates = materializeSeatStates(inventory, chartIndex),
+                templatePrices = buildTemplatePriceLookup(inventory)
+            )
+        }
+
         val sessionSales = bookingStatisticsRepository.aggregateSessionSales(sessionIds)
         val templateSales = bookingStatisticsRepository.aggregateTemplateSales(sessionIds)
         val promoStats = bookingStatisticsRepository.aggregatePromoStats(sessionIds)
@@ -101,10 +113,10 @@ class EventStatsService(
         val soldTickets = sessionSales.fold(0L) { acc, row -> acc + row.getTicketsSold() }
         val pendingOrders = bookingRepository.countPendingBySessionIds(sessionIds)
 
-        val (totalTickets, totalPossibleRevenue) = computeCapacityAndPotential(inventories)
+        val (totalTickets, totalPossibleRevenue) = computeCapacityAndPotential(sessionContexts.values)
 
-        val zoneStats = buildZoneStats(inventories, seatSales, gaSales, tableSales, currency)
-        val templateStats = buildTemplateStats(inventories, templateSales, currency)
+        val zoneStats = buildZoneStats(sessionContexts.values, seatSales, gaSales, tableSales, currency)
+        val templateStats = buildTemplateStats(sessionContexts.values, templateSales, currency)
         val bestPerformers =
             buildBestPerformers(zoneStats, templateStats, promoStats, platformStats, dayStats, currency)
 
@@ -168,46 +180,48 @@ class EventStatsService(
     }
 
     private fun computeCapacityAndPotential(
-        inventories: Map<UUID, SessionInventoryResponse>
+        contexts: Collection<SessionInventoryContext>
     ): Pair<Long, BigDecimal> {
         var totalTickets = 0L
         var totalPotential = BigDecimal.ZERO
-        inventories.values.forEach { inventory ->
-            totalTickets += inventory.stats.totalSeats + inventory.stats.totalGaCapacity
-            val templatePrices = buildTemplatePriceLookup(inventory)
-            val missingTemplates = mutableSetOf<String>()
+        contexts.forEach { context ->
+            totalTickets += context.chartIndex.seatInfo.size
+            totalTickets += context.inventory.stats.totalGaCapacity
             totalPotential = totalPotential
-                .add(sumSeatPotential(inventory, templatePrices, missingTemplates))
-                .add(sumGaPotential(inventory, templatePrices, missingTemplates))
+                .add(sumSeatPotential(context))
+                .add(sumGaPotential(context))
         }
         return totalTickets to totalPotential
     }
 
-    private fun sumSeatPotential(
-        inventory: SessionInventoryResponse,
-        templatePrices: Map<String, BigDecimal>,
-        missingTemplates: MutableSet<String>
-    ): BigDecimal {
-        return inventory.seats.values.fold(BigDecimal.ZERO) { acc, seatState ->
-            acc + resolveTemplatePrice(seatState.templateName, templatePrices, missingTemplates, inventory.sessionId)
+    private fun sumSeatPotential(context: SessionInventoryContext): BigDecimal {
+        val missingTemplates = mutableSetOf<String>()
+        return context.seatStates.fold(BigDecimal.ZERO) { acc, seat ->
+            acc + resolveTemplatePrice(
+                seat.templateName,
+                context.templatePrices,
+                missingTemplates,
+                context.inventory.sessionId
+            )
         }
     }
 
-    private fun sumGaPotential(
-        inventory: SessionInventoryResponse,
-        templatePrices: Map<String, BigDecimal>,
-        missingTemplates: MutableSet<String>
-    ): BigDecimal {
-        return inventory.gaAreas.values.fold(BigDecimal.ZERO) { acc, gaState ->
+    private fun sumGaPotential(context: SessionInventoryContext): BigDecimal {
+        val missingTemplates = mutableSetOf<String>()
+        return context.inventory.gaAreas.values.fold(BigDecimal.ZERO) { acc, gaState ->
             val totalCapacity = (gaState.available + gaState.soldCount).toLong()
-            val price =
-                resolveTemplatePrice(gaState.templateName, templatePrices, missingTemplates, inventory.sessionId)
+            val price = resolveTemplatePrice(
+                gaState.templateName,
+                context.templatePrices,
+                missingTemplates,
+                context.inventory.sessionId
+            )
             acc + price.multiply(BigDecimal.valueOf(totalCapacity))
         }
     }
 
     private fun buildZoneStats(
-        inventories: Map<UUID, SessionInventoryResponse>,
+        contexts: Collection<SessionInventoryContext>,
         seatSales: List<SeatSalesProjection>,
         gaSales: List<GaSalesProjection>,
         tableSales: List<TableSalesProjection>,
@@ -218,24 +232,22 @@ class EventStatsService(
         val tableRevenueMap = tableSales.associateBy({ it.getTableId() }, { it.getTotalRevenue() })
 
         val zoneAccumulator = mutableMapOf<String, MutableZoneBucket>()
-        val seatIds = inventories.values.flatMap { it.seats.keys }.toSet()
-        val seatMetadata = fetchSeatMetadata(seatIds)
 
-        inventories.values.forEach { inventory ->
-            inventory.seats.forEach { (seatId, state) ->
-                val zoneName = seatMetadata[seatId]?.zoneName ?: "Unknown"
+        contexts.forEach { context ->
+            context.seatStates.forEach { seat ->
+                val zoneName = seat.zoneName
                 val bucket = zoneAccumulator.computeIfAbsent(zoneName) { MutableZoneBucket() }
                 bucket.totalTickets++
-                when (state.status) {
+                when (seat.status) {
                     "S" -> bucket.soldTickets++
                     "A", "R" -> bucket.availableTickets++
                     "B", "C" -> bucket.closedSeats++
                 }
-                bucket.totalRevenue = bucket.totalRevenue.add(seatRevenueMap[seatId] ?: BigDecimal.ZERO)
+                bucket.totalRevenue = bucket.totalRevenue.add(seatRevenueMap[seat.seatId] ?: BigDecimal.ZERO)
             }
 
-            inventory.gaAreas.forEach { (gaId, gaState) ->
-                val gaInfo = fetchGaMetadata(gaId)
+            context.inventory.gaAreas.forEach { (gaId, gaState) ->
+                val gaInfo = context.chartIndex.gaInfo[gaId] ?: fetchGaMetadata(gaId)
                 val zoneName = gaInfo?.name ?: "GA-$gaId"
                 val bucket = zoneAccumulator.computeIfAbsent(zoneName) { MutableZoneBucket() }
                 val totalCapacity = gaState.available + gaState.soldCount
@@ -262,30 +274,32 @@ class EventStatsService(
     }
 
     private fun buildTemplateStats(
-        inventories: Map<UUID, SessionInventoryResponse>,
+        contexts: Collection<SessionInventoryContext>,
         templateSales: List<TemplateSalesProjection>,
         currency: String
     ): Map<String, TemplateStats> {
         val revenueMap = templateSales.associateBy({ it.getTemplateName() }, { it.getTotalRevenue() })
         val templateAccumulator = mutableMapOf<String, MutableTemplateBucket>()
-        val templateColors = extractTemplateColors(inventories.values)
+        val templateColors = extractTemplateColors(contexts)
 
-        inventories.values.forEach { inventory ->
-            inventory.seats.values.forEach { seatState ->
-                val templateName = seatState.templateName ?: "UNASSIGNED"
-                val bucket =
-                    templateAccumulator.computeIfAbsent(templateName) { MutableTemplateBucket(color = templateColors[templateName]) }
+        contexts.forEach { context ->
+            context.seatStates.forEach { seat ->
+                val templateName = seat.templateName ?: "UNASSIGNED"
+                val bucket = templateAccumulator.computeIfAbsent(templateName) {
+                    MutableTemplateBucket(color = templateColors[templateName])
+                }
                 bucket.totalTickets++
-                when (seatState.status) {
+                when (seat.status) {
                     "S" -> bucket.soldTickets++
                     "A", "R" -> bucket.availableTickets++
                     "B", "C" -> bucket.closedSeats++
                 }
             }
-            inventory.gaAreas.values.forEach { gaState ->
+            context.inventory.gaAreas.values.forEach { gaState ->
                 val templateName = gaState.templateName ?: "UNASSIGNED"
-                val bucket =
-                    templateAccumulator.computeIfAbsent(templateName) { MutableTemplateBucket(color = templateColors[templateName]) }
+                val bucket = templateAccumulator.computeIfAbsent(templateName) {
+                    MutableTemplateBucket(color = templateColors[templateName])
+                }
                 val totalCapacity = gaState.available + gaState.soldCount
                 bucket.totalTickets += totalCapacity
                 bucket.soldTickets += gaState.soldCount
@@ -302,10 +316,10 @@ class EventStatsService(
         }
     }
 
-    private fun extractTemplateColors(inventories: Collection<SessionInventoryResponse>): Map<String, String?> {
+    private fun extractTemplateColors(contexts: Collection<SessionInventoryContext>): Map<String, String?> {
         val result = mutableMapOf<String, String?>()
-        inventories.forEach { inventory ->
-            inventory.priceTemplates.forEach { template ->
+        contexts.forEach { context ->
+            context.inventory.priceTemplates.forEach { template ->
                 result.putIfAbsent(template.templateName, template.color)
             }
         }
@@ -436,14 +450,81 @@ class EventStatsService(
         return price ?: BigDecimal.ZERO
     }
 
-    private fun fetchSeatMetadata(seatIds: Set<Long>): Map<Long, SeatInfoDto?> {
-        val missing = seatIds.filterNot { seatCache.containsKey(it) }
-        if (missing.isNotEmpty()) {
-            seatingApi.getSeatInfoBatch(missing).forEach { seatInfo ->
-                seatCache[seatInfo.id] = seatInfo
-            }
+    private fun getChartIndex(chartId: UUID): ChartIndex {
+        return chartIndexCache.computeIfAbsent(chartId) { id ->
+            val structure = seatingApi.getChartStructure(id)
+                ?: throw VenuesException.ResourceNotFound("Seating chart $id not found")
+            buildChartIndex(structure)
         }
-        return seatIds.associateWith { seatCache[it] }
+    }
+
+    private fun buildChartIndex(structure: SeatingChartStructureDto): ChartIndex {
+        val zoneNameMap = structure.zones.associateBy({ it.id }, { it.name })
+        val seatInfo = structure.seats.associate { seat ->
+            val zoneName = zoneNameMap[seat.zoneId] ?: "Zone-${seat.zoneId}"
+            seat.id to SeatInfoDto(
+                id = seat.id,
+                code = seat.code,
+                seatNumber = seat.seatNumber,
+                rowLabel = seat.rowLabel,
+                zoneId = seat.zoneId,
+                zoneName = zoneName,
+                categoryKey = seat.categoryKey
+            )
+        }
+        val gaInfo = structure.gaAreas.associate { ga ->
+            val zoneName = zoneNameMap[ga.zoneId] ?: "Zone-${ga.zoneId}"
+            ga.id to GaInfoDto(
+                id = ga.id,
+                code = ga.code,
+                name = ga.name,
+                capacity = ga.capacity,
+                zoneId = ga.zoneId,
+                categoryKey = ga.categoryKey
+            )
+        }
+        return ChartIndex(seatInfo = seatInfo, gaInfo = gaInfo)
+    }
+
+    private fun materializeSeatStates(
+        inventory: SessionInventoryResponse,
+        chartIndex: ChartIndex
+    ): List<SeatStateView> {
+        val seatInfo = chartIndex.seatInfo
+        val seatStates = ArrayList<SeatStateView>(seatInfo.size)
+
+        inventory.seats.forEach { (seatId, state) ->
+            val info = seatInfo[seatId] ?: fetchSeatInfoFallback(seatId)
+            val zoneName = info?.zoneName ?: "Unknown"
+            val templateName = state.templateName ?: info?.categoryKey
+            seatStates.add(
+                SeatStateView(
+                    seatId = seatId,
+                    status = state.status,
+                    templateName = templateName,
+                    zoneName = zoneName
+                )
+            )
+        }
+
+        val missingSeatIds = seatInfo.keys - inventory.seats.keys
+        missingSeatIds.forEach { seatId ->
+            val info = seatInfo[seatId] ?: fetchSeatInfoFallback(seatId) ?: return@forEach
+            seatStates.add(
+                SeatStateView(
+                    seatId = seatId,
+                    status = "A",
+                    templateName = info.categoryKey,
+                    zoneName = info.zoneName
+                )
+            )
+        }
+
+        return seatStates
+    }
+
+    private fun fetchSeatInfoFallback(seatId: Long): SeatInfoDto? {
+        return seatCache[seatId] ?: seatingApi.getSeatInfo(seatId)?.also { seatCache[seatId] = it }
     }
 
     private fun fetchGaMetadata(gaId: Long): GaInfoDto? {
@@ -454,6 +535,25 @@ class EventStatsService(
         return tableCache[tableId] ?: seatingApi.getTableInfo(tableId)?.also { tableCache[tableId] = it }
     }
 }
+
+private data class SessionInventoryContext(
+    val inventory: SessionInventoryResponse,
+    val chartIndex: ChartIndex,
+    val seatStates: List<SeatStateView>,
+    val templatePrices: Map<String, BigDecimal>
+)
+
+private data class SeatStateView(
+    val seatId: Long,
+    val status: String,
+    val templateName: String?,
+    val zoneName: String
+)
+
+private data class ChartIndex(
+    val seatInfo: Map<Long, SeatInfoDto>,
+    val gaInfo: Map<Long, GaInfoDto>
+)
 
 private data class MutableZoneBucket(
     var totalTickets: Long = 0,

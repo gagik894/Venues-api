@@ -26,6 +26,7 @@ dependencyManagement {
 }
 
 dependencies {
+    api(project(":shared"))
     implementation(kotlin("stdlib"))
     implementation("org.springframework.boot:spring-boot-starter-validation")
 }

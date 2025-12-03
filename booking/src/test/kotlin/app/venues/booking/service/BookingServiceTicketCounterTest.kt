@@ -3,7 +3,6 @@ package app.venues.booking.service
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.CancelBookingRequest
 import app.venues.booking.api.dto.ConfirmBookingRequest
-import app.venues.booking.api.dto.MoneyAmount
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
@@ -15,6 +14,7 @@ import app.venues.event.api.dto.EventSessionDto
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.GaInfoDto
 import app.venues.seating.api.dto.SeatInfoDto
+import app.venues.shared.money.MoneyAmount
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi

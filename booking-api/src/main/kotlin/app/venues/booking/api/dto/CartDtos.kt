@@ -1,5 +1,6 @@
 package app.venues.booking.api.dto
 
+import app.venues.shared.money.MoneyAmount
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull

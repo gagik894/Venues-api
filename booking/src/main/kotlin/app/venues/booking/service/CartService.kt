@@ -14,6 +14,7 @@ import app.venues.booking.validation.CartLimitValidator
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
+import app.venues.shared.money.MoneyAmount
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import jakarta.validation.ConstraintViolationException

@@ -2,9 +2,9 @@ package app.venues.booking.api.controller
 
 import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.booking.api.dto.CartSummaryResponse
-import app.venues.booking.api.dto.MoneyAmount
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
+import app.venues.shared.money.MoneyAmount
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -64,7 +64,7 @@ class CartControllerTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.token").value(token.toString()))
-            .andExpect(jsonPath("$.data.totalPrice.amount").value(0))
+            .andExpect(jsonPath("$.data.totalPrice.amount").value("0.00"))
             .andExpect(jsonPath("$.data.totalPrice.currency").value("USD"))
 
         verify(cartService).addSeatToCart(request, token)

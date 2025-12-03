@@ -1,6 +1,7 @@
 package app.venues.booking.api.dto
 
 import app.venues.booking.api.domain.BookingStatus
+import app.venues.shared.money.MoneyAmount
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size

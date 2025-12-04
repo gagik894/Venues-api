@@ -48,6 +48,13 @@ class ScannerSessionService(
         return scannerSessionMapper.toDto(savedSession, qrContent)
     }
 
+
+    @Transactional(readOnly = true)
+    override fun getSessionsForVenue(venueId: UUID): List<ScannerSessionDto> {
+        val sessions = sessionRepository.findByVenueId(venueId)
+        return sessions.map { scannerSessionMapper.toDto(it, "HIDDEN") }
+    }
+
     @Transactional(readOnly = true)
     override fun validateSession(token: String): ScannerSessionDto? {
         val session = sessionRepository.findBySecretToken(token) ?: return null

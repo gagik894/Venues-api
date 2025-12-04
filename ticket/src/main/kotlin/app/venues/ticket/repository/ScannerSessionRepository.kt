@@ -9,4 +9,5 @@ import java.util.*
 interface ScannerSessionRepository : JpaRepository<ScannerSession, UUID> {
     fun findBySecretToken(secretToken: String): ScannerSession?
     fun findByEventId(eventId: UUID): List<ScannerSession>
+    fun findByVenueId(venueId: UUID): List<ScannerSession>
 }

@@ -74,6 +74,19 @@ class StaffTicketController(
         return ApiResponse.success(Unit, "Tickets invalidated successfully")
     }
 
+    @GetMapping("/sessions")
+    @Operation(summary = "Get scanner sessions for venue")
+    fun getScannerSessions(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<ScannerSessionDto>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.debug { "Staff $staffId fetching scanner sessions for venue $venueId" }
+        val sessions = scannerSessionApi.getSessionsForVenue(venueId)
+        return ApiResponse.success(sessions, "Scanner sessions retrieved successfully")
+    }
+
+
     @PostMapping("/sessions")
     @Operation(summary = "Create scanner session")
     fun createScannerSession(

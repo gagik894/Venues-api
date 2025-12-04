@@ -14,5 +14,7 @@ interface ScannerSessionApi {
         staffId: UUID
     ): ScannerSessionDto
 
+    fun getSessionsForVenue(venueId: UUID): List<ScannerSessionDto>
+
     fun validateSession(token: String): ScannerSessionDto?
 }

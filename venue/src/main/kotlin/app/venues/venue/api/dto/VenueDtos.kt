@@ -12,6 +12,20 @@ import java.util.*
 // ===========================================
 
 /**
+ * Minimal venue identifier for ISR static path generation.
+ * Used by Next.js to build domain → venueId mappings.
+ *
+ * @property id Immutable venue UUID (use as ISR cache key)
+ * @property slug Human-readable identifier (for debugging/logs)
+ * @property customDomain Optional vanity domain (for middleware routing)
+ */
+data class VenueIdentifierDto(
+    val id: UUID,
+    val slug: String,
+    val customDomain: String?
+)
+
+/**
  * Public venue information (list view).
  * Used for venue discovery, search results, and listings.
  */
@@ -259,4 +273,3 @@ data class VenueCategoryDto(
     val icon: String?,
     val displayOrder: Int
 )
-

@@ -112,6 +112,23 @@ class VenueService(
     }
 
     /**
+     * Returns all active venue identifiers for ISR static path generation.
+     *
+     * Used by Next.js front-end to:
+     * 1. Generate static paths via getStaticPaths() using venue UUIDs
+     * 2. Build customDomain → venueId mappings for middleware routing
+     *
+     * @return List of venue identifiers (id, slug, customDomain)
+     */
+    fun getVenueIdentifiers(): List<VenueIdentifierDto> {
+        logger.debug { "Fetching venue identifiers for ISR" }
+
+        return venueRepository.findByStatus(VenueStatus.ACTIVE, Pageable.unpaged())
+            .map { VenueIdentifierDto(id = it.id, slug = it.slug, customDomain = it.customDomain) }
+            .toList()
+    }
+
+    /**
      * Searches venues by name.
      *
      * @param query Search query

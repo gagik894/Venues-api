@@ -5,6 +5,7 @@ import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.dto.VenueCategoryDto
 import app.venues.venue.api.dto.VenueDetailResponse
+import app.venues.venue.api.dto.VenueIdentifierDto
 import app.venues.venue.api.dto.VenueResponse
 import app.venues.venue.service.VenueService
 import io.swagger.v3.oas.annotations.Operation
@@ -48,6 +49,25 @@ class VenueController(
 
         val venues = venueService.listVenues(pageable, language)
         return ApiResponse.success(venues, "Venues retrieved successfully")
+    }
+
+    @GetMapping("/identifiers")
+    @Operation(
+        summary = "Get venue identifiers for ISR",
+        description = """
+            Returns minimal venue identifiers for Next.js ISR static path generation.
+            
+            Use cases:
+            - getStaticPaths(): Use 'id' (UUID) as immutable cache key
+            - Middleware routing: Use 'customDomain' → 'id' mapping
+            
+            UUIDs are preferred over slugs because they never change,
+            ensuring ISR cached pages remain valid after venue renames.
+        """
+    )
+    fun getVenueIdentifiers(): ApiResponse<List<VenueIdentifierDto>> {
+        val identifiers = venueService.getVenueIdentifiers()
+        return ApiResponse.success(identifiers, "Venue identifiers retrieved successfully")
     }
 
     @GetMapping("/{id}")

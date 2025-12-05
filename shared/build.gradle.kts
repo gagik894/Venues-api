@@ -69,6 +69,9 @@ dependencies {
     // PDF generation for ticket attachments
     api("com.github.librepdf:openpdf:2.0.3")
 
+    // Caffeine cache for domain resolution
+    api("com.github.ben-manes.caffeine:caffeine:3.1.8")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

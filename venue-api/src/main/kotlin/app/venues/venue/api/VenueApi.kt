@@ -94,5 +94,13 @@ interface VenueApi {
      * @return SMTP config or null if not configured
      */
     fun getSmtpConfig(venueId: UUID): app.venues.venue.api.dto.SmtpConfigDto?
+
+    /**
+     * Get venue by custom domain (for white-label sites).
+     *
+     * @param domain The custom domain (e.g., "opera.am")
+     * @return VenueBasicInfoDto if found, null otherwise
+     */
+    fun getVenueByDomain(domain: String): VenueBasicInfoDto?
 }
 

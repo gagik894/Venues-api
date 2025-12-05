@@ -29,6 +29,11 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByVenueIdAndStatus(venueId: UUID, status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
+     * Find events by venue ID and status, ordered by first session start (for API Port)
+     */
+    fun findByVenueIdAndStatusOrderByFirstSessionStartAsc(venueId: UUID, status: EventStatus): List<Event>
+
+    /**
      * Find events by venue ID and multiple statuses
      */
     fun findByVenueIdAndStatusIn(venueId: UUID, statuses: Collection<EventStatus>, pageable: Pageable): Page<Event>

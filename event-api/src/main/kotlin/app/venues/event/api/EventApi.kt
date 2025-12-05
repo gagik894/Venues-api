@@ -1,9 +1,6 @@
 package app.venues.event.api
 
-import app.venues.event.api.dto.EventSessionDto
-import app.venues.event.api.dto.GaAvailabilityDto
-import app.venues.event.api.dto.SessionInventoryResponse
-import app.venues.event.api.dto.SessionTicketStatsDto
+import app.venues.event.api.dto.*
 import java.math.BigDecimal
 import java.util.*
 
@@ -63,6 +60,23 @@ interface EventApi {
      * @return List of session UUIDs for the event.
      */
     fun getSessionIdsForEvent(eventId: UUID): List<UUID>
+
+    /**
+     * Returns published events for a venue.
+     * Used by white-label sites for venue-scoped event listings.
+     *
+     * @param venueId Venue UUID.
+     * @param language Language code for translations.
+     * @param limit Max events to return (default 20).
+     * @param offset Pagination offset (default 0).
+     * @return List of event summaries.
+     */
+    fun getEventsByVenue(
+        venueId: UUID,
+        language: String?,
+        limit: Int = 20,
+        offset: Int = 0
+    ): List<EventSummaryDto>
 
     // Seat Reservation
 

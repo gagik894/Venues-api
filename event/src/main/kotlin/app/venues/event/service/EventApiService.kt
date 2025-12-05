@@ -2,10 +2,7 @@ package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
-import app.venues.event.api.dto.EventSessionDto
-import app.venues.event.api.dto.GaAvailabilityDto
-import app.venues.event.api.dto.SessionInventoryResponse
-import app.venues.event.api.dto.SessionTicketStatsDto
+import app.venues.event.api.dto.*
 import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventSession
@@ -421,4 +418,46 @@ class EventApiService(
             )
         }
     }
+
+    @Transactional(readOnly = true)
+    override fun getEventsByVenue(
+        venueId: UUID,
+        language: String?,
+        limit: Int,
+        offset: Int
+    ): List<EventSummaryDto> {
+        val events = eventRepository.findByVenueIdAndStatusOrderByFirstSessionStartAsc(
+            venueId,
+            app.venues.event.domain.EventStatus.PUBLISHED
+        ).drop(offset).take(limit)
+
+        return events.map { event ->
+            val categoryName = event.category?.getName(language ?: "en")
+            val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(java.time.Instant.now()) }
+                ?: event.sessions.firstOrNull()
+
+            // Get translated title if language specified
+            val title = if (!language.isNullOrBlank()) {
+                event.translations.find { it.language.equals(language, ignoreCase = true) }?.title
+                    ?: event.title
+            } else {
+                event.title
+            }
+
+            EventSummaryDto(
+                id = event.id,
+                title = title,
+                imgUrl = event.imgUrl,
+                venueId = event.venueId,
+                venueName = "", // Not needed for same-venue listings
+                location = event.location,
+                categoryName = categoryName,
+                priceRange = event.priceRange,
+                currency = event.currency,
+                status = event.status.name,
+                startDateTime = nextSession?.startTime?.toString()
+            )
+        }
+    }
 }
+

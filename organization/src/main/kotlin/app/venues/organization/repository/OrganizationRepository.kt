@@ -46,5 +46,13 @@ interface OrganizationRepository : JpaRepository<Organization, UUID> {
      */
     @Query("SELECT o FROM Organization o WHERE o.isActive = true ORDER BY o.name ASC")
     fun findAllActive(pageable: Pageable): Page<Organization>
+
+    /**
+     * Finds organization by custom domain (for white-label sites).
+     *
+     * @param customDomain The custom domain (e.g., "ticketmaster.am")
+     * @return Organization if found
+     */
+    fun findByCustomDomain(customDomain: String): Organization?
 }
 

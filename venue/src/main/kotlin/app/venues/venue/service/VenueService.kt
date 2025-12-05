@@ -553,5 +553,23 @@ class VenueService(
             tls = config.tls
         )
     }
+
+    /**
+     * Get venue by custom domain (implements VenueApi interface).
+     * Used for white-label site resolution.
+     */
+    override fun getVenueByDomain(domain: String): VenueBasicInfoDto? {
+        val venue = venueRepository.findByCustomDomain(domain) ?: return null
+        return VenueBasicInfoDto(
+            id = venue.id,
+            name = venue.name,
+            slug = venue.slug,
+            address = venue.address,
+            latitude = venue.latitude,
+            longitude = venue.longitude,
+            organizationId = venue.organizationId,
+            merchantProfileId = venue.merchantProfileId
+        )
+    }
 }
 

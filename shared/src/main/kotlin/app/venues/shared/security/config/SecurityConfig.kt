@@ -3,6 +3,7 @@ package app.venues.shared.security.config
 import app.venues.shared.security.jwt.JwtAccessDeniedHandler
 import app.venues.shared.security.jwt.JwtAuthenticationEntryPoint
 import app.venues.shared.security.jwt.JwtAuthenticationFilter
+import app.venues.shared.web.filter.DomainContextFilter
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -78,7 +79,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
-    private val jwtAccessDeniedHandler: JwtAccessDeniedHandler
+    private val jwtAccessDeniedHandler: JwtAccessDeniedHandler,
+    private val domainContextFilter: DomainContextFilter
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -137,6 +139,7 @@ class SecurityConfig(
                     .requestMatchers(HttpMethod.GET, "/api/v1/events/search").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/sessions").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/seating").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/venue/**").permitAll()
 
                     // Event categories (public)
                     .requestMatchers(HttpMethod.GET, "/api/v1/event/categories/**").permitAll()
@@ -166,6 +169,11 @@ class SecurityConfig(
                     // LOCATIONS (Public)
                     // ============================================
                     .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
+
+                    // ============================================
+                    // PUBLIC CONFIG (White-label)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/public/website/**").permitAll()
 
                     // ============================================
                     // HEALTH & MONITORING
@@ -206,6 +214,8 @@ class SecurityConfig(
                     .accessDeniedHandler(jwtAccessDeniedHandler)
             }
 
+        // Add domain context filter before JWT (to resolve domain before auth)
+        http.addFilterBefore(domainContextFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add JWT authentication filter before username/password authentication
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
@@ -256,7 +266,8 @@ class SecurityConfig(
                 "Accept",
                 "X-Requested-With",
                 "X-Correlation-ID",
-                "X-Request-ID"
+                "X-Request-ID",
+                "X-Venue-Domain"  // White-label domain header
             )
 
             // Headers exposed to the client

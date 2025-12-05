@@ -24,4 +24,20 @@ class OrganizationService(
             )
         }
     }
+
+    /**
+     * Get organization by custom domain (implements OrganizationApi interface).
+     * Used for white-label site resolution.
+     */
+    @Transactional(readOnly = true)
+    override fun getOrganizationByDomain(domain: String): OrganizationDto? {
+        return organizationRepository.findByCustomDomain(domain)?.let { org ->
+            OrganizationDto(
+                id = org.id,
+                name = org.name,
+                slug = org.slug,
+                defaultMerchantProfileId = org.defaultMerchantProfileId
+            )
+        }
+    }
 }

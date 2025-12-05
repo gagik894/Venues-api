@@ -166,5 +166,13 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
      */
     @Query("SELECT v FROM Venue v WHERE v.status != 'DELETED'")
     fun findAllNonDeleted(pageable: Pageable): Page<Venue>
+
+    /**
+     * Finds venue by custom domain (for white-label sites).
+     *
+     * @param customDomain The custom domain (e.g., "opera.am")
+     * @return Venue if found
+     */
+    fun findByCustomDomain(customDomain: String): Venue?
 }
 

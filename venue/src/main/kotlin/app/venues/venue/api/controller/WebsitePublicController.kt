@@ -19,25 +19,16 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Public website endpoints that use X-Venue-Domain header for venue resolution.
- *
- * This controller mirrors VenueWebsiteController but reads venueId from
- * DomainContext (set by DomainContextFilter) instead of path parameter.
- *
- * Usage: Frontend sends X-Venue-Domain header with window.location.hostname
- * Critical for ISR where venueId isn't available at build time.
+ * Public white-label website endpoints resolved by X-Venue-Domain header.
  */
 @RestController
-@RequestMapping("/api/v1/public/website")
-@Tag(name = "Public Website", description = "White-label website endpoints using X-Venue-Domain header")
-class PublicWebsiteController(
+@RequestMapping("/api/v1/site")
+@Tag(name = "Site", description = "White-label public website endpoints (domain header based)")
+class WebsitePublicController(
     private val venueWebsiteService: VenueWebsiteService,
     private val eventApi: EventApi
 ) {
 
-    /**
-     * Gets venueId from DomainContext or throws 400 if not available.
-     */
     private fun requireVenueId() = DomainContext.get()?.venueId
         ?: throw VenuesException.ValidationFailure(
             message = "X-Venue-Domain header required",
@@ -45,10 +36,7 @@ class PublicWebsiteController(
         )
 
     @GetMapping("/layout")
-    @Operation(
-        summary = "Get website layout",
-        description = "Returns header, footer, and theme. Requires X-Venue-Domain header."
-    )
+    @Operation(summary = "Get website layout", description = "Header/footer/theme for white-label site.")
     fun getLayout(): ApiResponse<WebsiteLayoutDto> {
         val venueId = requireVenueId()
         val language = LocaleHelper.currentLanguage()
@@ -57,7 +45,7 @@ class PublicWebsiteController(
     }
 
     @GetMapping("/pages/home")
-    @Operation(summary = "Get home page content", description = "Requires X-Venue-Domain header.")
+    @Operation(summary = "Get home page content", description = "Domain header required.")
     fun getHomePage(): ApiResponse<HomePageDto> {
         val venueId = requireVenueId()
         val language = LocaleHelper.currentLanguage()
@@ -66,7 +54,7 @@ class PublicWebsiteController(
     }
 
     @GetMapping("/pages/about")
-    @Operation(summary = "Get about page content", description = "Requires X-Venue-Domain header.")
+    @Operation(summary = "Get about page content", description = "Domain header required.")
     fun getAboutPage(): ApiResponse<AboutPageDto> {
         val venueId = requireVenueId()
         val language = LocaleHelper.currentLanguage()
@@ -75,7 +63,7 @@ class PublicWebsiteController(
     }
 
     @GetMapping("/pages/contact")
-    @Operation(summary = "Get contact page content", description = "Requires X-Venue-Domain header.")
+    @Operation(summary = "Get contact page content", description = "Domain header required.")
     fun getContactPage(): ApiResponse<ContactPageDto> {
         val venueId = requireVenueId()
         val language = LocaleHelper.currentLanguage()
@@ -83,15 +71,8 @@ class PublicWebsiteController(
         return ApiResponse.success(data, "Contact page retrieved successfully")
     }
 
-    // ===========================================
-    // EVENTS (for ISR support)
-    // ===========================================
-
     @GetMapping("/events")
-    @Operation(
-        summary = "Get events for venue",
-        description = "Returns events for the venue resolved from X-Venue-Domain header. Critical for ISR."
-    )
+    @Operation(summary = "List events for venue", description = "Domain header required; optimized for ISR.")
     fun getEvents(
         @RequestParam(required = false, defaultValue = "20") limit: Int,
         @RequestParam(required = false, defaultValue = "0") offset: Int
@@ -102,5 +83,3 @@ class PublicWebsiteController(
         return ApiResponse.success(events, "Events retrieved successfully")
     }
 }
-
-

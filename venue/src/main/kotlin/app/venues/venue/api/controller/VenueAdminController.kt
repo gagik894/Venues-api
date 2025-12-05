@@ -3,7 +3,6 @@ package app.venues.venue.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
-import app.venues.venue.api.dto.CreateVenueRequest
 import app.venues.venue.api.dto.UpdateVenueRequest
 import app.venues.venue.api.dto.VenueAdminResponse
 import app.venues.venue.api.service.VenueSecurityService
@@ -12,7 +11,6 @@ import app.venues.venue.service.VenueService
 import app.venues.venue.service.VenueSettingsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
-import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.http.HttpStatus
@@ -24,29 +22,14 @@ import java.util.*
  * REST controller for venue administration.
  * Requires ADMIN or STAFF role with venue permission.
  */
-@RestController
-@RequestMapping("/api/v1/admin/venues")
-@Tag(name = "Venue Administration", description = "Admin-only venue management endpoints")
+@Deprecated("Replaced by unified VenueController")
 class VenueAdminController(
     private val venueService: VenueService,
     private val venueSettingsService: VenueSettingsService,
     private val venueSecurityService: VenueSecurityService
 ) {
 
-    @PostMapping
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create venue",
-        description = "Creates a new venue (admin only). Status will be PENDING_APPROVAL."
-    )
-    fun createVenue(
-        @Valid @RequestBody request: CreateVenueRequest
-    ): ApiResponse<VenueAdminResponse> {
-        val venue = venueService.createVenue(request)
-        return ApiResponse.success(venue, "Venue created successfully")
-    }
+    // Legacy class kept for backward compatibility; no REST mappings.
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('VENUE_OWNER')")

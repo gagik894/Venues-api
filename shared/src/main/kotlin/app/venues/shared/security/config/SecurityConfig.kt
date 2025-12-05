@@ -120,14 +120,15 @@ class SecurityConfig(
                     // ============================================
                     // Public venue list and details
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/identifiers").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/slug/{slug}").permitAll()
-                    // White-label website configuration (public, read-only)
-                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}/website/**").permitAll()
+
+                    // White-label website (public read-only)
+                    // Admin operations at /api/v1/venues/{id}/website/** require authentication
+                    .requestMatchers(HttpMethod.GET, "/api/v1/site/**").permitAll()
 
                     // ⚠️ IMPORTANT: All other /api/v1/venues/** endpoints are PROTECTED
-                    // Includes: seating-charts, events (management), etc.
+                    // Includes: website management, seating-charts, events, etc.
 
                     .requestMatchers(HttpMethod.GET, "/api/v1/seating-charts/{chartId}/structure").permitAll()
                     // ============================================
@@ -173,7 +174,7 @@ class SecurityConfig(
                     // ============================================
                     // PUBLIC CONFIG (White-label)
                     // ============================================
-                    .requestMatchers(HttpMethod.GET, "/api/v1/public/website/**").permitAll()
+                    // legacy path removed; new site endpoints handled above
 
                     // ============================================
                     // HEALTH & MONITORING

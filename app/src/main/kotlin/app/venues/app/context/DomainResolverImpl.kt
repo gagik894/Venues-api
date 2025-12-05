@@ -30,14 +30,23 @@ class DomainResolverImpl(
         .build<String, ResolvedVenueDomain?>()
 
     override fun resolve(domain: String): ResolvedVenueDomain? {
-        return cache.get(domain) { key ->
+        val canonical = canonicalize(domain) ?: run {
+            logger.debug { "Domain header malformed or empty; skipping resolution" }
+            return null
+        }
+
+        return cache.get(canonical) { key ->
             resolveFromDatabase(key)
         }
     }
 
     override fun invalidate(domain: String) {
-        cache.invalidate(domain)
-        logger.debug { "Invalidated domain cache for: $domain" }
+        val canonical = canonicalize(domain) ?: run {
+            logger.debug { "Skipping cache invalidation for malformed domain: $domain" }
+            return
+        }
+        cache.invalidate(canonical)
+        logger.debug { "Invalidated domain cache for: $canonical" }
     }
 
     override fun invalidateAll() {
@@ -59,6 +68,31 @@ class DomainResolverImpl(
 
         logger.debug { "Domain $domain could not be resolved to any venue" }
         return null
+    }
+
+    /**
+     * Normalizes a domain for stable cache keys and DB lookups.
+     * - trims, lowercases
+     * - strips protocol, port, and trailing slash
+     * - rejects invalid characters
+     */
+    private fun canonicalize(raw: String): String? {
+        if (raw.isBlank()) return null
+
+        val trimmed = raw.trim().lowercase()
+            .removePrefix("http://")
+            .removePrefix("https://")
+        val withoutPath = trimmed.substringBefore("/")
+        val hostOnly = withoutPath.substringBefore(":")
+        if (hostOnly.isBlank()) return null
+
+        val host = hostOnly.trimEnd('.')
+        val isValid = HOST_REGEX.matches(host)
+        return if (isValid) host else null
+    }
+
+    companion object {
+        private val HOST_REGEX = Regex("^[a-z0-9.-]{1,253}$")
     }
 }
 

@@ -9,6 +9,7 @@ import app.venues.venue.domain.VenueStatus
 import app.venues.venue.repository.VenueCategoryRepository
 import app.venues.venue.repository.VenueRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -33,7 +34,8 @@ class VenueService(
     private val categoryRepository: VenueCategoryRepository,
     private val venueMapper: VenueMapper,
     private val promoCodeService: VenuePromoCodeService,
-    private val venueSettingsService: VenueSettingsService
+    private val venueSettingsService: VenueSettingsService,
+    private val eventPublisher: ApplicationEventPublisher
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -109,23 +111,6 @@ class VenueService(
 
         return venueRepository.findByStatus(VenueStatus.ACTIVE, pageable)
             .map { venueMapper.toPublicResponse(it, lang, includeStats = true) }
-    }
-
-    /**
-     * Returns all active venue identifiers for ISR static path generation.
-     *
-     * Used by Next.js front-end to:
-     * 1. Generate static paths via getStaticPaths() using venue UUIDs
-     * 2. Build customDomain → venueId mappings for middleware routing
-     *
-     * @return List of venue identifiers (id, slug, customDomain)
-     */
-    fun getVenueIdentifiers(): List<VenueIdentifierDto> {
-        logger.debug { "Fetching venue identifiers for ISR" }
-
-        return venueRepository.findByStatus(VenueStatus.ACTIVE, Pageable.unpaged())
-            .map { VenueIdentifierDto(id = it.id, slug = it.slug, customDomain = it.customDomain) }
-            .toList()
     }
 
     /**
@@ -292,8 +277,20 @@ class VenueService(
                 )
         }
 
+        val previousDomain = venue.customDomain
+
         venueMapper.updateEntity(venue, request, city, category)
         val saved = venueRepository.save(venue)
+
+        if (previousDomain != saved.customDomain) {
+            eventPublisher.publishEvent(
+                app.venues.shared.web.context.DomainChangedEvent(
+                    venueId = saved.id,
+                    oldDomain = previousDomain,
+                    newDomain = saved.customDomain
+                )
+            )
+        }
 
         logger.info { "Venue updated: id=${saved.id}, slug=${saved.slug}" }
         return venueMapper.toAdminResponse(saved)
@@ -559,7 +556,7 @@ class VenueService(
      * Used for white-label site resolution.
      */
     override fun getVenueByDomain(domain: String): VenueBasicInfoDto? {
-        val venue = venueRepository.findByCustomDomain(domain) ?: return null
+        val venue = venueRepository.findByCustomDomainAndStatus(domain, VenueStatus.ACTIVE) ?: return null
         return VenueBasicInfoDto(
             id = venue.id,
             name = venue.name,

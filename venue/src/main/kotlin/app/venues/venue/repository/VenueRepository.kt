@@ -174,5 +174,10 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
      * @return Venue if found
      */
     fun findByCustomDomain(customDomain: String): Venue?
+
+    /**
+     * Finds active venue by custom domain (white-label safe lookup).
+     */
+    fun findByCustomDomainAndStatus(customDomain: String, status: VenueStatus): Venue?
 }
 

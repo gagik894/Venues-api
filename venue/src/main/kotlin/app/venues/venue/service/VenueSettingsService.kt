@@ -1,5 +1,6 @@
 package app.venues.venue.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.venue.domain.VenueSettings
 import app.venues.venue.dto.SmtpConfig
 import app.venues.venue.repository.VenueRepository
@@ -39,7 +40,7 @@ class VenueSettingsService(
     fun getOrCreateSettings(venueId: UUID): VenueSettings {
         return venueSettingsRepository.findById(venueId).orElseGet {
             val venue = venueRepository.findById(venueId).orElseThrow {
-                IllegalArgumentException("Venue not found: $venueId")
+                VenuesException.ResourceNotFound("Venue not found: $venueId", "VENUE_NOT_FOUND")
             }
 
             val settings = VenueSettings(venue = venue)
@@ -66,7 +67,7 @@ class VenueSettingsService(
         } else {
             // Create new
             val venue = venueRepository.findById(venueId).orElseThrow {
-                IllegalArgumentException("Venue not found: $venueId")
+                VenuesException.ResourceNotFound("Venue not found: $venueId", "VENUE_NOT_FOUND")
             }
             val newSettings = VenueSettings(venue = venue)
             newSettings.id = venueId

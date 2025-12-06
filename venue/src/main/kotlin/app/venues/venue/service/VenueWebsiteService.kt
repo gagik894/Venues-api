@@ -53,8 +53,9 @@ class VenueWebsiteService(
     fun updateVenueBranding(venueId: UUID, request: UpdateVenueBrandingRequest): VenueBrandingDto {
         val venue = getVenueOrThrow(venueId)
 
+        // Use existing branding or create new one. Do NOT set id manually with @MapsId.
         val branding = venueBrandingRepository.findById(venueId)
-            .orElse(VenueBranding(id = venueId, venue = venue))
+            .orElseGet { VenueBranding(venue = venue) }
 
         branding.primaryColor = request.primaryColor
         branding.secondaryColor = request.secondaryColor

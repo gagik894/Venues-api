@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.RestController
  * Public white-label website endpoints resolved by X-Venue-Domain header.
  */
 @RestController
-@RequestMapping("/api/v1/site")
-@Tag(name = "Site", description = "White-label public website endpoints (domain header based)")
+@RequestMapping("/api/v1/venue/website")
+@Tag(name = "Venue Website", description = "White-label public website endpoints (domain header based)")
 class WebsitePublicController(
     private val venueWebsiteService: VenueWebsiteService,
     private val eventApi: EventApi

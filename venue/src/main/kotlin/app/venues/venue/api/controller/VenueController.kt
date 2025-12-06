@@ -28,6 +28,16 @@ class VenueController(
     private val venueService: VenueService
 ) {
 
+    @GetMapping("/domains")
+    @Operation(
+        summary = "List venue domains",
+        description = "Returns list of all active venue domains."
+    )
+    fun listVenueDomains(): ApiResponse<List<String>> {
+        val domains = venueService.listActiveVenueDomains()
+        return ApiResponse.success(domains, "Venue domains retrieved successfully")
+    }
+
     @GetMapping
     @Operation(
         summary = "List venues",

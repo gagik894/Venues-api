@@ -120,12 +120,13 @@ class SecurityConfig(
                     // ============================================
                     // Public venue list and details
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/domains").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/venues/slug/{slug}").permitAll()
 
                     // White-label website (public read-only)
                     // Admin operations at /api/v1/venues/{id}/website/** require authentication
-                    .requestMatchers(HttpMethod.GET, "/api/v1/site/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venue/website/**").permitAll()
 
                     // ⚠️ IMPORTANT: All other /api/v1/venues/** endpoints are PROTECTED
                     // Includes: website management, seating-charts, events, etc.

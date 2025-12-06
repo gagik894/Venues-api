@@ -43,6 +43,14 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
     fun findByStatus(status: VenueStatus, pageable: Pageable): Page<Venue>
 
     /**
+     * Lists all active venue custom domains.
+     *
+     * @return List of custom domains
+     */
+    @Query("SELECT v.customDomain FROM Venue v WHERE v.status = 'ACTIVE' AND v.customDomain IS NOT NULL")
+    fun findAllActiveDomains(): List<String>
+
+    /**
      * Finds venues by city slug and status.
      *
      * @param citySlug City slug filter

@@ -114,6 +114,17 @@ class VenueService(
     }
 
     /**
+     * Lists all active venue custom domains.
+     *
+     * @return List of active venue domains
+     */
+    fun listActiveVenueDomains(): List<String> {
+        logger.debug { "Listing active venue domains" }
+
+        return venueRepository.findAllActiveDomains()
+    }
+
+    /**
      * Searches venues by name.
      *
      * @param query Search query

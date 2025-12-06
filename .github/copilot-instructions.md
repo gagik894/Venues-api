@@ -39,19 +39,6 @@ Project architecture rules
 - Backfill carefully: when adding non-null columns to existing tables, add column nullable, backfill, then add NOT NULL
   constraint in separate steps.
 
-Booking / Reservation rules
-
-- Seat reservations: `session_seat_configs.status` is authoritative for seat availability. Use an atomic UPDATE to set
-  AVAILABLE→RESERVED.
-- GA reservations: use capacity and soldCount. Use atomic UPDATE to increment soldCount only when sufficient capacity
-  exists.
-- Cart snapshot: `CartSeat` and `CartItem` must contain `unitPrice` (BigDecimal/DECIMAL with scale 2) recorded at
-  add-to-cart.
-- Expiration: cleanup job deletes expired cart rows; when seats expire, release inventory (set
-  session_seat_configs.status back to AVAILABLE) using an update.
-
-Testing and validation
-
 - Unit tests: write focused unit tests per vertical slice (controller -> service -> repository) using in-memory or test
   DB where appropriate.
 - Integration tests: run Flyway migrations and run against a test Postgres instance in CI. Mock external modules via
@@ -62,32 +49,5 @@ Comments & documentation
 
 - Keep comments brief and professional. One-sentence function javadoc for public API, with @throws for notable errors.
 - Avoid over-commenting trivial logic.
-
-Commit and PR guidance
-
-- Commit messages: start with scoped prefix (e.g., `booking: add unit_price to CartItem`), short description, optional
-  body.
-- PRs: include summary of changes, migration steps (if any), testing instructions, and list of touched modules. Add
-  reviewers from architecture and module owners.
-
-Copilot prompt examples (recommended)
-
-- Good: "Implement addSeatToCart in CartService using the SessionSeatConfigRepository.reserveSeatIfAvailable atomic
-  update; snapshot price from SeatConfig.priceTemplate.price into CartSeat.unitPrice; throw
-  VenuesException.ResourceConflict on 0 rows updated. Keep comments brief and Google-style."
-- Good: "Create Flyway migration V15 to add unit_price to cart_tables: add column nullable, backfill, then set NOT NULL.
-  Provide concise comments in SQL."
-- Bad: "Just make seat reservation work; you can change anything." (Too broad; avoid.)
-
-Do-not list
-
-- Do not access another module's Entities or Repositories directly.
-- Do not use `!!` or suppress null-safety lint rules.
-- Do not modify applied Flyway migrations.
-- Do not log secrets or print tokens in logs.
-
-Maintenance
-
-- Keep this file updated when architectural rules change.
 
 Thank you. Follow these rules for any code-generation or completion inside this repository.

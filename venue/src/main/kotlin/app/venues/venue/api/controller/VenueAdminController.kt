@@ -3,6 +3,7 @@ package app.venues.venue.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
+import app.venues.venue.api.dto.SmtpConfigResponse
 import app.venues.venue.api.dto.UpdateVenueRequest
 import app.venues.venue.api.dto.VenueAdminResponse
 import app.venues.venue.api.service.VenueSecurityService
@@ -166,30 +167,5 @@ class VenueAdminController(
         venueSecurityService.requireVenueManagementPermission(staffId, id)
         venueSettingsService.updateSmtpConfig(id, null)
         return ApiResponse.success(Unit, "SMTP configuration deleted")
-    }
-}
-
-/**
- * Response DTO for SMTP config with masked password.
- */
-data class SmtpConfigResponse(
-    val email: String,
-    val password: String,  // Masked
-    val host: String,
-    val port: Int,
-    val tls: Boolean
-) {
-    companion object {
-        fun from(config: SmtpConfig?): SmtpConfigResponse? {
-            return config?.let {
-                SmtpConfigResponse(
-                    email = it.email,
-                    password = it.password,
-                    host = it.host,
-                    port = it.port,
-                    tls = it.tls
-                )
-            }
-        }
     }
 }

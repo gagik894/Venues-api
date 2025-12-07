@@ -2,10 +2,14 @@ package app.venues.booking.repository
 
 import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.domain.Booking
+import jakarta.persistence.LockModeType
+import jakarta.persistence.QueryHint
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.jpa.repository.QueryHints
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
 import java.time.Instant
@@ -16,6 +20,24 @@ import java.util.*
  */
 @Repository
 interface BookingRepository : JpaRepository<Booking, UUID> {
+
+    /**
+     * Find booking by ID with pessimistic write lock.
+     *
+     * Use this method when you need to update a booking and prevent concurrent modifications.
+     * The lock is held until the transaction completes (commit or rollback).
+     *
+     * Timeout: 5 seconds. If lock cannot be acquired within this time, throws LockTimeoutException.
+     *
+     * Security: Prevents concurrent booking confirmation race conditions (audit finding HIGH-01).
+     *
+     * @param id The booking ID
+     * @return Optional containing the locked booking, or empty if not found
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(QueryHint(name = "jakarta.persistence.lock.timeout", value = "5000"))
+    @Query("SELECT b FROM Booking b WHERE b.id = :id")
+    fun findByIdForUpdate(id: UUID): Optional<Booking>
 
     /**
      * Find bookings by user

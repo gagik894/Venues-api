@@ -52,7 +52,9 @@ class BookingFulfillmentService(
         // 2. Finalize GA
         val gaItems = booking.items.filter { it.gaAreaId != null }
         if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            val gaQuantities = gaItems.mapNotNull { item ->
+                item.gaAreaId?.let { it to item.quantity }
+            }.toMap()
             eventApi.sellGaBatch(booking.sessionId, gaQuantities)
         }
 
@@ -78,7 +80,9 @@ class BookingFulfillmentService(
         // 2. Release GA
         val gaItems = booking.items.filter { it.gaAreaId != null }
         if (gaItems.isNotEmpty()) {
-            val gaQuantities = gaItems.associate { it.gaAreaId!! to it.quantity }
+            val gaQuantities = gaItems.mapNotNull { item ->
+                item.gaAreaId?.let { it to item.quantity }
+            }.toMap()
             eventApi.releaseGaBatch(booking.sessionId, gaQuantities)
         }
 

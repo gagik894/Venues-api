@@ -479,7 +479,7 @@ class PlatformService(
      */
     private fun toPlatformWithSecretResponse(platform: Platform): PlatformWithSecretResponse {
         return PlatformWithSecretResponse(
-            id = platform.id!!,
+            id = requireNotNull(platform.id) { "Platform ID must be set" },
             name = platform.name,
             apiUrl = platform.apiUrl,
             sharedSecret = platform.sharedSecret,

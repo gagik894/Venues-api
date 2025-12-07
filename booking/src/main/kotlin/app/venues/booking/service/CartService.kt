@@ -489,8 +489,10 @@ class CartService(
         var discount: BigDecimal
         if (promoCode.discountType == "PERCENTAGE") {
             discount = subtotal.multiply(promoCode.discountValue).divide(BigDecimal(100))
-            if (promoCode.maxDiscountAmount != null && discount > promoCode.maxDiscountAmount) {
-                discount = promoCode.maxDiscountAmount!!
+            promoCode.maxDiscountAmount?.let { maxDiscount ->
+                if (discount > maxDiscount) {
+                    discount = maxDiscount
+                }
             }
         } else {
             discount = promoCode.discountValue

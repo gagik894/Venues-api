@@ -1,5 +1,6 @@
 package app.venues.booking.domain
 
+import app.venues.common.exception.VenuesException
 import app.venues.shared.persistence.domain.AbstractUuidEntity
 import jakarta.persistence.*
 import java.math.BigDecimal
@@ -15,10 +16,14 @@ import java.util.*
  * Performance Note: Child collections use LAZY fetch with @EntityGraph optimization
  * to prevent N+1 queries during cart retrieval operations.
  *
+ * Security Note: Platform carts have platformId set and are bound exclusively to that platform.
+ * This prevents cross-platform booking theft (audit findings CRIT-01, CRIT-02).
+ *
  * @param sessionId The [UUID] of the EventSession this cart is for.
  * @param expiresAt The absolute timestamp when the cart reservations expire.
  * @param token A unique public token for API access (used for anonymous carts).
  * @param userId The [UUID] of the authenticated user (nullable for guest checkout).
+ * @param platformId The [UUID] of the external platform that created this reservation (nullable for customer carts).
  * @param promoCode Optional promotional code applied to this cart.
  * @param discountAmount Optional discount amount (calculated from promo code).
  */
@@ -44,11 +49,18 @@ class Cart(
     @Column(name = "user_id")
     var userId: UUID? = null,
 
+    @Column(name = "platform_id")
+    var platformId: UUID? = null,
+
     @Column(name = "promo_code")
     var promoCode: String? = null,
 
     @Column(name = "discount_amount", precision = 10, scale = 2)
-    var discountAmount: BigDecimal? = null
+    var discountAmount: BigDecimal? = null,
+
+    @Version
+    @Column(name = "version")
+    var version: Long = 0
 
 ) : AbstractUuidEntity() {
 
@@ -200,4 +212,37 @@ class Cart(
      * @return true if cart has no seats, GA items, or tables.
      */
     fun isEmpty(): Boolean = seats.isEmpty() && gaItems.isEmpty() && tables.isEmpty()
+
+    /**
+     * Validates that the requesting platform owns this cart.
+     *
+     * Security: Prevents cross-platform booking theft. Platform B cannot access Platform A's reservations.
+     * Audit finding: CRIT-01, CRIT-02
+     *
+     * @param requestingPlatformId The platform ID making the request
+     * @throws VenuesException.AuthorizationFailure if cart belongs to a different platform
+     * @throws VenuesException.ValidationFailure if a platform tries to access a customer cart
+     */
+    fun validatePlatformOwnership(requestingPlatformId: UUID) {
+        when {
+            platformId == null -> {
+                throw VenuesException.ValidationFailure(
+                    "This cart is not a platform reservation"
+                )
+            }
+
+            platformId != requestingPlatformId -> {
+                throw VenuesException.AuthorizationFailure(
+                    "This reservation belongs to a different platform"
+                )
+            }
+        }
+    }
+
+    /**
+     * Checks if this cart is a platform reservation.
+     *
+     * @return true if cart has a platform ID set
+     */
+    fun isPlatformCart(): Boolean = platformId != null
 }

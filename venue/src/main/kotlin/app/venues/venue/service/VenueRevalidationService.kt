@@ -15,6 +15,7 @@ class VenueRevalidationService(
 ) {
 
     private val logger = KotlinLogging.logger {}
+    private val defaultLanguages = setOf("en", "hy", "ru")
 
     fun revalidate(venue: Venue, reason: String, force: Boolean = false) {
         if (!force && venue.status != VenueStatus.ACTIVE) {
@@ -36,16 +37,16 @@ class VenueRevalidationService(
     }
 
     private fun buildPaths(venue: Venue): List<String> {
-        val languages = mutableSetOf("en")
-        venue.translations.forEach { translation ->
-            val lang = translation.language.lowercase(Locale.getDefault())
-            languages.add(lang)
-        }
-
+        val languages = venue.translations.map { it.language.lowercase(Locale.getDefault()) }.toMutableSet()
+        languages.addAll(defaultLanguages)
         val paths = mutableListOf<String>()
         languages.forEach { lang ->
             paths.add("/$lang")
             paths.add("/$lang/events")
+            paths.add("/$lang/about")
+            paths.add("/$lang/contact")
+            paths.add("/$lang/privacy")
+            paths.add("/$lang/terms")
         }
         return paths.distinct()
     }

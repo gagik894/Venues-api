@@ -591,5 +591,17 @@ class VenueService(
             customDomain = venue.customDomain
         )
     }
+
+    override fun getVenueLanguages(venueId: UUID): Set<String> {
+        val venue = venueRepository.findById(venueId).orElseThrow {
+            VenuesException.ResourceNotFound(
+                message = "Venue not found",
+                errorCode = "VENUE_NOT_FOUND"
+            )
+        }
+        val langs = venue.translations.map { it.language.lowercase() }.toMutableSet()
+        langs.add("en")
+        return langs
+    }
 }
 

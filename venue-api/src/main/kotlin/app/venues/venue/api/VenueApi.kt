@@ -102,5 +102,11 @@ interface VenueApi {
      * @return VenueBasicInfoDto if found, null otherwise
      */
     fun getVenueByDomain(domain: String): VenueBasicInfoDto?
+
+    /**
+     * Get all language codes the venue serves (e.g., ["en", "hy", "ru"]).
+     * Must always include at least "en".
+     */
+    fun getVenueLanguages(venueId: UUID): Set<String>
 }
 

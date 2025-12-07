@@ -17,6 +17,7 @@ class EventRevalidationService(
 ) {
 
     private val logger = KotlinLogging.logger {}
+    private val defaultLanguages = setOf("en", "hy", "ru")
 
     fun onEventUpdated(event: Event, includeDetail: Boolean, reason: String, force: Boolean = false) {
         if (!force && event.status != EventStatus.PUBLISHED) {
@@ -57,12 +58,7 @@ class EventRevalidationService(
     }
 
     private fun buildPaths(event: Event, includeDetail: Boolean): List<String> {
-        val languages = mutableSetOf("en")
-        event.translations.forEach { translation ->
-            val lang = translation.language.lowercase(Locale.getDefault())
-            languages.add(lang)
-        }
-
+        val languages = resolveLanguages(event)
         val paths = mutableListOf<String>()
         languages.forEach { lang ->
             paths.add("/$lang")
@@ -72,6 +68,21 @@ class EventRevalidationService(
             }
         }
         return paths.distinct()
+    }
+
+    private fun resolveLanguages(event: Event): Set<String> {
+        return try {
+            mergeLanguages(venueApi.getVenueLanguages(event.venueId))
+        } catch (ex: Exception) {
+            // Fallback: use event translations + en if venue lookup fails.
+            mergeLanguages(event.translations.map { it.language })
+        }
+    }
+
+    private fun mergeLanguages(languages: Collection<String>): Set<String> {
+        val langs = languages.map { it.lowercase(Locale.getDefault()) }.toMutableSet()
+        langs.addAll(defaultLanguages)
+        return langs
     }
 
     private fun runAfterCommit(action: () -> Unit) {

@@ -113,6 +113,14 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun reserveSeatAndGetPrice(sessionId: UUID, seatId: Long): java.math.BigDecimal?
 
     /**
+     * Atomically reserves a seat if it is available.
+     * Returns 1 if successful, 0 if seat was not found or not available.
+     */
+    @Modifying
+    @Query("UPDATE SessionSeatConfig s SET s.status = app.venues.event.domain.ConfigStatus.RESERVED WHERE s.session.id = :sessionId AND s.seatId = :seatId AND s.status = app.venues.event.domain.ConfigStatus.AVAILABLE")
+    fun reserveSeatAtomic(sessionId: UUID, seatId: Long): Int
+
+    /**
      * Atomically block multiple seats (set to BLOCKED status).
      * Used when reserving a table to block all its seats in one operation.
      *

@@ -1,8 +1,6 @@
 package app.venues.platform.webhook
 
-import app.venues.booking.event.GAAvailabilityChangedEvent
-import app.venues.booking.event.SeatReleasedEvent
-import app.venues.booking.event.SeatReservedEvent
+import app.venues.booking.event.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
@@ -62,6 +60,36 @@ class BookingEventListener(
             levelName = event.levelName,
             availableTickets = event.availableTickets,
             totalCapacity = event.totalCapacity
+        )
+    }
+
+    /**
+     * Handle table reserved event
+     */
+    @Async
+    @EventListener
+    fun handleTableReserved(event: TableReservedEvent) {
+        logger.debug { "Received TableReservedEvent: ${event.tableCode}" }
+
+        webhookService.notifyTableReserved(
+            sessionId = event.sessionId,
+            tableIdentifier = event.tableCode,
+            tableName = event.tableName
+        )
+    }
+
+    /**
+     * Handle table released event
+     */
+    @Async
+    @EventListener
+    fun handleTableReleased(event: TableReleasedEvent) {
+        logger.debug { "Received TableReleasedEvent: ${event.tableCode}" }
+
+        webhookService.notifyTableReleased(
+            sessionId = event.sessionId,
+            tableIdentifier = event.tableCode,
+            tableName = event.tableName
         )
     }
 }

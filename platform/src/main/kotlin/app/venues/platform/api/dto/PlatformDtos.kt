@@ -74,10 +74,15 @@ data class PlatformReservationRequest(
     @field:NotNull(message = "Session ID is required")
     var sessionId: UUID,
 
-    @field:Size(min = 1, message = "At least one seat or GA ticket must be specified")
+    var reservationToken: UUID? = null,
+
+    @field:Size(min = 1, message = "At least one seat, GA ticket, or table must be specified")
     var seatIdentifiers: List<String>? = null,
 
     var gaReservations: List<PlatformGAReservation>? = null,
+
+    @field:Size(min = 1, message = "At least one table must be specified")
+    var tableIdentifiers: List<String>? = null,
 
     var guestEmail: String? = null,
 
@@ -177,7 +182,8 @@ data class PlatformReservationResponse(
     val message: String,
     val expiresAt: String,
     val seats: List<ReservedSeatInfo>?,
-    val gaTickets: List<ReservedGAInfo>?
+    val gaTickets: List<ReservedGAInfo>?,
+    val tables: List<ReservedTableInfo>?
 )
 
 /**
@@ -200,12 +206,21 @@ data class ReservedGAInfo(
 )
 
 /**
+ * Reserved table info
+ */
+data class ReservedTableInfo(
+    val tableIdentifier: String,
+    val tableName: String
+)
+
+/**
  * Platform release response
  */
 data class PlatformReleaseResponse(
     val message: String,
     val releasedSeats: Int,
-    val releasedGATickets: Int
+    val releasedGATickets: Int,
+    val releasedTables: Int
 )
 
 /**
@@ -217,7 +232,8 @@ data class PlatformSellResponse(
     val message: String,
     val totalAmount: String,
     val seats: List<ReservedSeatInfo>?,
-    val gaTickets: List<ReservedGAInfo>?
+    val gaTickets: List<ReservedGAInfo>?,
+    val tables: List<ReservedTableInfo>?
 )
 
 /**
@@ -225,12 +241,13 @@ data class PlatformSellResponse(
  */
 data class WebhookEventResponse(
     val id: UUID,
-    val platformId: Long,
+    val platformId: UUID,
     val platformName: String,
     val eventType: WebhookEventType,
-    val sessionId: Long,
+    val sessionId: UUID,
     val seatIdentifier: String?,
     val levelIdentifier: String?,
+    val tableIdentifier: String?,
     val status: WebhookStatus,
     val responseCode: Int?,
     val errorMessage: String?,
@@ -283,5 +300,27 @@ data class GAAvailabilityChangedPayload(
     val levelName: String,
     val availableTickets: Int,
     val totalCapacity: Int
+) : WebhookPayload
+
+/**
+ * Table reserved webhook payload
+ */
+data class TableReservedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.TABLE_RESERVED,
+    override val timestamp: String,
+    override val sessionId: UUID,
+    val tableIdentifier: String,
+    val tableName: String
+) : WebhookPayload
+
+/**
+ * Table released webhook payload
+ */
+data class TableReleasedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.TABLE_RELEASED,
+    override val timestamp: String,
+    override val sessionId: UUID,
+    val tableIdentifier: String,
+    val tableName: String
 ) : WebhookPayload
 

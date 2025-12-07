@@ -1,9 +1,6 @@
 package app.venues.platform.webhook
 
-import app.venues.platform.api.dto.GAAvailabilityChangedPayload
-import app.venues.platform.api.dto.SeatReleasedPayload
-import app.venues.platform.api.dto.SeatReservedPayload
-import app.venues.platform.api.dto.WebhookPayload
+import app.venues.platform.api.dto.*
 import app.venues.platform.domain.Platform
 import app.venues.platform.domain.WebhookEvent
 import app.venues.platform.domain.WebhookEventType
@@ -25,8 +22,6 @@ import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-
-//TODO: fix tableCode propagation in webhook events
 /**
  * Service for sending webhook callbacks to platforms.
  *
@@ -136,6 +131,58 @@ class WebhookService(
         )
     }
 
+    /**
+     * Notify all platforms about table reservation
+     */
+    @Async
+    fun notifyTableReserved(
+        sessionId: UUID,
+        tableIdentifier: String,
+        tableName: String
+    ) {
+        logger.debug { "Notifying platforms: table reserved - $tableIdentifier" }
+
+        val payload = TableReservedPayload(
+            timestamp = Instant.now().toString(),
+            sessionId = sessionId,
+            tableIdentifier = tableIdentifier,
+            tableName = tableName
+        )
+
+        sendToAllPlatforms(
+            eventType = WebhookEventType.TABLE_RESERVED,
+            sessionId = sessionId,
+            tableIdentifier = tableIdentifier,
+            payload = payload
+        )
+    }
+
+    /**
+     * Notify all platforms about table release
+     */
+    @Async
+    fun notifyTableReleased(
+        sessionId: UUID,
+        tableIdentifier: String,
+        tableName: String
+    ) {
+        logger.debug { "Notifying platforms: table released - $tableIdentifier" }
+
+        val payload = TableReleasedPayload(
+            timestamp = Instant.now().toString(),
+            sessionId = sessionId,
+            tableIdentifier = tableIdentifier,
+            tableName = tableName
+        )
+
+        sendToAllPlatforms(
+            eventType = WebhookEventType.TABLE_RELEASED,
+            sessionId = sessionId,
+            tableIdentifier = tableIdentifier,
+            payload = payload
+        )
+    }
+
     // ===========================================
     // INTERNAL - Webhook Delivery
     // ===========================================
@@ -148,6 +195,7 @@ class WebhookService(
         sessionId: UUID,
         seatIdentifier: String? = null,
         levelIdentifier: String? = null,
+        tableIdentifier: String? = null,
         payload: WebhookPayload
     ) {
         val platforms = platformRepository.findByStatusAndWebhookEnabled(
@@ -165,6 +213,7 @@ class WebhookService(
                     sessionId = sessionId,
                     seatIdentifier = seatIdentifier,
                     levelIdentifier = levelIdentifier,
+                    tableIdentifier = tableIdentifier,
                     payload = payload
                 )
             } catch (e: Exception) {
@@ -182,6 +231,7 @@ class WebhookService(
         sessionId: UUID,
         seatIdentifier: String?,
         levelIdentifier: String?,
+        tableIdentifier: String?,
         payload: WebhookPayload
     ) {
         // Serialize payload
@@ -194,6 +244,7 @@ class WebhookService(
             sessionId = sessionId,
             seatCode = seatIdentifier,
             gaAreaCode = levelIdentifier,
+            tableCode = tableIdentifier,
             payload = payloadJson
         )
 
@@ -298,6 +349,26 @@ class WebhookService(
                 }
             }
         }
+    }
+
+    /**
+     * Replay a specific webhook event on demand (admin/API use only).
+     */
+    fun replayWebhook(eventId: UUID) {
+        val event = webhookEventRepository.findById(eventId)
+            .orElseThrow { IllegalArgumentException("Webhook event not found: $eventId") }
+
+        if (event.attemptCount >= WebhookEvent.MAX_RETRY_ATTEMPTS) {
+            throw IllegalStateException("Max retry attempts reached for webhook $eventId")
+        }
+
+        val platform = platformRepository.findById(event.platformId)
+            .orElseThrow { IllegalStateException("Platform not found: ${event.platformId}") }
+
+        event.resetForReplay()
+        webhookEventRepository.save(event)
+
+        deliverWebhook(event, platform, event.payload)
     }
 }
 

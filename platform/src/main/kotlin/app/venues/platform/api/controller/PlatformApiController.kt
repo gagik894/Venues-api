@@ -34,16 +34,17 @@ class PlatformApiController(
     @PostMapping("/reserve")
     @Operation(
         summary = "Reserve seats (Platform API)",
-        description = "Reserve seats or GA tickets for an event session. Requires platform authentication."
+        description = "Reserve seats, GA tickets, or tables for an event session. Accepts an optional reservationToken for idempotent retries. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
     fun reserveSeats(
         @RequestHeader("X-Platform-ID") platformId: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @Valid @RequestBody request: PlatformReservationRequest
     ): ApiResponse<PlatformReservationResponse> {
         logger.debug { "Platform $platformId requesting reservation for session ${request.sessionId}" }
 
-        val result = platformService.reserveSeats(platformId, request)
+        val result = platformService.reserveSeats(platformId, request, idempotencyKey)
 
         return ApiResponse.success(
             data = result,
@@ -65,11 +66,12 @@ class PlatformApiController(
     @SecurityRequirement(name = "platformAuth")
     fun releaseSeats(
         @RequestHeader("X-Platform-ID") platformId: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @Valid @RequestBody request: PlatformReleaseRequest
     ): ApiResponse<PlatformReleaseResponse> {
         logger.debug { "Platform $platformId releasing reservation ${request.reservationToken}" }
 
-        val result = platformService.releaseSeats(platformId, request)
+        val result = platformService.releaseSeats(platformId, request, idempotencyKey)
 
         return ApiResponse.success(
             data = result,
@@ -91,11 +93,12 @@ class PlatformApiController(
     @SecurityRequirement(name = "platformAuth")
     fun sellSeats(
         @RequestHeader("X-Platform-ID") platformId: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @Valid @RequestBody request: PlatformSellRequest
     ): ApiResponse<PlatformSellResponse> {
         logger.debug { "Platform $platformId selling reservation ${request.reservationToken}" }
 
-        val result = platformService.sellSeats(platformId, request)
+        val result = platformService.sellSeats(platformId, request, idempotencyKey)
 
         return ApiResponse.success(
             data = result,

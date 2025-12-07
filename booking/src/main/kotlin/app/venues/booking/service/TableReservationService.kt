@@ -100,7 +100,8 @@ class TableReservationService(
             TableReservedEvent(
                 sessionId = sessionId,
                 tableId = tableId,
-                tableName = tableInfo.tableNumber
+                tableName = tableInfo.tableNumber,
+                tableCode = tableInfo.code
             )
         )
 
@@ -145,7 +146,8 @@ class TableReservationService(
             TableReleasedEvent(
                 sessionId = sessionId,
                 tableId = tableId,
-                tableName = tableInfo?.tableNumber ?: "Table $tableId"
+                tableName = tableInfo?.tableNumber ?: "Table $tableId",
+                tableCode = tableInfo?.code ?: "TABLE-$tableId"
             )
         )
 

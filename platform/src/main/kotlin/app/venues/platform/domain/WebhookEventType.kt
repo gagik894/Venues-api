@@ -30,6 +30,16 @@ enum class WebhookEventType {
     GA_AVAILABILITY_CHANGED,
 
     /**
+     * Table was reserved (added to cart)
+     */
+    TABLE_RESERVED,
+
+    /**
+     * Table reservation was released
+     */
+    TABLE_RELEASED,
+
+    /**
      * Session seat configuration updated
      */
     SESSION_CONFIG_UPDATED

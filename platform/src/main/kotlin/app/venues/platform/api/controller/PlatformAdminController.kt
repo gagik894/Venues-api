@@ -5,6 +5,7 @@ import app.venues.platform.api.dto.*
 import app.venues.platform.security.NonceService
 import app.venues.platform.security.NonceStats
 import app.venues.platform.service.PlatformService
+import app.venues.platform.webhook.WebhookService
 import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -28,7 +29,10 @@ import java.util.*
 @SecurityRequirement(name = "bearerAuth")
 class PlatformAdminController(
     private val platformService: PlatformService,
-    private val nonceService: NonceService
+    private val nonceService: NonceService,
+    private val webhookService: WebhookService,
+    private val platformRepository: app.venues.platform.repository.PlatformRepository,
+    private val webhookEventRepository: app.venues.platform.repository.WebhookEventRepository
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -197,5 +201,69 @@ class PlatformAdminController(
             ),
             message = "Cleared $count nonces for platform $id"
         )
+    }
+
+    /**
+     * List webhook events for a platform.
+     */
+    @GetMapping("/{id}/webhooks")
+    @Operation(
+        summary = "List platform webhooks",
+        description = "List webhook delivery attempts for a platform with optional status filter"
+    )
+    fun listWebhooks(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) status: app.venues.platform.domain.WebhookStatus?,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<Page<WebhookEventResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val page = if (status != null) {
+            webhookEventRepository.findByPlatformIdAndStatus(id, status, pageable)
+        } else {
+            webhookEventRepository.findByPlatformId(id, pageable)
+        }
+
+        val platformName = platformRepository.findById(id).map { it.name }.orElse("")
+
+        val mapped = page.map { event ->
+            WebhookEventResponse(
+                id = event.id!!,
+                platformId = event.platformId,
+                platformName = platformName,
+                eventType = event.eventType,
+                sessionId = event.sessionId,
+                seatIdentifier = event.seatCode,
+                levelIdentifier = event.gaAreaCode,
+                tableIdentifier = event.tableCode,
+                status = event.status,
+                responseCode = event.responseCode,
+                errorMessage = event.errorMessage,
+                attemptCount = event.attemptCount,
+                nextRetryAt = event.nextRetryAt?.toString(),
+                createdAt = event.createdAt.toString()
+            )
+        }
+
+        return ApiResponse.success(
+            data = mapped,
+            message = "Webhook events retrieved"
+        )
+    }
+
+    /**
+     * Replay a specific webhook event.
+     */
+    @PostMapping("/{id}/webhooks/{eventId}/replay")
+    @Operation(
+        summary = "Replay webhook",
+        description = "Re-deliver a webhook event for troubleshooting"
+    )
+    fun replayWebhook(
+        @PathVariable id: UUID,
+        @PathVariable eventId: UUID
+    ): ApiResponse<Unit> {
+        webhookService.replayWebhook(eventId)
+        return ApiResponse.success(data = Unit, message = "Webhook replay triggered")
     }
 }

@@ -57,7 +57,8 @@ data class GAAvailabilityChangedEvent(
 data class TableReservedEvent(
     val sessionId: UUID,
     val tableId: Long,
-    val tableName: String
+    val tableName: String,
+    val tableCode: String
 )
 
 /**
@@ -66,6 +67,7 @@ data class TableReservedEvent(
 data class TableReleasedEvent(
     val sessionId: UUID,
     val tableId: Long,
-    val tableName: String
+    val tableName: String,
+    val tableCode: String
 )
 

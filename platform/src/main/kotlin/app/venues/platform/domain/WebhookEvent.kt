@@ -137,4 +137,16 @@ class WebhookEvent(
                 && attemptCount < MAX_RETRY_ATTEMPTS
                 && (nextRetryAt == null || Instant.now().isAfter(nextRetryAt))
     }
+
+    /**
+     * Resets delivery state to allow manual replay without mutating internal fields externally.
+     */
+    fun resetForReplay() {
+        this.status = WebhookStatus.PENDING
+        this.responseCode = null
+        this.responseBody = null
+        this.errorMessage = null
+        this.nextRetryAt = null
+        this.lastAttemptAt = null
+    }
 }

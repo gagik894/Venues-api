@@ -103,6 +103,8 @@ class TicketScanServiceTest {
         assertEquals("1", result.ticketInfo?.seatDetail?.seatNumber)
         assertEquals(TicketStatus.SCANNED, ticket.status)
         assertEquals(1, ticket.getScanCount())
+        assertNotNull(result.scanTimestamp)
+        assertEquals(result.scanTimestamp, result.lastScanTimestamp)
     }
 
     @Test
@@ -150,6 +152,7 @@ class TicketScanServiceTest {
         // Then
         assertFalse(result.success, "Expected failure but got success: ${result.message}")
         assertTrue(result.message?.contains("already scanned", ignoreCase = true) == true)
+        assertNotNull(result.lastScanTimestamp)
     }
 
     @Test

@@ -36,6 +36,9 @@ dependencies {
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))
 
+    // WebClient for ISR notifier
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // Database driver (runtime only)

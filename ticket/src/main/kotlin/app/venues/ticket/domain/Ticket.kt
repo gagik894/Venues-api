@@ -127,6 +127,8 @@ class Ticket(
 
     fun getRemainingScans(): Int = maxScanCount - scans.size
 
+    fun getLastScanAt(): Instant? = scans.maxByOrNull { it.scannedAt }?.scannedAt
+
     @Version
     var version: Long = 0
 }

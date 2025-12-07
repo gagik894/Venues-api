@@ -62,7 +62,7 @@ class TicketScanService(
 
         // 5. Check scan count
         if (!ticket.canBeScanned()) {
-            return ScanResult.alreadyScanned(ticket.getScanCount(), ticket.maxScanCount)
+            return ScanResult.alreadyScanned(ticket.getScanCount(), ticket.maxScanCount, ticket.getLastScanAt())
         }
 
         // 6. Perform scan
@@ -125,6 +125,7 @@ class TicketScanService(
             maxScans = ticket.maxScanCount
         )
 
-        return ScanResult.success(info, scan.scannedAt)
+        val scanTime = scan.scannedAt
+        return ScanResult.success(info, scanTime, scanTime)
     }
 }

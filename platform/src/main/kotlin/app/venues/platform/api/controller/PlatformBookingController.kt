@@ -14,8 +14,6 @@ import java.util.*
 /**
  * Platform Booking API Controller (/hold, /checkout, /confirm flow).
  *
- * Government-quality secure booking flow for external platform integrations.
- * Replaces legacy /reserve, /release, /sell endpoints with improved security.
  *
  * Flow:
  * 1. /hold - Create cart, reserve inventory, bind to platform
@@ -47,7 +45,7 @@ class PlatformBookingController(
     @PostMapping("/hold")
     @Operation(
         summary = "Hold inventory (Platform API)",
-        description = "Create cart and reserve seats, GA tickets, or tables. Cart expires in 20 minutes. Requires platform authentication."
+        description = "Create cart and reserve seats, GA tickets, or tables. Cart expires in 7 minutes. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
     fun hold(

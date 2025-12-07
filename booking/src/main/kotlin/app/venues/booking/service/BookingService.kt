@@ -547,11 +547,19 @@ class BookingService(
 
     /**
      * Confirms a booking after successful payment.
+     *
+     * Security: Uses pessimistic locking to prevent concurrent confirmation races.
+     * Transaction: All operations (confirm, finalize, tickets) in single transaction.
+     * Audit finding: HIGH-01, STATE-01
+     *
      * This should finalize the sale, generate tickets, and send confirmation email.
      */
+    @Transactional
     override fun confirmBooking(bookingId: UUID, paymentId: UUID) {
         logger.info { "Confirming booking via internal API: $bookingId, payment: $paymentId" }
-        val booking = bookingRepository.findById(bookingId)
+
+        // Use pessimistic write lock to prevent concurrent confirmation
+        val booking = bookingRepository.findByIdForUpdate(bookingId)
             .orElseThrow { VenuesException.ResourceNotFound("Booking not found") }
 
         if (booking.status == BookingStatus.CONFIRMED) {
@@ -559,7 +567,12 @@ class BookingService(
             return
         }
 
+        // All operations in single transaction
         booking.confirm(paymentId)
+
+        // Redeem promo code atomically
+        bookingFulfillmentService.redeemPromoIfNeeded(booking)
+        
         val savedBooking = bookingRepository.save(booking)
 
         // Finalize inventory (RESERVED -> SOLD)
@@ -570,6 +583,8 @@ class BookingService(
 
         // Send confirmation email with tickets
         publishBookingConfirmedEvent(savedBooking)
+
+        logger.info { "Booking $bookingId confirmed successfully in single transaction" }
     }
 
     /**

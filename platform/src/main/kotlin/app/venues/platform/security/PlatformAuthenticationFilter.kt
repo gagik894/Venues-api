@@ -115,10 +115,11 @@ class PlatformAuthenticationFilter(
             filterChain.doFilter(wrappedRequest, response)
 
         } catch (e: VenuesException) {
-            logger.warn { "Platform authentication failed: ${e.message}" }
+            // Generic error message - don't leak platform existence, status, or signature details
+            logger.warn { "Platform authentication failed: ${e.javaClass.simpleName} - ${e.message}" }
             response.status = HttpServletResponse.SC_UNAUTHORIZED
             response.contentType = "application/json"
-            response.writer.write("""{"success":false,"message":"${e.message}"}""")
+            response.writer.write("""{"success":false,"message":"Authentication failed"}""")
         } catch (e: Exception) {
             logger.error(e) { "Unexpected error in platform authentication filter" }
             response.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR

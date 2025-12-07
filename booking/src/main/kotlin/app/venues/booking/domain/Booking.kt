@@ -143,9 +143,6 @@ class Booking(
     val items: MutableList<BookingItem> = mutableListOf()
 
     // --- Public Behaviors ---
-    fun isCancellable(): Boolean {
-        return status == BookingStatus.PENDING || status == BookingStatus.CONFIRMED
-    }
 
     /**
      * Apply a service fee given as a percentage of a provided base amount.
@@ -170,12 +167,15 @@ class Booking(
      * Confirms the booking, moving it to a confirmed state
      * and recording the payment.
      *
+     * Security: Enforces state machine - only PENDING bookings can be confirmed.
+     * Audit finding: MED-03
+     *
      * @param paymentId The unique identifier for the payment transaction (internal UUID).
-     * @throws IllegalStateException if the booking is not in a PENDING state.
+     * @throws IllegalStateException if the booking is not in a confirmable state.
      */
     fun confirm(paymentId: UUID?) {
-        if (this.status != BookingStatus.PENDING) {
-            throw IllegalStateException("Booking $id cannot be confirmed (status is ${status}).")
+        require(isConfirmable()) {
+            "Booking $id cannot be confirmed from state $status. Only PENDING bookings can be confirmed."
         }
         this.status = BookingStatus.CONFIRMED
         this.confirmedAt = Instant.now()
@@ -185,16 +185,34 @@ class Booking(
     /**
      * Cancels the booking and records a reason.
      *
+     * Security: Enforces state machine - only PENDING or CONFIRMED bookings can be cancelled.
+     * Audit finding: MED-03
+     *
      * @param reason A reason for the cancellation (e.g., "User request", "Payment failed").
+     * @throws IllegalStateException if the booking is not in a cancellable state.
      */
     fun cancel(reason: String?) {
-        if (this.status == BookingStatus.CANCELLED) {
-            return // Already cancelled
+        require(isCancellable()) {
+            "Booking $id cannot be cancelled from state $status. Only PENDING or CONFIRMED bookings can be cancelled."
         }
         this.status = BookingStatus.CANCELLED
         this.cancelledAt = Instant.now()
         this.cancellationReason = reason
     }
+
+    /**
+     * Checks if this booking can be confirmed.
+     *
+     * @return true if booking is in PENDING state
+     */
+    fun isConfirmable(): Boolean = status == BookingStatus.PENDING
+
+    /**
+     * Checks if this booking can be cancelled.
+     *
+     * @return true if booking is in PENDING or CONFIRMED state (not already CANCELLED or REFUNDED)
+     */
+    fun isCancellable(): Boolean = status == BookingStatus.PENDING || status == BookingStatus.CONFIRMED
 
     /**
      * Adds a [BookingItem] to this booking.

@@ -135,6 +135,104 @@ data class PlatformSellRequest(
 )
 
 // ===========================================
+// NEW PLATFORM API DTOs (/hold, /checkout, /confirm)
+// ===========================================
+
+/**
+ * Platform /hold request - Create cart and reserve inventory
+ */
+data class PlatformHoldRequest(
+    @field:NotNull(message = "Session ID is required")
+    var sessionId: UUID,
+
+    var holdToken: UUID? = null,
+
+    var seatIdentifiers: List<String>? = null,
+
+    var gaReservations: List<PlatformGAReservation>? = null,
+
+    var tableIdentifiers: List<String>? = null
+)
+
+/**
+ * Platform /hold response - Cart created with reserved inventory
+ */
+data class PlatformHoldResponse(
+    val holdToken: UUID,
+    val expiresAt: String,
+    val seats: List<ReservedSeatInfo>,
+    val gaTickets: List<ReservedGAInfo>,
+    val tables: List<ReservedTableInfo>,
+    val totalPrice: String,
+    val currency: String
+)
+
+/**
+ * Platform /checkout request - Validate cart and prepare for payment
+ */
+data class PlatformCheckoutRequest(
+    @field:NotNull(message = "Hold token is required")
+    var holdToken: UUID,
+
+    @field:NotBlank(message = "Guest email is required")
+    @field:Email(message = "Invalid email format")
+    var guestEmail: String,
+
+    @field:NotBlank(message = "Guest name is required")
+    var guestName: String,
+
+    var guestPhone: String? = null,
+
+    var externalReference: String? = null
+)
+
+/**
+ * Platform /checkout response - Cart validated, ready for payment
+ */
+data class PlatformCheckoutResponse(
+    val holdToken: UUID,
+    val totalPrice: String,
+    val currency: String,
+    val expiresAt: String,
+    val seats: List<ReservedSeatInfo>,
+    val gaTickets: List<ReservedGAInfo>,
+    val tables: List<ReservedTableInfo>,
+    val guestEmail: String,
+    val guestName: String
+)
+
+/**
+ * Platform /confirm request - Confirm booking with payment proof
+ */
+data class PlatformConfirmRequest(
+    @field:NotNull(message = "Hold token is required")
+    var holdToken: UUID,
+
+    @field:NotBlank(message = "Payment method is required")
+    var paymentMethod: String,
+
+    @field:NotBlank(message = "Payment reference is required")
+    var paymentReference: String,
+
+    var paymentProofUrl: String? = null
+)
+
+/**
+ * Platform /confirm response - Booking confirmed
+ */
+data class PlatformConfirmResponse(
+    val bookingId: UUID,
+    val bookingReference: String,
+    val status: String,
+    val totalAmount: String,
+    val currency: String,
+    val confirmedAt: String,
+    val seats: List<ReservedSeatInfo>,
+    val gaTickets: List<ReservedGAInfo>,
+    val tables: List<ReservedTableInfo>
+)
+
+// ===========================================
 // PLATFORM RESPONSE DTOs
 // ===========================================
 

@@ -28,6 +28,7 @@ class VenueServiceTest {
     private val promoCodeService: VenuePromoCodeService = mockk(relaxed = true)
     private val venueSettingsService: VenueSettingsService = mockk(relaxed = true)
     private val eventPublisher: ApplicationEventPublisher = mockk(relaxed = true)
+    private val venueRevalidationService: VenueRevalidationService = mockk(relaxed = true)
 
     private val venueService = VenueService(
         venueRepository,
@@ -36,7 +37,8 @@ class VenueServiceTest {
         venueMapper,
         promoCodeService,
         venueSettingsService,
-        eventPublisher
+        eventPublisher,
+        venueRevalidationService
     )
 
     @Test

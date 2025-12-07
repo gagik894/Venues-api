@@ -25,6 +25,7 @@ class VenueWebsiteServiceTest {
     private val venueRepository: VenueRepository = mockk()
     private val venueBrandingRepository: VenueBrandingRepository = mockk()
     private val venueWebsiteMapper: VenueWebsiteMapper = mockk()
+    private val venueRevalidationService: VenueRevalidationService = mockk(relaxed = true)
 
     private lateinit var service: VenueWebsiteService
 
@@ -36,7 +37,8 @@ class VenueWebsiteServiceTest {
         service = VenueWebsiteService(
             venueRepository,
             venueBrandingRepository,
-            venueWebsiteMapper
+            venueWebsiteMapper,
+            venueRevalidationService
         )
 
         val region = Region(code = "AM-ER", names = mapOf("en" to "Yerevan"))

@@ -44,7 +44,8 @@ class EventService(
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi,
     private val imageStorageService: ImageStorageService,
-    private val eventMapper: EventMapper
+    private val eventMapper: EventMapper,
+    private val eventRevalidationService: EventRevalidationService
 ) {
     private val logger = KotlinLogging.logger {}
     private val staffVisibleStatuses: Set<EventStatus> =
@@ -288,6 +289,8 @@ class EventService(
 
         // Generate configs for any new sessions
         eventSessionService.generateConfigsForNewSessions(savedEvent)
+
+        eventRevalidationService.onEventUpdated(savedEvent, includeDetail = true, reason = "event-updated")
         
         logger.info { "Event updated successfully: $eventId" }
 
@@ -304,6 +307,8 @@ class EventService(
 
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
+
+        val previousStatus = event.status
 
         // Verify ownership
         if (event.venueId != venueId) {
@@ -322,6 +327,10 @@ class EventService(
             // Hard delete
             eventRepository.delete(event)
             logger.info { "Event hard deleted successfully: $eventId" }
+        }
+
+        if (previousStatus in setOf(EventStatus.PUBLISHED, EventStatus.SUSPENDED, EventStatus.ARCHIVED)) {
+            eventRevalidationService.onUnpublish(event, "event-deleted")
         }
     }
 
@@ -546,6 +555,8 @@ class EventService(
         val template = eventPriceService.createTemplate(event, request)
         eventRepository.save(event)
 
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-created")
+
         return template
     }
 
@@ -574,6 +585,8 @@ class EventService(
         val template = eventPriceService.updateTemplate(event, templateId, request)
         eventRepository.save(event)
 
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-updated")
+
         return template
     }
 
@@ -594,6 +607,8 @@ class EventService(
 
         eventPriceService.deleteTemplate(event, templateId)
         eventRepository.save(event)
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-deleted")
     }
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
@@ -717,6 +732,8 @@ class EventService(
                 eventSessionService.assignPriceTemplateToGa(sessionId, template, gaId)
             }
         }
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-assigned")
     }
 }
 

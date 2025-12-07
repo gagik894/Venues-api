@@ -50,7 +50,8 @@ import java.util.*
 @Transactional
 class EventStatusService(
     private val eventRepository: EventRepository,
-    private val eventSessionRepository: EventSessionRepository
+    private val eventSessionRepository: EventSessionRepository,
+    private val eventRevalidationService: EventRevalidationService
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -81,6 +82,8 @@ class EventStatusService(
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
 
+        val previousStatus = event.status
+
         // Verify ownership
         if (event.venueId != venueId) {
             throw VenuesException.AuthorizationFailure("Event does not belong to this venue")
@@ -104,9 +107,23 @@ class EventStatusService(
 
         val savedEvent = eventRepository.save(event)
 
+        when {
+            previousStatus == EventStatus.DRAFT && targetStatus == EventStatus.PUBLISHED ->
+                eventRevalidationService.onPublishFromDraft(savedEvent)
+
+            previousStatus == EventStatus.SUSPENDED && targetStatus == EventStatus.PUBLISHED ->
+                eventRevalidationService.onRepublish(savedEvent)
+
+            previousStatus == EventStatus.PUBLISHED && targetStatus in setOf(
+                EventStatus.SUSPENDED,
+                EventStatus.ARCHIVED,
+                EventStatus.DELETED
+            ) -> eventRevalidationService.onUnpublish(savedEvent, "event-${targetStatus.name.lowercase()}")
+        }
+
         logger.info {
             "Event status changed successfully: eventId=$eventId, " +
-                    "from=${event.status} to=$targetStatus, reason=${reason ?: "none"}"
+                    "from=$previousStatus to=$targetStatus, reason=${reason ?: "none"}"
         }
 
         return savedEvent

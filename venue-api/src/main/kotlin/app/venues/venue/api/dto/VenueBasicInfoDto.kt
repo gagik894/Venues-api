@@ -13,6 +13,7 @@ data class VenueBasicInfoDto(
     val latitude: Double?,
     val longitude: Double?,
     val organizationId: UUID,
-    val merchantProfileId: UUID?
+    val merchantProfileId: UUID?,
+    val customDomain: String? = null
 )
 

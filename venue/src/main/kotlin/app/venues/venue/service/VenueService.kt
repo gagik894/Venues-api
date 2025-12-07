@@ -35,7 +35,8 @@ class VenueService(
     private val venueMapper: VenueMapper,
     private val promoCodeService: VenuePromoCodeService,
     private val venueSettingsService: VenueSettingsService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val venueRevalidationService: VenueRevalidationService
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -303,6 +304,8 @@ class VenueService(
             )
         }
 
+        venueRevalidationService.revalidate(saved, reason = "venue-updated")
+
         logger.info { "Venue updated: id=${saved.id}, slug=${saved.slug}" }
         return venueMapper.toAdminResponse(saved)
     }
@@ -356,6 +359,8 @@ class VenueService(
         venue.activate()
         val saved = venueRepository.save(venue)
 
+        venueRevalidationService.revalidate(saved, reason = "venue-activated", force = true)
+
         logger.info { "Venue activated: ${saved.id}" }
         return venueMapper.toAdminResponse(saved)
     }
@@ -374,6 +379,8 @@ class VenueService(
         venue.suspend()
         val saved = venueRepository.save(venue)
 
+        venueRevalidationService.revalidate(saved, reason = "venue-suspended", force = true)
+
         logger.info { "Venue suspended: ${saved.id}" }
         return venueMapper.toAdminResponse(saved)
     }
@@ -390,6 +397,8 @@ class VenueService(
         val venue = findVenueById(id)
         venue.delete()
         venueRepository.save(venue)
+
+        venueRevalidationService.revalidate(venue, reason = "venue-deleted", force = true)
 
         logger.info { "Venue deleted: $id" }
     }
@@ -440,7 +449,8 @@ class VenueService(
             latitude = venue.latitude,
             longitude = venue.longitude,
             organizationId = venue.organizationId,
-            merchantProfileId = venue.merchantProfileId
+            merchantProfileId = venue.merchantProfileId,
+            customDomain = venue.customDomain
         )
     }
 
@@ -458,7 +468,8 @@ class VenueService(
                 latitude = venue.latitude,
                 longitude = venue.longitude,
                 organizationId = venue.organizationId,
-                merchantProfileId = venue.merchantProfileId
+                merchantProfileId = venue.merchantProfileId,
+                customDomain = venue.customDomain
             )
         }
     }
@@ -576,7 +587,8 @@ class VenueService(
             latitude = venue.latitude,
             longitude = venue.longitude,
             organizationId = venue.organizationId,
-            merchantProfileId = venue.merchantProfileId
+            merchantProfileId = venue.merchantProfileId,
+            customDomain = venue.customDomain
         )
     }
 }

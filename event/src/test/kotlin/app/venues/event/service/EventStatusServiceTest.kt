@@ -32,6 +32,7 @@ class EventStatusServiceTest {
 
     private lateinit var eventRepository: EventRepository
     private lateinit var eventSessionRepository: EventSessionRepository
+    private lateinit var eventRevalidationService: EventRevalidationService
     private lateinit var eventStatusService: EventStatusService
 
     private val testVenueId = UUID.randomUUID()
@@ -42,7 +43,8 @@ class EventStatusServiceTest {
     fun setup() {
         eventRepository = mockk()
         eventSessionRepository = mockk()
-        eventStatusService = EventStatusService(eventRepository, eventSessionRepository)
+        eventRevalidationService = mockk(relaxed = true)
+        eventStatusService = EventStatusService(eventRepository, eventSessionRepository, eventRevalidationService)
     }
 
     // ===========================================

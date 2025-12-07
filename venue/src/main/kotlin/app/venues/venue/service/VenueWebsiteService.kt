@@ -15,7 +15,8 @@ import java.util.*
 class VenueWebsiteService(
     private val venueRepository: VenueRepository,
     private val venueBrandingRepository: VenueBrandingRepository,
-    private val venueWebsiteMapper: VenueWebsiteMapper
+    private val venueWebsiteMapper: VenueWebsiteMapper,
+    private val venueRevalidationService: VenueRevalidationService
 ) {
 
     @Transactional(readOnly = true)
@@ -65,6 +66,7 @@ class VenueWebsiteService(
         branding.contactConfig = request.contactConfig?.let { venueWebsiteMapper.toDomain(it) }
 
         val saved = venueBrandingRepository.save(branding)
+        venueRevalidationService.revalidate(venue, reason = "venue-branding-updated")
         return venueWebsiteMapper.toDto(saved)
     }
 

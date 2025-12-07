@@ -21,9 +21,8 @@ class VenueWebsiteService(
 
     @Transactional(readOnly = true)
     fun getVenueBranding(venueId: UUID): VenueBrandingDto {
-        val branding = venueBrandingRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Branding not found for venue $venueId") }
-
+        val venue = getVenueOrThrow(venueId)
+        val branding = venueBrandingRepository.findById(venueId).orElseGet { VenueBranding(venue = venue) }
         return venueWebsiteMapper.toDto(branding)
     }
 
@@ -53,6 +52,26 @@ class VenueWebsiteService(
 
     fun updateVenueBranding(venueId: UUID, request: UpdateVenueBrandingRequest): VenueBrandingDto {
         val venue = getVenueOrThrow(venueId)
+
+        // Update venue-level public fields consumed by the website.
+        request.venueName?.let { venue.name = it }
+        request.logoUrl?.let { venue.logoUrl = it }
+        request.coverImageUrl?.let { venue.coverImageUrl = it }
+        request.socialLinks?.let { venue.socialLinks = it }
+        if (request.contactEmail != null) {
+            venue.contactEmail = request.contactEmail
+        }
+        if (request.phoneNumber != null) {
+            venue.phoneNumber = request.phoneNumber
+        }
+        request.address?.let { venue.address = it }
+        if (request.website != null) {
+            venue.website = request.website
+        }
+        if (request.latitude != null || request.longitude != null) {
+            venue.latitude = request.latitude
+            venue.longitude = request.longitude
+        }
 
         // Use existing branding or create new one. Do NOT set id manually with @MapsId.
         val branding = venueBrandingRepository.findById(venueId)

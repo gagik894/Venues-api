@@ -69,9 +69,20 @@ class VenueWebsiteServiceTest {
                 faviconUrl = null,
                 homeHero = null,
                 aboutBlocks = null,
-                contactConfig = null
+                contactConfig = null,
+                venueName = "Test Venue",
+                logoUrl = null,
+                coverImageUrl = null,
+                socialLinks = null,
+                contactEmail = null,
+                phoneNumber = null,
+                address = "123 Test St",
+                website = null,
+                latitude = null,
+                longitude = null
             )
 
+            every { venueRepository.findById(venueId) } returns Optional.of(testVenue)
             every { venueBrandingRepository.findById(venueId) } returns Optional.of(branding)
             every { venueWebsiteMapper.toDto(branding) } returns expectedDto
 
@@ -83,14 +94,37 @@ class VenueWebsiteServiceTest {
         }
 
         @Test
-        fun `throws ResourceNotFound when branding not found`() {
+        fun `returns venue data when branding missing`() {
+            every { venueRepository.findById(venueId) } returns Optional.of(testVenue)
             every { venueBrandingRepository.findById(venueId) } returns Optional.empty()
-
-            val exception = assertThrows<VenuesException.ResourceNotFound> {
-                service.getVenueBranding(venueId)
+            every { venueWebsiteMapper.toDto(any<VenueBranding>()) } answers {
+                val branding = firstArg<VenueBranding>()
+                VenueBrandingDto(
+                    venueId = branding.venue.id,
+                    primaryColor = branding.primaryColor,
+                    secondaryColor = branding.secondaryColor,
+                    faviconUrl = branding.faviconUrl,
+                    homeHero = null,
+                    aboutBlocks = null,
+                    contactConfig = null,
+                    venueName = branding.venue.name,
+                    logoUrl = branding.venue.logoUrl,
+                    coverImageUrl = branding.venue.coverImageUrl,
+                    socialLinks = branding.venue.socialLinks,
+                    contactEmail = branding.venue.contactEmail,
+                    phoneNumber = branding.venue.phoneNumber,
+                    address = branding.venue.address,
+                    website = branding.venue.website,
+                    latitude = branding.venue.latitude,
+                    longitude = branding.venue.longitude
+                )
             }
 
-            assertTrue(exception.message.contains("Branding not found"))
+            val fallback = service.getVenueBranding(venueId)
+
+            assertEquals("Test Venue", fallback.venueName)
+            assertEquals("123 Test St", fallback.address)
+            assertNull(fallback.primaryColor)
         }
     }
 
@@ -114,7 +148,17 @@ class VenueWebsiteServiceTest {
                 faviconUrl = "https://example.com/favicon.ico",
                 homeHero = null,
                 aboutBlocks = null,
-                contactConfig = null
+                contactConfig = null,
+                venueName = "Test Venue",
+                logoUrl = null,
+                coverImageUrl = null,
+                socialLinks = null,
+                contactEmail = null,
+                phoneNumber = null,
+                address = "123 Test St",
+                website = null,
+                latitude = null,
+                longitude = null
             )
 
             every { venueRepository.findById(venueId) } returns Optional.of(testVenue)
@@ -148,7 +192,17 @@ class VenueWebsiteServiceTest {
                 faviconUrl = null,
                 homeHero = null,
                 aboutBlocks = null,
-                contactConfig = null
+                contactConfig = null,
+                venueName = "Test Venue",
+                logoUrl = null,
+                coverImageUrl = null,
+                socialLinks = null,
+                contactEmail = null,
+                phoneNumber = null,
+                address = "123 Test St",
+                website = null,
+                latitude = null,
+                longitude = null
             )
 
             every { venueRepository.findById(venueId) } returns Optional.of(testVenue)
@@ -160,6 +214,47 @@ class VenueWebsiteServiceTest {
 
             assertEquals("#NEW000", result.primaryColor)
             verify { venueBrandingRepository.save(match<VenueBranding> { it.primaryColor == "#NEW000" }) }
+        }
+
+        @Test
+        fun `updates venue layout fields along with branding`() {
+            val existingBranding = VenueBranding(venue = testVenue)
+            val request = UpdateVenueBrandingRequest(
+                primaryColor = null,
+                secondaryColor = null,
+                faviconUrl = null,
+                homeHero = null,
+                aboutBlocks = null,
+                contactConfig = null,
+                venueName = "Updated Venue",
+                logoUrl = "https://example.com/logo.png",
+                coverImageUrl = "https://example.com/cover.png",
+                socialLinks = mapOf("facebook" to "fb.com/venue"),
+                contactEmail = "hello@example.com",
+                phoneNumber = "+374111111",
+                address = "456 Updated St",
+                website = "https://venue.example.com",
+                latitude = 40.0,
+                longitude = 44.0
+            )
+
+            every { venueRepository.findById(venueId) } returns Optional.of(testVenue)
+            every { venueBrandingRepository.findById(venueId) } returns Optional.of(existingBranding)
+            every { venueBrandingRepository.save(any<VenueBranding>()) } answers { firstArg() }
+            every { venueWebsiteMapper.toDto(any<VenueBranding>()) } returns mockk(relaxed = true)
+
+            service.updateVenueBranding(venueId, request)
+
+            assertEquals("Updated Venue", testVenue.name)
+            assertEquals("https://example.com/logo.png", testVenue.logoUrl)
+            assertEquals("https://example.com/cover.png", testVenue.coverImageUrl)
+            assertEquals(mapOf("facebook" to "fb.com/venue"), testVenue.socialLinks)
+            assertEquals("hello@example.com", testVenue.contactEmail)
+            assertEquals("+374111111", testVenue.phoneNumber)
+            assertEquals("456 Updated St", testVenue.address)
+            assertEquals("https://venue.example.com", testVenue.website)
+            assertEquals(40.0, testVenue.latitude)
+            assertEquals(44.0, testVenue.longitude)
         }
 
         @Test

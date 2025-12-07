@@ -9,7 +9,17 @@ data class VenueBrandingDto(
     val faviconUrl: String?,
     val homeHero: HeroConfigDto?,
     val aboutBlocks: List<ContentBlockDto>?,
-    val contactConfig: ContactConfigDto?
+    val contactConfig: ContactConfigDto?,
+    val venueName: String,
+    val logoUrl: String?,
+    val coverImageUrl: String?,
+    val socialLinks: Map<String, String>?,
+    val contactEmail: String?,
+    val phoneNumber: String?,
+    val address: String?,
+    val website: String?,
+    val latitude: Double?,
+    val longitude: Double?
 )
 
 data class HeroConfigDto(
@@ -38,5 +48,15 @@ data class UpdateVenueBrandingRequest(
     val faviconUrl: String?,
     val homeHero: HeroConfigDto?,
     val aboutBlocks: List<ContentBlockDto>?,
-    val contactConfig: ContactConfigDto?
+    val contactConfig: ContactConfigDto?,
+    val venueName: String? = null,
+    val logoUrl: String? = null,
+    val coverImageUrl: String? = null,
+    val socialLinks: Map<String, String>? = null,
+    val contactEmail: String? = null,
+    val phoneNumber: String? = null,
+    val address: String? = null,
+    val website: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

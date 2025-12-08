@@ -26,7 +26,8 @@ data class BookingCreationContext(
     val userId: UUID?,
     val guest: Guest?,
     val platformId: UUID?,
-    val paymentReference: String? = null
+    val paymentReference: String? = null,
+    val salesChannel: SalesChannel = SalesChannel.WEBSITE
 )
 
 /**

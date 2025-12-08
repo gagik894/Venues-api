@@ -174,12 +174,10 @@ data class PlatformCheckoutRequest(
     @field:NotNull(message = "Hold token is required")
     var holdToken: UUID,
 
-    @field:NotBlank(message = "Guest email is required")
     @field:Email(message = "Invalid email format")
-    var guestEmail: String,
+    var guestEmail: String? = null,
 
-    @field:NotBlank(message = "Guest name is required")
-    var guestName: String,
+    var guestName: String? = null,
 
     var guestPhone: String? = null,
 
@@ -208,13 +206,18 @@ data class PlatformConfirmRequest(
     @field:NotNull(message = "Hold token is required")
     var holdToken: UUID,
 
-    @field:NotBlank(message = "Payment method is required")
-    var paymentMethod: String,
+    var paymentMethod: String? = null,
 
-    @field:NotBlank(message = "Payment reference is required")
-    var paymentReference: String,
+    var paymentReference: String? = null,
 
-    var paymentProofUrl: String? = null
+    var paymentProofUrl: String? = null,
+
+    @field:Email(message = "Invalid email format")
+    var guestEmail: String? = null,
+
+    var guestName: String? = null,
+
+    var guestPhone: String? = null
 )
 
 /**

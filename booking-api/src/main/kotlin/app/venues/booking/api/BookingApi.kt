@@ -31,11 +31,10 @@ interface BookingApi {
     fun createBookingFromCart(
         cartToken: UUID,
         platformId: UUID,
-        paymentMethod: String,
-        paymentReference: String?,
-        guestEmail: String,
-        guestName: String,
-        guestPhone: String?
+        paymentReference: String? = null,
+        guestEmail: String? = null,
+        guestName: String? = null,
+        guestPhone: String? = null
     ): BookingResponse
 
     /**

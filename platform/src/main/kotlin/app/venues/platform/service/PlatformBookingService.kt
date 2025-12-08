@@ -6,12 +6,10 @@ import app.venues.booking.api.CartQueryApi
 import app.venues.booking.api.dto.AddGAToCartRequest
 import app.venues.booking.api.dto.AddSeatToCartRequest
 import app.venues.booking.api.dto.AddTableToCartRequest
-import app.venues.booking.manager.CartSessionManager
 import app.venues.booking.repository.CartRepository
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
 import app.venues.platform.repository.PlatformRepository
-import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
@@ -31,12 +29,10 @@ import java.util.*
 @Transactional
 class PlatformBookingService(
     private val platformRepository: PlatformRepository,
-    private val cartRepository: CartRepository,
-    private val cartSessionManager: CartSessionManager,
     private val cartApi: CartApi,
+    private val cartRepository: CartRepository,
     private val cartQueryApi: CartQueryApi,
     private val bookingApi: BookingApi,
-    private val seatingApi: SeatingApi,
     private val rateLimitService: PlatformRateLimitService,
     private val idempotencyService: PlatformIdempotencyService
 ) {
@@ -56,58 +52,20 @@ class PlatformBookingService(
             endpoint = "hold",
             responseType = PlatformHoldResponse::class.java
         ) {
-            rateLimitService.enforce(platformId, 100)
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
             executeHold(platformId, request)
         }
     }
 
     private fun executeHold(platformId: UUID, request: PlatformHoldRequest): PlatformHoldResponse {
-        // Verify platform exists and is active
-        val platform = platformRepository.findById(platformId).orElseThrow {
-            VenuesException.ResourceNotFound("Platform not found")
+        val holdTokenParam = request.holdToken
+        if (holdTokenParam != null) {
+            validateExistingCart(platformId, holdTokenParam, request.sessionId)
         }
 
-        if (!platform.isActive()) {
-            throw VenuesException.ValidationFailure("Platform is not active")
-        }
-
-        // Find or create cart
-        val holdTokenParam = request.holdToken  // Local val for smart cast
-        val cart = if (holdTokenParam != null) {
-            val existingCart = cartRepository.findByToken(holdTokenParam)
-            if (existingCart != null) {
-                // Validate platform ownership
-                existingCart.validatePlatformOwnership(platformId)
-
-                // Validate not expired
-                if (existingCart.isExpired()) {
-                    throw VenuesException.ValidationFailure("Hold has expired")
-                }
-
-                // Validate same session
-                if (existingCart.sessionId != request.sessionId) {
-                    throw VenuesException.ValidationFailure("Cannot add items from different session to existing hold")
-                }
-
-                existingCart
-            } else {
-                throw VenuesException.ResourceNotFound("Hold token not found")
-            }
-        } else {
-            // Create new cart for platform
-            val newCart = cartSessionManager.findOrCreateCart(
-                token = null,
-                sessionId = request.sessionId,
-                userId = null,
-                isStaffCart = false
-            )
-            newCart.platformId = platformId
-            cartRepository.save(newCart)
-        }
-
-        // Extract token to local val for smart cast
-        val holdToken = cart.token
-        var expiresAt = cart.expiresAt.toString()
+        var holdToken = holdTokenParam
+        var expiresAt = ""
 
         // Add seats (atomic - relies on database unique constraint)
         request.seatIdentifiers?.forEach { seatIdentifier ->
@@ -117,9 +75,11 @@ class PlatformBookingService(
                         sessionId = request.sessionId,
                         code = seatIdentifier
                     ),
-                    token = holdToken
+                    token = holdToken,
+                    platformId = platformId
                 )
                 expiresAt = result.expiresAt
+                holdToken = result.token
             } catch (e: DataIntegrityViolationException) {
                 // Seat already in cart - skip (idempotent)
                 logger.debug { "Seat $seatIdentifier already in cart $holdToken" }
@@ -135,9 +95,11 @@ class PlatformBookingService(
                         code = ga.levelIdentifier,
                         quantity = ga.quantity
                     ),
-                    token = holdToken
+                    token = holdToken,
+                    platformId = platformId
                 )
                 expiresAt = result.expiresAt
+                holdToken = result.token
             } catch (e: Exception) {
                 logger.warn { "Failed to add GA ${ga.levelIdentifier} to cart: ${e.message}" }
                 throw e
@@ -152,26 +114,33 @@ class PlatformBookingService(
                         sessionId = request.sessionId,
                         code = tableIdentifier
                     ),
-                    token = holdToken
+                    token = holdToken,
+                    platformId = platformId
                 )
                 expiresAt = result.expiresAt
+                holdToken = result.token
             } catch (e: DataIntegrityViolationException) {
                 // Table already in cart - skip (idempotent)
                 logger.debug { "Table $tableIdentifier already in cart $holdToken" }
             }
         }
 
+        val finalToken = holdToken ?: throw VenuesException.ValidationFailure("No items provided for hold")
+
         // Get cart summary
-        val cartSummary = cartQueryApi.getCartSummary(holdToken)
+        val cartSummary = cartQueryApi.getCartSummary(finalToken)
+        if (expiresAt.isBlank()) {
+            expiresAt = cartSummary.expiresAt
+        }
 
         logger.info {
-            "Platform ${platform.name} held ${cartSummary.seats.size} seats, " +
+            "Platform $platformId held ${cartSummary.seats.size} seats, " +
                     "${cartSummary.gaItems.sumOf { it.quantity }} GA tickets, " +
                     "${cartSummary.tables.size} tables"
         }
 
         return PlatformHoldResponse(
-            holdToken = holdToken,
+            holdToken = finalToken,
             expiresAt = expiresAt,
             seats = cartSummary.seats.map { seat ->
                 ReservedSeatInfo(
@@ -213,25 +182,14 @@ class PlatformBookingService(
             endpoint = "checkout",
             responseType = PlatformCheckoutResponse::class.java
         ) {
-            rateLimitService.enforce(platformId, 100)
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
             executeCheckout(platformId, request)
         }
     }
 
     private fun executeCheckout(platformId: UUID, request: PlatformCheckoutRequest): PlatformCheckoutResponse {
-        // Find cart and validate ownership
-        val cart = cartRepository.findByToken(request.holdToken)
-            ?: throw VenuesException.ResourceNotFound("Hold token not found")
-
-        cart.validatePlatformOwnership(platformId)
-
-        if (cart.isExpired()) {
-            throw VenuesException.ValidationFailure("Hold has expired")
-        }
-
-        if (cart.isEmpty()) {
-            throw VenuesException.ValidationFailure("Hold is empty")
-        }
+        validateExistingCart(platformId, request.holdToken, null)
 
         // Get cart summary
         val cartSummary = cartQueryApi.getCartSummary(request.holdToken)
@@ -262,8 +220,8 @@ class PlatformBookingService(
                     tableName = table.number
                 )
             },
-            guestEmail = request.guestEmail,
-            guestName = request.guestName
+            guestEmail = request.guestEmail ?: "",
+            guestName = request.guestName ?: ""
         )
     }
 
@@ -281,25 +239,14 @@ class PlatformBookingService(
             endpoint = "confirm",
             responseType = PlatformConfirmResponse::class.java
         ) {
-            rateLimitService.enforce(platformId, 100)
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
             executeConfirm(platformId, request)
         }
     }
 
     private fun executeConfirm(platformId: UUID, request: PlatformConfirmRequest): PlatformConfirmResponse {
-        // Find cart and validate ownership
-        val cart = cartRepository.findByToken(request.holdToken)
-            ?: throw VenuesException.ResourceNotFound("Hold token not found")
-
-        cart.validatePlatformOwnership(platformId)
-
-        if (cart.isExpired()) {
-            throw VenuesException.ValidationFailure("Hold has expired")
-        }
-
-        if (cart.isEmpty()) {
-            throw VenuesException.ValidationFailure("Hold is empty")
-        }
+        validateExistingCart(platformId, request.holdToken, null)
 
         // Get cart summary before conversion
         val cartSummary = cartQueryApi.getCartSummary(request.holdToken)
@@ -308,11 +255,10 @@ class PlatformBookingService(
         val bookingResponse = bookingApi.createBookingFromCart(
             cartToken = request.holdToken,
             platformId = platformId,
-            paymentMethod = request.paymentMethod,
             paymentReference = request.paymentReference,
-            guestEmail = cartSummary.seats.firstOrNull()?.let { "" } ?: "",
-            guestName = "",
-            guestPhone = null
+            guestEmail = request.guestEmail,
+            guestName = request.guestName,
+            guestPhone = request.guestPhone
         )
 
         logger.info { "Platform booking confirmed: ${bookingResponse.id}" }
@@ -323,7 +269,7 @@ class PlatformBookingService(
             status = bookingResponse.status.name,
             totalAmount = cartSummary.totalPrice.toString(),
             currency = cartSummary.currency,
-            confirmedAt = java.time.Instant.now().toString(),
+            confirmedAt = bookingResponse.confirmedAt ?: java.time.Instant.now().toString(),
             seats = cartSummary.seats.map { seat ->
                 ReservedSeatInfo(
                     seatIdentifier = seat.code,
@@ -362,33 +308,55 @@ class PlatformBookingService(
             endpoint = "release",
             responseType = PlatformReleaseResponse::class.java
         ) {
-            rateLimitService.enforce(platformId, 100)
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
             executeRelease(platformId, request)
         }
     }
 
     private fun executeRelease(platformId: UUID, request: PlatformReleaseRequest): PlatformReleaseResponse {
-        // Find cart and validate ownership
-        val cart = cartRepository.findByToken(request.reservationToken)
+        // Clear cart (releases inventory automatically via CartService). Allow expired cleanup.
+        val summary = cartApi.clearCart(request.reservationToken, platformId = platformId)
+
+        logger.info { "Platform released cart: ${summary.seats.size} seats, ${summary.gaItems.sumOf { it.quantity }} GA, ${summary.tables.size} tables" }
+
+        return PlatformReleaseResponse(
+            message = "Inventory released successfully",
+            releasedSeats = summary.seats.size,
+            releasedGATickets = summary.gaItems.sumOf { it.quantity },
+            releasedTables = summary.tables.size
+        )
+    }
+
+    private fun loadPlatform(platformId: UUID) =
+        platformRepository.findById(platformId).orElseThrow {
+            VenuesException.ResourceNotFound("Platform not found")
+        }.also {
+            if (!it.isActive()) {
+                throw VenuesException.ValidationFailure("Platform is not active")
+            }
+        }
+
+    /**
+     * Validate that the cart exists, belongs to the platform, is not expired,
+     * and (if provided) matches the expected session.
+     */
+    private fun validateExistingCart(platformId: UUID, cartToken: UUID, expectedSessionId: UUID?) {
+        val cart = cartRepository.findByToken(cartToken)
             ?: throw VenuesException.ResourceNotFound("Hold token not found")
 
         cart.validatePlatformOwnership(platformId)
 
-        // Get counts before deletion
-        val seatCount = cart.seats.size
-        val gaCount = cart.gaItems.sumOf { it.quantity }
-        val tableCount = cart.tables.size
+        if (cart.isExpired()) {
+            throw VenuesException.ValidationFailure("Hold has expired")
+        }
 
-        // Clear cart (releases inventory automatically via CartService)
-        cartApi.clearCart(request.reservationToken)
+        if (expectedSessionId != null && cart.sessionId != expectedSessionId) {
+            throw VenuesException.ValidationFailure("Hold belongs to a different session")
+        }
 
-        logger.info { "Platform released cart: $seatCount seats, $gaCount GA, $tableCount tables" }
-
-        return PlatformReleaseResponse(
-            message = "Inventory released successfully",
-            releasedSeats = seatCount,
-            releasedGATickets = gaCount,
-            releasedTables = tableCount
-        )
+        if (cart.isEmpty()) {
+            throw VenuesException.ValidationFailure("Hold is empty")
+        }
     }
 }

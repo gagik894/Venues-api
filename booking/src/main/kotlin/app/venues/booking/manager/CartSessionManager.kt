@@ -40,19 +40,23 @@ class CartSessionManager(
         token: UUID?,
         sessionId: UUID,
         userId: UUID? = null,
-        isStaffCart: Boolean = false
+        isStaffCart: Boolean = false,
+        platformId: UUID? = null
     ): Cart {
         val existingCart = token?.let { cartRepository.findByToken(it) }
 
         if (existingCart != null) {
+            // Enforce platform binding if provided
+            platformId?.let { existingCart.validatePlatformOwnership(it) }
+
             // If cart is expired or for different session, create a new one
             if (existingCart.isExpired() || existingCart.sessionId != sessionId) {
-                return createNewCart(null, sessionId, userId, isStaffCart)
+                return createNewCart(null, sessionId, userId, isStaffCart, platformId)
             }
             return extendCartExpiration(existingCart, isStaffCart)
         }
 
-        return createNewCart(null, sessionId, userId, isStaffCart)
+        return createNewCart(null, sessionId, userId, isStaffCart, platformId)
     }
 
     fun getActiveCart(token: UUID): Cart {
@@ -80,11 +84,11 @@ class CartSessionManager(
      * @throws VenuesException.ResourceNotFound if cart doesn't exist.
      * @throws VenuesException.ValidationFailure if cart has expired.
      */
-    fun getActiveCartWithItems(token: UUID): Cart {
+    fun getActiveCartWithItems(token: UUID, allowExpired: Boolean = false): Cart {
         val cart = cartRepository.findWithItemsByToken(token)
             ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        if (cart.isExpired()) {
+        if (!allowExpired && cart.isExpired()) {
             throw VenuesException.ValidationFailure("Cart has expired")
         }
 
@@ -122,7 +126,8 @@ class CartSessionManager(
         token: UUID?,
         sessionId: UUID,
         userId: UUID?,
-        isStaffCart: Boolean
+        isStaffCart: Boolean,
+        platformId: UUID?
     ): Cart {
         val initialExpirationMinutes = if (isStaffCart) {
             STAFF_CART_EXPIRATION_MINUTES
@@ -134,6 +139,7 @@ class CartSessionManager(
             token = token ?: UUID.randomUUID(),
             userId = userId,
             sessionId = sessionId,
+            platformId = platformId,
             expiresAt = Instant.now().plusSeconds(initialExpirationMinutes * 60L),
         )
 

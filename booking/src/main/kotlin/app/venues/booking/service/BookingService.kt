@@ -477,7 +477,7 @@ class BookingService(
         val cartSnapshot = validateCartAndGetSession(cartToken)
 
         // Create or find guest if email provided
-        val guest = if (guestEmail != null && guestName != null) {
+        val guest = if (!guestEmail.isNullOrBlank() && !guestName.isNullOrBlank()) {
             guestService.findOrCreateGuest(guestEmail, guestName, guestPhone ?: "")
         } else null
 
@@ -487,7 +487,8 @@ class BookingService(
                 userId = null,
                 guest = guest,
                 platformId = platformId,
-                paymentReference = paymentReference
+                paymentReference = paymentReference,
+                salesChannel = app.venues.booking.domain.SalesChannel.PLATFORM
             )
         )
         val booking = creationResult.booking
@@ -528,10 +529,9 @@ class BookingService(
     override fun createBookingFromCart(
         cartToken: UUID,
         platformId: UUID,
-        paymentMethod: String,
         paymentReference: String?,
-        guestEmail: String,
-        guestName: String,
+        guestEmail: String?,
+        guestName: String?,
         guestPhone: String?
     ): BookingResponse {
         val booking = createPlatformBooking(

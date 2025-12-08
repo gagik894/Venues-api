@@ -65,8 +65,22 @@ class CartService(
      * Validates that cart belongs to the same session if it already exists.
      * @param isStaffCart Whether this is a staff cart (affects expiration timing)
      */
-    private fun getOrCreateCartForSession(token: UUID?, sessionId: UUID, isStaffCart: Boolean = false) =
-        cartSessionManager.findOrCreateCart(token, sessionId, isStaffCart = isStaffCart)
+    private fun getOrCreateCartForSession(
+        token: UUID?,
+        sessionId: UUID,
+        isStaffCart: Boolean = false,
+        platformId: UUID? = null
+    ) = cartSessionManager.findOrCreateCart(token, sessionId, isStaffCart = isStaffCart, platformId = platformId)
+
+    /**
+     * Enforces platform binding rules.
+     */
+    private fun validatePlatformAccess(cart: Cart, platformId: UUID?) {
+        when {
+            platformId != null -> cart.validatePlatformOwnership(platformId)
+            cart.platformId != null -> throw VenuesException.AuthorizationFailure("Cart belongs to a platform")
+        }
+    }
 
     /**
      * Builds standard success response for add-to-cart operations.
@@ -83,7 +97,12 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    override fun addSeatToCart(request: AddSeatToCartRequest, token: UUID?, isStaffCart: Boolean): CartSummaryResponse {
+    override fun addSeatToCart(
+        request: AddSeatToCartRequest,
+        token: UUID?,
+        isStaffCart: Boolean,
+        platformId: UUID?
+    ): CartSummaryResponse {
         logger.debug { "Adding seat to cart: ${request.code}" }
 
         val violations = validator.validate(request)
@@ -99,7 +118,8 @@ class CartService(
             ?: throw VenuesException.ValidationFailure("Seat not found with code: ${request.code}")
 
         // Get or create cart session
-        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart, platformId)
+        validatePlatformAccess(cart, platformId)
 
         // Validate seat not already in cart
         if (cartItemPersistence.checkSeatAlreadyInCart(cart, seatInfo.id)) {
@@ -138,7 +158,12 @@ class CartService(
      * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
      */
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    override fun addGAToCart(request: AddGAToCartRequest, token: UUID?, isStaffCart: Boolean): CartSummaryResponse {
+    override fun addGAToCart(
+        request: AddGAToCartRequest,
+        token: UUID?,
+        isStaffCart: Boolean,
+        platformId: UUID?
+    ): CartSummaryResponse {
         logger.debug { "Adding GA to cart: ${request.code}, quantity=${request.quantity}" }
 
         val violations = validator.validate(request)
@@ -154,7 +179,8 @@ class CartService(
             ?: throw VenuesException.ValidationFailure("GA area not found with code: ${request.code}")
 
         // Get or create cart session
-        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart, platformId)
+        validatePlatformAccess(cart, platformId)
 
         // Check for existing GA item for this area
         val existingItem = cartItemPersistence.findExistingGAItem(cart, gaInfo.id)
@@ -206,7 +232,8 @@ class CartService(
     override fun addTableToCart(
         request: AddTableToCartRequest,
         token: UUID?,
-        isStaffCart: Boolean
+        isStaffCart: Boolean,
+        platformId: UUID?
     ): CartSummaryResponse {
         logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.code}" }
 
@@ -219,7 +246,8 @@ class CartService(
         validateSessionExists(request.sessionId)
 
         // Get or create cart
-        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart)
+        val cart = getOrCreateCartForSession(token, request.sessionId, isStaffCart, platformId)
+        validatePlatformAccess(cart, platformId)
 
         // Validate table limit
         cartLimitValidator.validateAddTableLimit(cart)
@@ -248,8 +276,13 @@ class CartService(
      * Removes a specific seat from cart and releases inventory.
      */
     @Transactional
-    override fun removeSeatFromCart(token: UUID, seatIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCartWithItems(token)
+    override fun removeSeatFromCart(
+        token: UUID,
+        seatIdentifier: String,
+        platformId: UUID?
+    ): CartSummaryResponse {
+        val cart = cartSessionManager.getActiveCartWithItems(token, allowExpired = platformId != null)
+        validatePlatformAccess(cart, platformId)
 
         // Get seat info from seating API
         val seatInfo = seatingApi.getSeatInfoByCode(seatIdentifier)
@@ -277,7 +310,8 @@ class CartService(
     override fun updateGAQuantity(
         token: UUID,
         levelIdentifier: String,
-        request: UpdateGAQuantityRequest
+        request: UpdateGAQuantityRequest,
+        platformId: UUID?
     ): CartSummaryResponse {
         val violations = validator.validate(request)
         if (violations.isNotEmpty()) {
@@ -286,10 +320,11 @@ class CartService(
         val newQuantity = request.quantity
         if (newQuantity <= 0) {
             // Treat setting quantity to 0 as a removal
-            return removeGAFromCart(token, levelIdentifier)
+            return removeGAFromCart(token, levelIdentifier, platformId)
         }
 
         val cart = cartSessionManager.getActiveCart(token)
+        validatePlatformAccess(cart, platformId)
 
         val gaInfo = seatingApi.getGaInfoByCode(levelIdentifier)
             ?: throw VenuesException.ResourceNotFound("GA area not found: $levelIdentifier")
@@ -334,8 +369,9 @@ class CartService(
      * Removes all GA tickets for a level from cart and releases inventory.
      */
     @Transactional
-    override fun removeGAFromCart(token: UUID, levelIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCartWithItems(token)
+    override fun removeGAFromCart(token: UUID, levelIdentifier: String, platformId: UUID?): CartSummaryResponse {
+        val cart = cartSessionManager.getActiveCartWithItems(token, allowExpired = platformId != null)
+        validatePlatformAccess(cart, platformId)
 
         val gaInfo = seatingApi.getGaInfoByCode(levelIdentifier)
             ?: throw VenuesException.ResourceNotFound("GA area not found: $levelIdentifier")
@@ -364,8 +400,13 @@ class CartService(
      * Remove a table from cart and release inventory.
      */
     @Transactional
-    override fun removeTableFromCart(token: UUID, tableIdentifier: String): CartSummaryResponse {
-        val cart = cartSessionManager.getActiveCartWithItems(token)
+    override fun removeTableFromCart(
+        token: UUID,
+        tableIdentifier: String,
+        platformId: UUID?
+    ): CartSummaryResponse {
+        val cart = cartSessionManager.getActiveCartWithItems(token, allowExpired = platformId != null)
+        validatePlatformAccess(cart, platformId)
 
         // Get table info by code
         val tableInfo = seatingApi.getTableInfoByCode(tableIdentifier)
@@ -392,9 +433,10 @@ class CartService(
      * in a single query, then performs bulk inventory release operations.
      */
     @Transactional
-    override fun clearCart(token: UUID): CartSummaryResponse {
+    override fun clearCart(token: UUID, platformId: UUID?): CartSummaryResponse {
         // Load cart with ALL items in single query (via @EntityGraph)
-        val cart = cartSessionManager.getActiveCartWithItems(token)
+        val cart = cartSessionManager.getActiveCartWithItems(token, allowExpired = platformId != null)
+        validatePlatformAccess(cart, platformId)
 
         // Collections are already loaded - no additional queries
         val seats = cart.seats
@@ -451,9 +493,10 @@ class CartService(
      * Validates the code with VenueApi and updates the cart with the discount.
      */
     @Transactional
-    override fun applyPromoCode(token: UUID, code: String): PromoCodeAppliedResponse {
+    override fun applyPromoCode(token: UUID, code: String, platformId: UUID?): PromoCodeAppliedResponse {
         // Load cart with ALL items in single query (via @EntityGraph)
-        val cart = cartSessionManager.getActiveCartWithItems(token)
+        val cart = cartSessionManager.getActiveCartWithItems(token, allowExpired = platformId != null)
+        validatePlatformAccess(cart, platformId)
 
         // 1. Get Venue ID from Session
         val session = eventApi.getEventSessionInfo(cart.sessionId)

@@ -11,9 +11,11 @@ import app.venues.event.repository.*
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.time.Duration
 import java.util.*
 import kotlin.jvm.optionals.getOrNull
 
@@ -26,7 +28,8 @@ class EventApiService(
     private val sessionTableConfigRepository: SessionTableConfigRepository,
     private val seatingApi: SeatingApi,
     private val seatConfigSparseService: SeatConfigSparseService,
-    private val sessionSeatingService: SessionSeatingService
+    private val sessionSeatingService: SessionSeatingService,
+    private val redisTemplate: StringRedisTemplate
 ) : EventApi {
     private val logger = KotlinLogging.logger {}
 
@@ -77,56 +80,67 @@ class EventApiService(
 
     @Transactional
     override fun reserveSeat(sessionId: UUID, seatId: Long): BigDecimal? {
-        // 1. Try atomic update first (handles "exists and available" case)
-        val updatedRows = sessionSeatConfigRepository.reserveSeatAtomic(sessionId, seatId)
-
-        if (updatedRows > 0) {
-            // Successfully reserved existing row. Now fetch it to calculate price.
-            val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
-                ?: throw VenuesException.ResourceNotFound("Config missing after reservation")
-
-            val session = config.session
-            val template = config.priceTemplate
-
-            return if (template != null) {
-                val override = session.priceTemplateOverrides.find { it.templateName == template.templateName }
-                override?.price ?: template.price
-            } else {
-                BigDecimal.ZERO
-            }
+        // Redis Guard: Prevent thundering herd on the database
+        val lockKey = "lock:seat:$sessionId:$seatId"
+        val acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5))
+        if (acquired != true) {
+            return null // Fast fail: Seat is busy
         }
 
-        // 2. Update failed. Check if row exists.
-        val existing = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
-        if (existing != null) {
-            // Row exists but update failed -> it was not AVAILABLE
-            return null
-        }
-
-        // 3. Row missing: Implicitly AVAILABLE -> Create RESERVED
         try {
-            val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
-            val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
+            // 1. Try atomic update first (handles "exists and available" case)
+            val updatedRows = sessionSeatConfigRepository.reserveSeatAtomic(sessionId, seatId)
 
-            // Resolve template
-            val (price, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+            if (updatedRows > 0) {
+                // Successfully reserved existing row. Now fetch it to calculate price.
+                val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+                    ?: throw VenuesException.ResourceNotFound("Config missing after reservation")
 
-            if (template == null) {
-                // Cannot reserve if no price template
+                val session = config.session
+                val template = config.priceTemplate
+
+                return if (template != null) {
+                    val override = session.priceTemplateOverrides.find { it.templateName == template.templateName }
+                    override?.price ?: template.price
+                } else {
+                    BigDecimal.ZERO
+                }
+            }
+
+            // 2. Update failed. Check if row exists.
+            val existing = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+            if (existing != null) {
+                // Row exists but update failed -> it was not AVAILABLE
                 return null
             }
 
-            val newConfig = SessionSeatConfig(
-                session = session,
-                seatId = seatId,
-                priceTemplate = template,
-                status = ConfigStatus.RESERVED
-            )
-            sessionSeatConfigRepository.saveAndFlush(newConfig)
-            return price
-        } catch (e: DataIntegrityViolationException) {
-            // Race condition: someone else created the row
-            return null
+            // 3. Row missing: Implicitly AVAILABLE -> Create RESERVED
+            try {
+                val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+                val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
+
+                // Resolve template
+                val (price, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+
+                if (template == null) {
+                    // Cannot reserve if no price template
+                    return null
+                }
+
+                val newConfig = SessionSeatConfig(
+                    session = session,
+                    seatId = seatId,
+                    priceTemplate = template,
+                    status = ConfigStatus.RESERVED
+                )
+                sessionSeatConfigRepository.saveAndFlush(newConfig)
+                return price
+            } catch (e: DataIntegrityViolationException) {
+                // Race condition: someone else created the row
+                return null
+            }
+        } finally {
+            redisTemplate.delete(lockKey)
         }
     }
 

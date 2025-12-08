@@ -79,6 +79,7 @@ data class BookingResponse(
     val customerName: String,
     val items: List<BookingItemResponse>,
     val totalPrice: MoneyAmount,
+    val platformId: UUID?,
     val serviceFeeAmount: MoneyAmount,
     val discountAmount: MoneyAmount,
     val promoCode: String?,

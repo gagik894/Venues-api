@@ -48,6 +48,13 @@ interface BookingApi {
     fun confirmBooking(bookingId: UUID, paymentId: UUID)
 
     /**
+     * Confirms a platform booking (payment handled externally).
+     *
+     * @param bookingId The ID of the booking to confirm.
+     */
+    fun confirmPlatformBooking(bookingId: UUID)
+
+    /**
      * Cancels a booking after failed payment.
      * This should release held seats.
      *

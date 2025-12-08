@@ -51,6 +51,7 @@ class BookingMapper {
             totalPrice = booking.totalPrice.toMoney(currency),
             serviceFeeAmount = booking.serviceFeeAmount.toMoney(currency),
             discountAmount = booking.discountAmount.toMoney(currency),
+            platformId = booking.platformId,
             promoCode = booking.promoCode,
             status = booking.status,
             confirmedAt = booking.confirmedAt?.toString(),

@@ -251,7 +251,7 @@ data class EventCategoryResponse(
     val id: Long,
     val code: String,
     val names: Map<String, String>, // language code to name
-    val name: String,
+    val name: String, // localized name
     val color: String?,
     val icon: String?,
     val displayOrder: Int,

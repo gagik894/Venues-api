@@ -558,6 +558,18 @@ class BookingService(
      */
     @Transactional
     override fun confirmBooking(bookingId: UUID, paymentId: UUID) {
+        confirmBookingInternal(bookingId, paymentId)
+    }
+
+    /**
+     * Confirms a platform booking (payment handled externally).
+     */
+    @Transactional
+    override fun confirmPlatformBooking(bookingId: UUID) {
+        confirmBookingInternal(bookingId, null)
+    }
+
+    private fun confirmBookingInternal(bookingId: UUID, paymentId: UUID?) {
         logger.info { "Confirming booking via internal API: $bookingId, payment: $paymentId" }
 
         // Use pessimistic write lock to prevent concurrent confirmation

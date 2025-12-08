@@ -419,6 +419,94 @@ class PlatformBookingService(
         }
     }
 
+    /**
+     * Easy Mode: Reserve - Create PENDING booking directly.
+     */
+    fun reserveSimple(
+        platformId: UUID,
+        request: DirectSaleRequest,
+        idempotencyKey: String?
+    ): BookingResponse {
+        return idempotencyService.withIdempotency(
+            idempotencyKey = idempotencyKey,
+            platformId = platformId,
+            endpoint = "reserve-simple",
+            responseType = BookingResponse::class.java
+        ) {
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
+
+            bookingApi.createPlatformDirectBooking(
+                request = request,
+                platformId = platformId,
+                guestEmail = request.customerEmail,
+                guestName = request.customerName,
+                guestPhone = request.customerPhone,
+                confirmBooking = false // Create PENDING booking
+            )
+        }
+    }
+
+    /**
+     * Easy Mode: Confirm - Mark PENDING booking as SOLD.
+     */
+    fun confirmSimple(
+        platformId: UUID,
+        bookingId: UUID,
+        idempotencyKey: String?
+    ): BookingResponse {
+        return idempotencyService.withIdempotency(
+            idempotencyKey = idempotencyKey,
+            platformId = platformId,
+            endpoint = "confirm-simple",
+            responseType = BookingResponse::class.java
+        ) {
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
+
+            // Validate booking belongs to platform
+            val booking = bookingApi.getBookingById(bookingId)
+            if (booking.platformId != platformId) {
+                throw VenuesException.AuthorizationFailure("Booking does not belong to this platform")
+            }
+
+            bookingApi.confirmPlatformBooking(bookingId)
+
+            // Return updated booking
+            bookingApi.getBookingById(bookingId)
+        }
+    }
+
+    /**
+     * Easy Mode: Release - Cancel PENDING booking.
+     */
+    fun releaseSimple(
+        platformId: UUID,
+        bookingId: UUID,
+        idempotencyKey: String?
+    ): BookingResponse {
+        return idempotencyService.withIdempotency(
+            idempotencyKey = idempotencyKey,
+            platformId = platformId,
+            endpoint = "release-simple",
+            responseType = BookingResponse::class.java
+        ) {
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
+
+            // Validate booking belongs to platform
+            val booking = bookingApi.getBookingById(bookingId)
+            if (booking.platformId != platformId) {
+                throw VenuesException.AuthorizationFailure("Booking does not belong to this platform")
+            }
+
+            bookingApi.cancelBooking(bookingId)
+
+            // Return updated booking
+            bookingApi.getBookingById(bookingId)
+        }
+    }
+
     private fun loadPlatform(platformId: UUID) =
         platformRepository.findById(platformId).orElseThrow {
             VenuesException.ResourceNotFound("Platform not found")

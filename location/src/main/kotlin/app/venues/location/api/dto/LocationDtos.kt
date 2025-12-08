@@ -19,15 +19,17 @@ data class RegionResponse(
     val id: Long,
     val code: String,
     val names: Map<String, String>,
+    val name: String,
     val displayOrder: Int?,
     val isActive: Boolean
 ) {
     companion object {
-        fun from(region: Region): RegionResponse {
+        fun from(region: Region, lang: String = "en"): RegionResponse {
             return RegionResponse(
                 id = region.id ?: 0L,
                 code = region.code,
                 names = region.names,
+                name = region.getName(lang),
                 displayOrder = region.displayOrder,
                 isActive = region.isActive
             )
@@ -87,21 +89,23 @@ data class CityResponse(
     val id: Long,
     val slug: String,
     val names: Map<String, String>,
+    val name: String,
     val region: RegionCompact,
     val officialId: String?,
     val displayOrder: Int?,
     val isActive: Boolean
 ) {
     companion object {
-        fun from(city: City): CityResponse {
+        fun from(city: City, lang: String = "en"): CityResponse {
             return CityResponse(
                 id = city.id ?: 0L,
                 slug = city.slug,
                 names = city.names,
+                name = city.getName(lang),
                 region = RegionCompact(
                     id = city.region.id ?: 0L,
                     code = city.region.code,
-                    name = city.region.getName("en")
+                    name = city.region.getName(lang)
                 ),
                 officialId = city.officialId,
                 displayOrder = city.displayOrder,

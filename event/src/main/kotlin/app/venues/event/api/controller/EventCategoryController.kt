@@ -3,6 +3,7 @@ package app.venues.event.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.EventCategoryResponse
 import app.venues.event.service.EventCategoryService
+import app.venues.shared.i18n.LocaleHelper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -33,9 +34,10 @@ class EventCategoryController(
         description = "Get all active event categories ordered by display order"
     )
     fun getAllCategories(): ApiResponse<List<EventCategoryResponse>> {
-        logger.debug { "Fetching all event categories" }
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching all event categories (lang: $language)" }
 
-        val categories = categoryService.getAllCategories()
+        val categories = categoryService.getAllCategories(language)
 
         return ApiResponse.success(
             data = categories,
@@ -52,9 +54,10 @@ class EventCategoryController(
         description = "Get details of a specific category"
     )
     fun getCategoryById(@PathVariable id: Long): ApiResponse<EventCategoryResponse?> {
-        logger.debug { "Fetching category: $id" }
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching category: $id (lang: $language)" }
 
-        val category = categoryService.getCategoryById(id)
+        val category = categoryService.getCategoryById(id, language)
 
         return ApiResponse.success(
             data = category,
@@ -71,9 +74,10 @@ class EventCategoryController(
         description = "Get category by unique key (e.g., 'THEATER', 'CONCERT')"
     )
     fun getCategoryByKey(@PathVariable key: String): ApiResponse<EventCategoryResponse?> {
-        logger.debug { "Fetching category by key: $key" }
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching category by key: $key (lang: $language)" }
 
-        val category = categoryService.getCategoryByCode(key.uppercase())
+        val category = categoryService.getCategoryByCode(key.uppercase(), language)
 
         return ApiResponse.success(
             data = category,

@@ -121,11 +121,12 @@ class EventMapper {
     /**
      * Convert EventCategory entity to EventCategoryResponse DTO.
      */
-    fun toCategoryResponse(category: EventCategory): EventCategoryResponse {
+    fun toCategoryResponse(category: EventCategory, lang: String = "en"): EventCategoryResponse {
         return EventCategoryResponse(
             id = category.id ?: throw IllegalArgumentException("Category ID must not be null"),
             code = category.code,
             names = category.names,
+            name = category.getName(lang),
             color = category.color,
             icon = category.icon,
             displayOrder = category.displayOrder,

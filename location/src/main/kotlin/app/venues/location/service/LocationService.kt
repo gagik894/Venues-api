@@ -52,9 +52,9 @@ class LocationService(
      *
      * @return List of active regions
      */
-    fun getAllActiveRegions(): List<RegionResponse> {
-        logger.debug { "Fetching all active regions" }
-        return regionRepository.findAllActive().map { RegionResponse.from(it) }
+    fun getAllActiveRegions(lang: String = "en"): List<RegionResponse> {
+        logger.debug { "Fetching all active regions (lang: $lang)" }
+        return regionRepository.findAllActive().map { RegionResponse.from(it, lang) }
     }
 
     /**
@@ -62,9 +62,9 @@ class LocationService(
      *
      * @return List of all regions
      */
-    fun getAllRegions(): List<RegionResponse> {
-        logger.debug { "Fetching all regions (admin)" }
-        return regionRepository.findAll().map { RegionResponse.from(it) }
+    fun getAllRegions(lang: String = "en"): List<RegionResponse> {
+        logger.debug { "Fetching all regions (admin, lang: $lang)" }
+        return regionRepository.findAll().map { RegionResponse.from(it, lang) }
     }
 
     /**
@@ -74,15 +74,15 @@ class LocationService(
      * @return Region data
      * @throws VenuesException.ResourceNotFound if region not found
      */
-    fun getRegionById(id: Long): RegionResponse {
-        logger.debug { "Fetching region by ID: $id" }
+    fun getRegionById(id: Long, lang: String = "en"): RegionResponse {
+        logger.debug { "Fetching region by ID: $id, lang: $lang" }
         val region = regionRepository.findById(id).orElseThrow {
             VenuesException.ResourceNotFound(
                 message = "Region not found with ID: $id",
                 errorCode = "REGION_NOT_FOUND"
             )
         }
-        return RegionResponse.from(region)
+        return RegionResponse.from(region, lang)
     }
 
     /**
@@ -92,13 +92,13 @@ class LocationService(
      * @return Region data
      * @throws VenuesException.ResourceNotFound if region not found
      */
-    fun getRegionByCode(code: String): RegionResponse {
-        logger.debug { "Fetching region by code: $code" }
+    fun getRegionByCode(code: String, lang: String = "en"): RegionResponse {
+        logger.debug { "Fetching region by code: $code, lang: $lang" }
         val region = regionRepository.findByCode(code) ?: throw VenuesException.ResourceNotFound(
             message = "Region not found with code: $code",
             errorCode = "REGION_NOT_FOUND"
         )
-        return RegionResponse.from(region)
+        return RegionResponse.from(region, lang)
     }
 
     /**
@@ -175,9 +175,9 @@ class LocationService(
      *
      * @return List of active cities
      */
-    fun getAllActiveCities(): List<CityResponse> {
-        logger.debug { "Fetching all active cities" }
-        return cityRepository.findAllActive().map { CityResponse.from(it) }
+    fun getAllActiveCities(lang: String = "en"): List<CityResponse> {
+        logger.debug { "Fetching all active cities (lang: $lang)" }
+        return cityRepository.findAllActive().map { CityResponse.from(it, lang) }
     }
 
     /**
@@ -186,9 +186,9 @@ class LocationService(
      * @param regionId Parent region ID
      * @return List of active cities in the region
      */
-    fun getCitiesByRegion(regionId: Long): List<CityResponse> {
-        logger.debug { "Fetching cities for region: $regionId" }
-        return cityRepository.findAllActiveByRegionId(regionId).map { CityResponse.from(it) }
+    fun getCitiesByRegion(regionId: Long, lang: String = "en"): List<CityResponse> {
+        logger.debug { "Fetching cities for region: $regionId, lang: $lang" }
+        return cityRepository.findAllActiveByRegionId(regionId).map { CityResponse.from(it, lang) }
     }
 
     /**
@@ -198,13 +198,13 @@ class LocationService(
      * @return City data
      * @throws VenuesException.ResourceNotFound if city not found
      */
-    fun getCityBySlug(slug: String): CityResponse {
-        logger.debug { "Fetching city by slug: $slug" }
+    fun getCityBySlug(slug: String, lang: String = "en"): CityResponse {
+        logger.debug { "Fetching city by slug: $slug, lang: $lang" }
         val city = cityRepository.findBySlug(slug) ?: throw VenuesException.ResourceNotFound(
             message = "City not found with slug: $slug",
             errorCode = "CITY_NOT_FOUND"
         )
-        return CityResponse.from(city)
+        return CityResponse.from(city, lang)
     }
 
     /**
@@ -214,15 +214,15 @@ class LocationService(
      * @return City data
      * @throws VenuesException.ResourceNotFound if city not found
      */
-    fun getCityById(id: Long): CityResponse {
-        logger.debug { "Fetching city by ID: $id" }
+    fun getCityById(id: Long, lang: String = "en"): CityResponse {
+        logger.debug { "Fetching city by ID: $id, lang: $lang" }
         val city = cityRepository.findById(id).orElseThrow {
             VenuesException.ResourceNotFound(
                 message = "City not found with ID: $id",
                 errorCode = "CITY_NOT_FOUND"
             )
         }
-        return CityResponse.from(city)
+        return CityResponse.from(city, lang)
     }
 
     /**
@@ -232,9 +232,9 @@ class LocationService(
      * @param pageable Pagination parameters
      * @return Page of matching cities
      */
-    fun searchCities(searchTerm: String, pageable: Pageable): Page<CityResponse> {
-        logger.debug { "Searching cities: $searchTerm" }
-        return cityRepository.searchByName(searchTerm, pageable).map { CityResponse.from(it) }
+    fun searchCities(searchTerm: String, pageable: Pageable, lang: String = "en"): Page<CityResponse> {
+        logger.debug { "Searching cities: $searchTerm, lang: $lang" }
+        return cityRepository.searchByName(searchTerm, pageable).map { CityResponse.from(it, lang) }
     }
 
     /**

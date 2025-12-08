@@ -24,29 +24,29 @@ class EventCategoryService(
     /**
      * Get all active categories ordered by display order.
      */
-    fun getAllCategories(): List<EventCategoryResponse> {
-        logger.debug { "Fetching all active event categories" }
+    fun getAllCategories(lang: String = "en"): List<EventCategoryResponse> {
+        logger.debug { "Fetching all active event categories (lang: $lang)" }
         return categoryRepository.findByIsActiveTrueOrderByDisplayOrderAsc()
-            .map { eventMapper.toCategoryResponse(it) }
+            .map { eventMapper.toCategoryResponse(it, lang) }
     }
 
     /**
      * Get category by ID.
      */
-    fun getCategoryById(id: Long): EventCategoryResponse? {
-        logger.debug { "Fetching category by ID: $id" }
+    fun getCategoryById(id: Long, lang: String = "en"): EventCategoryResponse? {
+        logger.debug { "Fetching category by ID: $id, lang: $lang" }
         return categoryRepository.findById(id)
-            .map { eventMapper.toCategoryResponse(it) }
+            .map { eventMapper.toCategoryResponse(it, lang) }
             .orElse(null)
     }
 
     /**
      * Get category by key.
      */
-    fun getCategoryByCode(code: String): EventCategoryResponse? {
-        logger.debug { "Fetching category by code: $code" }
+    fun getCategoryByCode(code: String, lang: String = "en"): EventCategoryResponse? {
+        logger.debug { "Fetching category by code: $code, lang: $lang" }
         return categoryRepository.findByCode(code)
-            ?.let { eventMapper.toCategoryResponse(it) }
+            ?.let { eventMapper.toCategoryResponse(it, lang) }
     }
 }
 

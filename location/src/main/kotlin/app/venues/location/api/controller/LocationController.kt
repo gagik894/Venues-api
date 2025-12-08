@@ -65,8 +65,9 @@ class LocationController(
         description = "Returns list of active administrative regions for location selection"
     )
     fun getAllRegions(): ApiResponse<List<RegionResponse>> {
-        logger.debug { "GET /api/v1/locations/regions" }
-        val regions = locationService.getAllActiveRegions()
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions (lang: $language)" }
+        val regions = locationService.getAllActiveRegions(language)
         return ApiResponse.success(
             data = regions,
             message = "Regions retrieved successfully"
@@ -85,8 +86,9 @@ class LocationController(
         description = "Returns detailed region information"
     )
     fun getRegionById(@PathVariable id: Long): ApiResponse<RegionResponse> {
-        logger.debug { "GET /api/v1/locations/regions/$id" }
-        val region = locationService.getRegionById(id)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/$id (lang: $language)" }
+        val region = locationService.getRegionById(id, language)
         return ApiResponse.success(
             data = region,
             message = "Region retrieved successfully"
@@ -105,8 +107,9 @@ class LocationController(
         description = "Returns region by ISO/government code (e.g., AM-ER)"
     )
     fun getRegionByCode(@PathVariable code: String): ApiResponse<RegionResponse> {
-        logger.debug { "GET /api/v1/locations/regions/code/$code" }
-        val region = locationService.getRegionByCode(code)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/code/$code (lang: $language)" }
+        val region = locationService.getRegionByCode(code, language)
         return ApiResponse.success(
             data = region,
             message = "Region retrieved successfully"
@@ -131,8 +134,9 @@ class LocationController(
         description = "Returns list of active cities for location selection"
     )
     fun getAllCities(): ApiResponse<List<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/cities" }
-        val cities = locationService.getAllActiveCities()
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities (lang: $language)" }
+        val cities = locationService.getAllActiveCities(language)
         return ApiResponse.success(
             data = cities,
             message = "Cities retrieved successfully"
@@ -154,8 +158,9 @@ class LocationController(
         description = "Returns city by URL-friendly slug (e.g., gyumri, yerevan)"
     )
     fun getCityBySlug(@PathVariable slug: String): ApiResponse<CityResponse> {
-        logger.debug { "GET /api/v1/locations/cities/$slug" }
-        val city = locationService.getCityBySlug(slug)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/$slug (lang: $language)" }
+        val city = locationService.getCityBySlug(slug, language)
         return ApiResponse.success(
             data = city,
             message = "City retrieved successfully"
@@ -176,8 +181,9 @@ class LocationController(
         description = "Returns all active cities in a specific region"
     )
     fun getCitiesByRegion(@PathVariable regionId: Long): ApiResponse<List<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/regions/$regionId/cities" }
-        val cities = locationService.getCitiesByRegion(regionId)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/$regionId/cities (lang: $language)" }
+        val cities = locationService.getCitiesByRegion(regionId, language)
         return ApiResponse.success(
             data = cities,
             message = "Cities retrieved successfully"
@@ -204,9 +210,10 @@ class LocationController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/cities/search?q=$q" }
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/search?q=$q (lang: $language)" }
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val cities = locationService.searchCities(q, pageable)
+        val cities = locationService.searchCities(q, pageable, language)
         return ApiResponse.success(
             data = cities,
             message = "Search completed successfully"

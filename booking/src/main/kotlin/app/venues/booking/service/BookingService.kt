@@ -3,8 +3,6 @@ package app.venues.booking.service
 import app.venues.booking.api.BookingApi
 import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.*
-import app.venues.booking.api.mapper.BookingItemData
-import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.SalesChannel
 import app.venues.booking.event.BookingConfirmedEvent
@@ -14,13 +12,12 @@ import app.venues.booking.service.model.BookingCreationContext
 import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
-import app.venues.seating.api.SeatingApi
-import app.venues.shared.money.toMoney
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.context.annotation.Lazy
 import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -43,10 +40,9 @@ class BookingService(
     private val cartRepository: CartRepository,
     private val guestService: GuestService,
     private val bookingCreationService: BookingCreationService,
-    private val bookingMapper: BookingMapper,
-    private val directSalesService: DirectSalesService,
+    private val bookingResponseService: BookingResponseService,
+    @Lazy private val directSalesService: DirectSalesService,
     private val userApi: UserApi,
-    private val seatingApi: SeatingApi,
     private val eventApi: EventApi,
     private val venueApi: VenueApi,
     private val ticketApi: TicketApi,
@@ -339,62 +335,10 @@ class BookingService(
 
     /**
      * Prepare booking response with enriched data from other modules.
-     * Public visibility to allow reuse by DirectSalesService.
+     * Delegates to BookingResponseService to avoid circular dependencies.
      */
     fun prepareBookingResponse(booking: Booking): BookingResponse {
-        val currency = booking.currency
-        // Fetch session from event module
-        val sessionDto = eventApi.getEventSessionInfo(booking.sessionId)
-            ?: throw VenuesException.ResourceNotFound("Event session not found")
-
-        // Get customer info using UserApi (Hexagonal Architecture)
-        val customerEmail = booking.userId?.let {
-            userApi.getUserEmail(it) ?: ""
-        } ?: booking.guest?.email ?: ""
-
-        val customerName = booking.userId?.let {
-            userApi.getUserFullName(it) ?: ""
-        } ?: booking.guest?.name ?: ""
-
-        // Prepare items data using SeatingApi (Hexagonal Architecture)
-        val itemsData = booking.items.map { item ->
-            val seatId = item.seatId
-            val levelId = item.gaAreaId
-
-            val seatIdentifier = seatId?.let {
-                seatingApi.getSeatInfo(it)?.code
-            }
-            val levelName = when {
-                seatId != null -> seatingApi.getSeatInfo(seatId)?.zoneName
-                levelId != null -> seatingApi.getGaInfo(levelId)?.name
-                else -> null
-            }
-
-            BookingItemData(
-                id = item.id ?: error("Booking item ID cannot be null"),
-                seatId = seatId,
-                seatIdentifier = seatIdentifier,
-                levelId = levelId,
-                levelName = levelName,
-                tableId = item.tableId,
-                quantity = item.quantity,
-                unitPrice = item.unitPrice.toMoney(currency),
-                totalPrice = item.getTotalPrice().toMoney(currency),
-                priceTemplateName = item.priceTemplateName
-            )
-        }
-
-
-        return bookingMapper.toResponse(
-            booking = booking,
-            eventTitle = sessionDto.eventTitle,
-            eventDescription = sessionDto.eventDescription,
-            sessionStartTime = sessionDto.startTime.toString(),
-            sessionEndTime = sessionDto.endTime.toString(),
-            customerEmail = customerEmail,
-            customerName = customerName,
-            itemsData = itemsData
-        )
+        return bookingResponseService.prepareBookingResponse(booking)
     }
 
     // ===========================================

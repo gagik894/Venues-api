@@ -34,7 +34,7 @@ class DirectSalesService(
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
     private val venueApi: VenueApi,
-    private val bookingService: BookingService,
+    private val bookingResponseService: BookingResponseService,
     private val bookingFulfillmentService: BookingFulfillmentService,
     private val eventPublisher: ApplicationEventPublisher,
     @Value("\${app.booking.service-fee-percent:0}")
@@ -168,7 +168,7 @@ class DirectSalesService(
                     "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId, platform=$platformId, confirmed=$confirmBooking"
         }
 
-        return bookingService.prepareBookingResponse(finalBooking)
+        return bookingResponseService.prepareBookingResponse(finalBooking)
     }
 
 

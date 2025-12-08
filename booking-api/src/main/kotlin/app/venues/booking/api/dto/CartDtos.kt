@@ -113,6 +113,24 @@ data class CartSummaryResponse(
 )
 
 /**
+ * Platform batch hold request (seats/GA/tables) with optional TTL override.
+ */
+data class PlatformHoldBatchRequest(
+    val sessionId: UUID,
+    val holdToken: UUID? = null,
+    val seatIdentifiers: List<String>? = null,
+    val gaReservations: List<PlatformGAReservation>? = null,
+    val tableIdentifiers: List<String>? = null,
+    val platformId: UUID,
+    val ttlSeconds: Long? = null
+)
+
+data class PlatformGAReservation(
+    val levelIdentifier: String,
+    val quantity: Int
+)
+
+/**
  * Response after adding item to cart
  */
 data class AddToCartResponse(

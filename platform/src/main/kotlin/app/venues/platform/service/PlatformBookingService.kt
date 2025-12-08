@@ -3,9 +3,7 @@ package app.venues.platform.service
 import app.venues.booking.api.BookingApi
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
-import app.venues.booking.api.dto.AddGAToCartRequest
-import app.venues.booking.api.dto.AddSeatToCartRequest
-import app.venues.booking.api.dto.AddTableToCartRequest
+import app.venues.booking.api.dto.*
 import app.venues.booking.repository.CartRepository
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
@@ -15,6 +13,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
+import app.venues.booking.api.dto.PlatformGAReservation as BookingPlatformGAReservation
 
 /**
  * Platform booking service implementing secure /hold, /checkout, /confirm flow.
@@ -55,6 +54,70 @@ class PlatformBookingService(
             val platform = loadPlatform(platformId)
             rateLimitService.enforce(platformId, platform.rateLimit)
             executeHold(platformId, request)
+        }
+    }
+
+    /**
+     * Simple hold using booking batch hold with optional TTL override.
+     */
+    fun holdSimple(
+        platformId: UUID,
+        request: PlatformHoldRequest,
+        idempotencyKey: String?
+    ): PlatformHoldResponse {
+        return idempotencyService.withIdempotency(
+            idempotencyKey = idempotencyKey,
+            platformId = platformId,
+            endpoint = "hold-simple",
+            responseType = PlatformHoldResponse::class.java
+        ) {
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
+
+            val summary = cartApi.holdBatch(
+                PlatformHoldBatchRequest(
+                    sessionId = request.sessionId,
+                    holdToken = request.holdToken,
+                    seatIdentifiers = request.seatIdentifiers,
+                    gaReservations = request.gaReservations?.map {
+                        BookingPlatformGAReservation(
+                            levelIdentifier = it.levelIdentifier,
+                            quantity = it.quantity
+                        )
+                    },
+                    tableIdentifiers = request.tableIdentifiers,
+                    platformId = platformId,
+                    ttlSeconds = request.ttlSeconds
+                )
+            )
+
+            PlatformHoldResponse(
+                holdToken = summary.token,
+                expiresAt = summary.expiresAt,
+                seats = summary.seats.map { seat ->
+                    ReservedSeatInfo(
+                        seatIdentifier = seat.code,
+                        levelName = seat.levelName,
+                        seatNumber = seat.number,
+                        rowLabel = seat.rowLabel
+                    )
+                },
+                gaTickets = summary.gaItems.map { ga ->
+                    ReservedGAInfo(
+                        levelIdentifier = ga.code ?: ga.name,
+                        levelName = ga.name,
+                        quantity = ga.quantity
+                    )
+                },
+                tables = summary.tables.map { table ->
+                    ReservedTableInfo(
+                        tableIdentifier = table.code,
+                        tableName = table.number
+                    )
+                },
+                totalPrice = summary.totalPrice.toString(),
+                currency = summary.currency
+            )
         }
     }
 
@@ -326,6 +389,34 @@ class PlatformBookingService(
             releasedGATickets = summary.gaItems.sumOf { it.quantity },
             releasedTables = summary.tables.size
         )
+    }
+
+    /**
+     * Direct platform booking (confirmed) skipping cart.
+     */
+    fun directBooking(
+        platformId: UUID,
+        request: DirectSaleRequest,
+        idempotencyKey: String?
+    ): BookingResponse {
+        return idempotencyService.withIdempotency(
+            idempotencyKey = idempotencyKey,
+            platformId = platformId,
+            endpoint = "direct-booking",
+            responseType = BookingResponse::class.java
+        ) {
+            val platform = loadPlatform(platformId)
+            rateLimitService.enforce(platformId, platform.rateLimit)
+
+            bookingApi.createPlatformDirectBooking(
+                request = request,
+                platformId = platformId,
+                guestEmail = request.customerEmail,
+                guestName = request.customerName,
+                guestPhone = request.customerPhone,
+                confirmBooking = true
+            )
+        }
     }
 
     private fun loadPlatform(platformId: UUID) =

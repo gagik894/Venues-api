@@ -1,5 +1,7 @@
 package app.venues.platform.api.controller
 
+import app.venues.booking.api.dto.BookingResponse
+import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.*
 import app.venues.platform.service.PlatformBookingService
@@ -33,6 +35,30 @@ class PlatformBookingController(
     private val platformBookingService: PlatformBookingService
 ) {
     private val logger = KotlinLogging.logger {}
+
+    /**
+     * /hold-simple - Create cart and reserve inventory with optional TTL override.
+     */
+    @PostMapping("/hold-simple")
+    @Operation(
+        summary = "Hold inventory (simple, platform)",
+        description = "Create cart and reserve seats/GA/tables with optional TTL override. Requires platform authentication."
+    )
+    @SecurityRequirement(name = "platformAuth")
+    fun holdSimple(
+        @RequestHeader("X-Platform-ID") platformId: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
+        @Valid @RequestBody request: PlatformHoldRequest
+    ): ApiResponse<PlatformHoldResponse> {
+        logger.debug { "Platform $platformId hold-simple for session ${request.sessionId}" }
+
+        val result = platformBookingService.holdSimple(platformId, request, idempotencyKey)
+
+        return ApiResponse.success(
+            data = result,
+            message = "Inventory reserved successfully"
+        )
+    }
 
     /**
      * /hold - Create cart and reserve inventory.
@@ -145,6 +171,30 @@ class PlatformBookingController(
         return ApiResponse.success(
             data = result,
             message = "Inventory released successfully"
+        )
+    }
+
+    /**
+     * /direct - Create confirmed booking directly (skip cart).
+     */
+    @PostMapping("/direct")
+    @Operation(
+        summary = "Direct platform booking",
+        description = "Create a confirmed booking directly without cart. Requires platform authentication."
+    )
+    @SecurityRequirement(name = "platformAuth")
+    fun directBooking(
+        @RequestHeader("X-Platform-ID") platformId: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
+        @Valid @RequestBody request: DirectSaleRequest
+    ): ApiResponse<BookingResponse> {
+        logger.debug { "Platform $platformId direct booking for session ${request.sessionId}" }
+
+        val result = platformBookingService.directBooking(platformId, request, idempotencyKey)
+
+        return ApiResponse.success(
+            data = result,
+            message = "Booking created successfully"
         )
     }
 }

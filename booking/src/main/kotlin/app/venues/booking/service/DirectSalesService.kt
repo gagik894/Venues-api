@@ -63,7 +63,10 @@ class DirectSalesService(
     fun createDirectSale(
         request: DirectSaleRequest,
         venueId: UUID,
-        staffId: UUID
+        staffId: UUID?,
+        platformId: UUID? = null,
+        salesChannel: app.venues.booking.domain.SalesChannel = app.venues.booking.domain.SalesChannel.DIRECT_SALE,
+        confirmBooking: Boolean = true
     ): BookingResponse {
         logger.info { "Staff $staffId creating direct sale for session ${request.sessionId}" }
 
@@ -103,9 +106,9 @@ class DirectSalesService(
             sessionId = request.sessionId,
             totalPrice = pricing.total,
             currency = session.currency,
-            salesChannel = app.venues.booking.domain.SalesChannel.DIRECT_SALE,  // Staff in-person sale
-            platformId = null,
-            staffId = staffId,  // Track which staff made the sale
+            salesChannel = salesChannel,
+            platformId = platformId,
+            staffId = staffId,
             venueId = venueId
         ).apply {
             discountAmount = discount
@@ -135,36 +138,37 @@ class DirectSalesService(
         // 10. Redeem promo if applicable
         bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
 
+        var finalBooking = savedBooking
 
+        if (confirmBooking) {
+            // Confirm booking immediately (payment assumed received)
+            savedBooking.confirm(null)
+            finalBooking = bookingRepository.save(savedBooking)
 
-        // 12. Confirm booking immediately (since payment already received)
-        savedBooking.confirm(null)
-        val confirmedBooking = bookingRepository.save(savedBooking)
+            // Finalize inventory (RESERVED -> SOLD) & Record tickets sold
+            bookingFulfillmentService.finalizeBookingInventory(finalBooking)
 
-        // 13. Finalize inventory (RESERVED -> SOLD) & Record tickets sold
-        bookingFulfillmentService.finalizeBookingInventory(confirmedBooking)
+            // Generate tickets
+            bookingFulfillmentService.generateTickets(finalBooking)
 
-        // 14. Generate tickets
-        bookingFulfillmentService.generateTickets(confirmedBooking)
-
-        // 15. Publish event for async email sending
-        // Use guest's preferred language if available, default to English
-        eventPublisher.publishEvent(
-            BookingConfirmedEvent(
-                bookingId = confirmedBooking.id,
-                venueId = venueId,
-                customerEmail = request.customerEmail,
-                customerName = request.customerName,
-                locale = guest.preferredLanguage ?: "en"
+            // Publish event for async email sending
+            eventPublisher.publishEvent(
+                BookingConfirmedEvent(
+                    bookingId = finalBooking.id,
+                    venueId = venueId,
+                    customerEmail = request.customerEmail,
+                    customerName = request.customerName,
+                    locale = guest.preferredLanguage ?: "en"
+                )
             )
-        )
-
-        logger.info {
-            "Direct sale completed: bookingId=${confirmedBooking.id}, " +
-                    "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId"
         }
 
-        return bookingService.prepareBookingResponse(confirmedBooking)
+        logger.info {
+            "Direct sale completed: bookingId=${finalBooking.id}, " +
+                    "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId, platform=$platformId, confirmed=$confirmBooking"
+        }
+
+        return bookingService.prepareBookingResponse(finalBooking)
     }
 
 

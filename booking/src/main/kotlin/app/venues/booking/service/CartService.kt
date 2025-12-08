@@ -69,8 +69,15 @@ class CartService(
         token: UUID?,
         sessionId: UUID,
         isStaffCart: Boolean = false,
-        platformId: UUID? = null
-    ) = cartSessionManager.findOrCreateCart(token, sessionId, isStaffCart = isStaffCart, platformId = platformId)
+        platformId: UUID? = null,
+        customTtlSeconds: Long? = null
+    ) = cartSessionManager.findOrCreateCart(
+        token,
+        sessionId,
+        isStaffCart = isStaffCart,
+        platformId = platformId,
+        customTtlSeconds = customTtlSeconds
+    )
 
     /**
      * Enforces platform binding rules.
@@ -561,5 +568,69 @@ class CartService(
             promoCode = code,
             message = "Promo code applied successfully"
         )
+    }
+
+    /**
+     * Platform batch hold with optional TTL override.
+     */
+    @Transactional
+    override fun holdBatch(request: PlatformHoldBatchRequest): CartSummaryResponse {
+        validateSessionExists(request.sessionId)
+        val platformId = request.platformId
+
+        var token = request.holdToken
+        val hasItems = !(request.seatIdentifiers.isNullOrEmpty()
+                && request.gaReservations.isNullOrEmpty()
+                && request.tableIdentifiers.isNullOrEmpty())
+        if (!hasItems) {
+            throw VenuesException.ValidationFailure("At least one seat/GA/table is required for hold")
+        }
+
+        if (token == null) {
+            val cart = getOrCreateCartForSession(
+                token = null,
+                sessionId = request.sessionId,
+                isStaffCart = false,
+                platformId = platformId,
+                customTtlSeconds = request.ttlSeconds
+            )
+            token = cart.token
+        }
+
+        request.seatIdentifiers.orEmpty().forEach { seatCode ->
+            val result = addSeatToCart(
+                request = AddSeatToCartRequest(sessionId = request.sessionId, code = seatCode),
+                token = token,
+                isStaffCart = false,
+                platformId = platformId
+            )
+            token = result.token
+        }
+
+        request.gaReservations.orEmpty().forEach { ga ->
+            val result = addGAToCart(
+                request = AddGAToCartRequest(
+                    sessionId = request.sessionId,
+                    code = ga.levelIdentifier,
+                    quantity = ga.quantity
+                ),
+                token = token,
+                isStaffCart = false,
+                platformId = platformId
+            )
+            token = result.token
+        }
+
+        request.tableIdentifiers.orEmpty().forEach { tableCode ->
+            val result = addTableToCart(
+                request = AddTableToCartRequest(sessionId = request.sessionId, code = tableCode),
+                token = token,
+                isStaffCart = false,
+                platformId = platformId
+            )
+            token = result.token
+        }
+
+        return cartQueryApi.getCartSummary(requireNotNull(token) { "Hold token missing after processing items" })
     }
 }

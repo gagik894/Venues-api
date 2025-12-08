@@ -1,6 +1,7 @@
 package app.venues.booking.api
 
 import app.venues.booking.api.dto.BookingResponse
+import app.venues.booking.api.dto.DirectSaleRequest
 import java.util.*
 
 /**
@@ -70,4 +71,17 @@ interface BookingApi {
      * @throws app.venues.common.exception.VenuesException.ResourceNotFound if not found.
      */
     fun getBookingById(bookingId: UUID): BookingResponse
+
+    /**
+     * Creates a confirmed platform booking directly (skip cart).
+     * Uses platform sales channel and optional guest info.
+     */
+    fun createPlatformDirectBooking(
+        request: DirectSaleRequest,
+        platformId: UUID,
+        guestEmail: String? = null,
+        guestName: String? = null,
+        guestPhone: String? = null,
+        confirmBooking: Boolean = true
+    ): BookingResponse
 }

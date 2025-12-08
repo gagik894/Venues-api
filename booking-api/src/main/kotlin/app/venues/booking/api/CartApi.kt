@@ -88,4 +88,10 @@ interface CartApi {
      * @return Response with new pricing details
      */
     fun applyPromoCode(token: UUID, code: String, platformId: UUID? = null): PromoCodeAppliedResponse
+
+    /**
+     * Platform-oriented batch hold (seats/GA/tables) with optional TTL override.
+     * Returns the cart summary for the hold.
+     */
+    fun holdBatch(request: PlatformHoldBatchRequest): CartSummaryResponse
 }

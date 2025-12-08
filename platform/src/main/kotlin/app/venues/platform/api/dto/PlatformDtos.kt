@@ -151,7 +151,9 @@ data class PlatformHoldRequest(
 
     var gaReservations: List<PlatformGAReservation>? = null,
 
-    var tableIdentifiers: List<String>? = null
+    var tableIdentifiers: List<String>? = null,
+
+    var ttlSeconds: Long? = null
 )
 
 /**

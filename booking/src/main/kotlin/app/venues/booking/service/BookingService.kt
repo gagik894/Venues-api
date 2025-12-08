@@ -6,6 +6,7 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
+import app.venues.booking.domain.SalesChannel
 import app.venues.booking.event.BookingConfirmedEvent
 import app.venues.booking.repository.BookingRepository
 import app.venues.booking.repository.CartRepository
@@ -43,6 +44,7 @@ class BookingService(
     private val guestService: GuestService,
     private val bookingCreationService: BookingCreationService,
     private val bookingMapper: BookingMapper,
+    private val directSalesService: DirectSalesService,
     private val userApi: UserApi,
     private val seatingApi: SeatingApi,
     private val eventApi: EventApi,
@@ -635,6 +637,32 @@ class BookingService(
             booking.id,
             UUID.fromString("00000000-0000-0000-0000-000000000000"),
             reason ?: "Booking Refunded"
+        )
+    }
+
+    /**
+     * Platform direct booking (skip cart) with optional guest info.
+     */
+    override fun createPlatformDirectBooking(
+        request: DirectSaleRequest,
+        platformId: UUID,
+        guestEmail: String?,
+        guestName: String?,
+        guestPhone: String?,
+        confirmBooking: Boolean
+    ): BookingResponse {
+        val session = eventApi.getEventSessionInfo(request.sessionId)
+            ?: throw VenuesException.ResourceNotFound("Session not found")
+
+        val venueId = session.venueId
+        // Reuse direct sales flow with platform sales channel
+        return directSalesService.createDirectSale(
+            request = request,
+            venueId = venueId,
+            staffId = null,
+            platformId = platformId,
+            salesChannel = SalesChannel.PLATFORM,
+            confirmBooking = confirmBooking
         )
     }
 }

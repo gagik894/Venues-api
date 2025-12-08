@@ -54,6 +54,7 @@ class BookingServiceTicketCounterTest {
         venueApi = mockk(relaxed = true)
         ticketApi = mockk(relaxed = true)
         eventPublisher = mockk(relaxed = true)
+        val directSalesService = mockk<DirectSalesService>(relaxed = true)
 
         val bookingFulfillmentService = BookingFulfillmentService(
             eventApi,
@@ -68,6 +69,7 @@ class BookingServiceTicketCounterTest {
             guestService,
             creationService,
             bookingMapper,
+            directSalesService,
             userApi,
             seatingApi,
             eventApi,

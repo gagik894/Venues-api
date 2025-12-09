@@ -14,12 +14,6 @@ import java.util.*
 
 /**
  * Unit tests for PlatformIdempotencyService (Redis SET NX atomic locking).
- *
- * Tests verify:
- * - Cache hit returns previous result without re-execution
- * - Lock acquisition with SET NX prevents duplicate execution
- * - Retry logic handles lock contention
- * - Null idempotency key bypasses idempotency check
  */
 class PlatformIdempotencyServiceTest {
 

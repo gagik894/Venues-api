@@ -13,12 +13,6 @@ import java.util.*
 
 /**
  * Unit tests for PlatformRateLimitService (sliding window algorithm).
- *
- * Tests verify:
- * - Sliding window prevents burst attacks at window boundaries
- * - Rate limit enforcement correctly rejects over-limit requests
- * - No-limit scenario passes through
- * - Redis operations are called correctly
  */
 class PlatformRateLimitServiceTest {
 

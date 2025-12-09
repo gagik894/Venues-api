@@ -2,8 +2,8 @@ package app.venues.platform.service
 
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
+import app.venues.booking.api.CartValidationApi
 import app.venues.booking.api.dto.CartSummaryResponse
-import app.venues.booking.repository.CartRepository
 import app.venues.platform.api.dto.PlatformReleaseRequest
 import app.venues.platform.domain.Platform
 import app.venues.platform.repository.PlatformRepository
@@ -24,7 +24,7 @@ class PlatformReleaseTest {
     @MockK
     private lateinit var cartApi: CartApi
     @MockK
-    private lateinit var cartRepository: CartRepository
+    private lateinit var cartValidationApi: CartValidationApi
     @MockK
     private lateinit var cartQueryApi: CartQueryApi
     @MockK
@@ -42,8 +42,8 @@ class PlatformReleaseTest {
         clearMocks(
             platformRepository,
             cartApi,
-            cartRepository,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
             rateLimitService,
             idempotencyService
@@ -52,8 +52,8 @@ class PlatformReleaseTest {
         service = PlatformBookingService(
             platformRepository,
             cartApi,
-            cartRepository,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
             rateLimitService,
             idempotencyService

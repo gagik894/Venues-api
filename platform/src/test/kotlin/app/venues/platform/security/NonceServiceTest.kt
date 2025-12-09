@@ -10,13 +10,7 @@ import java.time.Duration
 import java.util.*
 
 /**
- * Unit tests for NonceService (replay attack prevention).
- *
- * Tests verify:
- * - New nonces are accepted and marked as used
- * - Previously used nonces are rejected (replay attack detection)
- * - Atomic SET NX ensures distributed safety
- * - TTL is applied to nonce keys
+ * Unit tests for NonceService (replay attack prevention & stats).
  */
 class NonceServiceTest {
 
@@ -34,10 +28,7 @@ class NonceServiceTest {
         service = NonceService(redisTemplate)
     }
 
-    // ===========================================
     // NEW NONCE TESTS
-    // ===========================================
-
     @Test
     fun `isNonceUsed returns false for new nonce`() {
         every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns true
@@ -70,10 +61,7 @@ class NonceServiceTest {
         assertTrue(keySlot.captured.startsWith("platform:nonce"))
     }
 
-    // ===========================================
     // REPLAY ATTACK TESTS
-    // ===========================================
-
     @Test
     fun `isNonceUsed returns true for already used nonce`() {
         every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns false
@@ -101,17 +89,13 @@ class NonceServiceTest {
         assertTrue(keysUsed[1].contains(platform2.toString()))
     }
 
-    // ===========================================
     // ATOMIC OPERATION TESTS
-    // ===========================================
-
     @Test
     fun `uses SET NX for atomic check-and-set`() {
         every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns true
 
         service.isNonceUsed(nonce, platformId)
 
-        // Verify setIfAbsent (SET NX) was called, not separate get/set
         verify(exactly = 1) { valueOps.setIfAbsent(any(), any(), any<Duration>()) }
         verify(exactly = 0) { valueOps.get(any()) }
         verify(exactly = 0) { valueOps.set(any(), any()) }
@@ -123,14 +107,10 @@ class NonceServiceTest {
 
         val result = service.isNonceUsed(nonce, platformId)
 
-        // Null means key didn't exist, so nonce is new
         assertFalse(result)
     }
 
-    // ===========================================
     // TIMESTAMP VALUE TESTS
-    // ===========================================
-
     @Test
     fun `stores current timestamp as value`() {
         val valueSlot = slot<String>()
@@ -142,5 +122,43 @@ class NonceServiceTest {
 
         val storedTimestamp = valueSlot.captured.toLong()
         assertTrue(storedTimestamp in beforeCall..afterCall)
+    }
+
+    // STATS / CLEAR TESTS
+    @Test
+    fun `getNonceStats groups by platform UUID and ignores invalid keys`() {
+        val p1 = UUID.randomUUID()
+        val p2 = UUID.randomUUID()
+        val keys = setOf(
+            "platform:nonce:$p1:nonce-1",
+            "platform:nonce:$p1:nonce-2",
+            "platform:nonce:$p2:nonce-3",
+            "platform:nonce:bad-platform:nonce-4" // should be ignored
+        )
+
+        every { redisTemplate.keys("platform:nonce:*") } returns keys
+
+        val stats = service.getNonceStats()
+
+        assertEquals(4, stats.totalActivenonces)
+        assertEquals(2, stats.noncesByPlatform[p1])
+        assertEquals(1, stats.noncesByPlatform[p2])
+        assertEquals(2, stats.noncesByPlatform.size) // bad key ignored
+    }
+
+    @Test
+    fun `clearNoncesForPlatform deletes matching keys and returns count`() {
+        val keys = setOf(
+            "platform:nonce:$platformId:nonce-1",
+            "platform:nonce:$platformId:nonce-2"
+        )
+
+        every { redisTemplate.keys("platform:nonce:$platformId:*") } returns keys
+        every { redisTemplate.delete(keys) } returns keys.size.toLong()
+
+        val cleared = service.clearNoncesForPlatform(platformId)
+
+        assertEquals(2, cleared)
+        verify { redisTemplate.delete(keys) }
     }
 }

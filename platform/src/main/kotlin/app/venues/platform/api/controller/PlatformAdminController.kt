@@ -189,7 +189,7 @@ class PlatformAdminController(
         summary = "Clear nonces for platform",
         description = "Clear all active nonces for a specific platform. Use with caution - only for emergency situations!"
     )
-    fun clearPlatformNonces(@PathVariable id: Long): ApiResponse<Map<String, Any>> {
+    fun clearPlatformNonces(@PathVariable id: UUID): ApiResponse<Map<String, Any>> {
         logger.warn { "Clearing nonces for platform: $id" }
 
         val count = nonceService.clearNoncesForPlatform(id)

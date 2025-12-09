@@ -3,8 +3,8 @@ package app.venues.platform.service
 import app.venues.booking.api.BookingApi
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
+import app.venues.booking.api.CartValidationApi
 import app.venues.booking.api.dto.*
-import app.venues.booking.repository.CartRepository
 import app.venues.common.exception.VenuesException
 import app.venues.platform.api.dto.*
 import app.venues.platform.repository.PlatformRepository
@@ -29,8 +29,8 @@ import app.venues.booking.api.dto.PlatformGAReservation as BookingPlatformGARese
 class PlatformBookingService(
     private val platformRepository: PlatformRepository,
     private val cartApi: CartApi,
-    private val cartRepository: CartRepository,
     private val cartQueryApi: CartQueryApi,
+    private val cartValidationApi: CartValidationApi,
     private val bookingApi: BookingApi,
     private val rateLimitService: PlatformRateLimitService,
     private val idempotencyService: PlatformIdempotencyService
@@ -519,21 +519,10 @@ class PlatformBookingService(
      * and (if provided) matches the expected session.
      */
     private fun validateExistingCart(platformId: UUID, cartToken: UUID, expectedSessionId: UUID?) {
-        val cart = cartRepository.findByToken(cartToken)
-            ?: throw VenuesException.ResourceNotFound("Hold token not found")
-
-        cart.validatePlatformOwnership(platformId)
-
-        if (cart.isExpired()) {
-            throw VenuesException.ValidationFailure("Hold has expired")
-        }
-
-        if (expectedSessionId != null && cart.sessionId != expectedSessionId) {
-            throw VenuesException.ValidationFailure("Hold belongs to a different session")
-        }
-
-        if (cart.isEmpty()) {
-            throw VenuesException.ValidationFailure("Hold is empty")
-        }
+        cartValidationApi.validateCartForPlatform(
+            token = cartToken,
+            platformId = platformId,
+            expectedSessionId = expectedSessionId
+        )
     }
 }

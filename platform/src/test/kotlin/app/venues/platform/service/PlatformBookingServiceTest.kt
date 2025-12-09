@@ -3,11 +3,11 @@ package app.venues.platform.service
 import app.venues.booking.api.BookingApi
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
+import app.venues.booking.api.CartValidationApi
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.CartGAItemResponse
 import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
-import app.venues.booking.repository.CartRepository
 import app.venues.platform.api.dto.PlatformConfirmRequest
 import app.venues.platform.api.dto.PlatformHoldRequest
 import app.venues.platform.api.dto.PlatformHoldResponse
@@ -41,10 +41,10 @@ class PlatformBookingServiceTest {
     private lateinit var cartQueryApi: CartQueryApi
 
     @MockK
-    private lateinit var bookingApi: BookingApi
+    private lateinit var cartValidationApi: CartValidationApi
 
     @MockK
-    private lateinit var cartRepository: CartRepository
+    private lateinit var bookingApi: BookingApi
 
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
@@ -61,16 +61,16 @@ class PlatformBookingServiceTest {
             platformRepository,
             cartApi,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
-            cartRepository,
             rateLimitService,
             idempotencyService
         )
         service = PlatformBookingService(
             platformRepository = platformRepository,
             cartApi = cartApi,
-            cartRepository = cartRepository,
             cartQueryApi = cartQueryApi,
+            cartValidationApi = cartValidationApi,
             bookingApi = bookingApi,
             rateLimitService = rateLimitService,
             idempotencyService = idempotencyService
@@ -188,12 +188,17 @@ class PlatformBookingServiceTest {
         every { platformRepository.findById(platformId) } returns Optional.of(platform)
         every { rateLimitService.enforce(platformId, 10) } returns Unit
 
-        val cart = io.mockk.mockk<app.venues.booking.domain.Cart>(relaxed = true)
-        every { cart.sessionId } returns sessionId
-        every { cart.platformId } returns platformId
-        every { cart.isExpired() } returns false
-        every { cart.isEmpty() } returns false
-        every { cartRepository.findByToken(holdToken) } returns cart
+        every {
+            cartValidationApi.validateCartForPlatform(
+                token = holdToken,
+                platformId = platformId,
+                expectedSessionId = null
+            )
+        } returns app.venues.booking.api.CartValidationResult(
+            token = holdToken,
+            sessionId = sessionId,
+            expiresAt = "2025-01-01T00:00:00Z"
+        )
 
         every { cartQueryApi.getCartSummary(holdToken) } returns CartSummaryResponse(
             token = holdToken,

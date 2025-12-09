@@ -31,11 +31,9 @@ dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
 
-    // Module dependencies
-    api(project(":booking-api"))  // Platform uses booking API
-    //TODO: consider if we can reduce dependency on cart API
-    api(project(":booking"))   // Platform integrations use booking service
-    api(project(":event"))     // Platform needs event session info
+    // Module dependencies (API-only for hexagonal boundaries)
+    api(project(":booking-api"))
+    api(project(":event-api"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

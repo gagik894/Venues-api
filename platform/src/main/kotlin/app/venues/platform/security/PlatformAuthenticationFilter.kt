@@ -175,7 +175,7 @@ class PlatformAuthenticationFilter(
         val data = "auth|$platformId|$timestamp|$nonce|$bodyHash"
         val expectedSignature = generateSignature(data, sharedSecret)
 
-        if (providedSignature != expectedSignature) {
+        if (!secureEqualsHex(providedSignature, expectedSignature)) {
             throw VenuesException.AuthenticationFailure("Invalid signature")
         }
     }
@@ -189,6 +189,22 @@ class PlatformAuthenticationFilter(
         mac.init(secretKeySpec)
         val hmac = mac.doFinal(data.toByteArray(Charsets.UTF_8))
         return hmac.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Constant-time comparison for hex-encoded strings.
+     */
+    private fun secureEqualsHex(a: String, b: String): Boolean {
+        val aBytes = hexToBytes(a)
+        val bBytes = hexToBytes(b)
+        return aBytes != null && bBytes != null && MessageDigest.isEqual(aBytes, bBytes)
+    }
+
+    private fun hexToBytes(hex: String): ByteArray? {
+        if (hex.length % 2 != 0) return null
+        return runCatching {
+            hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        }.getOrNull()
     }
 
     /**

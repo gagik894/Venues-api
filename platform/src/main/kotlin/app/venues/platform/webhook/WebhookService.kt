@@ -262,46 +262,47 @@ class WebhookService(
         platform: Platform,
         payloadJson: String
     ) {
-        try {
-            val url = "${platform.apiUrl}$WEBHOOK_ENDPOINT"
-            val timestamp = Instant.now().toString()
-            val nonce = UUID.randomUUID().toString()
-            val signature = generateSignature(platform.id, timestamp, nonce, platform.sharedSecret)
+        val url = "${platform.apiUrl}$WEBHOOK_ENDPOINT"
+        val timestamp = Instant.now().toString()
+        val nonce = UUID.randomUUID().toString()
+        val signature = generateSignature(platform.id, timestamp, nonce, platform.sharedSecret)
 
-            logger.debug { "Sending webhook to ${platform.name} at $url" }
+        logger.debug { "Sending webhook to ${platform.name} at $url" }
 
-            val response = webClient.post()
-                .uri(url)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header(SIGNATURE_HEADER, signature)
-                .header(TIMESTAMP_HEADER, timestamp)
-                .header(NONCE_HEADER, nonce)
-                .header(EVENT_TYPE_HEADER, webhookEvent.eventType.name)
-                .bodyValue(payloadJson)
-                .retrieve()
-                .toBodilessEntity()
-                .block()
+        webClient.post()
+            .uri(url)
+            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .header(SIGNATURE_HEADER, signature)
+            .header(TIMESTAMP_HEADER, timestamp)
+            .header(NONCE_HEADER, nonce)
+            .header(EVENT_TYPE_HEADER, webhookEvent.eventType.name)
+            .bodyValue(payloadJson)
+            .retrieve()
+            .toBodilessEntity()
+            .subscribe(
+                { response ->
+                    val statusCode = response.statusCode.value()
+                    webhookEvent.markAsDelivered(statusCode, "Success")
+                    webhookEventRepository.save(webhookEvent)
+                    logger.info { "Webhook delivered successfully to ${platform.name}: ${webhookEvent.id}" }
+                },
+                { error ->
+                    when (error) {
+                        is WebClientResponseException -> {
+                            val errorMessage = "HTTP ${error.statusCode.value()}: ${error.responseBodyAsString}"
+                            webhookEvent.markAsFailed(error.statusCode.value(), errorMessage)
+                            logger.warn { "Webhook delivery failed to ${platform.name}: $errorMessage" }
+                        }
 
-            val statusCode = response?.statusCode?.value() ?: 200
-            webhookEvent.markAsDelivered(statusCode, "Success")
-            webhookEventRepository.save(webhookEvent)
-
-            logger.info { "Webhook delivered successfully to ${platform.name}: ${webhookEvent.id}" }
-
-        } catch (e: WebClientResponseException) {
-            val errorMessage = "HTTP ${e.statusCode.value()}: ${e.responseBodyAsString}"
-            webhookEvent.markAsFailed(e.statusCode.value(), errorMessage)
-            webhookEventRepository.save(webhookEvent)
-
-            logger.warn { "Webhook delivery failed to ${platform.name}: $errorMessage" }
-
-        } catch (e: Exception) {
-            val errorMessage = "Delivery error: ${e.message}"
-            webhookEvent.markAsFailed(null, errorMessage)
-            webhookEventRepository.save(webhookEvent)
-
-            logger.error(e) { "Webhook delivery failed to ${platform.name}" }
-        }
+                        else -> {
+                            val errorMessage = "Delivery error: ${error.message}"
+                            webhookEvent.markAsFailed(null, errorMessage)
+                            logger.error(error) { "Webhook delivery failed to ${platform.name}" }
+                        }
+                    }
+                    webhookEventRepository.save(webhookEvent)
+                }
+            )
     }
 
     /**

@@ -2,6 +2,7 @@ package app.venues.platform.service
 
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
+import app.venues.booking.api.CartValidationApi
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.dto.PlatformGAReservation
 import app.venues.booking.api.dto.PlatformHoldBatchRequest
@@ -26,9 +27,10 @@ class PlatformHoldSimpleTest {
     @MockK
     private lateinit var cartApi: CartApi
     @MockK
-    private lateinit var cartRepository: app.venues.booking.repository.CartRepository
-    @MockK
     private lateinit var cartQueryApi: CartQueryApi
+    @MockK
+    private lateinit var cartValidationApi: CartValidationApi
+
     @MockK
     private lateinit var bookingApi: app.venues.booking.api.BookingApi
     @MockK
@@ -44,8 +46,8 @@ class PlatformHoldSimpleTest {
         clearMocks(
             platformRepository,
             cartApi,
-            cartRepository,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
             rateLimitService,
             idempotencyService
@@ -53,8 +55,8 @@ class PlatformHoldSimpleTest {
         service = PlatformBookingService(
             platformRepository,
             cartApi,
-            cartRepository,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
             rateLimitService,
             idempotencyService

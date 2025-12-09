@@ -24,7 +24,7 @@ class PlatformDirectBookingTest {
     @MockK
     private lateinit var cartApi: app.venues.booking.api.CartApi
     @MockK
-    private lateinit var cartRepository: app.venues.booking.repository.CartRepository
+    private lateinit var cartValidationApi: app.venues.booking.api.CartValidationApi
     @MockK
     private lateinit var cartQueryApi: app.venues.booking.api.CartQueryApi
     @MockK
@@ -42,7 +42,7 @@ class PlatformDirectBookingTest {
         clearMocks(
             platformRepository,
             cartApi,
-            cartRepository,
+            cartValidationApi,
             cartQueryApi,
             bookingApi,
             rateLimitService,
@@ -52,8 +52,8 @@ class PlatformDirectBookingTest {
         service = PlatformBookingService(
             platformRepository,
             cartApi,
-            cartRepository,
             cartQueryApi,
+            cartValidationApi,
             bookingApi,
             rateLimitService,
             idempotencyService

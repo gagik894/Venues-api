@@ -69,9 +69,7 @@ data class GAAvailabilityChangedPayload(
     override val timestamp: String,
     override val sessionId: UUID,
     val levelIdentifier: String,
-    val levelName: String,
-    val availableTickets: Int,
-    val totalCapacity: Int
+    val availableTickets: Int
 ) : WebhookPayload
 
 /**
@@ -81,8 +79,7 @@ data class TableReservedPayload(
     override val eventType: WebhookEventType = WebhookEventType.TABLE_RESERVED,
     override val timestamp: String,
     override val sessionId: UUID,
-    val tableIdentifier: String,
-    val tableName: String
+    val tableIdentifier: String
 ) : WebhookPayload
 
 /**
@@ -92,7 +89,6 @@ data class TableReleasedPayload(
     override val eventType: WebhookEventType = WebhookEventType.TABLE_RELEASED,
     override val timestamp: String,
     override val sessionId: UUID,
-    val tableIdentifier: String,
-    val tableName: String
+    val tableIdentifier: String
 ) : WebhookPayload
 

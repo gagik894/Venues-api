@@ -78,18 +78,10 @@ data class PlatformCheckoutResponse(
 data class PlatformConfirmRequest(
     @field:NotNull(message = "Hold token is required")
     var holdToken: UUID,
-
-    var paymentMethod: String? = null,
-
     var paymentReference: String? = null,
-
-    var paymentProofUrl: String? = null,
-
     @field:Email(message = "Invalid email format")
     var guestEmail: String? = null,
-
     var guestName: String? = null,
-
     var guestPhone: String? = null
 )
 

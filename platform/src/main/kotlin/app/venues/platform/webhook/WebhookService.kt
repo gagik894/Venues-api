@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientResponseException
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.Instant
 import java.util.*
 import javax.crypto.Mac
@@ -108,9 +109,7 @@ class WebhookService(
     fun notifyGAAvailabilityChanged(
         sessionId: UUID,
         levelIdentifier: String,
-        levelName: String,
-        availableTickets: Int,
-        totalCapacity: Int
+        availableTickets: Int
     ) {
         logger.debug { "Notifying platforms: GA availability changed - $levelIdentifier" }
 
@@ -118,9 +117,7 @@ class WebhookService(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             levelIdentifier = levelIdentifier,
-            levelName = levelName,
-            availableTickets = availableTickets,
-            totalCapacity = totalCapacity
+            availableTickets = availableTickets
         )
 
         sendToAllPlatforms(
@@ -137,16 +134,14 @@ class WebhookService(
     @Async
     fun notifyTableReserved(
         sessionId: UUID,
-        tableIdentifier: String,
-        tableName: String
+        tableIdentifier: String
     ) {
         logger.debug { "Notifying platforms: table reserved - $tableIdentifier" }
 
         val payload = TableReservedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
-            tableIdentifier = tableIdentifier,
-            tableName = tableName
+            tableIdentifier = tableIdentifier
         )
 
         sendToAllPlatforms(
@@ -163,16 +158,14 @@ class WebhookService(
     @Async
     fun notifyTableReleased(
         sessionId: UUID,
-        tableIdentifier: String,
-        tableName: String
+        tableIdentifier: String
     ) {
         logger.debug { "Notifying platforms: table released - $tableIdentifier" }
 
         val payload = TableReleasedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
-            tableIdentifier = tableIdentifier,
-            tableName = tableName
+            tableIdentifier = tableIdentifier
         )
 
         sendToAllPlatforms(
@@ -265,7 +258,8 @@ class WebhookService(
         val url = "${platform.apiUrl}$WEBHOOK_ENDPOINT"
         val timestamp = Instant.now().toString()
         val nonce = UUID.randomUUID().toString()
-        val signature = generateSignature(platform.id, timestamp, nonce, platform.sharedSecret)
+        val bodyHash = sha256(payloadJson)
+        val signature = generateSignature(platform.id, timestamp, nonce, bodyHash, platform.sharedSecret)
 
         logger.debug { "Sending webhook to ${platform.name} at $url" }
 
@@ -276,6 +270,7 @@ class WebhookService(
             .header(TIMESTAMP_HEADER, timestamp)
             .header(NONCE_HEADER, nonce)
             .header(EVENT_TYPE_HEADER, webhookEvent.eventType.name)
+            .header("X-Venues-Body-Hash", bodyHash)
             .bodyValue(payloadJson)
             .retrieve()
             .toBodilessEntity()
@@ -309,13 +304,25 @@ class WebhookService(
      * Generate HMAC-SHA256 signature for webhook
      * Signature format: HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
      */
-    private fun generateSignature(platformId: UUID, timestamp: String, nonce: String, secret: String): String {
-        val data = "$platformId|$timestamp|$nonce"
+    private fun generateSignature(
+        platformId: UUID,
+        timestamp: String,
+        nonce: String,
+        bodyHash: String,
+        secret: String
+    ): String {
+        val data = "webhook|$platformId|$timestamp|$nonce|$bodyHash"
         val mac = Mac.getInstance("HmacSHA256")
         val secretKeySpec = SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
         mac.init(secretKeySpec)
         val hmac = mac.doFinal(data.toByteArray(StandardCharsets.UTF_8))
         return hmac.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun sha256(payload: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hash = digest.digest(payload.toByteArray(StandardCharsets.UTF_8))
+        return hash.joinToString("") { "%02x".format(it) }
     }
 
     // ===========================================

@@ -248,7 +248,6 @@ class PlatformBookingServiceTest {
             platformId = platformId,
             request = PlatformConfirmRequest(
                 holdToken = holdToken,
-                paymentMethod = null,
                 paymentReference = null,
                 guestEmail = null,
                 guestName = null,

@@ -5,18 +5,14 @@ import jakarta.validation.constraints.*
 import java.util.*
 
 // ===========================================
-// PLATFORM RESERVATION REQUEST DTOs
+// PLATFORM EASY FLOW DTOs (PENDING booking)
 // ===========================================
 
-/**
- * Platform "Easy Mode" reserve request (creates PENDING booking).
- */
 data class PlatformEasyReserveRequest(
     @field:NotNull(message = "Session ID is required")
     val sessionId: UUID,
 
     @field:NotBlank(message = "Customer email is required")
-    @field:Email(message = "Invalid email format")
     @field:Size(max = 255, message = "Email must not exceed 255 characters")
     val customerEmail: String,
 
@@ -35,10 +31,6 @@ data class PlatformEasyReserveRequest(
     val promoCode: String? = null
 )
 
-/**
- * Item for Platform "Easy Mode" reserve request.
- * Exactly one of seatCode, gaAreaCode, or tableCode must be provided.
- */
 data class PlatformEasyItemRequest(
     val seatCode: String? = null,
     val gaAreaCode: String? = null,
@@ -49,23 +41,15 @@ data class PlatformEasyItemRequest(
     val quantity: Int = 1
 )
 
-/**
- * Platform API release request (from external platform)
- * Release a previously held reservation
- */
+// ===========================================
+// PLATFORM RELEASE DTOs
+// ===========================================
+
 data class PlatformReleaseRequest(
     @field:NotNull(message = "Reservation token is required")
     var reservationToken: UUID
 )
 
-
-// ===========================================
-// PLATFORM RESERVATION RESPONSE DTOs
-// ===========================================
-
-/**
- * Platform release response
- */
 data class PlatformReleaseResponse(
     val message: String,
     val releasedSeats: Int,

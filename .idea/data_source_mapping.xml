@@ -2,7 +2,6 @@
 <project version="4">
   <component name="DataSourcePerFileMappings">
     <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/ce512273-a0f0-46bb-8b9e-533a2818ef70/console.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
-    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/fe67f6ac-7b58-46d2-9ff5-6760beaef224/console.sql" value="fe67f6ac-7b58-46d2-9ff5-6760beaef224" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/dev-seed.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V1__Initial_schema.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V2__Seed_static_data.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />

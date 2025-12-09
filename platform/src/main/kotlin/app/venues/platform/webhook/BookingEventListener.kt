@@ -57,9 +57,7 @@ class BookingEventListener(
         webhookService.notifyGAAvailabilityChanged(
             sessionId = event.sessionId,
             levelIdentifier = event.levelIdentifier,
-            levelName = event.levelName,
-            availableTickets = event.availableTickets,
-            totalCapacity = event.totalCapacity
+            availableTickets = event.availableTickets
         )
     }
 
@@ -73,8 +71,7 @@ class BookingEventListener(
 
         webhookService.notifyTableReserved(
             sessionId = event.sessionId,
-            tableIdentifier = event.tableCode,
-            tableName = event.tableName
+            tableIdentifier = event.tableCode
         )
     }
 
@@ -88,8 +85,7 @@ class BookingEventListener(
 
         webhookService.notifyTableReleased(
             sessionId = event.sessionId,
-            tableIdentifier = event.tableCode,
-            tableName = event.tableName
+            tableIdentifier = event.tableCode
         )
     }
 }

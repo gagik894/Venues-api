@@ -136,12 +136,12 @@ class DirectSalesService(
         val savedBooking = bookingRepository.save(booking)
 
         // 10. Redeem promo if applicable
-        bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
-
         var finalBooking = savedBooking
 
         if (confirmBooking) {
-            // Confirm booking immediately (payment assumed received)
+            // Redeem promo and confirm booking immediately (payment assumed received)
+            bookingFulfillmentService.redeemPromoIfNeeded(savedBooking)
+
             savedBooking.confirm(null)
             finalBooking = bookingRepository.save(savedBooking)
 

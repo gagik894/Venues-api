@@ -424,7 +424,7 @@ class PlatformBookingService(
      */
     fun reserveSimple(
         platformId: UUID,
-        request: DirectSaleRequest,
+        request: PlatformEasyReserveRequest,
         idempotencyKey: String?
     ): BookingResponse {
         return idempotencyService.withIdempotency(
@@ -436,12 +436,10 @@ class PlatformBookingService(
             val platform = loadPlatform(platformId)
             rateLimitService.enforce(platformId, platform.rateLimit)
 
+            val directSaleRequest = request.toDirectSaleRequest()
             bookingApi.createPlatformDirectBooking(
-                request = request,
+                request = directSaleRequest,
                 platformId = platformId,
-                guestEmail = request.customerEmail,
-                guestName = request.customerName,
-                guestPhone = request.customerPhone,
                 confirmBooking = false // Create PENDING booking
             )
         }

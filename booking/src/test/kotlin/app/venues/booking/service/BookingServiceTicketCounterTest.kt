@@ -3,7 +3,6 @@ package app.venues.booking.service
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.CancelBookingRequest
 import app.venues.booking.api.dto.ConfirmBookingRequest
-import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
 import app.venues.booking.domain.BookingItem
 import app.venues.booking.domain.SalesChannel
@@ -32,7 +31,7 @@ class BookingServiceTicketCounterTest {
     private lateinit var cartRepository: CartRepository
     private lateinit var guestService: GuestService
     private lateinit var creationService: BookingCreationService
-    private lateinit var bookingMapper: BookingMapper
+    private lateinit var bookingResponseService: BookingResponseService
     private lateinit var userApi: UserApi
     private lateinit var seatingApi: SeatingApi
     private lateinit var eventApi: EventApi
@@ -47,7 +46,7 @@ class BookingServiceTicketCounterTest {
         cartRepository = mockk(relaxed = true)
         guestService = mockk(relaxed = true)
         creationService = mockk(relaxed = true)
-        bookingMapper = mockk()
+        bookingResponseService = mockk()
         userApi = mockk(relaxed = true)
         seatingApi = mockk()
         eventApi = mockk()
@@ -68,10 +67,9 @@ class BookingServiceTicketCounterTest {
             cartRepository,
             guestService,
             creationService,
-            bookingMapper,
+            bookingResponseService,
             directSalesService,
             userApi,
-            seatingApi,
             eventApi,
             venueApi,
             ticketApi,
@@ -80,21 +78,21 @@ class BookingServiceTicketCounterTest {
         )
 
         every {
-            bookingMapper.toResponse(any(), any(), any(), any(), any(), any(), any(), any())
+            bookingResponseService.prepareBookingResponse(any())
         } answers {
-            val args = invocation.args
-            val bookingArg = args[0] as Booking
+            val bookingArg = firstArg<Booking>()
             BookingResponse(
                 id = bookingArg.id.toString(),
                 sessionId = bookingArg.sessionId,
-                eventTitle = args[1] as String,
-                eventDescription = args[2] as String?,
-                sessionStartTime = args[3] as String,
-                sessionEndTime = args[4] as String,
-                customerEmail = args[5] as String,
-                customerName = args[6] as String,
+                eventTitle = "event",
+                eventDescription = null,
+                sessionStartTime = Instant.now().toString(),
+                sessionEndTime = Instant.now().toString(),
+                customerEmail = "customer@example.com",
+                customerName = "Customer",
                 items = emptyList(),
                 totalPrice = MoneyAmount(bookingArg.totalPrice, bookingArg.currency),
+                platformId = bookingArg.platformId,
                 serviceFeeAmount = MoneyAmount(bookingArg.serviceFeeAmount, bookingArg.currency),
                 discountAmount = MoneyAmount(bookingArg.discountAmount, bookingArg.currency),
                 promoCode = bookingArg.promoCode,

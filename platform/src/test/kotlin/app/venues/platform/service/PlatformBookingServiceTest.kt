@@ -227,6 +227,7 @@ class PlatformBookingServiceTest {
             customerName = "",
             items = emptyList(),
             totalPrice = app.venues.shared.money.MoneyAmount.zero("USD"),
+            platformId = platformId,
             serviceFeeAmount = app.venues.shared.money.MoneyAmount.zero("USD"),
             discountAmount = app.venues.shared.money.MoneyAmount.zero("USD"),
             promoCode = null,

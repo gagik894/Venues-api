@@ -1,8 +1,8 @@
 package app.venues.platform.api.controller
 
 import app.venues.booking.api.dto.BookingResponse
-import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.common.model.ApiResponse
+import app.venues.platform.api.dto.PlatformEasyReserveRequest
 import app.venues.platform.service.PlatformBookingService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -34,7 +34,7 @@ class PlatformEasyController(
     fun reserve(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
-        @Valid @RequestBody request: DirectSaleRequest
+        @Valid @RequestBody request: PlatformEasyReserveRequest
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId easy-reserve for session ${request.sessionId}" }
         val result = platformBookingService.reserveSimple(platformId, request, idempotencyKey)

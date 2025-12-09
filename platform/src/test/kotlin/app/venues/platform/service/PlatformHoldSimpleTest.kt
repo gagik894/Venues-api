@@ -3,8 +3,8 @@ package app.venues.platform.service
 import app.venues.booking.api.CartApi
 import app.venues.booking.api.CartQueryApi
 import app.venues.booking.api.dto.CartSummaryResponse
+import app.venues.booking.api.dto.PlatformGAReservation
 import app.venues.booking.api.dto.PlatformHoldBatchRequest
-import app.venues.platform.api.dto.PlatformGAReservation
 import app.venues.platform.api.dto.PlatformHoldRequest
 import app.venues.platform.api.dto.PlatformHoldResponse
 import app.venues.platform.domain.Platform

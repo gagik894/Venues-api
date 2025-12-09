@@ -26,7 +26,7 @@ class BookingEventListener(
     fun handleSeatReserved(event: SeatReservedEvent) {
         logger.debug { "Received SeatReservedEvent: ${event.seatIdentifier}" }
 
-        webhookService.notifySeatReserved(
+        webhookService.notifySeatClosed(
             sessionId = event.sessionId,
             seatIdentifier = event.seatIdentifier
         )
@@ -40,7 +40,7 @@ class BookingEventListener(
     fun handleSeatReleased(event: SeatReleasedEvent) {
         logger.debug { "Received SeatReleasedEvent: ${event.seatIdentifier}" }
 
-        webhookService.notifySeatReleased(
+        webhookService.notifySeatOpened(
             sessionId = event.sessionId,
             seatIdentifier = event.seatIdentifier,
         )
@@ -69,7 +69,7 @@ class BookingEventListener(
     fun handleTableReserved(event: TableReservedEvent) {
         logger.debug { "Received TableReservedEvent: ${event.tableCode}" }
 
-        webhookService.notifyTableReserved(
+        webhookService.notifyTableClosed(
             sessionId = event.sessionId,
             tableIdentifier = event.tableCode
         )
@@ -83,7 +83,7 @@ class BookingEventListener(
     fun handleTableReleased(event: TableReleasedEvent) {
         logger.debug { "Received TableReleasedEvent: ${event.tableCode}" }
 
-        webhookService.notifyTableReleased(
+        webhookService.notifyTableOpened(
             sessionId = event.sessionId,
             tableIdentifier = event.tableCode
         )

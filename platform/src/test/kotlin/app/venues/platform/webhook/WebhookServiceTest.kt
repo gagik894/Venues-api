@@ -1,7 +1,7 @@
 package app.venues.platform.webhook
 
-import app.venues.platform.api.dto.SeatReservedPayload
-import app.venues.platform.api.dto.TableReservedPayload
+import app.venues.platform.api.dto.SeatClosedPayload
+import app.venues.platform.api.dto.TableClosedPayload
 import app.venues.platform.domain.Platform
 import app.venues.platform.domain.WebhookEvent
 import app.venues.platform.repository.PlatformRepository
@@ -69,7 +69,7 @@ class WebhookServiceTest {
 
     @Test
     fun `seat reserved webhook includes body hash and signature covers body`() {
-        val payload = SeatReservedPayload(
+        val payload = SeatClosedPayload(
             timestamp = Instant.now().toString(),
             sessionId = UUID.randomUUID(),
             seatIdentifier = "A1"
@@ -86,7 +86,7 @@ class WebhookServiceTest {
         every { requestHeadersSpec.bodyValue(any<String>()) } returns requestHeadersSpec
         every { webhookEventRepository.save(any<WebhookEvent>()) } answers { firstArg() }
 
-        webhookService.notifySeatReserved(
+        webhookService.notifySeatClosed(
             sessionId = payload.sessionId,
             seatIdentifier = payload.seatIdentifier
         )
@@ -96,7 +96,7 @@ class WebhookServiceTest {
 
     @Test
     fun `webhook failure marks event failed`() {
-        val payload = TableReservedPayload(
+        val payload = TableClosedPayload(
             timestamp = Instant.now().toString(),
             sessionId = UUID.randomUUID(),
             tableIdentifier = "T1"
@@ -131,7 +131,7 @@ class WebhookServiceTest {
             null
         )
 
-        webhookService.notifyTableReserved(
+        webhookService.notifyTableClosed(
             sessionId = payload.sessionId,
             tableIdentifier = payload.tableIdentifier
         )

@@ -58,20 +58,20 @@ class WebhookService(
      * Notify all platforms about seat reservation
      */
     @Async
-    fun notifySeatReserved(
+    fun notifySeatClosed(
         sessionId: UUID,
         seatIdentifier: String
     ) {
-        logger.debug { "Notifying platforms: seat reserved - $seatIdentifier" }
+        logger.debug { "Notifying platforms: seat closed - $seatIdentifier" }
 
-        val payload = SeatReservedPayload(
+        val payload = SeatClosedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
         )
 
         sendToAllPlatforms(
-            eventType = WebhookEventType.SEAT_RESERVED,
+            eventType = WebhookEventType.SEAT_CLOSED,
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
             payload = payload
@@ -82,20 +82,20 @@ class WebhookService(
      * Notify all platforms about seat release
      */
     @Async
-    fun notifySeatReleased(
+    fun notifySeatOpened(
         sessionId: UUID,
         seatIdentifier: String,
     ) {
-        logger.debug { "Notifying platforms: seat released - $seatIdentifier" }
+        logger.debug { "Notifying platforms: seat opened - $seatIdentifier" }
 
-        val payload = SeatReleasedPayload(
+        val payload = SeatOpenedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
         )
 
         sendToAllPlatforms(
-            eventType = WebhookEventType.SEAT_RELEASED,
+            eventType = WebhookEventType.SEAT_OPENED,
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
             payload = payload
@@ -132,20 +132,20 @@ class WebhookService(
      * Notify all platforms about table reservation
      */
     @Async
-    fun notifyTableReserved(
+    fun notifyTableClosed(
         sessionId: UUID,
         tableIdentifier: String
     ) {
-        logger.debug { "Notifying platforms: table reserved - $tableIdentifier" }
+        logger.debug { "Notifying platforms: table closed - $tableIdentifier" }
 
-        val payload = TableReservedPayload(
+        val payload = TableClosedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             tableIdentifier = tableIdentifier
         )
 
         sendToAllPlatforms(
-            eventType = WebhookEventType.TABLE_RESERVED,
+            eventType = WebhookEventType.TABLE_CLOSED,
             sessionId = sessionId,
             tableIdentifier = tableIdentifier,
             payload = payload
@@ -156,20 +156,20 @@ class WebhookService(
      * Notify all platforms about table release
      */
     @Async
-    fun notifyTableReleased(
+    fun notifyTableOpened(
         sessionId: UUID,
         tableIdentifier: String
     ) {
-        logger.debug { "Notifying platforms: table released - $tableIdentifier" }
+        logger.debug { "Notifying platforms: table opened - $tableIdentifier" }
 
-        val payload = TableReleasedPayload(
+        val payload = TableOpenedPayload(
             timestamp = Instant.now().toString(),
             sessionId = sessionId,
             tableIdentifier = tableIdentifier
         )
 
         sendToAllPlatforms(
-            eventType = WebhookEventType.TABLE_RELEASED,
+            eventType = WebhookEventType.TABLE_OPENED,
             sessionId = sessionId,
             tableIdentifier = tableIdentifier,
             payload = payload

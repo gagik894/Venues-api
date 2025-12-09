@@ -18,7 +18,7 @@ class BookingEventListenerTest {
         val sessionId = UUID.randomUUID()
         listener.handleSeatReserved(SeatReservedEvent(sessionId, "A1"))
 
-        verify { webhookService.notifySeatReserved(sessionId, "A1") }
+        verify { webhookService.notifySeatClosed(sessionId, "A1") }
     }
 
     @Test
@@ -49,7 +49,7 @@ class BookingEventListenerTest {
             )
         )
 
-        verify { webhookService.notifyTableReleased(sessionId, "T1") }
+        verify { webhookService.notifyTableOpened(sessionId, "T1") }
     }
 }
 

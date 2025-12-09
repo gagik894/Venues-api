@@ -44,21 +44,18 @@ interface WebhookPayload {
 /**
  * Seat reserved webhook payload
  */
-data class SeatReservedPayload(
-    override val eventType: WebhookEventType = WebhookEventType.SEAT_RESERVED,
+data class SeatClosedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.SEAT_CLOSED,
     override val timestamp: String,
     override val sessionId: UUID,
-    val seatIdentifier: String,
+    val seatIdentifier: String
 ) : WebhookPayload
 
-/**
- * Seat released webhook payload
- */
-data class SeatReleasedPayload(
-    override val eventType: WebhookEventType = WebhookEventType.SEAT_RELEASED,
+data class SeatOpenedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.SEAT_OPENED,
     override val timestamp: String,
     override val sessionId: UUID,
-    val seatIdentifier: String,
+    val seatIdentifier: String
 ) : WebhookPayload
 
 /**
@@ -75,18 +72,15 @@ data class GAAvailabilityChangedPayload(
 /**
  * Table reserved webhook payload
  */
-data class TableReservedPayload(
-    override val eventType: WebhookEventType = WebhookEventType.TABLE_RESERVED,
+data class TableClosedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.TABLE_CLOSED,
     override val timestamp: String,
     override val sessionId: UUID,
     val tableIdentifier: String
 ) : WebhookPayload
 
-/**
- * Table released webhook payload
- */
-data class TableReleasedPayload(
-    override val eventType: WebhookEventType = WebhookEventType.TABLE_RELEASED,
+data class TableOpenedPayload(
+    override val eventType: WebhookEventType = WebhookEventType.TABLE_OPENED,
     override val timestamp: String,
     override val sessionId: UUID,
     val tableIdentifier: String

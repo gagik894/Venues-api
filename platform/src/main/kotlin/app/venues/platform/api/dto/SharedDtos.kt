@@ -1,19 +1,5 @@
 package app.venues.platform.api.dto
 
-import jakarta.validation.constraints.Min
-import jakarta.validation.constraints.NotBlank
-
-/**
- * GA reservation details
- */
-data class PlatformGAReservation(
-    @field:NotBlank(message = "Level identifier is required")
-    var levelIdentifier: String,
-
-    @field:Min(value = 1, message = "Quantity must be at least 1")
-    var quantity: Int
-)
-
 /**
  * Reserved seat info
  */

@@ -1,6 +1,5 @@
 package app.venues.platform.api.dto
 
-import app.venues.booking.api.dto.PlatformGAReservation
 import jakarta.validation.Valid
 import jakarta.validation.constraints.*
 import java.util.*
@@ -45,33 +44,9 @@ data class PlatformEasyItemRequest(
     val gaAreaCode: String? = null,
     val tableCode: String? = null,
 
-    @field:jakarta.validation.constraints.Min(value = 1, message = "Quantity must be at least 1")
-    @field:jakarta.validation.constraints.Max(value = 100, message = "Quantity must not exceed 100")
+    @field:Min(value = 1, message = "Quantity must be at least 1")
+    @field:Max(value = 100, message = "Quantity must not exceed 100")
     val quantity: Int = 1
-)
-
-/**
- * Platform API reservation request (from external platform)
- */
-data class PlatformReservationRequest(
-    @field:NotNull(message = "Session ID is required")
-    var sessionId: UUID,
-
-    var reservationToken: UUID? = null,
-
-    @field:Size(min = 1, message = "At least one seat, GA ticket, or table must be specified")
-    var seatIdentifiers: List<String>? = null,
-
-    var gaReservations: List<PlatformGAReservation>? = null,
-
-    @field:Size(min = 1, message = "At least one table must be specified")
-    var tableIdentifiers: List<String>? = null,
-
-    var guestEmail: String? = null,
-
-    var guestName: String? = null,
-
-    var externalReference: String? = null
 )
 
 /**
@@ -83,44 +58,10 @@ data class PlatformReleaseRequest(
     var reservationToken: UUID
 )
 
-/**
- * Platform API sell request (from external platform)
- * Convert reservation to confirmed booking
- */
-data class PlatformSellRequest(
-    @field:NotNull(message = "Reservation token is required")
-    var reservationToken: UUID,
-
-    @field:NotBlank(message = "Payment method is required")
-    var paymentMethod: String,
-
-    @field:NotBlank(message = "Payment reference is required")
-    var paymentReference: String,
-
-    var guestEmail: String? = null,
-
-    var guestName: String? = null,
-
-    var guestPhone: String? = null,
-
-    var externalReference: String? = null
-)
 
 // ===========================================
 // PLATFORM RESERVATION RESPONSE DTOs
 // ===========================================
-
-/**
- * Platform reservation response
- */
-data class PlatformReservationResponse(
-    val reservationToken: UUID,
-    val message: String,
-    val expiresAt: String,
-    val seats: List<ReservedSeatInfo>?,
-    val gaTickets: List<ReservedGAInfo>?,
-    val tables: List<ReservedTableInfo>?
-)
 
 /**
  * Platform release response
@@ -130,18 +71,5 @@ data class PlatformReleaseResponse(
     val releasedSeats: Int,
     val releasedGATickets: Int,
     val releasedTables: Int
-)
-
-/**
- * Platform sell response (booking confirmation)
- */
-data class PlatformSellResponse(
-    val bookingId: String,
-    val bookingReference: String,
-    val message: String,
-    val totalAmount: String,
-    val seats: List<ReservedSeatInfo>?,
-    val gaTickets: List<ReservedGAInfo>?,
-    val tables: List<ReservedTableInfo>?
 )
 

@@ -55,6 +55,10 @@ include(":staff-api")
 include(":event-api")
 include(":booking-api")
 include(":ticket-api")
+include(":media-api")
+
+// Media Module (centralized file storage)
+include(":media")
 
 
 rootProject.name = "Venues-api"

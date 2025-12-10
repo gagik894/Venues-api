@@ -6,6 +6,7 @@ import app.venues.event.domain.Event
 import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
+import app.venues.media.api.MediaApi
 import app.venues.platform.api.PlatformSubscriptionApi
 import app.venues.seating.api.SeatingApi
 import app.venues.venue.api.VenueApi
@@ -25,7 +26,7 @@ class EventServiceSubscriptionTest {
     private lateinit var eventPriceService: EventPriceService
     private lateinit var venueApi: VenueApi
     private lateinit var seatingApi: SeatingApi
-    private lateinit var imageStorageService: ImageStorageService
+    private lateinit var mediaApi: MediaApi
     private lateinit var eventMapper: EventMapper
     private lateinit var eventRevalidationService: EventRevalidationService
     private lateinit var platformSubscriptionApi: PlatformSubscriptionApi
@@ -43,7 +44,7 @@ class EventServiceSubscriptionTest {
         eventPriceService = mockk(relaxed = true)
         venueApi = mockk(relaxed = true)
         seatingApi = mockk(relaxed = true)
-        imageStorageService = mockk(relaxed = true)
+        mediaApi = mockk(relaxed = true)
         eventMapper = mockk(relaxed = true)
         eventRevalidationService = mockk(relaxed = true)
         platformSubscriptionApi = mockk(relaxed = true)
@@ -56,7 +57,7 @@ class EventServiceSubscriptionTest {
             eventPriceService = eventPriceService,
             venueApi = venueApi,
             seatingApi = seatingApi,
-            imageStorageService = imageStorageService,
+            mediaApi = mediaApi,
             eventMapper = eventMapper,
             eventRevalidationService = eventRevalidationService,
             platformSubscriptionApi = platformSubscriptionApi

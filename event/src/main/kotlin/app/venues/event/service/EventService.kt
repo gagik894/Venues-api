@@ -10,6 +10,8 @@ import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
+import app.venues.media.api.MediaApi
+import app.venues.media.api.MediaCategory
 import app.venues.platform.api.PlatformSubscriptionApi
 import app.venues.seating.api.SeatingApi
 import app.venues.venue.api.VenueApi
@@ -44,7 +46,7 @@ class EventService(
     private val eventPriceService: EventPriceService,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi,
-    private val imageStorageService: ImageStorageService,
+    private val mediaApi: MediaApi,
     private val eventMapper: EventMapper,
     private val eventRevalidationService: EventRevalidationService,
     private val platformSubscriptionApi: PlatformSubscriptionApi
@@ -104,7 +106,7 @@ class EventService(
 
         // Handle image uploads
         val mainImgUrl = if (image != null && !image.isEmpty) {
-            imageStorageService.store(image)
+            mediaApi.upload(image, MediaCategory.EVENT, venueId).url
         } else {
             request.imgUrl
         }
@@ -127,7 +129,7 @@ class EventService(
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         secondaryImages?.forEach { file ->
             if (!file.isEmpty) {
-                event.secondaryImgUrls.add(imageStorageService.store(file))
+                event.secondaryImgUrls.add(mediaApi.upload(file, MediaCategory.EVENT, venueId).url)
             }
         }
         event.tags.addAll(request.tags)
@@ -252,7 +254,7 @@ class EventService(
 
         // Update main image if provided, otherwise keep existing or use URL from request
         if (image != null && !image.isEmpty) {
-            event.imgUrl = imageStorageService.store(image)
+            event.imgUrl = mediaApi.upload(image, MediaCategory.EVENT, venueId).url
         } else if (request.imgUrl != null) {
             event.imgUrl = request.imgUrl
         }
@@ -275,7 +277,7 @@ class EventService(
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
         secondaryImages?.forEach { file ->
             if (!file.isEmpty) {
-                event.secondaryImgUrls.add(imageStorageService.store(file))
+                event.secondaryImgUrls.add(mediaApi.upload(file, MediaCategory.EVENT, venueId).url)
             }
         }
         

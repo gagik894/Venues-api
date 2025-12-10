@@ -18,6 +18,8 @@
             <option value="$PROJECT_DIR$/finance" />
             <option value="$PROJECT_DIR$/finance-api" />
             <option value="$PROJECT_DIR$/location" />
+            <option value="$PROJECT_DIR$/media" />
+            <option value="$PROJECT_DIR$/media-api" />
             <option value="$PROJECT_DIR$/organization" />
             <option value="$PROJECT_DIR$/organization-api" />
             <option value="$PROJECT_DIR$/payment" />

@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":organization"))
     implementation(project(":staff"))
     implementation(project(":ticket"))
+    implementation(project(":media"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))

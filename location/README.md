@@ -1,3 +1,51 @@
+# Location Module (Cities & Regions)
+
+This module manages reference data for regions and cities, using stable codes/slugs to avoid exposing internal numeric
+IDs. Intended for both public lookup and super-admin CRUD.
+
+## Design principles
+
+- Use codes/slugs only (no numeric IDs exposed).
+- Multilingual names stored on entities; responses include localized `name` plus full `names` map where appropriate.
+- Admin endpoints guarded by `SUPER_ADMIN` (JWT role).
+
+## Key entities
+
+- Region: `code` (ISO/gov code), `names` (json), `displayOrder`, `isActive`.
+- City: `slug`, `names` (json), `region` (by code), `officialId` (optional), `displayOrder`, `isActive`.
+
+## Public endpoints (no IDs leaked)
+
+- `GET /api/v1/locations/cities` — all active cities (localized name, slug, region code/name).
+- `GET /api/v1/locations/cities/{slug}` — city by slug.
+- `GET /api/v1/locations/regions/{regionCode}/cities` — cities by region code.
+- `GET /api/v1/locations/cities/search?q=&limit=&offset=` — search cities (paged).
+- `GET /api/v1/locations/cities/compact` — lightweight list for dropdowns.
+
+## Admin endpoints (SUPER_ADMIN)
+
+- Regions:
+    - `GET /api/v1/locations/admin/regions` — list regions (includes inactive).
+    - `POST /api/v1/locations/admin/regions` — create region (CreateRegionRequest: code, names, displayOrder?).
+    - `PUT /api/v1/locations/admin/regions/{code}` — update region (names/displayOrder/isActive).
+- Cities:
+    - `POST /api/v1/locations/admin/cities` — create city (CreateCityRequest: regionCode, slug, names, officialId?,
+      displayOrder?).
+    - `PUT /api/v1/locations/admin/cities/{slug}` — update city (UpdateCityRequest: regionCode?, names?, officialId?,
+      displayOrder?, isActive?).
+
+## DTO highlights
+
+- RegionResponse: { code, names, name, displayOrder, isActive }
+- CityResponse: { slug, names, name, region: { code, name }, officialId, displayOrder, isActive }
+- CityCompact: { slug, name, regionName }
+- CreateCityRequest / UpdateCityRequest: regionCode (string), not regionId.
+
+## Notes
+
+- City/region numeric IDs are no longer exposed in public/admin DTOs or endpoints.
+- Internal persistence still uses IDs in the database, but all API surfaces use code/slug.
+
 # Location Module - Reference Data Management
 
 ## Overview

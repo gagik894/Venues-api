@@ -32,6 +32,7 @@ class DirectSalesServiceEasyReserveTest {
     private lateinit var venueApi: VenueApi
     private lateinit var bookingResponseService: BookingResponseService
     private lateinit var bookingFulfillmentService: BookingFulfillmentService
+    private lateinit var inventoryChangePublisher: InventoryChangePublisher
     private lateinit var eventPublisher: ApplicationEventPublisher
 
     private lateinit var service: DirectSalesService
@@ -46,6 +47,7 @@ class DirectSalesServiceEasyReserveTest {
         venueApi = mockk(relaxed = true)
         bookingResponseService = mockk(relaxed = true)
         bookingFulfillmentService = mockk(relaxed = true)
+        inventoryChangePublisher = mockk(relaxed = true)
         eventPublisher = mockk(relaxed = true)
 
         service = DirectSalesService(
@@ -56,6 +58,7 @@ class DirectSalesServiceEasyReserveTest {
             venueApi,
             bookingResponseService,
             bookingFulfillmentService,
+            inventoryChangePublisher,
             eventPublisher,
             BigDecimal.ZERO
         )

@@ -23,8 +23,8 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleSeatReserved(event: SeatReservedEvent) {
-        logger.debug { "Received SeatReservedEvent: ${event.seatIdentifier}" }
+    fun handleSeatClosed(event: SeatClosedEvent) {
+        logger.debug { "Received SeatClosedEvent: ${event.seatIdentifier}" }
 
         webhookService.notifySeatClosed(
             sessionId = event.sessionId,
@@ -37,8 +37,8 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleSeatReleased(event: SeatReleasedEvent) {
-        logger.debug { "Received SeatReleasedEvent: ${event.seatIdentifier}" }
+    fun handleSeatOpened(event: SeatOpenedEvent) {
+        logger.debug { "Received SeatOpenedEvent: ${event.seatIdentifier}" }
 
         webhookService.notifySeatOpened(
             sessionId = event.sessionId,
@@ -66,12 +66,12 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleTableReserved(event: TableReservedEvent) {
-        logger.debug { "Received TableReservedEvent: ${event.tableCode}" }
+    fun handleTableClosed(event: TableClosedEvent) {
+        logger.debug { "Received TableClosedEvent: ${event.tableIdentifier}" }
 
         webhookService.notifyTableClosed(
             sessionId = event.sessionId,
-            tableIdentifier = event.tableCode
+            tableIdentifier = event.tableIdentifier
         )
     }
 
@@ -80,12 +80,12 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleTableReleased(event: TableReleasedEvent) {
-        logger.debug { "Received TableReleasedEvent: ${event.tableCode}" }
+    fun handleTableOpened(event: TableOpenedEvent) {
+        logger.debug { "Received TableOpenedEvent: ${event.tableIdentifier}" }
 
         webhookService.notifyTableOpened(
             sessionId = event.sessionId,
-            tableIdentifier = event.tableCode
+            tableIdentifier = event.tableIdentifier
         )
     }
 }

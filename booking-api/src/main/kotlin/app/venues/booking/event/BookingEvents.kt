@@ -31,17 +31,23 @@ data class GAAvailabilityChangedEvent(
     val totalCapacity: Int
 )
 
-data class TableReservedEvent(
+data class SeatClosedEvent(
     val sessionId: UUID,
-    val tableId: Long,
-    val tableName: String,
-    val tableCode: String
+    val seatIdentifier: String
 )
 
-data class TableReleasedEvent(
+data class SeatOpenedEvent(
     val sessionId: UUID,
-    val tableId: Long,
-    val tableName: String,
-    val tableCode: String
+    val seatIdentifier: String
+)
+
+data class TableClosedEvent(
+    val sessionId: UUID,
+    val tableIdentifier: String
+)
+
+data class TableOpenedEvent(
+    val sessionId: UUID,
+    val tableIdentifier: String
 )
 

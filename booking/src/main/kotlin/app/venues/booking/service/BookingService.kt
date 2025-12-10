@@ -12,6 +12,7 @@ import app.venues.booking.service.model.BookingCreationContext
 import app.venues.booking.service.model.CartSnapshot
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
+import app.venues.seating.api.SeatingApi
 import app.venues.ticket.api.TicketApi
 import app.venues.user.api.UserApi
 import app.venues.venue.api.VenueApi
@@ -44,10 +45,12 @@ class BookingService(
     @Lazy private val directSalesService: DirectSalesService,
     private val userApi: UserApi,
     private val eventApi: EventApi,
+    private val seatingApi: SeatingApi,
     private val venueApi: VenueApi,
     private val ticketApi: TicketApi,
     private val bookingFulfillmentService: BookingFulfillmentService,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val inventoryChangePublisher: InventoryChangePublisher
 ) : BookingApi {
     private val logger = KotlinLogging.logger {}
 
@@ -450,6 +453,7 @@ class BookingService(
 
         // Finalize inventory (RESERVED -> SOLD)
         bookingFulfillmentService.finalizeBookingInventory(booking)
+        publishInventoryClosed(booking)
 
         // Generate tickets
         bookingFulfillmentService.generateTickets(savedBooking)
@@ -466,6 +470,35 @@ class BookingService(
         }
 
         return savedBooking
+    }
+
+    private fun publishInventoryClosed(booking: Booking) {
+        val seatIds = booking.items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            inventoryChangePublisher.seatsClosed(booking.sessionId, seatIds)
+        }
+
+        val tableIds = booking.items.mapNotNull { it.tableId }
+        if (tableIds.isNotEmpty()) {
+            inventoryChangePublisher.tablesClosed(booking.sessionId, tableIds)
+        }
+
+        val gaItems = booking.items.filter { it.gaAreaId != null }
+        gaItems.forEach { item ->
+            val gaAvailability = eventApi.getGaAvailability(booking.sessionId, item.gaAreaId!!)
+            val capacity = gaAvailability?.capacity ?: 0
+            val available = capacity - (gaAvailability?.soldCount ?: 0)
+            val gaInfo = seatingApi.getGaInfo(item.gaAreaId!!)
+            gaInfo?.let {
+                inventoryChangePublisher.gaAvailabilityChanged(
+                    sessionId = booking.sessionId,
+                    gaAreaId = item.gaAreaId!!,
+                    levelIdentifier = it.code,
+                    availableTickets = available,
+                    totalCapacity = capacity
+                )
+            }
+        }
     }
 
     /**

@@ -36,6 +36,7 @@ class DirectSalesService(
     private val venueApi: VenueApi,
     private val bookingResponseService: BookingResponseService,
     private val bookingFulfillmentService: BookingFulfillmentService,
+    private val inventoryChangePublisher: InventoryChangePublisher,
     private val eventPublisher: ApplicationEventPublisher,
     @Value("\${app.booking.service-fee-percent:0}")
     private val serviceFeePercent: BigDecimal
@@ -147,6 +148,7 @@ class DirectSalesService(
 
             // Finalize inventory (RESERVED -> SOLD) & Record tickets sold
             bookingFulfillmentService.finalizeBookingInventory(finalBooking)
+            publishInventoryClosed(finalBooking, reservedItems)
 
             // Generate tickets
             bookingFulfillmentService.generateTickets(finalBooking)
@@ -169,6 +171,34 @@ class DirectSalesService(
         }
 
         return bookingResponseService.prepareBookingResponse(finalBooking)
+    }
+
+    private fun publishInventoryClosed(booking: Booking, items: List<ReservedItem>) {
+        val seatIds = items.mapNotNull { it.seatId }
+        if (seatIds.isNotEmpty()) {
+            inventoryChangePublisher.seatsClosed(booking.sessionId, seatIds)
+        }
+
+        val tableIds = items.mapNotNull { it.tableId }
+        if (tableIds.isNotEmpty()) {
+            inventoryChangePublisher.tablesClosed(booking.sessionId, tableIds)
+        }
+
+        items.filter { it.gaAreaId != null }.forEach { item ->
+            val ga = seatingApi.getGaInfo(item.gaAreaId!!)
+            if (ga != null) {
+                val availability = eventApi.getGaAvailability(booking.sessionId, ga.id)
+                val capacity = availability?.capacity ?: 0
+                val available = capacity - (availability?.soldCount ?: 0)
+                inventoryChangePublisher.gaAvailabilityChanged(
+                    sessionId = booking.sessionId,
+                    gaAreaId = ga.id,
+                    levelIdentifier = ga.code,
+                    availableTickets = available,
+                    totalCapacity = capacity
+                )
+            }
+        }
     }
 
 

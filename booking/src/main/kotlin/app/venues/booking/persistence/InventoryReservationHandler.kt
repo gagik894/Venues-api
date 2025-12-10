@@ -1,7 +1,6 @@
 package app.venues.booking.persistence
 
-import app.venues.booking.event.GAAvailabilityChangedEvent
-import app.venues.booking.event.SeatReleasedEvent
+import app.venues.booking.service.InventoryChangePublisher
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
@@ -20,7 +19,8 @@ import java.util.*
 class InventoryReservationHandler(
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val inventoryChangePublisher: InventoryChangePublisher
 ) {
     private val logger = KotlinLogging.logger {}
     data class SeatReservationResult(
@@ -120,16 +120,9 @@ class InventoryReservationHandler(
         // Unblock tables containing this seat if all their seats are now available
         unblockTablesIfAllSeatsAvailable(sessionId, seatId)
 
-        // Publish seat released event
         val seatInfo = seatingApi.getSeatInfo(seatId)
-
         if (seatInfo != null) {
-            eventPublisher.publishEvent(
-                SeatReleasedEvent(
-                    sessionId = sessionId,
-                    seatIdentifier = seatInfo.code,
-                )
-            )
+            inventoryChangePublisher.seatsOpened(sessionId, listOf(seatId))
         }
     }
 
@@ -140,22 +133,16 @@ class InventoryReservationHandler(
         eventApi.releaseGa(sessionId, gaAreaId, quantity)
 
         // Publish GA availability changed event
-        val gaInfo = seatingApi.getGaInfo(gaAreaId)
-        if (gaInfo != null) {
-            // Fetch actual GA availability from EventApi before publishing event.
-            val gaAvailability = eventApi.getGaAvailability(sessionId, gaAreaId)
-            if (gaAvailability != null) {
-                eventPublisher.publishEvent(
-                    GAAvailabilityChangedEvent(
-                        sessionId = sessionId,
-                        levelIdentifier = gaInfo.code,
-                        levelName = gaInfo.name,
-                        availableTickets = gaAvailability.capacity - gaAvailability.soldCount,
-                        totalCapacity = gaAvailability.capacity
-                    )
-                )
-            }
-        }
+        val gaInfo = seatingApi.getGaInfo(gaAreaId) ?: return
+        val gaAvailability = eventApi.getGaAvailability(sessionId, gaAreaId) ?: return
+
+        inventoryChangePublisher.gaAvailabilityChanged(
+            sessionId = sessionId,
+            gaAreaId = gaAreaId,
+            levelIdentifier = gaInfo.code,
+            availableTickets = gaAvailability.capacity - gaAvailability.soldCount,
+            totalCapacity = gaAvailability.capacity
+        )
     }
 
     /**
@@ -175,8 +162,8 @@ class InventoryReservationHandler(
 
         logger.info { "Batch released ${seatIds.size} seats for session $sessionId" }
 
-        // Note: Individual seat released events not published for batch operations
-        // to avoid event storm. Consider aggregate event if needed.
+        val releasedSeats = seatingApi.getSeatInfoBatch(seatIds)
+        inventoryChangePublisher.seatsOpened(sessionId, releasedSeats.map { it.id })
     }
 
     /**

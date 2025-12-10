@@ -1,8 +1,8 @@
 package app.venues.platform.webhook
 
 import app.venues.booking.event.GAAvailabilityChangedEvent
-import app.venues.booking.event.SeatReservedEvent
-import app.venues.booking.event.TableReleasedEvent
+import app.venues.booking.event.SeatClosedEvent
+import app.venues.booking.event.TableOpenedEvent
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
@@ -14,9 +14,9 @@ class BookingEventListenerTest {
     private val listener = BookingEventListener(webhookService)
 
     @Test
-    fun `seat reserved maps to notifySeatReserved`() {
+    fun `seat closed maps to notifySeatClosed`() {
         val sessionId = UUID.randomUUID()
-        listener.handleSeatReserved(SeatReservedEvent(sessionId, "A1"))
+        listener.handleSeatClosed(SeatClosedEvent(sessionId, "A1"))
 
         verify { webhookService.notifySeatClosed(sessionId, "A1") }
     }
@@ -38,14 +38,12 @@ class BookingEventListenerTest {
     }
 
     @Test
-    fun `table released maps to notifyTableReleased without name`() {
+    fun `table opened maps to notifyTableOpened without name`() {
         val sessionId = UUID.randomUUID()
-        listener.handleTableReleased(
-            TableReleasedEvent(
+        listener.handleTableOpened(
+            TableOpenedEvent(
                 sessionId = sessionId,
-                tableId = 1L,
-                tableName = "ignored-name",
-                tableCode = "T1"
+                tableIdentifier = "T1"
             )
         )
 

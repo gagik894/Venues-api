@@ -3,11 +3,9 @@ package app.venues.booking.persistence
 import app.venues.booking.domain.Cart
 import app.venues.booking.domain.CartItem
 import app.venues.booking.domain.CartSeat
-import app.venues.booking.event.GAAvailabilityChangedEvent
-import app.venues.booking.event.SeatReleasedEvent
-import app.venues.booking.event.SeatReservedEvent
 import app.venues.booking.repository.CartItemRepository
 import app.venues.booking.repository.CartSeatRepository
+import app.venues.booking.service.InventoryChangePublisher
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
@@ -27,7 +25,8 @@ class CartItemPersistence(
     private val cartItemRepository: CartItemRepository,
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val inventoryChangePublisher: InventoryChangePublisher
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -52,14 +51,7 @@ class CartItemPersistence(
 
         logger.info { "Seat added to cart: $seatIdentifier, price=$price, cart=${cart.token}" }
 
-        eventPublisher.publishEvent(
-            SeatReservedEvent(
-                sessionId = sessionId,
-                seatIdentifier = seatIdentifier,
-//                reservationToken = cart.token,
-//                expiresAt = cart.expiresAt.toString()
-            )
-        )
+        inventoryChangePublisher.seatsClosed(sessionId, listOf(seatId))
 
         return saved
     }
@@ -164,12 +156,7 @@ class CartItemPersistence(
 
         logger.info { "Seat removed from cart: $seatIdentifier, cart=${cart.token}" }
 
-        eventPublisher.publishEvent(
-            SeatReleasedEvent(
-                sessionId = sessionId,
-                seatIdentifier = seatIdentifier
-            )
-        )
+        inventoryChangePublisher.seatsOpened(sessionId, listOf(seatId))
     }
 
     fun getAllSeats(cart: Cart): List<CartSeat> = cartSeatRepository.findByCart(cart)
@@ -198,14 +185,12 @@ class CartItemPersistence(
         val capacity = gaAvailability?.capacity ?: 0
         val availableTickets = capacity - (gaAvailability?.soldCount ?: 0)
 
-        eventPublisher.publishEvent(
-            GAAvailabilityChangedEvent(
-                sessionId = sessionId,
-                levelIdentifier = levelIdentifier,
-                levelName = levelName,
-                availableTickets = availableTickets,
-                totalCapacity = capacity
-            )
+        inventoryChangePublisher.gaAvailabilityChanged(
+            sessionId = sessionId,
+            gaAreaId = gaAreaId,
+            levelIdentifier = levelIdentifier,
+            availableTickets = availableTickets,
+            totalCapacity = capacity
         )
     }
 }

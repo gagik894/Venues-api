@@ -94,6 +94,7 @@ class ChartStructureService(
             width = chart.width,
             height = chart.height,
             backgroundUrl = chart.backgroundUrl,
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson)?.toDto(),
             zones = zoneStructures,
             landmarks = landmarks
         )
@@ -205,4 +206,7 @@ class ChartStructureService(
             iconKey = landmark.iconKey
         )
     }
+
+    private fun app.venues.seating.model.BackgroundTransform.toDto(): BackgroundTransformDto =
+        BackgroundTransformDto(x = x, y = y, scale = scale, opacity = opacity)
 }

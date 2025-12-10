@@ -160,6 +160,7 @@ class SeatingServiceTest {
             width = 2000,
             height = 2000,
             backgroundUrl = "bg.png",
+            backgroundTransform = null,
             rootZones = emptyList(),
             createdAt = "now",
             updatedAt = "now"
@@ -257,6 +258,7 @@ class SeatingServiceTest {
             width = 2000,
             height = 2000,
             backgroundUrl = null,
+            backgroundTransform = null,
             rootZones = emptyList(),
             createdAt = "now",
             updatedAt = "now"

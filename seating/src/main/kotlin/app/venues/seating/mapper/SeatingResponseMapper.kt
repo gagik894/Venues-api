@@ -41,6 +41,7 @@ class SeatingResponseMapper {
             width = chart.width,
             height = chart.height,
             backgroundUrl = chart.backgroundUrl,
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson),
             totalCapacity = seatCount + gaCapacity,
             zoneCount = zoneCount,
             seatCount = seatCount,
@@ -69,6 +70,7 @@ class SeatingResponseMapper {
             width = chart.width,
             height = chart.height,
             backgroundUrl = chart.backgroundUrl,
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson),
             rootZones = rootZones,
             createdAt = chart.createdAt.toString(),
             updatedAt = chart.lastModifiedAt.toString()

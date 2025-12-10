@@ -3,6 +3,7 @@ package app.venues.seating.service
 import app.venues.common.exception.VenuesException
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.*
+import app.venues.seating.domain.BackgroundTransformMapper
 import app.venues.seating.repository.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.MessageSource
@@ -36,7 +37,9 @@ class SeatingPortService(
             venueId = chart.venueId,
             chartName = chart.name,
             width = chart.width,
-            height = chart.height
+            height = chart.height,
+            backgroundUrl = chart.backgroundUrl,
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson)?.toDto()
         )
     }
 
@@ -133,6 +136,8 @@ class SeatingPortService(
             chartName = chart.name,
             width = chart.width,
             height = chart.height,
+            backgroundUrl = chart.backgroundUrl,
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson)?.toDto(),
             zones = zoneDtos,
             tables = tableDtos,
             seats = seatDtos,
@@ -380,4 +385,7 @@ class SeatingPortService(
             key
         }
     }
+
+    private fun app.venues.seating.model.BackgroundTransform.toDto(): BackgroundTransformDto =
+        BackgroundTransformDto(x = x, y = y, scale = scale, opacity = opacity)
 }

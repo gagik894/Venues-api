@@ -58,7 +58,8 @@ class SeatingService(
             name = request.name,
             width = request.width,
             height = request.height,
-            backgroundUrl = request.backgroundUrl
+            backgroundUrl = request.backgroundUrl,
+            backgroundTransformJson = BackgroundTransformMapper.toJson(request.backgroundTransform)
         )
 
         val saved = seatingChartRepository.save(chart)
@@ -88,7 +89,8 @@ class SeatingService(
             name = request.chart.name,
             width = request.chart.width,
             height = request.chart.height,
-            backgroundUrl = request.chart.backgroundUrl
+            backgroundUrl = request.chart.backgroundUrl,
+            backgroundTransformJson = BackgroundTransformMapper.toJson(request.chart.backgroundTransform)
         )
 
         val saved = seatingChartRepository.save(chart)
@@ -121,6 +123,7 @@ class SeatingService(
         chart.name = request.name
         chart.resizeCanvas(request.width, request.height)
         chart.backgroundUrl = request.backgroundUrl
+        chart.backgroundTransformJson = BackgroundTransformMapper.toJson(request.backgroundTransform)
 
         val saved = seatingChartRepository.save(chart)
         val stats = calculateChartStats(chartId)
@@ -387,7 +390,8 @@ class SeatingService(
             width = source.width,
             height = source.height,
             backgroundUrl = request.backgroundUrl ?: source.backgroundUrl,
-            styleConfigJson = source.styleConfigJson
+            styleConfigJson = source.styleConfigJson,
+            backgroundTransformJson = source.backgroundTransformJson
         )
 
         // Clone zones (two-pass to wire hierarchy)

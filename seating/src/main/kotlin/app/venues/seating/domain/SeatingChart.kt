@@ -46,7 +46,10 @@ class SeatingChart(
     var backgroundUrl: String? = null,
 
     @Column(name = "style_config_json", columnDefinition = "TEXT")
-    var styleConfigJson: String? = null
+    var styleConfigJson: String? = null,
+
+    @Column(name = "background_transform_json", columnDefinition = "TEXT")
+    var backgroundTransformJson: String? = null
 
 ) : AbstractUuidEntity() {
 

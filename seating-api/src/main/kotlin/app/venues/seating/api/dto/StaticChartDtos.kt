@@ -20,6 +20,7 @@ data class StaticChartStructureResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
+    val backgroundTransform: BackgroundTransformDto?,
 
     /**
      * Root zones containing the recursive hierarchy.
@@ -143,4 +144,14 @@ data class LandmarkDto(
     // Complex shape definition (optional)
     val boundaryPath: String?,
     val iconKey: String?
+)
+
+/**
+ * Background transform for rendering the chart image.
+ */
+data class BackgroundTransformDto(
+    val x: Double,
+    val y: Double,
+    val scale: Double,
+    val opacity: Double
 )

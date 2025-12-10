@@ -26,7 +26,12 @@ data class SeatingChartRequest(
     val height: Int = 2000,
 
     @field:Size(max = 500, message = "Background URL must not exceed 500 characters")
-    val backgroundUrl: String? = null
+    val backgroundUrl: String? = null,
+
+    /**
+     * Optional transform to position/scale a background image.
+     */
+    val backgroundTransform: BackgroundTransform? = null
 )
 
 data class SeatingChartOverviewResponse(
@@ -42,6 +47,7 @@ data class SeatingChartResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
+    val backgroundTransform: BackgroundTransform?,
     val totalCapacity: Int,
     val zoneCount: Int,
     val seatCount: Int,
@@ -56,6 +62,7 @@ data class SeatingChartDetailedResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
+    val backgroundTransform: BackgroundTransform?,
     val rootZones: List<ZoneResponse>,
     val createdAt: String,
     val updatedAt: String
@@ -131,5 +138,15 @@ data class GaAreaResponse(
     val categoryKey: String,
     val boundaryPath: String?,
     val displayColor: String?
+)
+
+/**
+ * Optional background transform for chart rendering.
+ */
+data class BackgroundTransform(
+    val x: Double,
+    val y: Double,
+    val scale: Double,
+    val opacity: Double
 )
 

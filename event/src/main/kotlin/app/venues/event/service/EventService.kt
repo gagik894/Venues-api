@@ -332,7 +332,8 @@ class EventService(
             event.markAsDeleted()
             eventRepository.save(event)
         } else {
-            // Hard delete
+            // Hard delete - clean up subscriptions
+            platformSubscriptionApi.updateEventSubscriptions(eventId, emptyList())
             eventRepository.delete(event)
             logger.info { "Event hard deleted successfully: $eventId" }
         }

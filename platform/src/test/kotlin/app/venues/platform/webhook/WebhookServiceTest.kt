@@ -1,11 +1,14 @@
 package app.venues.platform.webhook
 
+import app.venues.event.api.EventApi
+import app.venues.event.api.dto.EventSessionDto
 import app.venues.platform.api.dto.SeatClosedPayload
 import app.venues.platform.api.dto.TableClosedPayload
 import app.venues.platform.domain.Platform
 import app.venues.platform.domain.WebhookEvent
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
+import app.venues.platform.repository.WebhookSubscriptionRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.clearAllMocks
 import io.mockk.every
@@ -27,6 +30,8 @@ class WebhookServiceTest {
     private lateinit var webhookService: WebhookService
     private val platformRepository: PlatformRepository = mockk()
     private val webhookEventRepository: WebhookEventRepository = mockk()
+    private val webhookSubscriptionRepository: WebhookSubscriptionRepository = mockk()
+    private val eventApi: EventApi = mockk()
     private val webClient: WebClient = mockk()
     private val objectMapper = ObjectMapper()
     private lateinit var requestSpec: WebClient.RequestBodyUriSpec
@@ -60,10 +65,12 @@ class WebhookServiceTest {
         every { responseSpec.toBodilessEntity() } returns Mono.just(mockk(relaxed = true))
 
         webhookService = WebhookService(
-            platformRepository,
-            webhookEventRepository,
-            webClient,
-            objectMapper
+            platformRepository = platformRepository,
+            webhookEventRepository = webhookEventRepository,
+            webhookSubscriptionRepository = webhookSubscriptionRepository,
+            eventApi = eventApi,
+            webClient = webClient,
+            objectMapper = objectMapper
         )
     }
 
@@ -75,8 +82,25 @@ class WebhookServiceTest {
             seatIdentifier = "A1"
         )
 
+        val sessionId = payload.sessionId
+        val eventId = UUID.randomUUID()
+
+        every { eventApi.getEventSessionInfo(sessionId) } returns EventSessionDto(
+            sessionId = sessionId,
+            eventId = eventId,
+            venueId = UUID.randomUUID(),
+            eventTitle = "t",
+            eventDescription = null,
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(3600)
+        )
+        every { webhookSubscriptionRepository.findByEventId(eventId) } returns listOf(
+            app.venues.platform.domain.WebhookSubscription(platformId = platformId, eventId = eventId)
+        )
         every {
-            platformRepository.findByStatusAndWebhookEnabled(
+            platformRepository.findByIdInAndStatusAndWebhookEnabled(
+                ids = listOf(platformId),
                 status = any(),
                 webhookEnabled = true
             )
@@ -102,8 +126,25 @@ class WebhookServiceTest {
             tableIdentifier = "T1"
         )
 
+        val sessionId = payload.sessionId
+        val eventId = UUID.randomUUID()
+
+        every { eventApi.getEventSessionInfo(sessionId) } returns EventSessionDto(
+            sessionId = sessionId,
+            eventId = eventId,
+            venueId = UUID.randomUUID(),
+            eventTitle = "t",
+            eventDescription = null,
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(3600)
+        )
+        every { webhookSubscriptionRepository.findByEventId(eventId) } returns listOf(
+            app.venues.platform.domain.WebhookSubscription(platformId = platformId, eventId = eventId)
+        )
         every {
-            platformRepository.findByStatusAndWebhookEnabled(
+            platformRepository.findByIdInAndStatusAndWebhookEnabled(
+                ids = listOf(platformId),
                 status = any(),
                 webhookEnabled = true
             )

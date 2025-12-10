@@ -8,6 +8,8 @@ import app.venues.event.domain.SessionStatus
 import app.venues.event.service.EventPricingService
 import app.venues.event.service.EventService
 import app.venues.event.service.EventStatusService
+import app.venues.platform.api.AvailablePlatformDto
+import app.venues.platform.api.PlatformSubscriptionApi
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
@@ -48,7 +50,8 @@ class VenueEventController(
     private val venueSecurityService: VenueSecurityService,
     private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val platformSubscriptionApi: PlatformSubscriptionApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -111,9 +114,17 @@ class VenueEventController(
         val event = eventService.getEventForVenueStaff(eventId, venueId)
         val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+        val subscribedPlatforms = platformSubscriptionApi.getEventSubscriptions(event.id)
 
         return ApiResponse.success(
-            data = eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = language),
+            data = eventMapper.toResponse(
+                event = event,
+                venueName = venueName,
+                seatingChartName = seatingChartName,
+                includeStats = true,
+                language = language,
+                subscribedPlatformIds = subscribedPlatforms
+            ),
             message = "Event retrieved successfully"
         )
     }
@@ -143,9 +154,15 @@ class VenueEventController(
 
         val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+        val subscribedPlatforms = platformSubscriptionApi.getEventSubscriptions(event.id)
 
         return ApiResponse.success(
-            data = eventMapper.toResponse(event, venueName, seatingChartName),
+            data = eventMapper.toResponse(
+                event = event,
+                venueName = venueName,
+                seatingChartName = seatingChartName,
+                subscribedPlatformIds = subscribedPlatforms
+            ),
             message = "Event created successfully"
         )
     }
@@ -177,9 +194,15 @@ class VenueEventController(
 
         val venueName = venueApi.getVenueName(venueId)
         val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+        val subscribedPlatforms = platformSubscriptionApi.getEventSubscriptions(event.id)
 
         return ApiResponse.success(
-            data = eventMapper.toResponse(event, venueName, seatingChartName),
+            data = eventMapper.toResponse(
+                event = event,
+                venueName = venueName,
+                seatingChartName = seatingChartName,
+                subscribedPlatformIds = subscribedPlatforms
+            ),
             message = "Event updated successfully"
         )
     }
@@ -538,5 +561,22 @@ class VenueEventController(
             data = allowedTransitions.toList(),
             message = "Allowed transitions retrieved"
         )
+    }
+
+    /**
+     * List active platforms available for subscription (for UI selection).
+     */
+    @GetMapping("/platforms")
+    @Operation(
+        summary = "List available platforms",
+        description = "Returns active platforms that can be subscribed to events."
+    )
+    fun listAvailablePlatforms(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<List<AvailablePlatformDto>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val platforms = platformSubscriptionApi.getAvailablePlatforms()
+        return ApiResponse.success(platforms, "Platforms retrieved")
     }
 }

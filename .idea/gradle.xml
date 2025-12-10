@@ -23,6 +23,7 @@
             <option value="$PROJECT_DIR$/payment" />
             <option value="$PROJECT_DIR$/payment-api" />
             <option value="$PROJECT_DIR$/platform" />
+            <option value="$PROJECT_DIR$/platform-api" />
             <option value="$PROJECT_DIR$/seating" />
             <option value="$PROJECT_DIR$/seating-api" />
             <option value="$PROJECT_DIR$/shared" />

@@ -10,6 +10,7 @@ import app.venues.event.domain.EventTranslation
 import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
+import app.venues.platform.api.PlatformSubscriptionApi
 import app.venues.seating.api.SeatingApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -45,7 +46,8 @@ class EventService(
     private val seatingApi: SeatingApi,
     private val imageStorageService: ImageStorageService,
     private val eventMapper: EventMapper,
-    private val eventRevalidationService: EventRevalidationService
+    private val eventRevalidationService: EventRevalidationService,
+    private val platformSubscriptionApi: PlatformSubscriptionApi
 ) {
     private val logger = KotlinLogging.logger {}
     private val staffVisibleStatuses: Set<EventStatus> =
@@ -144,7 +146,8 @@ class EventService(
 
         // Generate configs for sessions now that event is saved
         eventSessionService.generateConfigsForNewSessions(savedEvent)
-        
+        platformSubscriptionApi.updateEventSubscriptions(savedEvent.id, request.subscribedPlatformIds)
+
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
         return savedEvent
@@ -291,11 +294,16 @@ class EventService(
         eventSessionService.generateConfigsForNewSessions(savedEvent)
 
         eventRevalidationService.onEventUpdated(savedEvent, includeDetail = true, reason = "event-updated")
+        platformSubscriptionApi.updateEventSubscriptions(savedEvent.id, request.subscribedPlatformIds)
         
         logger.info { "Event updated successfully: $eventId" }
 
         return savedEvent
     }
+
+    @Transactional(readOnly = true)
+    fun getPlatformSubscriptions(eventId: UUID): List<UUID> =
+        platformSubscriptionApi.getEventSubscriptions(eventId)
 
     /**
      * Delete event.

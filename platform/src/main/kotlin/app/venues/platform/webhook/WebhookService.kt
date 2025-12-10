@@ -1,11 +1,14 @@
 package app.venues.platform.webhook
 
+import app.venues.event.api.EventApi
 import app.venues.platform.api.dto.*
 import app.venues.platform.domain.Platform
+import app.venues.platform.domain.PlatformStatus
 import app.venues.platform.domain.WebhookEvent
 import app.venues.platform.domain.WebhookEventType
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
+import app.venues.platform.repository.WebhookSubscriptionRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.beans.factory.annotation.Qualifier
@@ -27,7 +30,7 @@ import javax.crypto.spec.SecretKeySpec
  * Service for sending webhook callbacks to platforms.
  *
  * Handles:
- * - Sending webhook notifications to all active platforms
+ * - Sending webhook notifications to subscribed active platforms
  * - HMAC signature generation for security
  * - Retry logic with exponential backoff
  * - Webhook event logging and tracking
@@ -37,6 +40,8 @@ import javax.crypto.spec.SecretKeySpec
 class WebhookService(
     private val platformRepository: PlatformRepository,
     private val webhookEventRepository: WebhookEventRepository,
+    private val webhookSubscriptionRepository: WebhookSubscriptionRepository,
+    private val eventApi: EventApi,
     @Qualifier("webhookWebClient") private val webClient: WebClient,
     private val objectMapper: ObjectMapper
 ) {
@@ -55,7 +60,7 @@ class WebhookService(
     // ===========================================
 
     /**
-     * Notify all platforms about seat reservation
+     * Notify subscribed platforms about seat reservation
      */
     @Async
     fun notifySeatClosed(
@@ -70,7 +75,7 @@ class WebhookService(
             seatIdentifier = seatIdentifier,
         )
 
-        sendToAllPlatforms(
+        sendToSubscribers(
             eventType = WebhookEventType.SEAT_CLOSED,
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
@@ -79,7 +84,7 @@ class WebhookService(
     }
 
     /**
-     * Notify all platforms about seat release
+     * Notify subscribed platforms about seat release
      */
     @Async
     fun notifySeatOpened(
@@ -94,7 +99,7 @@ class WebhookService(
             seatIdentifier = seatIdentifier,
         )
 
-        sendToAllPlatforms(
+        sendToSubscribers(
             eventType = WebhookEventType.SEAT_OPENED,
             sessionId = sessionId,
             seatIdentifier = seatIdentifier,
@@ -103,7 +108,7 @@ class WebhookService(
     }
 
     /**
-     * Notify all platforms about GA availability change
+     * Notify subscribed platforms about GA availability change
      */
     @Async
     fun notifyGAAvailabilityChanged(
@@ -120,7 +125,7 @@ class WebhookService(
             availableTickets = availableTickets
         )
 
-        sendToAllPlatforms(
+        sendToSubscribers(
             eventType = WebhookEventType.GA_AVAILABILITY_CHANGED,
             sessionId = sessionId,
             levelIdentifier = levelIdentifier,
@@ -129,7 +134,7 @@ class WebhookService(
     }
 
     /**
-     * Notify all platforms about table reservation
+     * Notify subscribed platforms about table reservation
      */
     @Async
     fun notifyTableClosed(
@@ -144,7 +149,7 @@ class WebhookService(
             tableIdentifier = tableIdentifier
         )
 
-        sendToAllPlatforms(
+        sendToSubscribers(
             eventType = WebhookEventType.TABLE_CLOSED,
             sessionId = sessionId,
             tableIdentifier = tableIdentifier,
@@ -153,7 +158,7 @@ class WebhookService(
     }
 
     /**
-     * Notify all platforms about table release
+     * Notify subscribed platforms about table release
      */
     @Async
     fun notifyTableOpened(
@@ -168,7 +173,7 @@ class WebhookService(
             tableIdentifier = tableIdentifier
         )
 
-        sendToAllPlatforms(
+        sendToSubscribers(
             eventType = WebhookEventType.TABLE_OPENED,
             sessionId = sessionId,
             tableIdentifier = tableIdentifier,
@@ -181,9 +186,9 @@ class WebhookService(
     // ===========================================
 
     /**
-     * Send webhook to all active platforms
+     * Send webhook to subscribed active platforms
      */
-    private fun sendToAllPlatforms(
+    private fun sendToSubscribers(
         eventType: WebhookEventType,
         sessionId: UUID,
         seatIdentifier: String? = null,
@@ -191,12 +196,26 @@ class WebhookService(
         tableIdentifier: String? = null,
         payload: WebhookPayload
     ) {
-        val platforms = platformRepository.findByStatusAndWebhookEnabled(
-            status = app.venues.platform.domain.PlatformStatus.ACTIVE,
+        val sessionInfo = eventApi.getEventSessionInfo(sessionId)
+        if (sessionInfo == null) {
+            logger.warn { "Could not find session info for session $sessionId. Skipping webhook broadcast." }
+            return
+        }
+
+        val subscriptions = webhookSubscriptionRepository.findByEventId(sessionInfo.eventId)
+        if (subscriptions.isEmpty()) {
+            logger.debug { "No subscriptions found for event ${sessionInfo.eventId} (session $sessionId)" }
+            return
+        }
+
+        val platformIds = subscriptions.map { it.platformId }
+        val platforms = platformRepository.findByIdInAndStatusAndWebhookEnabled(
+            ids = platformIds,
+            status = PlatformStatus.ACTIVE,
             webhookEnabled = true
         )
 
-        logger.info { "Sending webhook to ${platforms.size} platforms: $eventType" }
+        logger.info { "Sending webhook to ${platforms.size} subscribers for event ${sessionInfo.eventId}: $eventType" }
 
         platforms.forEach { platform ->
             try {
@@ -379,4 +398,3 @@ class WebhookService(
         deliverWebhook(event, platform, event.payload)
     }
 }
-

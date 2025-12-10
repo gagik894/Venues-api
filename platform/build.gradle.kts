@@ -30,6 +30,7 @@ dependencyManagement {
 dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
+    api(project(":platform-api"))
 
     // Module dependencies (API-only for hexagonal boundaries)
     api(project(":booking-api"))

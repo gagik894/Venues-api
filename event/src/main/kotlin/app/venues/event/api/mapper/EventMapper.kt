@@ -4,6 +4,7 @@ import app.venues.event.api.dto.*
 import app.venues.event.domain.*
 import app.venues.shared.money.toMoney
 import org.springframework.stereotype.Component
+import java.util.*
 
 /**
  * Mapper for converting between Event entities and DTOs.
@@ -27,7 +28,8 @@ class EventMapper {
         venueName: String,
         seatingChartName: String? = null,
         includeStats: Boolean = false,
-        language: String? = null
+        language: String? = null,
+        subscribedPlatformIds: List<UUID> = emptyList()
     ): EventResponse {
         // Apply event translation if requested language exists
         val translation = language?.let { lang ->
@@ -61,7 +63,8 @@ class EventMapper {
             sessions = event.sessions.map { toSessionResponse(it) },
             sessionCount = if (includeStats) event.sessions.size else null,
             upcomingSessionCount = if (includeStats) event.sessions.count { it.status == SessionStatus.ON_SALE } else null,
-            priceTemplates = event.priceTemplates.map { toPriceTemplateResponse(it) }
+            priceTemplates = event.priceTemplates.map { toPriceTemplateResponse(it) },
+            subscribedPlatformIds = subscribedPlatformIds
         )
     }
 

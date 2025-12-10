@@ -30,6 +30,7 @@ dependencyManagement {
 dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
+    api(project(":platform-api"))
 
     // API Contract Modules - depend on interfaces, not implementations
     // This enforces Hexagonal Architecture boundaries

@@ -47,7 +47,13 @@ data class EventRequest(
 
     val sessions: List<EventSessionRequest> = emptyList(),
 
-    val translations: List<EventTranslationRequest> = emptyList()
+    val translations: List<EventTranslationRequest> = emptyList(),
+
+    /**
+     * Platforms to subscribe for webhook notifications for this event.
+     * Empty list means no external platform will receive updates.
+     */
+    val subscribedPlatformIds: List<UUID> = emptyList()
 )
 
 /**
@@ -79,7 +85,9 @@ data class EventResponse(
     val sessionCount: Int? = null,
     val upcomingSessionCount: Int? = null,
     // Price Templates
-    val priceTemplates: List<PriceTemplateResponse> = emptyList()
+    val priceTemplates: List<PriceTemplateResponse> = emptyList(),
+    // Platform subscriptions (for staff editing)
+    val subscribedPlatformIds: List<UUID> = emptyList()
 )
 
 /**

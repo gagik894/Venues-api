@@ -7,6 +7,7 @@ import app.venues.staff.domain.StaffMembership
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.domain.StaffVenuePermission
 import app.venues.staff.repository.StaffIdentityRepository
+import app.venues.staff.repository.StaffVenuePermissionRepository
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.data.domain.Page
@@ -29,6 +30,7 @@ import java.util.*
 class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
     private val staffContextBuilder: StaffContextBuilder,
+    private val venuePermissionRepository: StaffVenuePermissionRepository,
     private val venueApi: VenueApi
 ) {
     private val logger = KotlinLogging.logger {}
@@ -247,21 +249,16 @@ class StaffManagementService(
             ?: throw VenuesException.ResourceNotFound("Venue not found", "VENUE_NOT_FOUND")
         enforceOrgAdmin(actorId, orgId)
 
-        val staffWithPerms = staffRepository.findAllByVenueId(venueId, pageable)
-        val data = staffWithPerms.content.flatMap { staff ->
-            staff.memberships.flatMap { m ->
-                m.venuePermissions
-                    .filter { it.venueId == venueId }
-                    .map {
-                        VenuePermissionDto(
-                            staffId = staff.id!!,
-                            staffEmail = staff.email,
-                            role = it.role
-                        )
-                    }
-            }
+        val permissionsPage = venuePermissionRepository.findByVenueId(venueId, pageable)
+        val data = permissionsPage.content.map { perm ->
+            val staff = perm.membership.staff
+            VenuePermissionDto(
+                staffId = staff.id!!,
+                staffEmail = staff.email,
+                role = perm.role
+            )
         }
-        return PageImpl(data, pageable, staffWithPerms.totalElements)
+        return PageImpl(data, pageable, permissionsPage.totalElements)
     }
 
     private fun toListItem(

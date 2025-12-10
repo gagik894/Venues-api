@@ -1,18 +1,16 @@
 package app.venues.location.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.location.api.dto.*
+import app.venues.location.api.dto.CityCompact
+import app.venues.location.api.dto.CityResponse
+import app.venues.location.api.dto.RegionResponse
 import app.venues.location.service.LocationService
 import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.http.HttpStatus
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 
 /**
@@ -243,131 +241,5 @@ class LocationController(
         )
     }
 
-    // ===========================================
-    // ADMIN REGION ENDPOINTS
-    // ===========================================
-
-    /**
-     * Get all regions (including inactive) for admin purposes.
-     *
-     * @return List of all regions
-     */
-    @GetMapping("/admin/regions")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Get all regions (admin)",
-        description = "Returns all regions including inactive ones (admin only)"
-    )
-    fun getAllRegionsAdmin(): ApiResponse<List<RegionResponse>> {
-        logger.debug { "GET /api/v1/locations/admin/regions (admin)" }
-        val regions = locationService.getAllRegions()
-        return ApiResponse.success(
-            data = regions,
-            message = "All regions retrieved successfully"
-        )
-    }
-
-    /**
-     * Create a new region (admin only).
-     *
-     * @param request Region creation data
-     * @return Created region
-     */
-    @PostMapping("/admin/regions")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create region (admin)",
-        description = "Create a new administrative region (admin only)"
-    )
-    fun createRegion(@Valid @RequestBody request: CreateRegionRequest): ApiResponse<RegionResponse> {
-        logger.info { "POST /api/v1/locations/admin/regions (admin)" }
-        val region = locationService.createRegion(request)
-        return ApiResponse.success(
-            data = region,
-            message = "Region created successfully"
-        )
-    }
-
-    /**
-     * Update an existing region (admin only).
-     *
-     * @param id Region ID
-     * @param request Update data
-     * @return Updated region
-     */
-    @PutMapping("/admin/regions/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Update region (admin)",
-        description = "Update an existing region (admin only)"
-    )
-    fun updateRegion(
-        @PathVariable code: String,
-        @Valid @RequestBody request: UpdateRegionRequest
-    ): ApiResponse<RegionResponse> {
-        logger.info { "PUT /api/v1/locations/admin/regions/$code (admin)" }
-        val region = locationService.updateRegion(code, request)
-        return ApiResponse.success(
-            data = region,
-            message = "Region updated successfully"
-        )
-    }
-
-    // ===========================================
-    // ADMIN CITY ENDPOINTS
-    // ===========================================
-
-    /**
-     * Create a new city (admin only).
-     *
-     * @param request City creation data
-     * @return Created city
-     */
-    @PostMapping("/admin/cities")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create city (admin)",
-        description = "Create a new city (admin only)"
-    )
-    fun createCity(@Valid @RequestBody request: CreateCityRequest): ApiResponse<CityResponse> {
-        logger.info { "POST /api/v1/locations/admin/cities (admin)" }
-        val city = locationService.createCity(request)
-        return ApiResponse.success(
-            data = city,
-            message = "City created successfully"
-        )
-    }
-
-    /**
-     * Update an existing city (admin only).
-     *
-     * @param id City ID
-     * @param request Update data
-     * @return Updated city
-     */
-    @PutMapping("/admin/cities/{slug}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Update city (admin)",
-        description = "Update an existing city (admin only)"
-    )
-    fun updateCity(
-        @PathVariable slug: String,
-        @Valid @RequestBody request: UpdateCityRequest
-    ): ApiResponse<CityResponse> {
-        logger.info { "PUT /api/v1/locations/admin/cities/$slug (admin)" }
-        val city = locationService.updateCity(slug, request)
-        return ApiResponse.success(
-            data = city,
-            message = "City updated successfully"
-        )
-    }
 }
 

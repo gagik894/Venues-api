@@ -9,6 +9,7 @@ import app.venues.platform.domain.WebhookEventType
 import app.venues.platform.repository.PlatformRepository
 import app.venues.platform.repository.WebhookEventRepository
 import app.venues.platform.repository.WebhookSubscriptionRepository
+import app.venues.shared.persistence.util.PageableMapper
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.beans.factory.annotation.Qualifier
@@ -355,10 +356,11 @@ class WebhookService(
         logger.debug { "Checking for webhooks to retry..." }
 
         val now = Instant.now()
+        val pageable = PageableMapper.createPageableUnsorted(limit = 100, offset = 0)
         val pendingWebhooks = webhookEventRepository.findPendingRetries(
             now = now,
             maxAttempts = WebhookEvent.MAX_RETRY_ATTEMPTS,
-            pageable = org.springframework.data.domain.PageRequest.of(0, 100)
+            pageable = pageable
         )
 
         logger.info { "Found ${pendingWebhooks.totalElements} webhooks to retry" }

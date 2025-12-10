@@ -163,8 +163,7 @@ data class ApiResponse<T>(
     val success: Boolean = true,
     val message: String = "Operation completed successfully",
     val data: T? = null,
-    val timestamp: String,
-    val metadata: ResponseMetadata? = null
+    val timestamp: String
 )
 ```
 

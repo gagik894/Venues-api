@@ -1,12 +1,14 @@
 package app.venues.staff.api.controller
 
 import app.venues.common.model.ApiResponse
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.staff.api.dto.*
 import app.venues.staff.service.StaffManagementService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -100,9 +102,10 @@ class StaffAdminController(
     fun listStaff(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
-    ): ApiResponse<List<StaffListItemDto>> {
-        val (items, metadata) = managementService.listAllStaff(limit, offset)
-        return ApiResponse.success(items, "Staff listed", metadata)
+    ): ApiResponse<Page<StaffListItemDto>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val items = managementService.listAllStaff(pageable)
+        return ApiResponse.success(items, "Staff listed")
     }
 
     @GetMapping("/organizations/{organizationId}/members")
@@ -112,9 +115,10 @@ class StaffAdminController(
         @PathVariable organizationId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
-    ): ApiResponse<List<StaffListItemDto>> {
-        val (items, metadata) = managementService.listOrgMembers(actorId, organizationId, limit, offset)
-        return ApiResponse.success(items, "Org members listed", metadata)
+    ): ApiResponse<Page<StaffListItemDto>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val items = managementService.listOrgMembers(actorId, organizationId, pageable)
+        return ApiResponse.success(items, "Org members listed")
     }
 
     @GetMapping("/venues/{venueId}/permissions")
@@ -127,9 +131,10 @@ class StaffAdminController(
         @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
-    ): ApiResponse<List<VenuePermissionDto>> {
-        val (items, metadata) = managementService.listVenuePermissions(actorId, venueId, limit, offset)
-        return ApiResponse.success(items, "Venue permissions listed", metadata)
+    ): ApiResponse<Page<VenuePermissionDto>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val items = managementService.listVenuePermissions(actorId, venueId, pageable)
+        return ApiResponse.success(items, "Venue permissions listed")
     }
 
     @PutMapping("/{id}/super-admin")

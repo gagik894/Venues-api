@@ -3,12 +3,14 @@ package app.venues.organization.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.organization.api.dto.CreateOrganizationRequest
 import app.venues.organization.api.dto.OrganizationDetailResponse
-import app.venues.organization.api.dto.OrganizationDto
+import app.venues.organization.api.dto.OrganizationResponse
 import app.venues.organization.api.dto.UpdateOrganizationRequest
 import app.venues.organization.service.OrganizationService
+import app.venues.shared.persistence.util.PageableMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 import java.util.*
@@ -33,9 +35,10 @@ class OrganizationAdminController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false, defaultValue = "false") includeInactive: Boolean
-    ): ApiResponse<List<OrganizationDto>> {
-        val (orgs, metadata) = organizationService.listOrganizationsWithMetadata(limit, offset, includeInactive)
-        return ApiResponse.success(orgs, "Organizations listed", metadata)
+    ): ApiResponse<Page<OrganizationResponse>> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val orgs = organizationService.listOrganizations(pageable, includeInactive)
+        return ApiResponse.success(orgs, "Organizations listed")
     }
 
     @GetMapping("/{id}")

@@ -1,15 +1,12 @@
 package app.venues.organization.service
 
 import app.venues.common.exception.VenuesException
-import app.venues.common.model.ResponseMetadata
 import app.venues.organization.api.OrganizationApi
-import app.venues.organization.api.dto.CreateOrganizationRequest
-import app.venues.organization.api.dto.OrganizationDetailResponse
-import app.venues.organization.api.dto.OrganizationDto
-import app.venues.organization.api.dto.UpdateOrganizationRequest
+import app.venues.organization.api.dto.*
 import app.venues.organization.domain.Organization
 import app.venues.organization.repository.OrganizationRepository
-import app.venues.shared.persistence.util.PageableMapper
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -33,25 +30,23 @@ class OrganizationService(
     }
 
     @Transactional(readOnly = true)
-    override fun listOrganizations(limit: Int?, offset: Int?, includeInactive: Boolean): List<OrganizationDto> {
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-
+    fun listOrganizations(pageable: Pageable, includeInactive: Boolean): Page<OrganizationResponse> {
         val page = if (includeInactive) {
             organizationRepository.findAll(pageable)
         } else {
             organizationRepository.findAllActive(pageable)
         }
 
-        return page
-            .content
-            .map { org ->
-                OrganizationDto(
-                    id = org.id,
-                    name = org.name,
-                    slug = org.slug,
-                    defaultMerchantProfileId = org.defaultMerchantProfileId
-                )
-            }
+        val data = page.map { org ->
+            OrganizationResponse(
+                id = org.id,
+                name = org.name,
+                slug = org.slug,
+                type = org.type,
+                isActive = org.isActive
+            )
+        }
+        return data
     }
 
     /**
@@ -68,35 +63,6 @@ class OrganizationService(
                 defaultMerchantProfileId = org.defaultMerchantProfileId
             )
         }
-    }
-
-    @Transactional(readOnly = true)
-    fun listOrganizationsWithMetadata(
-        limit: Int?,
-        offset: Int?,
-        includeInactive: Boolean
-    ): Pair<List<OrganizationDto>, ResponseMetadata> {
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val page = if (includeInactive) {
-            organizationRepository.findAll(pageable)
-        } else {
-            organizationRepository.findAllActive(pageable)
-        }
-        val data = page.content.map { org ->
-            OrganizationDto(
-                id = org.id,
-                name = org.name,
-                slug = org.slug,
-                defaultMerchantProfileId = org.defaultMerchantProfileId
-            )
-        }
-        val metadata = ResponseMetadata(
-            page = page.number,
-            size = page.size,
-            totalElements = page.totalElements,
-            totalPages = page.totalPages
-        )
-        return data to metadata
     }
 
     @Transactional(readOnly = true)

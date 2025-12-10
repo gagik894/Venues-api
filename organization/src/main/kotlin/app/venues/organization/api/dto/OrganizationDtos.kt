@@ -15,17 +15,8 @@ data class OrganizationResponse(
     val id: UUID,
     val slug: String,
     val name: String,
-    val description: String?,
     val type: OrganizationType,
-    val citySlug: String?,
-    val cityName: String?,
-    val phoneNumber: String?,
-    val email: String?,
-    val website: String?,
-    val logoUrl: String?,
-    val venueCount: Int = 0,
-    val createdAt: Instant?,
-    val lastModifiedAt: Instant?
+    val isActive: Boolean,
 )
 
 /**

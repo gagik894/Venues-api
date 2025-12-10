@@ -147,6 +147,28 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     fun adjustGATickets(sessionId: UUID, gaAreaId: Long, quantityDelta: Int): Int
 
     /**
+     * Reduce GA capacity by specified quantity (for closing tickets).
+     * Ensures capacity doesn't go below soldCount.
+     *
+     * @param sessionId Session ID
+     * @param gaAreaId GA area ID
+     * @param quantity Quantity to reduce capacity by
+     * @return Number of rows updated (0 if capacity would go below soldCount)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionGAConfig gc
+        SET gc.capacity = gc.capacity - :quantity
+        WHERE gc.session.id = :sessionId
+        AND gc.gaAreaId = :gaAreaId
+        AND gc.capacity IS NOT NULL
+        AND (gc.capacity - :quantity) >= gc.soldCount
+    """
+    )
+    fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Int
+
+    /**
      * Check if any configs exist for the session.
      */
     fun existsBySessionId(sessionId: UUID): Boolean

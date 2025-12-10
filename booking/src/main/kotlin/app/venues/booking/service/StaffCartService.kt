@@ -163,4 +163,90 @@ class StaffCartService(
 
         return bookingService.prepareBookingResponse(confirmedBooking)
     }
+
+    /**
+     * Close items from staff cart (seats, tables, GA capacity reduction).
+     *
+     * Flow:
+     * 1. Load cart with all items (already reserved in inventory)
+     * 2. Validate cart has items
+     * 3. Close seats (set to CLOSED status)
+     * 4. Close tables (set to CLOSED status)
+     * 5. Reduce GA capacity by quantity (decrement available capacity)
+     * 6. Release inventory (RESERVED -> AVAILABLE) since we're closing, not selling
+     * 7. Delete cart
+     *
+     * @param token Cart token
+     * @param venueId Venue ID (validated at controller level)
+     * @param staffId Staff member performing the close action
+     */
+    @Transactional
+    fun closeCartItems(
+        token: UUID,
+        venueId: UUID,
+        staffId: UUID
+    ) {
+        logger.info { "Staff $staffId closing items from cart $token for venue $venueId" }
+
+        // 1. Load cart with all items (already reserved)
+        val cart = cartSessionManager.getActiveCartWithItems(token)
+
+        // 2. Validate cart has items
+        if (cart.isEmpty()) {
+            throw VenuesException.ValidationFailure("Cannot close items from an empty cart")
+        }
+
+        val sessionId = cart.sessionId
+
+        // 3. Extract seat IDs
+        val seatIds = cart.seats.map { it.seatId }
+
+        // 4. Extract table IDs
+        val tableIds = cart.tables.map { it.tableId }
+
+        // 5. Extract GA items with quantities
+        val gaItems = cart.gaItems.map { it.gaAreaId to it.quantity }
+
+        // 6. Close seats
+        if (seatIds.isNotEmpty()) {
+            val closedCount = eventApi.closeSeats(sessionId, seatIds)
+            logger.info { "Closed $closedCount seats from cart" }
+        }
+
+        // 7. Close tables
+        if (tableIds.isNotEmpty()) {
+            val closedCount = eventApi.closeTables(sessionId, tableIds)
+            logger.info { "Closed $closedCount tables from cart" }
+        }
+
+        // 8. Reduce GA capacity for each GA area
+        gaItems.forEach { (gaAreaId, quantity) ->
+            val success = eventApi.reduceGACapacity(sessionId, gaAreaId, quantity)
+            if (success) {
+                logger.info { "Reduced GA capacity for area $gaAreaId by $quantity" }
+            } else {
+                logger.warn { "Failed to reduce GA capacity for area $gaAreaId by $quantity (would go below soldCount)" }
+            }
+        }
+
+        // 9. Release inventory (RESERVED -> AVAILABLE) since we're closing, not selling
+        // This releases the reservations made when items were added to cart
+        if (seatIds.isNotEmpty()) {
+            eventApi.releaseSeatsBatch(sessionId, seatIds)
+        }
+        if (tableIds.isNotEmpty()) {
+            eventApi.releaseTablesBatch(sessionId, tableIds)
+        }
+        gaItems.forEach { (gaAreaId, quantity) ->
+            eventApi.releaseGa(sessionId, gaAreaId, quantity)
+        }
+
+        // 10. Delete cart
+        cartRepository.delete(cart)
+
+        logger.info {
+            "Staff cart close completed: cartToken=$token, staffId=$staffId, " +
+                    "seats=${seatIds.size}, tables=${tableIds.size}, gaAreas=${gaItems.size}"
+        }
+    }
 }

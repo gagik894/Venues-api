@@ -358,6 +358,49 @@ class StaffCartController(
         )
     }
 
+    /**
+     * Close items from staff cart (seats, tables, GA capacity reduction).
+     *
+     * Closes all items in the cart:
+     * - Seats: Set to CLOSED status
+     * - Tables: Set to CLOSED status
+     * - GA: Reduce capacity by quantity (decrement available capacity)
+     *
+     * Releases inventory reservations and deletes the cart.
+     */
+    @PostMapping("/close")
+    @Operation(
+        summary = "Close items from staff cart",
+        description = "Close all items in cart (seats, tables, GA capacity reduction). " +
+                "Items are closed (not sold), inventory is released, and cart is deleted."
+    )
+    fun closeCart(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<Map<String, Any>> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        logger.info { "Staff $staffId closing items from cart for venue $venueId" }
+
+        val effectiveToken = token ?: cookieToken
+        ?: throw app.venues.common.exception.VenuesException.ValidationFailure("Cart token is required")
+
+        staffCartService.closeCartItems(effectiveToken, venueId, staffId)
+
+        // Clear cart cookie after successful close
+        val cookie = jakarta.servlet.http.Cookie("cart_token", "")
+        cookie.path = "/"
+        cookie.maxAge = 0
+        response.addCookie(cookie)
+
+        return ApiResponse.success(
+            data = mapOf("message" to "Items closed successfully"),
+            message = "Items closed successfully"
+        )
+    }
+
     // ==================== Private Helper Methods ====================
 
     private fun setCartCookie(response: HttpServletResponse, token: UUID) {

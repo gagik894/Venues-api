@@ -377,4 +377,15 @@ interface EventApi {
      * Used by seating module to guard destructive operations.
      */
     fun seatingChartInUse(chartId: UUID): Boolean
+
+    /**
+     * Reduce GA capacity by specified quantity (for closing tickets from cart).
+     * Ensures capacity doesn't go below soldCount.
+     *
+     * @param sessionId Event session ID.
+     * @param gaAreaId GA area ID.
+     * @param quantity Quantity to reduce capacity by.
+     * @return true if successful, false if capacity would go below soldCount.
+     */
+    fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Boolean
 }

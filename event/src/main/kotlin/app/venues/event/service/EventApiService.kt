@@ -613,5 +613,20 @@ class EventApiService(
             )
         }
     }
+
+    @Transactional
+    override fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = sessionGAConfigRepository.reduceGACapacity(sessionId, gaAreaId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to reduce GA capacity for session $sessionId, GA $gaAreaId by $quantity (would go below soldCount)" }
+        }
+        if (updated > 0) {
+            sessionCapacityService.recalculateForSession(sessionId)
+        }
+        return updated > 0
+    }
 }
 

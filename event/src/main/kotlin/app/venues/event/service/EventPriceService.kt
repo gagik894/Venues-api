@@ -46,7 +46,7 @@ class EventPriceService(
             }
         }
 
-        event.priceTemplates.removeAll(templatesToRemove)
+        event.priceTemplates.removeAll(templatesToRemove.toSet())
 
         // 2. Update or Create
         requests.forEach { request ->

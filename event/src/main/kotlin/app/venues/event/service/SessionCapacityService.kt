@@ -1,9 +1,11 @@
 package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
+import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -22,6 +24,7 @@ import java.util.*
 class SessionCapacityService(
     private val seatingApi: SeatingApi,
     private val gaConfigRepository: SessionGAConfigRepository,
+    private val seatConfigRepository: SessionSeatConfigRepository,
     private val eventSessionRepository: EventSessionRepository
 ) {
     private val logger = KotlinLogging.logger {}
@@ -40,16 +43,26 @@ class SessionCapacityService(
             return
         }
 
-        // Use optimized COUNT query instead of fetching full structure
         val seatCount = seatingApi.getSeatCount(chartId).toLong()
-        val gaCapacity = gaConfigRepository.sumCapacityBySessionId(session.id)
-        val totalCapacity = seatCount + gaCapacity
+        // Exclude blocked/closed seats (sparse configs capture only deviations)
+        val excludedSeats = seatConfigRepository.countBySessionIdAndStatusIn(
+            session.id,
+            listOf(ConfigStatus.BLOCKED, ConfigStatus.CLOSED)
+        )
+        val effectiveSeatCapacity = (seatCount - excludedSeats).coerceAtLeast(0)
+
+        // GA capacity excludes BLOCKED/CLOSED
+        val gaCapacity = gaConfigRepository.sumCapacityBySessionIdAndStatusIn(
+            session.id,
+            listOf(ConfigStatus.AVAILABLE, ConfigStatus.RESERVED)
+        )
+        val totalCapacity = effectiveSeatCapacity + gaCapacity
 
         if (totalCapacity > Int.MAX_VALUE) {
             throw VenuesException.ValidationFailure("Total capacity $totalCapacity exceeds supported range for session ${session.id}")
         }
 
         session.ticketsCount = totalCapacity.toInt()
-        logger.debug { "Updated ticketsCount for session ${session.id}: seats=$seatCount, ga=$gaCapacity, total=$totalCapacity" }
+        logger.debug { "Updated ticketsCount for session ${session.id}: seats=$effectiveSeatCapacity (raw=$seatCount, excluded=$excludedSeats), ga=$gaCapacity, total=$totalCapacity" }
     }
 }

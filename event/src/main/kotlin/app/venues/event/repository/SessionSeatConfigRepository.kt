@@ -78,6 +78,19 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun countSoldSeats(sessionId: UUID): Long
 
     /**
+     * Count seats for a session by status (supports sparse matrix).
+     */
+    @Query(
+        """
+        SELECT COUNT(sc)
+        FROM SessionSeatConfig sc
+        WHERE sc.session.id = :sessionId
+        AND sc.status IN :statuses
+    """
+    )
+    fun countBySessionIdAndStatusIn(sessionId: UUID, statuses: Collection<ConfigStatus>): Long
+
+    /**
      * Get the price for a seat if it's available for reservation.
      * This should be called BEFORE reserveSeatIfAvailable to check price.
      *

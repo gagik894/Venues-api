@@ -29,6 +29,7 @@ class EventApiService(
     private val seatingApi: SeatingApi,
     private val seatConfigSparseService: SeatConfigSparseService,
     private val sessionSeatingService: SessionSeatingService,
+    private val sessionCapacityService: SessionCapacityService,
     private val redisTemplate: StringRedisTemplate
 ) : EventApi {
     private val logger = KotlinLogging.logger {}
@@ -275,10 +276,13 @@ class EventApiService(
 
             if (newConfigs.isNotEmpty()) {
                 sessionSeatConfigRepository.saveAll(newConfigs)
-                return updated + newConfigs.size
+                val total = updated + newConfigs.size
+                sessionCapacityService.recalculateForSession(sessionId)
+                return total
             }
         }
 
+        sessionCapacityService.recalculateForSession(sessionId)
         return updated
     }
 
@@ -288,6 +292,7 @@ class EventApiService(
         val updated = sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
         if (updated > 0) {
             seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
+            sessionCapacityService.recalculateForSession(sessionId)
         }
         return updated
     }

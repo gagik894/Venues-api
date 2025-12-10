@@ -224,6 +224,10 @@ class EventService(
             throw VenuesException.ValidationFailure("Event cannot be edited in current status: ${event.status}")
         }
 
+        if (event.seatingChartId != null && request.seatingChartId != event.seatingChartId) {
+            throw VenuesException.ValidationFailure("Seating chart cannot be changed after event creation")
+        }
+
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
         }

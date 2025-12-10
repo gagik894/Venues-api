@@ -5,6 +5,7 @@
       <option name="customHeaders">
         <set>
           <option value="X-Platform-ID" />
+          <option value="Idempotency-Key" />
         </set>
       </option>
     </inspection_tool>

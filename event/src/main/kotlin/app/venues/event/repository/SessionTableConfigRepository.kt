@@ -212,4 +212,18 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
      * Check if any configs exist for the session.
      */
     fun existsBySessionId(sessionId: UUID): Boolean
+
+    /**
+     * Get IDs of tables marked as SOLD for a session.
+     * Used for ticket counter reconciliation.
+     */
+    @Query(
+        """
+        SELECT stc.tableId
+        FROM SessionTableConfig stc
+        WHERE stc.session.id = :sessionId
+        AND stc.status = app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun findSoldTableIds(sessionId: UUID): List<Long>
 }

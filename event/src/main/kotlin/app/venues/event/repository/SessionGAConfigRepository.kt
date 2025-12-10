@@ -64,6 +64,19 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     fun sumCapacityBySessionId(sessionId: UUID): Long
 
     /**
+     * Sum GA sold counts for a session.
+     * Used for ticket counter reconciliation.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(gc.soldCount), 0)
+        FROM SessionGAConfig gc
+        WHERE gc.session.id = :sessionId
+    """
+    )
+    fun sumSoldBySessionId(sessionId: UUID): Long
+
+    /**
      * Get GA area price if available capacity exists.
      */
     @Query(

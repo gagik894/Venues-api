@@ -253,8 +253,9 @@ class EventStatsService(
                 val totalCapacity = gaState.available + gaState.soldCount
                 bucket.totalTickets += totalCapacity
                 bucket.soldTickets += gaState.soldCount
-                bucket.availableTickets += gaState.available
-                if (gaState.status == "B") {
+                if (gaState.status == "A" || gaState.status == "R") {
+                    bucket.availableTickets += gaState.available
+                } else {
                     bucket.closedSeats += gaState.available
                 }
                 bucket.totalRevenue = bucket.totalRevenue.add(gaRevenueMap[gaId] ?: BigDecimal.ZERO)
@@ -303,8 +304,9 @@ class EventStatsService(
                 val totalCapacity = gaState.available + gaState.soldCount
                 bucket.totalTickets += totalCapacity
                 bucket.soldTickets += gaState.soldCount
-                bucket.availableTickets += gaState.available
-                if (gaState.status == "B") {
+                if (gaState.status == "A" || gaState.status == "R") {
+                    bucket.availableTickets += gaState.available
+                } else {
                     bucket.closedSeats += gaState.available
                 }
             }

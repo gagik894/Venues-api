@@ -329,6 +329,11 @@ interface EventApi {
      */
     fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
 
+    /**
+     * Reconcile cached ticketsSold with authoritative inventory state.
+     */
+    fun reconcileTicketsSold(sessionId: UUID)
+
     // Ticket Stats
 
     /**

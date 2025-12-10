@@ -7,6 +7,7 @@ import app.venues.ticket.api.TicketApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
+import java.util.*
 
 @Service
 class BookingFulfillmentService(
@@ -65,6 +66,7 @@ class BookingFulfillmentService(
         }
 
         recordTicketsSold(booking)
+        reconcileTicketCounters(booking.sessionId)
     }
 
     /**
@@ -113,6 +115,7 @@ class BookingFulfillmentService(
         if (!updated) {
             logger.warn { "Failed to decrement tickets sold for booking ${booking.id} in session ${booking.sessionId}" }
         }
+        reconcileTicketCounters(booking.sessionId)
     }
 
     fun calculateTicketQuantity(booking: Booking): Int {
@@ -167,6 +170,14 @@ class BookingFulfillmentService(
                 quantity = item.quantity,
                 qrCodes = null // Venue generates QR
             )
+        }
+    }
+
+    private fun reconcileTicketCounters(sessionId: UUID) {
+        try {
+            eventApi.reconcileTicketsSold(sessionId)
+        } catch (ex: Exception) {
+            logger.error(ex) { "Ticket counter reconciliation failed for session $sessionId" }
         }
     }
 }

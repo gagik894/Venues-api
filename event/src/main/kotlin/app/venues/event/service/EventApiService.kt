@@ -403,6 +403,37 @@ class EventApiService(
         return updated > 0
     }
 
+    /**
+     * Reconcile cached ticketsSold with authoritative inventory state.
+     * Counts: SOLD seats + GA soldCount + seats for SOLD tables.
+     */
+    @Transactional
+    override fun reconcileTicketsSold(sessionId: UUID) {
+        val session = eventSessionRepository.findById(sessionId).getOrNull()
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
+
+        val soldSeats = sessionSeatConfigRepository.countSoldSeats(sessionId)
+        val soldGa = sessionGAConfigRepository.sumSoldBySessionId(sessionId)
+
+        // For sold tables, use seating API to derive seat capacity per table.
+        val soldTableIds = sessionTableConfigRepository.findSoldTableIds(sessionId)
+        val soldTableSeats = soldTableIds.sumOf { tableId ->
+            seatingApi.getSeatsForTable(tableId).size.takeIf { it > 0 }
+                ?: seatingApi.getTableInfo(tableId)?.seatCapacity ?: 0
+        }
+
+        val totalSold = soldSeats + soldGa + soldTableSeats
+        if (totalSold > Int.MAX_VALUE) {
+            throw VenuesException.ValidationFailure("ticketsSold exceeds supported range for session $sessionId")
+        }
+
+        val updated = eventSessionRepository.setTicketsSold(sessionId, totalSold.toInt())
+        if (updated == 0) {
+            throw VenuesException.ResourceNotFound("Failed to update ticketsSold during reconciliation for $sessionId")
+        }
+        logger.info { "Reconciled ticketsSold for session $sessionId: seats=$soldSeats, ga=$soldGa, tables=$soldTableSeats, total=$totalSold" }
+    }
+
     @Transactional(readOnly = true)
     override fun getSessionTicketStats(sessionId: UUID): SessionTicketStatsDto? {
         val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null

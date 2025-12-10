@@ -64,6 +64,20 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun findAvailableSeatIdsBySession(sessionId: UUID): List<Long>
 
     /**
+     * Count seats marked as SOLD for a session.
+     * Used for ticket counter reconciliation.
+     */
+    @Query(
+        """
+        SELECT COUNT(sc)
+        FROM SessionSeatConfig sc
+        WHERE sc.session.id = :sessionId
+        AND sc.status = app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun countSoldSeats(sessionId: UUID): Long
+
+    /**
      * Get the price for a seat if it's available for reservation.
      * This should be called BEFORE reserveSeatIfAvailable to check price.
      *

@@ -2,6 +2,7 @@ package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.*
+import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventSession
 import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.repository.EventSessionRepository
@@ -134,7 +135,11 @@ class SessionSeatingService(
         val soldSeats = seatConfigs.count { it.status.name == "SOLD" }
         val blockedSeats = seatConfigs.count { it.status.name == "BLOCKED" }
         val totalGaCapacity = gaConfigs.sumOf { it.capacity ?: 0 }
-        val availableGaCapacity = gaConfigs.sumOf { it.getAvailableCapacity() ?: 0 }
+        val availableGaCapacity = gaConfigs.sumOf { config ->
+            if (config.status == ConfigStatus.AVAILABLE || config.status == ConfigStatus.RESERVED) {
+                config.getAvailableCapacity() ?: 0
+            } else 0
+        }
 
         val stats = InventoryStatsDto(
             totalSeats = totalSeats,
@@ -182,14 +187,19 @@ class SessionSeatingService(
         val soldSeats = statusCounts["SOLD"]?.size ?: 0
         val reservedSeats = statusCounts["RESERVED"]?.size ?: 0
         val blockedSeats = statusCounts["BLOCKED"]?.size ?: 0
-        val unavailableSeats = soldSeats + reservedSeats + blockedSeats
+        val closedSeats = statusCounts["CLOSED"]?.size ?: 0
+        val unavailableSeats = soldSeats + blockedSeats + closedSeats
         val availableSeats = (totalSeats - unavailableSeats).coerceAtLeast(0)
 
         // GA area stats
         val gaConfigs = sessionGAConfigRepository.findBySessionId(sessionId)
         val totalGaCapacity = gaConfigs.sumOf { (it.capacity ?: 0) }
         val soldGaCount = gaConfigs.sumOf { it.soldCount }
-        val availableGaCapacity = (totalGaCapacity - soldGaCount).coerceAtLeast(0)
+        val availableGaCapacity = gaConfigs.sumOf { config ->
+            if (config.status == ConfigStatus.AVAILABLE || config.status == ConfigStatus.RESERVED) {
+                (config.capacity ?: 0) - config.soldCount
+            } else 0
+        }.coerceAtLeast(0)
 
         return SeatAvailabilityResponse(
             sessionId = sessionId,

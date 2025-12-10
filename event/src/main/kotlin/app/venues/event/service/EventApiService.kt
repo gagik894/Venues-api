@@ -1,5 +1,9 @@
 package app.venues.event.service
 
+import app.venues.booking.event.SeatClosedEvent
+import app.venues.booking.event.SeatOpenedEvent
+import app.venues.booking.event.TableClosedEvent
+import app.venues.booking.event.TableOpenedEvent
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.*
@@ -10,6 +14,7 @@ import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.repository.*
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
@@ -30,7 +35,8 @@ class EventApiService(
     private val seatConfigSparseService: SeatConfigSparseService,
     private val sessionSeatingService: SessionSeatingService,
     private val sessionCapacityService: SessionCapacityService,
-    private val redisTemplate: StringRedisTemplate
+    private val redisTemplate: StringRedisTemplate,
+    private val eventPublisher: ApplicationEventPublisher
 ) : EventApi {
     private val logger = KotlinLogging.logger {}
 
@@ -156,6 +162,38 @@ class EventApiService(
         val price = override?.price ?: template.price
 
         return price to template
+    }
+
+    private fun publishSeatClosedEvents(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isEmpty()) return
+        val seats = seatingApi.getSeatInfoBatch(seatIds)
+        seats.forEach { seat ->
+            eventPublisher.publishEvent(SeatClosedEvent(sessionId, seat.code))
+        }
+    }
+
+    private fun publishSeatOpenedEvents(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isEmpty()) return
+        val seats = seatingApi.getSeatInfoBatch(seatIds)
+        seats.forEach { seat ->
+            eventPublisher.publishEvent(SeatOpenedEvent(sessionId, seat.code))
+        }
+    }
+
+    private fun publishTableClosedEvents(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isEmpty()) return
+        val tables = tableIds.mapNotNull { seatingApi.getTableInfo(it) }
+        tables.forEach { table ->
+            eventPublisher.publishEvent(TableClosedEvent(sessionId, table.code))
+        }
+    }
+
+    private fun publishTableOpenedEvents(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isEmpty()) return
+        val tables = tableIds.mapNotNull { seatingApi.getTableInfo(it) }
+        tables.forEach { table ->
+            eventPublisher.publishEvent(TableOpenedEvent(sessionId, table.code))
+        }
     }
 
     @Transactional
@@ -294,6 +332,67 @@ class EventApiService(
             seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
             sessionCapacityService.recalculateForSession(sessionId)
         }
+        return updated
+    }
+
+    @Transactional
+    override fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int {
+        if (seatIds.isEmpty()) return 0
+
+        val updated = sessionSeatConfigRepository.closeSeats(sessionId, seatIds)
+
+        val existingConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(sessionId, seatIds)
+        val existingSeatIds = existingConfigs.map { it.seatId }.toSet()
+        val missingSeatIds = seatIds.filter { it !in existingSeatIds }
+
+        if (missingSeatIds.isNotEmpty()) {
+            val session = eventSessionRepository.findById(sessionId).getOrNull()
+                ?: return updated
+            val seatInfos = seatingApi.getSeatInfoBatch(missingSeatIds)
+            val newConfigs = seatInfos.map { seatInfo ->
+                val (_, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+                SessionSeatConfig(
+                    session = session,
+                    seatId = seatInfo.id,
+                    priceTemplate = template,
+                    status = ConfigStatus.CLOSED
+                )
+            }
+            if (newConfigs.isNotEmpty()) {
+                sessionSeatConfigRepository.saveAll(newConfigs)
+            }
+        }
+
+        sessionCapacityService.recalculateForSession(sessionId)
+        publishSeatClosedEvents(sessionId, seatIds)
+        return updated + missingSeatIds.size
+    }
+
+    @Transactional
+    override fun reopenSeats(sessionId: UUID, seatIds: List<Long>): Int {
+        if (seatIds.isEmpty()) return 0
+        val updated = sessionSeatConfigRepository.reopenClosedSeats(sessionId, seatIds)
+        if (updated > 0) {
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
+            sessionCapacityService.recalculateForSession(sessionId)
+            publishSeatOpenedEvents(sessionId, seatIds)
+        }
+        return updated
+    }
+
+    @Transactional
+    override fun closeTables(sessionId: UUID, tableIds: List<Long>): Int {
+        if (tableIds.isEmpty()) return 0
+        val updated = sessionTableConfigRepository.closeTables(sessionId, tableIds)
+        publishTableClosedEvents(sessionId, tableIds)
+        return updated
+    }
+
+    @Transactional
+    override fun reopenTables(sessionId: UUID, tableIds: List<Long>): Int {
+        if (tableIds.isEmpty()) return 0
+        val updated = sessionTableConfigRepository.reopenClosedTables(sessionId, tableIds)
+        publishTableOpenedEvents(sessionId, tableIds)
         return updated
     }
 

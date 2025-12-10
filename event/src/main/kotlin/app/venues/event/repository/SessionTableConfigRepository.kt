@@ -214,6 +214,36 @@ interface SessionTableConfigRepository : JpaRepository<SessionTableConfig, Long>
     fun existsBySessionId(sessionId: UUID): Boolean
 
     /**
+     * Close tables (set status to CLOSED) unless SOLD.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status != app.venues.event.domain.ConfigStatus.SOLD
+        """
+    )
+    fun closeTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * Reopen closed tables (CLOSED -> AVAILABLE).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionTableConfig stc
+        SET stc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE stc.session.id = :sessionId
+        AND stc.tableId IN :tableIds
+        AND stc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        """
+    )
+    fun reopenClosedTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
      * Get IDs of tables marked as SOLD for a session.
      * Used for ticket counter reconciliation.
      */

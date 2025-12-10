@@ -261,6 +261,26 @@ interface EventApi {
      */
     fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?>
 
+    /**
+     * Close seats (set status to CLOSED).
+     */
+    fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Reopen closed seats (CLOSED -> AVAILABLE).
+     */
+    fun reopenSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Close tables (set status to CLOSED).
+     */
+    fun closeTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * Reopen closed tables (CLOSED -> AVAILABLE).
+     */
+    fun reopenTables(sessionId: UUID, tableIds: List<Long>): Int
+
     // Sale Confirmation (Reserved -> Sold)
 
     /**

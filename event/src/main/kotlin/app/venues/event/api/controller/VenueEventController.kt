@@ -1,6 +1,8 @@
 package app.venues.event.api.controller
 
+import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
+import app.venues.event.api.EventApi
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.EventStatus
@@ -51,9 +53,18 @@ class VenueEventController(
     private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
     private val seatingApi: SeatingApi,
-    private val platformSubscriptionApi: PlatformSubscriptionApi
+    private val platformSubscriptionApi: PlatformSubscriptionApi,
+    private val eventApi: EventApi
 ) {
     private val logger = KotlinLogging.logger {}
+
+    data class SeatIdsRequest(
+        val seatIds: List<Long>
+    )
+
+    data class TableIdsRequest(
+        val tableIds: List<Long>
+    )
 
     /**
      * List all events for a venue (staff view).
@@ -482,6 +493,84 @@ class VenueEventController(
             data = allowedTransitions.toList(),
             message = "Allowed transitions retrieved"
         )
+    }
+
+    @PutMapping("/{eventId}/sessions/{sessionId}/seats/close")
+    @Operation(summary = "Close seats", description = "Set seats to CLOSED (admin action). Notifies platforms.")
+    fun closeSeats(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestBody request: SeatIdsRequest
+    ): ApiResponse<Int> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        validateSessionOwnership(eventId, venueId, sessionId)
+
+        val count = eventApi.closeSeats(sessionId, request.seatIds)
+        return ApiResponse.success(data = count, message = "Seats closed")
+    }
+
+    @PutMapping("/{eventId}/sessions/{sessionId}/seats/open")
+    @Operation(
+        summary = "Reopen closed seats",
+        description = "Set CLOSED seats back to AVAILABLE and notify platforms."
+    )
+    fun openSeats(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestBody request: SeatIdsRequest
+    ): ApiResponse<Int> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        validateSessionOwnership(eventId, venueId, sessionId)
+
+        val count = eventApi.reopenSeats(sessionId, request.seatIds)
+        return ApiResponse.success(data = count, message = "Seats reopened")
+    }
+
+    @PutMapping("/{eventId}/sessions/{sessionId}/tables/close")
+    @Operation(summary = "Close tables", description = "Set tables to CLOSED (admin action). Notifies platforms.")
+    fun closeTables(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestBody request: TableIdsRequest
+    ): ApiResponse<Int> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        validateSessionOwnership(eventId, venueId, sessionId)
+
+        val count = eventApi.closeTables(sessionId, request.tableIds)
+        return ApiResponse.success(data = count, message = "Tables closed")
+    }
+
+    @PutMapping("/{eventId}/sessions/{sessionId}/tables/open")
+    @Operation(
+        summary = "Reopen closed tables",
+        description = "Set CLOSED tables back to AVAILABLE and notify platforms."
+    )
+    fun openTables(
+        @PathVariable venueId: UUID,
+        @PathVariable eventId: UUID,
+        @PathVariable sessionId: UUID,
+        @RequestAttribute staffId: UUID,
+        @RequestBody request: TableIdsRequest
+    ): ApiResponse<Int> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        validateSessionOwnership(eventId, venueId, sessionId)
+
+        val count = eventApi.reopenTables(sessionId, request.tableIds)
+        return ApiResponse.success(data = count, message = "Tables reopened")
+    }
+
+    private fun validateSessionOwnership(eventId: UUID, venueId: UUID, sessionId: UUID) {
+        val sessionInfo = eventApi.getEventSessionInfo(sessionId)
+            ?: throw VenuesException.ResourceNotFound("Session not found")
+        if (sessionInfo.eventId != eventId || sessionInfo.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Session does not belong to this event/venue")
+        }
     }
 
     /**

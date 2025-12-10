@@ -91,6 +91,37 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun countBySessionIdAndStatusIn(sessionId: UUID, statuses: Collection<ConfigStatus>): Long
 
     /**
+     * Atomically close multiple seats (set to CLOSED status).
+     * Does not affect SOLD seats.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status != app.venues.event.domain.ConfigStatus.SOLD
+        """
+    )
+    fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Atomically reopen previously closed seats (CLOSED -> AVAILABLE).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        """
+    )
+    fun reopenClosedSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
      * Get the price for a seat if it's available for reservation.
      * This should be called BEFORE reserveSeatIfAvailable to check price.
      *

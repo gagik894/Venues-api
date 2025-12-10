@@ -4,6 +4,7 @@ import app.venues.event.domain.Event
 import app.venues.event.domain.EventSession
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
+import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.seating.api.SeatingApi
 import io.mockk.every
 import io.mockk.mockk
@@ -19,6 +20,7 @@ class SessionCapacityServiceTest {
 
     private lateinit var seatingApi: SeatingApi
     private lateinit var gaConfigRepository: SessionGAConfigRepository
+    private lateinit var seatConfigRepository: SessionSeatConfigRepository
     private lateinit var eventSessionRepository: EventSessionRepository
     private lateinit var service: SessionCapacityService
 
@@ -26,8 +28,9 @@ class SessionCapacityServiceTest {
     fun setup() {
         seatingApi = mockk()
         gaConfigRepository = mockk()
+        seatConfigRepository = mockk()
         eventSessionRepository = mockk()
-        service = SessionCapacityService(seatingApi, gaConfigRepository, eventSessionRepository)
+        service = SessionCapacityService(seatingApi, gaConfigRepository, seatConfigRepository, eventSessionRepository)
     }
 
     @Test
@@ -46,7 +49,8 @@ class SessionCapacityServiceTest {
 
         // Optimized: use COUNT query instead of fetching full structure
         every { seatingApi.getSeatCount(chartId) } returns 2
-        every { gaConfigRepository.sumCapacityBySessionId(session.id) } returns 50L
+        every { seatConfigRepository.countBySessionIdAndStatusIn(session.id, any()) } returns 0
+        every { gaConfigRepository.sumCapacityBySessionIdAndStatusIn(session.id, any()) } returns 50L
 
         service.recalculateForSession(session)
 
@@ -68,6 +72,8 @@ class SessionCapacityServiceTest {
         service.recalculateForSession(session)
 
         assertNull(session.ticketsCount)
-        verify(exactly = 0) { gaConfigRepository.sumCapacityBySessionId(any()) }
+        verify(exactly = 0) { seatingApi.getSeatCount(any()) }
+        verify(exactly = 0) { seatConfigRepository.countBySessionIdAndStatusIn(any(), any()) }
+        verify(exactly = 0) { gaConfigRepository.sumCapacityBySessionIdAndStatusIn(any(), any()) }
     }
 }

@@ -130,6 +130,14 @@ class ChartZone(
     }
 
     /**
+     * Adds a general admission area to this zone.
+     */
+    fun addGaArea(gaArea: GeneralAdmissionArea) {
+        _gaAreas.add(gaArea)
+        gaArea.zone = this
+    }
+
+    /**
      * Helper to generate a standardized API Key for a seat in this zone.
      * Format: `{ZONE_CODE}_ROW-{ROW}_SEAT-{NUMBER}`
      */

@@ -137,6 +137,32 @@ class VenueSeatingController(
         return ApiResponse.success(chart, "Layout replaced")
     }
 
+    @PostMapping("/{chartId}/clone")
+    @Operation(summary = "Clone seating chart for major changes")
+    fun cloneSeatingChart(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: CloneSeatingChartRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val cloned = seatingService.cloneSeatingChart(venueId, chartId, request)
+        return ApiResponse.success(cloned, "Cloned successfully")
+    }
+
+    @PatchMapping("/{chartId}/visuals")
+    @Operation(summary = "Update visual attributes only (non-destructive)")
+    fun updateVisuals(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: SeatingChartVisualUpdateRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        val chart = seatingService.updateVisuals(chartId, venueId, request)
+        return ApiResponse.success(chart, "Visuals updated")
+    }
+
     @DeleteMapping("/{chartId}")
     @Operation(summary = "Delete chart")
     fun deleteSeatingChart(

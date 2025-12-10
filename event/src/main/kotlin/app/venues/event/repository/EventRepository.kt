@@ -24,6 +24,11 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByVenueId(venueId: UUID, pageable: Pageable): Page<Event>
 
     /**
+     * Check if any event references the seating chart.
+     */
+    fun existsBySeatingChartId(seatingChartId: UUID): Boolean
+
+    /**
      * Find events by venue ID and status
      */
     fun findByVenueIdAndStatus(venueId: UUID, status: EventStatus, pageable: Pageable): Page<Event>

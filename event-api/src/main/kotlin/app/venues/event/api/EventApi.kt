@@ -346,4 +346,10 @@ interface EventApi {
      * @return List of session ticket stats (empty if event not found or has no sessions).
      */
     fun getEventTicketStats(eventId: UUID): List<SessionTicketStatsDto>
+
+    /**
+     * Check if any event/session references the given seating chart.
+     * Used by seating module to guard destructive operations.
+     */
+    fun seatingChartInUse(chartId: UUID): Boolean
 }

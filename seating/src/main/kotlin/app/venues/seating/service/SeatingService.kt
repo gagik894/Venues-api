@@ -27,6 +27,8 @@ class SeatingService(
     private val chartSeatRepository: ChartSeatRepository,
     private val chartTableRepository: ChartTableRepository,
     private val gaAreaRepository: GeneralAdmissionAreaRepository,
+    private val chartLandmarkRepository: ChartLandmarkRepository,
+    private val eventApi: app.venues.event.api.EventApi,
     private val mapper: SeatingResponseMapper,
     private val venueApi: VenueApi
 ) {
@@ -141,35 +143,9 @@ class SeatingService(
         venueId: UUID,
         request: SeatingChartLayoutRequest
     ): SeatingChartDetailedResponse {
-        val chart = seatingChartRepository.findById(chartId)
-            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
-
-        if (chart.venueId != venueId) {
-            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
-        }
-
-        if (chart.name != request.chart.name && seatingChartRepository.existsByVenueIdAndName(
-                venueId,
-                request.chart.name
-            )
-        ) {
-            throw VenuesException.ResourceConflict("Chart name already exists")
-        }
-
-        chart.name = request.chart.name
-        chart.resizeCanvas(request.chart.width, request.chart.height)
-        chart.backgroundUrl = request.chart.backgroundUrl
-
-        val existingZones = chartZoneRepository.findByChartId(chartId)
-        if (existingZones.isNotEmpty()) {
-            chartZoneRepository.deleteAll(existingZones)
-            chartZoneRepository.flush()
-        }
-
-        applyLayout(chart, request)
-        logger.info { "Replaced seating chart layout for $chartId" }
-
-        return getSeatingChartDetailed(chartId)
+        throw VenuesException.ValidationFailure(
+            "Layout replacement is disabled. Clone the chart for major changes and apply visual-only updates in place."
+        )
     }
 
     /**
@@ -183,6 +159,10 @@ class SeatingService(
 
         if (chart.venueId != venueId) {
             throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        if (eventApi.seatingChartInUse(chartId)) {
+            throw VenuesException.ValidationFailure("Cannot delete chart: it is referenced by events/sessions")
         }
 
         seatingChartRepository.delete(chart)
@@ -379,6 +359,311 @@ class SeatingService(
         val gaCapacity = gaAreaRepository.sumCapacityByChartId(chartId)?.toInt() ?: 0
 
         return ChartStats(seatCount, gaCapacity, zoneCount)
+    }
+
+    /**
+     * Clone an existing chart into a new chart (new IDs, same codes/geometry by default).
+     * Used for major changes while keeping existing charts stable for active sessions.
+     */
+    fun cloneSeatingChart(
+        venueId: UUID,
+        sourceChartId: UUID,
+        request: CloneSeatingChartRequest
+    ): SeatingChartDetailedResponse {
+        val source = seatingChartRepository.findById(sourceChartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Source chart not found") }
+
+        if (source.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        if (seatingChartRepository.existsByVenueIdAndName(venueId, request.name)) {
+            throw VenuesException.ResourceConflict("Chart name already exists")
+        }
+
+        val newChart = SeatingChart(
+            venueId = venueId,
+            name = request.name,
+            width = source.width,
+            height = source.height,
+            backgroundUrl = request.backgroundUrl ?: source.backgroundUrl,
+            styleConfigJson = source.styleConfigJson
+        )
+
+        // Clone zones (two-pass to wire hierarchy)
+        val sourceZones = chartZoneRepository.findByChartId(sourceChartId)
+        val newZonesByOldId: Map<Long, ChartZone> = sourceZones.associate { src ->
+            val zoneCopy = ChartZone(
+                chart = newChart,
+                parentZone = null,
+                name = src.name,
+                code = src.code,
+                x = src.x,
+                y = src.y,
+                rotation = src.rotation,
+                boundaryPath = src.boundaryPath,
+                displayColor = src.displayColor
+            )
+            (src.id ?: error("Zone ID cannot be null")) to zoneCopy
+        }
+
+        sourceZones.forEach { src ->
+            val newZone = newZonesByOldId.getValue(src.id ?: error("Zone ID cannot be null"))
+            val parentId = src.parentZone?.id
+            if (parentId != null) {
+                val parent = newZonesByOldId[parentId]
+                    ?: throw VenuesException.ValidationFailure("Parent zone $parentId missing during clone")
+                parent.addChildZone(newZone)
+            } else {
+                newChart.addZone(newZone)
+            }
+        }
+
+        // Clone tables
+        val sourceTables = chartTableRepository.findByChartId(sourceChartId)
+        val newTablesByOldId: Map<Long, ChartTable> = sourceTables.associate { src ->
+            val zone =
+                newZonesByOldId[src.zone.id ?: error("Zone ID null for table")] ?: error("Zone not found for table")
+            val tableCopy = ChartTable(
+                zone = zone,
+                tableNumber = src.tableNumber,
+                code = src.code,
+                seatCapacity = src.seatCapacity,
+                categoryKey = src.categoryKey,
+                shape = src.shape,
+                x = src.x,
+                y = src.y,
+                width = src.width,
+                height = src.height,
+                rotation = src.rotation
+            )
+            zone.addTable(tableCopy)
+            (src.id ?: error("Table ID cannot be null")) to tableCopy
+        }
+
+        // Clone GA areas
+        val sourceGa = gaAreaRepository.findByChartId(sourceChartId)
+        sourceGa.forEach { src ->
+            val zone = newZonesByOldId[src.zone.id ?: error("Zone ID null for GA")] ?: error("Zone not found for GA")
+            val gaCopy = GeneralAdmissionArea(
+                zone = zone,
+                name = src.name,
+                code = src.code,
+                capacity = src.capacity,
+                categoryKey = src.categoryKey,
+                boundaryPath = src.boundaryPath,
+                displayColor = src.displayColor
+            )
+            zone.addGaArea(gaCopy)
+        }
+
+        // Clone seats
+        val sourceSeats = chartSeatRepository.findByChartId(sourceChartId)
+        sourceSeats.forEach { src ->
+            val zone =
+                newZonesByOldId[src.zone.id ?: error("Zone ID null for seat")] ?: error("Zone not found for seat")
+            val table = src.table?.id?.let { newTablesByOldId[it] }
+            val seatCopy = ChartSeat(
+                zone = zone,
+                table = table,
+                rowLabel = src.rowLabel,
+                seatNumber = src.seatNumber,
+                code = src.code,
+                categoryKey = src.categoryKey,
+                isAccessible = src.isAccessible,
+                isObstructedView = src.isObstructedView,
+                x = src.x,
+                y = src.y,
+                rotation = src.rotation
+            )
+            zone.addSeat(seatCopy)
+            table?.attachSeat(seatCopy)
+        }
+
+        // Clone landmarks
+        val sourceLandmarks = chartLandmarkRepository.findByChartId(sourceChartId)
+
+        val saved = seatingChartRepository.save(newChart)
+
+        if (sourceLandmarks.isNotEmpty()) {
+            val landmarkCopies = sourceLandmarks.map { src ->
+                ChartLandmark(
+                    chart = saved,
+                    label = src.label,
+                    type = src.type,
+                    shapeType = src.shapeType,
+                    x = src.x,
+                    y = src.y,
+                    width = src.width,
+                    height = src.height,
+                    rotation = src.rotation,
+                    boundaryPath = src.boundaryPath,
+                    iconKey = src.iconKey
+                )
+            }
+            chartLandmarkRepository.saveAll(landmarkCopies)
+        }
+
+        logger.info { "Cloned seating chart $sourceChartId into ${saved.id}" }
+        return getSeatingChartDetailed(saved.id ?: error("Cloned chart ID null after save"))
+    }
+
+    /**
+     * Apply visual-only updates that do not alter business keys or relationships.
+     */
+    fun updateVisuals(
+        chartId: UUID,
+        venueId: UUID,
+        request: SeatingChartVisualUpdateRequest
+    ): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+        if (chart.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        // Zones
+        if (request.zones.isNotEmpty()) {
+            val zoneIds = request.zones.map { it.id }
+            val zones = chartZoneRepository.findAllById(zoneIds)
+            if (zones.size != zoneIds.toSet().size) {
+                throw VenuesException.ValidationFailure("One or more zones not found for this chart")
+            }
+            zones.forEach { zone ->
+                val upd = request.zones.first { it.id == zone.id }
+                upd.name?.let { zone.name = it }
+                upd.x?.let { zone.x = it }
+                upd.y?.let { zone.y = it }
+                upd.rotation?.let { zone.rotation = it }
+                upd.boundaryPath?.let { zone.boundaryPath = it }
+                upd.displayColor?.let { zone.displayColor = it }
+            }
+            chartZoneRepository.saveAll(zones)
+        }
+
+        // Seats
+        if (request.seats.isNotEmpty()) {
+            val seatIds = request.seats.map { it.id }
+            val seats = chartSeatRepository.findAllById(seatIds)
+            if (seats.size != seatIds.toSet().size) {
+                throw VenuesException.ValidationFailure("One or more seats not found for this chart")
+            }
+            seats.forEach { seat ->
+                val upd = request.seats.first { it.id == seat.id }
+                // Ensure seat belongs to chart
+                if (seat.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("Seat ${seat.id} does not belong to chart $chartId")
+                }
+                upd.x?.let { seat.x = it }
+                upd.y?.let { seat.y = it }
+                upd.rotation?.let { seat.rotation = it }
+                upd.isAccessible?.let { seat.isAccessible = it }
+                upd.isObstructed?.let { seat.isObstructedView = it }
+                upd.categoryKey?.let { seat.categoryKey = it }
+            }
+            chartSeatRepository.saveAll(seats)
+        }
+
+        // Tables
+        if (request.tables.isNotEmpty()) {
+            val tableIds = request.tables.map { it.id }
+            val tables = chartTableRepository.findAllById(tableIds)
+            if (tables.size != tableIds.toSet().size) {
+                throw VenuesException.ValidationFailure("One or more tables not found for this chart")
+            }
+            tables.forEach { table ->
+                if (table.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("Table ${table.id} does not belong to chart $chartId")
+                }
+                val upd = request.tables.first { it.id == table.id }
+                upd.x?.let { table.x = it }
+                upd.y?.let { table.y = it }
+                upd.width?.let { table.width = it }
+                upd.height?.let { table.height = it }
+                upd.rotation?.let { table.rotation = it }
+                upd.shape?.let { table.shape = TableShape.valueOf(it.uppercase()) }
+                upd.categoryKey?.let { table.categoryKey = it }
+            }
+            chartTableRepository.saveAll(tables)
+        }
+
+        // GA Areas
+        if (request.gaAreas.isNotEmpty()) {
+            val gaIds = request.gaAreas.map { it.id }
+            val gaAreas = gaAreaRepository.findAllById(gaIds)
+            if (gaAreas.size != gaIds.toSet().size) {
+                throw VenuesException.ValidationFailure("One or more GA areas not found for this chart")
+            }
+            gaAreas.forEach { ga ->
+                if (ga.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("GA area ${ga.id} does not belong to chart $chartId")
+                }
+                val upd = request.gaAreas.first { it.id == ga.id }
+                upd.capacity?.let { ga.updateCapacity(it) }
+                upd.boundaryPath?.let { ga.boundaryPath = it }
+                upd.displayColor?.let { ga.displayColor = it }
+                upd.categoryKey?.let { ga.categoryKey = it }
+            }
+            gaAreaRepository.saveAll(gaAreas)
+        }
+
+        // Landmarks
+        request.landmarks?.let { landmarkUpdates ->
+            if (landmarkUpdates.deleteIds.isNotEmpty()) {
+                val toDelete = chartLandmarkRepository.findAllById(landmarkUpdates.deleteIds)
+                toDelete.forEach {
+                    if (it.chart.id != chartId) {
+                        throw VenuesException.ValidationFailure("Landmark ${it.id} does not belong to chart $chartId")
+                    }
+                }
+                chartLandmarkRepository.deleteAllInBatch(toDelete)
+            }
+            if (landmarkUpdates.upserts.isNotEmpty()) {
+                val existing = landmarkUpdates.upserts.filter { it.id != null }.mapNotNull { it.id }
+                val existingEntities =
+                    if (existing.isEmpty()) emptyList() else chartLandmarkRepository.findAllById(existing)
+                val existingById = existingEntities.associateBy { it.id }
+
+                val toSave = landmarkUpdates.upserts.map { upd ->
+                    if (upd.id == null) {
+                        ChartLandmark(
+                            chart = chart,
+                            label = upd.label,
+                            type = LandmarkType.valueOf(upd.type.uppercase()),
+                            shapeType = LandmarkShapeType.valueOf(upd.shapeType.uppercase()),
+                            x = upd.x,
+                            y = upd.y,
+                            width = upd.width,
+                            height = upd.height,
+                            rotation = upd.rotation,
+                            boundaryPath = upd.boundaryPath,
+                            iconKey = upd.iconKey
+                        )
+                    } else {
+                        val entity = existingById[upd.id]
+                            ?: throw VenuesException.ValidationFailure("Landmark ${upd.id} not found")
+                        if (entity.chart.id != chartId) {
+                            throw VenuesException.ValidationFailure("Landmark ${entity.id} does not belong to chart $chartId")
+                        }
+                        entity.label = upd.label
+                        entity.type = LandmarkType.valueOf(upd.type.uppercase())
+                        entity.shapeType = LandmarkShapeType.valueOf(upd.shapeType.uppercase())
+                        entity.x = upd.x
+                        entity.y = upd.y
+                        entity.width = upd.width
+                        entity.height = upd.height
+                        entity.rotation = upd.rotation
+                        entity.boundaryPath = upd.boundaryPath
+                        entity.iconKey = upd.iconKey
+                        entity
+                    }
+                }
+                chartLandmarkRepository.saveAll(toSave)
+            }
+        }
+
+        logger.info { "Applied visual updates to chart $chartId" }
+        return getSeatingChartDetailed(chartId)
     }
 }
 

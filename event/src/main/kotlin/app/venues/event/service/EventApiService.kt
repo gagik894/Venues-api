@@ -434,6 +434,11 @@ class EventApiService(
     }
 
     @Transactional(readOnly = true)
+    override fun seatingChartInUse(chartId: UUID): Boolean {
+        return eventRepository.existsBySeatingChartId(chartId)
+    }
+
+    @Transactional(readOnly = true)
     override fun getEventsByVenue(
         venueId: UUID,
         language: String?,

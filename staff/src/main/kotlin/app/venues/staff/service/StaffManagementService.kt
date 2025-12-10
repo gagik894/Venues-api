@@ -1,6 +1,7 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.shared.persistence.util.PageableMapper
 import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
 import app.venues.staff.domain.StaffMembership
@@ -26,7 +27,8 @@ import java.util.*
 class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
     private val staffContextBuilder: StaffContextBuilder,
-    private val venueApi: VenueApi
+    private val venueApi: VenueApi,
+    private val organizationApi: app.venues.organization.api.OrganizationApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -66,8 +68,11 @@ class StaffManagementService(
      * @throws VenuesException.ResourceNotFound if staff identity doesn't exist
      */
     @Transactional
-    fun inviteStaff(request: InviteStaffRequest): StaffProfileDto {
+    fun inviteStaff(actorId: UUID, request: InviteStaffRequest): StaffProfileDto {
         logger.info { "Inviting ${request.email} to org ${request.organizationId} as ${request.role}" }
+
+        // Authorization
+        enforceOrgAdmin(actorId, request.organizationId)
 
         // Find existing staff identity
         val staff = staffRepository.findByEmail(request.email.lowercase().trim())
@@ -204,5 +209,112 @@ class StaffManagementService(
         logger.info { "Granted ${request.role} for venue ${request.venueId} to ${target.email}" }
 
         return StaffMapper.toProfileDto(target)
+    }
+
+    // ==============================
+    // Listings
+    // ==============================
+
+    @Transactional(readOnly = true)
+    fun listAllStaff(limit: Int?, offset: Int?): List<StaffListItemDto> {
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val page = staffRepository.findAll(pageable)
+        val venueMap = resolveVenues(page.content)
+        return page.content.map { toListItem(it, venueMap) }
+    }
+
+    @Transactional(readOnly = true)
+    fun listOrgMembers(actorId: UUID, organizationId: UUID, limit: Int?, offset: Int?): List<StaffListItemDto> {
+        enforceOrgAdmin(actorId, organizationId)
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val members = staffRepository.findAllByOrganizationId(organizationId, pageable)
+        val venueMap = resolveVenues(members.content)
+        return members.content.map { toListItem(it, venueMap) }
+    }
+
+    @Transactional(readOnly = true)
+    fun listVenuePermissions(actorId: UUID, venueId: UUID, limit: Int?, offset: Int?): List<VenuePermissionDto> {
+        val orgId = venueApi.getVenueOrganizationId(venueId)
+            ?: throw VenuesException.ResourceNotFound("Venue not found", "VENUE_NOT_FOUND")
+        enforceOrgAdmin(actorId, orgId)
+
+        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
+        val staffWithPerms = staffRepository.findAllByVenueId(venueId, pageable)
+        return staffWithPerms.content.flatMap { staff ->
+            staff.memberships.flatMap { m ->
+                m.venuePermissions
+                    .filter { it.venueId == venueId }
+                    .map {
+                        VenuePermissionDto(
+                            staffId = staff.id!!,
+                            staffEmail = staff.email,
+                            role = it.role
+                        )
+                    }
+            }
+        }
+    }
+
+    @Transactional(readOnly = true)
+    fun listOrganizations(
+        limit: Int?,
+        offset: Int?,
+        includeInactive: Boolean
+    ): List<app.venues.organization.api.dto.OrganizationDto> {
+        return organizationApi.listOrganizations(limit, offset, includeInactive)
+    }
+
+    private fun toListItem(
+        staff: app.venues.staff.domain.StaffIdentity,
+        venueMap: Map<UUID, app.venues.venue.api.dto.VenueBasicInfoDto>
+    ): StaffListItemDto {
+        val orgs = staff.memberships.filter { it.isActive }
+            .map { OrganizationAccessDto(id = it.organizationId, role = it.orgRole) }
+        val venues = staff.memberships.flatMap { m ->
+            m.venuePermissions.map { vp ->
+                AuthorizedVenueDto(
+                    id = vp.venueId,
+                    name = venueMap[vp.venueId]?.name ?: "",
+                    slug = venueMap[vp.venueId]?.slug ?: "",
+                    role = vp.role
+                )
+            }
+        }
+        return StaffListItemDto(
+            id = staff.id!!,
+            email = staff.email,
+            firstName = staff.firstName,
+            lastName = staff.lastName,
+            status = staff.status,
+            isSuperAdmin = staff.isPlatformSuperAdmin,
+            organizations = orgs,
+            venueRoles = venues
+        )
+    }
+
+    private fun enforceOrgAdmin(actorId: UUID, organizationId: UUID) {
+        val actor = staffRepository.findById(actorId).orElseThrow {
+            VenuesException.AuthorizationFailure("Not authorized")
+        }
+        if (actor.isPlatformSuperAdmin) return
+        val membership = actor.memberships.firstOrNull { it.organizationId == organizationId && it.isActive }
+            ?: throw VenuesException.AuthorizationFailure("Not authorized")
+        if (membership.orgRole !in listOf(
+                app.venues.staff.domain.OrganizationRole.OWNER,
+                app.venues.staff.domain.OrganizationRole.ADMIN
+            )
+        ) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+    }
+
+    private fun resolveVenues(staffList: List<app.venues.staff.domain.StaffIdentity>): Map<UUID, app.venues.venue.api.dto.VenueBasicInfoDto> {
+        val ids = staffList
+            .flatMap { it.memberships }
+            .flatMap { it.venuePermissions }
+            .map { it.venueId }
+            .toSet()
+        if (ids.isEmpty()) return emptyMap()
+        return venueApi.getVenueBasicInfoBatch(ids)
     }
 }

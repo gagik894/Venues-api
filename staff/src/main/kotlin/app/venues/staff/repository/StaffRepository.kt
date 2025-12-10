@@ -56,5 +56,25 @@ interface StaffIdentityRepository : JpaRepository<StaffIdentity, UUID> {
         WHERE m.organizationId = :organizationId
         """
     )
-    fun findAllByOrganizationId(organizationId: UUID): List<StaffIdentity>
+    fun findAllByOrganizationId(
+        organizationId: UUID,
+        pageable: org.springframework.data.domain.Pageable
+    ): org.springframework.data.domain.Page<StaffIdentity>
+
+    /**
+     * Finds all staff that have a permission for a specific venue.
+     */
+    @EntityGraph(attributePaths = ["memberships", "memberships.venuePermissions"])
+    @Query(
+        """
+        SELECT s FROM StaffIdentity s
+        JOIN s.memberships m
+        JOIN m.venuePermissions vp
+        WHERE vp.venueId = :venueId
+        """
+    )
+    fun findAllByVenueId(
+        venueId: UUID,
+        pageable: org.springframework.data.domain.Pageable
+    ): org.springframework.data.domain.Page<StaffIdentity>
 }

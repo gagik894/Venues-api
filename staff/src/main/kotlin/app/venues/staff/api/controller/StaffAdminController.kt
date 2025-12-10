@@ -46,12 +46,12 @@ class StaffAdminController(
     @PostMapping("/invite")
     @Operation(summary = "Invite Member", description = "Invite a user (new or existing) to an Organization")
     fun inviteStaff(
+        @RequestAttribute("staffId") actorId: UUID,
         @Valid @RequestBody req: InviteStaffRequest
     ): ApiResponse<StaffProfileDto> {
         logger.info { "Inviting ${req.email} to Org ${req.organizationId} as ${req.role}" }
 
-        // Security Note: Service layer must verify that Current User is ADMIN of req.organizationId
-        val profile = managementService.inviteStaff(req)
+        val profile = managementService.inviteStaff(actorId, req)
 
         return ApiResponse.success(
             data = profile,
@@ -88,5 +88,59 @@ class StaffAdminController(
     ): ApiResponse<StaffProfileDto> {
         val profile = managementService.grantVenuePermission(actorId, req)
         return ApiResponse.success(profile, "Venue permission granted")
+    }
+
+    // ==============================
+    // Listings for admin UI
+    // ==============================
+
+    @GetMapping
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List staff (super admin)")
+    fun listStaff(
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<List<StaffListItemDto>> {
+        val items = managementService.listAllStaff(limit, offset)
+        return ApiResponse.success(items, "Staff listed")
+    }
+
+    @GetMapping("/organizations")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "List organizations (super admin)")
+    fun listOrganizations(
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?,
+        @RequestParam(required = false, defaultValue = "false") includeInactive: Boolean
+    ): ApiResponse<List<app.venues.organization.api.dto.OrganizationDto>> {
+        val orgs = managementService.listOrganizations(limit, offset, includeInactive)
+        return ApiResponse.success(orgs, "Organizations listed")
+    }
+
+    @GetMapping("/organizations/{organizationId}/members")
+    @Operation(summary = "List org members", description = "Requires SUPER_ADMIN or org OWNER/ADMIN")
+    fun listOrgMembers(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable organizationId: UUID,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<List<StaffListItemDto>> {
+        val items = managementService.listOrgMembers(actorId, organizationId, limit, offset)
+        return ApiResponse.success(items, "Org members listed")
+    }
+
+    @GetMapping("/venues/{venueId}/permissions")
+    @Operation(
+        summary = "List venue permissions",
+        description = "Requires SUPER_ADMIN or org OWNER/ADMIN of the venue's org"
+    )
+    fun listVenuePermissions(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable venueId: UUID,
+        @RequestParam(required = false) limit: Int?,
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<List<VenuePermissionDto>> {
+        val items = managementService.listVenuePermissions(actorId, venueId, limit, offset)
+        return ApiResponse.success(items, "Venue permissions listed")
     }
 }

@@ -1,6 +1,7 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.common.model.ResponseMetadata
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
@@ -10,6 +11,7 @@ import app.venues.staff.domain.StaffVenuePermission
 import app.venues.staff.repository.StaffIdentityRepository
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.data.domain.Page
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -27,8 +29,7 @@ import java.util.*
 class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
     private val staffContextBuilder: StaffContextBuilder,
-    private val venueApi: VenueApi,
-    private val organizationApi: app.venues.organization.api.OrganizationApi
+    private val venueApi: VenueApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -216,31 +217,45 @@ class StaffManagementService(
     // ==============================
 
     @Transactional(readOnly = true)
-    fun listAllStaff(limit: Int?, offset: Int?): List<StaffListItemDto> {
+    fun listAllStaff(limit: Int?, offset: Int?): Pair<List<StaffListItemDto>, ResponseMetadata> {
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val page = staffRepository.findAll(pageable)
         val venueMap = resolveVenues(page.content)
-        return page.content.map { toListItem(it, venueMap) }
+        val data = page.content.map { toListItem(it, venueMap) }
+        val metadata = toMetadata(page)
+        return data to metadata
     }
 
     @Transactional(readOnly = true)
-    fun listOrgMembers(actorId: UUID, organizationId: UUID, limit: Int?, offset: Int?): List<StaffListItemDto> {
+    fun listOrgMembers(
+        actorId: UUID,
+        organizationId: UUID,
+        limit: Int?,
+        offset: Int?
+    ): Pair<List<StaffListItemDto>, ResponseMetadata> {
         enforceOrgAdmin(actorId, organizationId)
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val members = staffRepository.findAllByOrganizationId(organizationId, pageable)
         val venueMap = resolveVenues(members.content)
-        return members.content.map { toListItem(it, venueMap) }
+        val data = members.content.map { toListItem(it, venueMap) }
+        val metadata = toMetadata(members)
+        return data to metadata
     }
 
     @Transactional(readOnly = true)
-    fun listVenuePermissions(actorId: UUID, venueId: UUID, limit: Int?, offset: Int?): List<VenuePermissionDto> {
+    fun listVenuePermissions(
+        actorId: UUID,
+        venueId: UUID,
+        limit: Int?,
+        offset: Int?
+    ): Pair<List<VenuePermissionDto>, ResponseMetadata> {
         val orgId = venueApi.getVenueOrganizationId(venueId)
             ?: throw VenuesException.ResourceNotFound("Venue not found", "VENUE_NOT_FOUND")
         enforceOrgAdmin(actorId, orgId)
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val staffWithPerms = staffRepository.findAllByVenueId(venueId, pageable)
-        return staffWithPerms.content.flatMap { staff ->
+        val data = staffWithPerms.content.flatMap { staff ->
             staff.memberships.flatMap { m ->
                 m.venuePermissions
                     .filter { it.venueId == venueId }
@@ -253,15 +268,8 @@ class StaffManagementService(
                     }
             }
         }
-    }
-
-    @Transactional(readOnly = true)
-    fun listOrganizations(
-        limit: Int?,
-        offset: Int?,
-        includeInactive: Boolean
-    ): List<app.venues.organization.api.dto.OrganizationDto> {
-        return organizationApi.listOrganizations(limit, offset, includeInactive)
+        val metadata = toMetadata(staffWithPerms)
+        return data to metadata
     }
 
     private fun toListItem(
@@ -316,5 +324,31 @@ class StaffManagementService(
             .toSet()
         if (ids.isEmpty()) return emptyMap()
         return venueApi.getVenueBasicInfoBatch(ids)
+    }
+
+    @Transactional
+    fun setSuperAdmin(actorId: UUID, request: SetSuperAdminRequest) {
+        // Only super admin can set super admin
+        val actor = staffRepository.findById(actorId).orElseThrow {
+            VenuesException.AuthorizationFailure("Not authorized")
+        }
+        if (!actor.isPlatformSuperAdmin) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+        val target = staffRepository.findById(request.staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+        target.isPlatformSuperAdmin = request.isSuperAdmin
+        staffRepository.save(target)
+        logger.info { "Super admin flag updated for ${target.email}: ${request.isSuperAdmin}" }
+    }
+
+    private fun toMetadata(page: Page<*>): ResponseMetadata {
+        return ResponseMetadata(
+            page = page.number,
+            size = page.size,
+            totalElements = page.totalElements,
+            totalPages = page.totalPages
+        )
     }
 }

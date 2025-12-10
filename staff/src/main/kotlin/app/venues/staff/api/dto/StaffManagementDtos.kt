@@ -47,3 +47,11 @@ data class VenuePermissionDto(
     val staffEmail: String,
     val role: VenueRole
 )
+
+/**
+ * Toggle super admin flag.
+ */
+data class SetSuperAdminRequest(
+    val staffId: UUID,
+    val isSuperAdmin: Boolean
+)

@@ -101,20 +101,8 @@ class StaffAdminController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<List<StaffListItemDto>> {
-        val items = managementService.listAllStaff(limit, offset)
-        return ApiResponse.success(items, "Staff listed")
-    }
-
-    @GetMapping("/organizations")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "List organizations (super admin)")
-    fun listOrganizations(
-        @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false, defaultValue = "false") includeInactive: Boolean
-    ): ApiResponse<List<app.venues.organization.api.dto.OrganizationDto>> {
-        val orgs = managementService.listOrganizations(limit, offset, includeInactive)
-        return ApiResponse.success(orgs, "Organizations listed")
+        val (items, metadata) = managementService.listAllStaff(limit, offset)
+        return ApiResponse.success(items, "Staff listed", metadata)
     }
 
     @GetMapping("/organizations/{organizationId}/members")
@@ -125,8 +113,8 @@ class StaffAdminController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<List<StaffListItemDto>> {
-        val items = managementService.listOrgMembers(actorId, organizationId, limit, offset)
-        return ApiResponse.success(items, "Org members listed")
+        val (items, metadata) = managementService.listOrgMembers(actorId, organizationId, limit, offset)
+        return ApiResponse.success(items, "Org members listed", metadata)
     }
 
     @GetMapping("/venues/{venueId}/permissions")
@@ -140,7 +128,23 @@ class StaffAdminController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<List<VenuePermissionDto>> {
-        val items = managementService.listVenuePermissions(actorId, venueId, limit, offset)
-        return ApiResponse.success(items, "Venue permissions listed")
+        val (items, metadata) = managementService.listVenuePermissions(actorId, venueId, limit, offset)
+        return ApiResponse.success(items, "Venue permissions listed", metadata)
+    }
+
+    @PutMapping("/{id}/super-admin")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(
+        summary = "Set super admin flag",
+        description = "Enable/disable super admin for a staff member (SUPER_ADMIN only)"
+    )
+    fun setSuperAdmin(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable id: UUID,
+        @Valid @RequestBody req: SetSuperAdminRequest
+    ): ApiResponse<Unit> {
+        require(req.staffId == id) { "ID mismatch between path and body" }
+        managementService.setSuperAdmin(actorId, req)
+        return ApiResponse.success(message = "Super admin flag updated")
     }
 }

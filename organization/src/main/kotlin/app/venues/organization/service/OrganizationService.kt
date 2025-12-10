@@ -122,7 +122,8 @@ class OrganizationService(
             contactEmail = request.email
             phoneNumber = request.phoneNumber
             websiteUrl = request.website
-            // Unmodeled fields: description, registrationNumber, address, city, socialLinks, logo
+            customDomain = request.customDomain
+            defaultMerchantProfileId = request.defaultMerchantProfileId
         }
         val saved = organizationRepository.save(org)
         return toDetail(saved)
@@ -140,8 +141,9 @@ class OrganizationService(
         request.email?.let { org.contactEmail = it }
         request.phoneNumber?.let { org.phoneNumber = it }
         request.website?.let { org.websiteUrl = it }
+        request.customDomain?.let { org.customDomain = it }
+        request.defaultMerchantProfileId?.let { org.defaultMerchantProfileId = it }
         request.isActive?.let { org.isActive = it }
-        // Unmodeled fields ignored: description, registrationNumber, address, city, socialLinks, logo
 
         val saved = organizationRepository.save(org)
         return toDetail(saved)
@@ -149,25 +151,18 @@ class OrganizationService(
 
     private fun toDetail(org: Organization): OrganizationDetailResponse {
         return OrganizationDetailResponse(
-            id = org.id!!,
+            id = org.id,
             slug = org.slug,
             name = org.name,
             legalName = org.legalName,
             taxId = org.taxId,
-            registrationNumber = null,
-            description = null,
             type = org.type,
-            address = null,
-            citySlug = null,
-            cityName = null,
             phoneNumber = org.phoneNumber,
             email = org.contactEmail,
             website = org.websiteUrl,
-            socialLinks = null,
-            logoUrl = null,
+            customDomain = org.customDomain,
+            defaultMerchantProfileId = org.defaultMerchantProfileId,
             isActive = org.isActive,
-            staffCount = 0,
-            venueCount = 0,
             createdAt = org.createdAt,
             lastModifiedAt = org.lastModifiedAt
         )

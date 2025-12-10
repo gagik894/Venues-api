@@ -50,7 +50,7 @@ class EventMapper {
             location = event.location,
             latitude = event.latitude,
             longitude = event.longitude,
-            categoryId = event.category?.id,
+            categoryCode = event.category?.code,
             categoryName = categoryName,
             tags = event.tags.toSet(),
             priceRange = event.priceRange,
@@ -93,7 +93,6 @@ class EventMapper {
      * Convert EventPriceTemplate entity to PriceTemplateResponse DTO.
      *
      * @param template The template entity
-     * @param anchorTemplateNames Set of template names that are "Anchors" (match chart categories)
      */
     fun toPriceTemplateResponse(
         template: EventPriceTemplate

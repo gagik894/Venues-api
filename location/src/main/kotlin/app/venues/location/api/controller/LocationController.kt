@@ -172,18 +172,18 @@ class LocationController(
      *
      * Returns all active cities in a specific region.
      *
-     * @param regionId Parent region ID
+     * @param regionCode Parent region code
      * @return List of cities in the region
      */
-    @GetMapping("/regions/{regionId}/cities")
+    @GetMapping("/regions/{regionCode}/cities")
     @Operation(
         summary = "Get cities by region",
         description = "Returns all active cities in a specific region"
     )
-    fun getCitiesByRegion(@PathVariable regionId: Long): ApiResponse<List<CityResponse>> {
+    fun getCitiesByRegion(@PathVariable regionCode: String): ApiResponse<List<CityResponse>> {
         val language = LocaleHelper.currentLanguage()
-        logger.debug { "GET /api/v1/locations/regions/$regionId/cities (lang: $language)" }
-        val cities = locationService.getCitiesByRegion(regionId, language)
+        logger.debug { "GET /api/v1/locations/regions/$regionCode/cities (lang: $language)" }
+        val cities = locationService.getCitiesByRegionCode(regionCode, language)
         return ApiResponse.success(
             data = cities,
             message = "Cities retrieved successfully"
@@ -306,11 +306,11 @@ class LocationController(
         description = "Update an existing region (admin only)"
     )
     fun updateRegion(
-        @PathVariable id: Long,
+        @PathVariable code: String,
         @Valid @RequestBody request: UpdateRegionRequest
     ): ApiResponse<RegionResponse> {
-        logger.info { "PUT /api/v1/locations/admin/regions/$id (admin)" }
-        val region = locationService.updateRegion(id, request)
+        logger.info { "PUT /api/v1/locations/admin/regions/$code (admin)" }
+        val region = locationService.updateRegion(code, request)
         return ApiResponse.success(
             data = region,
             message = "Region updated successfully"
@@ -351,7 +351,7 @@ class LocationController(
      * @param request Update data
      * @return Updated city
      */
-    @PutMapping("/admin/cities/{id}")
+    @PutMapping("/admin/cities/{slug}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @SecurityRequirement(name = "bearer-jwt")
     @Operation(
@@ -359,11 +359,11 @@ class LocationController(
         description = "Update an existing city (admin only)"
     )
     fun updateCity(
-        @PathVariable id: Long,
+        @PathVariable slug: String,
         @Valid @RequestBody request: UpdateCityRequest
     ): ApiResponse<CityResponse> {
-        logger.info { "PUT /api/v1/locations/admin/cities/$id (admin)" }
-        val city = locationService.updateCity(id, request)
+        logger.info { "PUT /api/v1/locations/admin/cities/$slug (admin)" }
+        val city = locationService.updateCity(slug, request)
         return ApiResponse.success(
             data = city,
             message = "City updated successfully"

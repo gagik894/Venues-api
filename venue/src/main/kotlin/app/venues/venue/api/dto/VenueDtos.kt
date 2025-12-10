@@ -168,9 +168,8 @@ data class CreateVenueRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String,
 
-    //TODO: USE CITY CODE INSTEAD OF ID
-    @field:NotNull(message = "City is required")
-    var cityId: Long,
+    @field:NotBlank(message = "City slug is required")
+    var citySlug: String,
 
     val categoryCode: String? = null,
 
@@ -208,7 +207,7 @@ data class UpdateVenueRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String? = null,
 
-    val cityId: Long? = null,
+    val citySlug: String? = null,
     val categoryCode: String? = null,
 
     val legalName: String? = null,

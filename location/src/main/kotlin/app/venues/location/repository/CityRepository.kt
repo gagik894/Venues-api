@@ -77,21 +77,6 @@ interface CityRepository : JpaRepository<City, Long> {
     fun findAllActiveByRegion(@Param("region") region: Region): List<City>
 
     /**
-     * Get all active cities in a specific region (by region ID).
-     *
-     * @param regionId Parent region ID
-     * @return List of active cities in the region
-     */
-    @Query(
-        """
-        SELECT c FROM City c 
-        WHERE c.region.id = :regionId AND c.isActive = true 
-        ORDER BY c.displayOrder NULLS LAST, c.slug ASC
-    """
-    )
-    fun findAllActiveByRegionId(@Param("regionId") regionId: Long): List<City>
-
-    /**
      * Search cities by name (multilingual, case-insensitive).
      *
      * Searches across all language names in the JSONB field.

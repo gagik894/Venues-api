@@ -70,7 +70,7 @@ data class EventResponse(
     val location: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val categoryId: Long?,
+    val categoryCode: String?,
     val categoryName: String?,
     val tags: Set<String>,
     val priceRange: String?,

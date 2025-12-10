@@ -225,13 +225,11 @@ class VenueService(
             )
         }
 
-        // Fetch and validate city
-        val city = cityRepository.findById(request.cityId).orElseThrow {
-            VenuesException.ValidationFailure(
-                message = "Invalid city ID",
-                errorCode = "INVALID_CITY"
-            )
-        }
+        // Fetch and validate city by slug
+        val city = cityRepository.findBySlug(request.citySlug) ?: throw VenuesException.ValidationFailure(
+            message = "Invalid city slug",
+            errorCode = "INVALID_CITY"
+        )
 
         // Fetch and validate category (optional)
         val category = request.categoryCode?.let { code ->
@@ -270,14 +268,12 @@ class VenueService(
             )
         }
 
-        // Fetch new city if provided
-        val city = request.cityId?.let { cityId ->
-            cityRepository.findById(cityId).orElseThrow {
-                VenuesException.ValidationFailure(
-                    message = "Invalid city ID",
-                    errorCode = "INVALID_CITY"
-                )
-            }
+        // Fetch new city if provided (slug)
+        val city = request.citySlug?.let { citySlug ->
+            cityRepository.findBySlug(citySlug) ?: throw VenuesException.ValidationFailure(
+                message = "Invalid city slug",
+                errorCode = "INVALID_CITY"
+            )
         }
 
         // Fetch new category if provided

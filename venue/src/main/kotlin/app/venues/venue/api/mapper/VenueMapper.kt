@@ -199,7 +199,7 @@ class VenueMapper(
      *
      * @param venue Existing venue entity to update
      * @param request UpdateVenueRequest with changes
-     * @param city Optional new city (if cityId provided)
+     * @param city Optional new city (if citySlug provided)
      * @param category Optional new category (if categoryCode provided)
      */
     fun updateEntity(

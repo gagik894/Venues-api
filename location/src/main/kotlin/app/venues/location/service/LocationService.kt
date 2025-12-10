@@ -136,21 +136,19 @@ class LocationService(
     /**
      * Update an existing region (admin only).
      *
-     * @param id Region ID
+     * @param code Region Code
      * @param request Update data
      * @return Updated region
      * @throws VenuesException.ResourceNotFound if region not found
      */
     @Transactional
-    fun updateRegion(id: Long, request: UpdateRegionRequest): RegionResponse {
-        logger.info { "Updating region: $id" }
+    fun updateRegion(code: String, request: UpdateRegionRequest): RegionResponse {
+        logger.info { "Updating region: $code" }
 
-        val region = regionRepository.findById(id).orElseThrow {
-            VenuesException.ResourceNotFound(
-                message = "Region not found with ID: $id",
-                errorCode = "REGION_NOT_FOUND"
-            )
-        }
+        val region = regionRepository.findByCode(code) ?: throw VenuesException.ResourceNotFound(
+            message = "Region not found with code: $code",
+            errorCode = "REGION_NOT_FOUND"
+        )
 
         // Apply updates
         request.names?.let { region.names = it }
@@ -158,7 +156,7 @@ class LocationService(
         request.isActive?.let { region.isActive = it }
 
         val saved = regionRepository.save(region)
-        logger.info { "Region updated: ${saved.id}" }
+        logger.info { "Region updated: ${saved.code}" }
 
         return RegionResponse.from(saved)
     }
@@ -181,14 +179,15 @@ class LocationService(
     }
 
     /**
-     * Get active cities by region.
-     *
-     * @param regionId Parent region ID
-     * @return List of active cities in the region
+     * Get active cities by region code.
      */
-    fun getCitiesByRegion(regionId: Long, lang: String = "en"): List<CityResponse> {
-        logger.debug { "Fetching cities for region: $regionId, lang: $lang" }
-        return cityRepository.findAllActiveByRegionId(regionId).map { CityResponse.from(it, lang) }
+    fun getCitiesByRegionCode(regionCode: String, lang: String = "en"): List<CityResponse> {
+        logger.debug { "Fetching cities for region code: $regionCode, lang: $lang" }
+        val region = regionRepository.findByCode(regionCode) ?: throw VenuesException.ResourceNotFound(
+            "Region not found with code: $regionCode",
+            "REGION_NOT_FOUND"
+        )
+        return cityRepository.findAllActiveByRegion(region).map { CityResponse.from(it, lang) }
     }
 
     /**
@@ -257,13 +256,11 @@ class LocationService(
             )
         }
 
-        // Validate region exists
-        val region = regionRepository.findById(request.regionId).orElseThrow {
-            VenuesException.ResourceNotFound(
-                message = "Region not found with ID: ${request.regionId}",
-                errorCode = "REGION_NOT_FOUND"
-            )
-        }
+        // Validate region exists by code
+        val region = regionRepository.findByCode(request.regionCode) ?: throw VenuesException.ResourceNotFound(
+            message = "Region not found with code: ${request.regionCode}",
+            errorCode = "REGION_NOT_FOUND"
+        )
 
         val city = City(
             region = region,
@@ -283,30 +280,26 @@ class LocationService(
     /**
      * Update an existing city (admin only).
      *
-     * @param id City ID
+     * @param slug City slug
      * @param request Update data
      * @return Updated city
      * @throws VenuesException.ResourceNotFound if city or region not found
      */
     @Transactional
-    fun updateCity(id: Long, request: UpdateCityRequest): CityResponse {
-        logger.info { "Updating city: $id" }
+    fun updateCity(slug: String, request: UpdateCityRequest): CityResponse {
+        logger.info { "Updating city: $slug" }
 
-        val city = cityRepository.findById(id).orElseThrow {
-            VenuesException.ResourceNotFound(
-                message = "City not found with ID: $id",
-                errorCode = "CITY_NOT_FOUND"
-            )
-        }
+        val city = cityRepository.findBySlug(slug) ?: throw VenuesException.ResourceNotFound(
+            message = "City not found with slug: $slug",
+            errorCode = "CITY_NOT_FOUND"
+        )
 
         // Apply updates
-        request.regionId?.let { regionId ->
-            val region = regionRepository.findById(regionId).orElseThrow {
-                VenuesException.ResourceNotFound(
-                    message = "Region not found with ID: $regionId",
-                    errorCode = "REGION_NOT_FOUND"
-                )
-            }
+        request.regionCode?.let { regionCode ->
+            val region = regionRepository.findByCode(regionCode) ?: throw VenuesException.ResourceNotFound(
+                message = "Region not found with code: $regionCode",
+                errorCode = "REGION_NOT_FOUND"
+            )
             city.region = region
         }
 

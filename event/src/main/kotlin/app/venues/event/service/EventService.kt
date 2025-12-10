@@ -412,21 +412,21 @@ class EventService(
     }
 
     /**
-     * Get events by category as summaries.
+     * Get events by category (code) as summaries.
      *
-     * @param categoryId The ID of the category.
+     * @param categoryCode The code of the category.
      * @param pageable Pagination information.
      * @param language Optional language code for translations.
      * @return Page of EventSummaryResponse DTOs.
      */
     @Transactional(readOnly = true)
     fun getEventSummariesByCategory(
-        categoryId: Long,
+        categoryCode: String,
         pageable: Pageable,
         language: String?
     ): Page<EventSummaryResponse> {
-        logger.debug { "Fetching events for category (summary): $categoryId" }
-        val events = eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.PUBLISHED, pageable)
+        logger.debug { "Fetching events for category (summary): $categoryCode" }
+        val events = eventRepository.findByCategoryCodeAndStatus(categoryCode, EventStatus.PUBLISHED, pageable)
         return mapToSummary(events, language)
     }
 
@@ -506,16 +506,12 @@ class EventService(
     }
 
     /**
-     * Get events by category.
-     *
-     * @param categoryId The ID of the category.
-     * @param pageable Pagination information.
-     * @return Page of Event entities.
+     * Get events by category code.
      */
     @Transactional(readOnly = true)
-    fun getEventsByCategory(categoryId: Long, pageable: Pageable): Page<Event> {
-        logger.debug { "Fetching events for category: $categoryId" }
-        return eventRepository.findByCategoryIdAndStatus(categoryId, EventStatus.PUBLISHED, pageable)
+    fun getEventsByCategory(categoryCode: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for category: $categoryCode" }
+        return eventRepository.findByCategoryCodeAndStatus(categoryCode, EventStatus.PUBLISHED, pageable)
     }
 
     /**

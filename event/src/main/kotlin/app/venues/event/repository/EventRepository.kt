@@ -49,14 +49,16 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByStatus(status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
-     * Find events by category ID
+     * Find events by category code and status
      */
-    fun findByCategoryId(categoryId: Long, pageable: Pageable): Page<Event>
-
-    /**
-     * Find events by category ID and status
-     */
-    fun findByCategoryIdAndStatus(categoryId: Long, status: EventStatus, pageable: Pageable): Page<Event>
+    @Query(
+        """
+        SELECT e FROM Event e 
+        JOIN e.category c 
+        WHERE c.code = :categoryCode AND e.status = :status
+    """
+    )
+    fun findByCategoryCodeAndStatus(categoryCode: String, status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
      * Search events by title (case-insensitive)

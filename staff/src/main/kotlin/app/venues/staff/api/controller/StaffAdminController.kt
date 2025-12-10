@@ -1,10 +1,7 @@
 package app.venues.staff.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.staff.api.dto.AuthorizedVenueDto
-import app.venues.staff.api.dto.InviteStaffRequest
-import app.venues.staff.api.dto.StaffProfileDto
-import app.venues.staff.api.dto.UpdateStaffStatusRequest
+import app.venues.staff.api.dto.*
 import app.venues.staff.service.StaffManagementService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -78,5 +75,18 @@ class StaffAdminController(
         return ApiResponse.success(
             message = "Staff status updated"
         )
+    }
+
+    @PostMapping("/venue-permissions")
+    @Operation(
+        summary = "Grant venue permission",
+        description = "Grant a venue-level role (MANAGER/EDITOR/SCANNER/VIEWER) to a staff member"
+    )
+    fun grantVenuePermission(
+        @RequestAttribute("staffId") actorId: UUID,
+        @Valid @RequestBody req: GrantVenuePermissionRequest
+    ): ApiResponse<StaffProfileDto> {
+        val profile = managementService.grantVenuePermission(actorId, req)
+        return ApiResponse.success(profile, "Venue permission granted")
     }
 }

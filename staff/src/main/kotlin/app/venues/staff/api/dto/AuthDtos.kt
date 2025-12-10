@@ -1,5 +1,6 @@
 package app.venues.staff.api.dto
 
+import app.venues.staff.domain.OrganizationRole
 import app.venues.staff.domain.VenueRole
 import java.util.*
 
@@ -13,6 +14,14 @@ data class StaffProfileDto(
     val email: String,
     val firstName: String?,
     val lastName: String?
+)
+
+/**
+ * Organization access entry.
+ */
+data class OrganizationAccessDto(
+    val id: UUID,
+    val role: OrganizationRole
 )
 
 /**
@@ -36,5 +45,7 @@ data class StaffAuthResponse(
     val token: String,
     val expiresIn: Long,
     val profile: StaffProfileDto,
-    val authorizedVenues: List<AuthorizedVenueDto>
+    val authorizedVenues: List<AuthorizedVenueDto>,
+    val organizations: List<OrganizationAccessDto>,
+    val isSuperAdmin: Boolean
 )

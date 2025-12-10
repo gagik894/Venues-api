@@ -1,14 +1,13 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
-import app.venues.staff.api.dto.AuthorizedVenueDto
-import app.venues.staff.api.dto.InviteStaffRequest
-import app.venues.staff.api.dto.StaffProfileDto
-import app.venues.staff.api.dto.UpdateStaffStatusRequest
+import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
 import app.venues.staff.domain.StaffMembership
 import app.venues.staff.domain.StaffStatus
+import app.venues.staff.domain.StaffVenuePermission
 import app.venues.staff.repository.StaffIdentityRepository
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -26,7 +25,8 @@ import java.util.*
 @Service
 class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
-    private val staffContextBuilder: StaffContextBuilder
+    private val staffContextBuilder: StaffContextBuilder,
+    private val venueApi: VenueApi
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -137,5 +137,72 @@ class StaffManagementService(
         staffRepository.save(staff)
 
         logger.info { "Staff ${request.staffId} status updated to ${request.status}" }
+    }
+
+    /**
+     * Grants a venue-level permission to a staff member.
+     *
+     * Rules:
+     * - SUPER_ADMIN can grant any permission.
+     * - Organization OWNER/ADMIN of the venue's organization can grant.
+     * - Target staff must belong to the same organization; if not, a MEMBER membership is created.
+     */
+    @Transactional
+    fun grantVenuePermission(actorId: UUID, request: GrantVenuePermissionRequest): StaffProfileDto {
+        val venueOrgId = venueApi.getVenueOrganizationId(request.venueId)
+            ?: throw VenuesException.ResourceNotFound(
+                "Venue not found: ${request.venueId}",
+                "VENUE_NOT_FOUND"
+            )
+
+        val actor = staffRepository.findById(actorId).orElseThrow {
+            VenuesException.ResourceNotFound("Actor not found", "STAFF_NOT_FOUND")
+        }
+
+        // Authorization: super admin OR org OWNER/ADMIN for the venue's org
+        if (!actor.isPlatformSuperAdmin) {
+            val actorMembership = actor.memberships.firstOrNull { it.organizationId == venueOrgId && it.isActive }
+                ?: throw VenuesException.AuthorizationFailure("Not authorized to manage this venue")
+            if (actorMembership.orgRole !in listOf(
+                    app.venues.staff.domain.OrganizationRole.OWNER,
+                    app.venues.staff.domain.OrganizationRole.ADMIN
+                )
+            ) {
+                throw VenuesException.AuthorizationFailure("Not authorized to manage this venue")
+            }
+        }
+
+        val target = staffRepository.findById(request.staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        // Ensure target has membership in org; create MEMBER if missing
+        val membership = target.memberships.firstOrNull { it.organizationId == venueOrgId }
+            ?: StaffMembership(
+                staff = target,
+                organizationId = venueOrgId,
+                orgRole = app.venues.staff.domain.OrganizationRole.MEMBER,
+                isActive = true
+            ).also { target.memberships.add(it) }
+
+        membership.isActive = true
+
+        val existingPerm = membership.venuePermissions.firstOrNull { it.venueId == request.venueId }
+        if (existingPerm != null) {
+            existingPerm.role = request.role
+        } else {
+            membership.venuePermissions.add(
+                StaffVenuePermission(
+                    membership = membership,
+                    venueId = request.venueId,
+                    role = request.role
+                )
+            )
+        }
+
+        staffRepository.save(target)
+        logger.info { "Granted ${request.role} for venue ${request.venueId} to ${target.email}" }
+
+        return StaffMapper.toProfileDto(target)
     }
 }

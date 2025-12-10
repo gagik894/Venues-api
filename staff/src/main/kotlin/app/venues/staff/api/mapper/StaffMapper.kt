@@ -1,6 +1,7 @@
 package app.venues.staff.api.mapper
 
 import app.venues.staff.api.dto.AuthorizedVenueDto
+import app.venues.staff.api.dto.OrganizationAccessDto
 import app.venues.staff.api.dto.StaffAuthResponse
 import app.venues.staff.api.dto.StaffProfileDto
 import app.venues.staff.domain.StaffIdentity
@@ -62,7 +63,11 @@ object StaffMapper {
             token = token,
             expiresIn = expiresInSeconds,
             profile = toProfileDto(staff),
-            authorizedVenues = authorizedVenues
+            authorizedVenues = authorizedVenues,
+            organizations = staff.memberships
+                .filter { it.isActive }
+                .map { OrganizationAccessDto(id = it.organizationId, role = it.orgRole) },
+            isSuperAdmin = staff.isPlatformSuperAdmin
         )
     }
 }

@@ -13,7 +13,34 @@ import java.util.*
 data class InviteStaffRequest(
     @field:Email @field:NotBlank val email: String,
     val organizationId: UUID,
-    val role: OrganizationRole
+    val role: OrganizationRole,
+    val venuePermissions: List<VenuePermissionInput> = emptyList(),
+    val sendEmail: Boolean = true,
+    val preferredLanguage: String? = null
+)
+
+/**
+ * Venue permission input used during invite/create flows.
+ */
+data class VenuePermissionInput(
+    val venueId: UUID,
+    val role: VenueRole
+)
+
+/**
+ * Direct staff creation (admin-driven).
+ */
+data class CreateStaffRequest(
+    @field:Email @field:NotBlank val email: String,
+    @field:NotBlank val password: String,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val organizationId: UUID,
+    val role: OrganizationRole,
+    val venuePermissions: List<VenuePermissionInput> = emptyList(),
+    val isSuperAdmin: Boolean = false,
+    val sendEmail: Boolean = false,
+    val preferredLanguage: String? = null
 )
 
 /**

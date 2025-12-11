@@ -61,6 +61,22 @@ class StaffAdminController(
         )
     }
 
+    @PostMapping("/create")
+    @Operation(
+        summary = "Create staff (direct)",
+        description = "Admin creates a staff account with password and assigns org/venue roles"
+    )
+    fun createStaffDirect(
+        @RequestAttribute("staffId") actorId: UUID,
+        @Valid @RequestBody req: CreateStaffRequest
+    ): ApiResponse<StaffProfileDto> {
+        val profile = managementService.createStaffDirect(actorId, req)
+        return ApiResponse.success(
+            data = profile,
+            message = "Staff account created successfully"
+        )
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Status", description = "Suspend or Reactivate a staff member (System Admin only)")

@@ -10,6 +10,7 @@ import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.repository.StaffIdentityRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -43,7 +44,8 @@ class StaffAuthService(
     private val failedLoginService: FailedStaffLoginService,
     private val staffContextBuilder: StaffContextBuilder,
     private val emailService: EmailService,
-    private val emailTemplateService: EmailTemplateService
+    private val emailTemplateService: EmailTemplateService,
+    @Value("\${app.frontend.url}") private val frontendBaseUrl: String
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -112,8 +114,7 @@ class StaffAuthService(
 
         // Send verification email
         try {
-            // TODO: Replace with actual frontend URL from config
-            val verificationUrl = "https://venues.app/verify-staff?token=${saved.verificationToken}"
+            val verificationUrl = "${frontendBaseUrl.trimEnd('/')}/verify-staff?token=${saved.verificationToken}"
             val emailContent = emailTemplateService.generateStaffVerificationEmail(
                 name = "${saved.firstName} ${saved.lastName}",
                 verificationUrl = verificationUrl
@@ -147,6 +148,43 @@ class StaffAuthService(
         )
 
         return buildAuthResponse(saved, staffContextBuilder.buildAuthorizedVenues(saved), token)
+    }
+
+    /**
+     * Accepts an invite by setting password and activating the staff account.
+     */
+    @Transactional
+    fun acceptInvite(request: AcceptInviteRequest): StaffAuthResponse {
+        logger.info { "Accepting staff invite" }
+
+        val staff = staffRepository.findByVerificationToken(request.token)
+            ?: throw VenuesException.ResourceNotFound(
+                "Invalid or expired invite token",
+                "INVALID_TOKEN"
+            )
+
+        if (staff.verificationTokenExpiresAt?.isBefore(Instant.now()) == true) {
+            throw VenuesException.BusinessRuleViolation(
+                "Invite token has expired",
+                "TOKEN_EXPIRED"
+            )
+        }
+
+        staff.passwordHash = passwordEncoder.encode(request.password)
+        request.firstName?.let { staff.firstName = it.trim() }
+        request.lastName?.let { staff.lastName = it.trim() }
+        staff.verifyEmail()
+
+        val saved = staffRepository.save(staff)
+
+        val token = jwtService.generateToken(
+            email = saved.email,
+            id = saved.id,
+            role = jwtRole(saved)
+        )
+
+        val authorizedVenues = staffContextBuilder.buildAuthorizedVenues(saved)
+        return buildAuthResponse(saved, authorizedVenues, token)
     }
 
     /**

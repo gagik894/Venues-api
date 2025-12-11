@@ -1,20 +1,23 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.shared.email.EmailService
+import app.venues.shared.email.EmailTemplateService
 import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
-import app.venues.staff.domain.StaffMembership
-import app.venues.staff.domain.StaffStatus
-import app.venues.staff.domain.StaffVenuePermission
+import app.venues.staff.domain.*
 import app.venues.staff.repository.StaffIdentityRepository
 import app.venues.staff.repository.StaffVenuePermissionRepository
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import java.util.*
 
 /**
@@ -31,9 +34,17 @@ class StaffManagementService(
     private val staffRepository: StaffIdentityRepository,
     private val staffContextBuilder: StaffContextBuilder,
     private val venuePermissionRepository: StaffVenuePermissionRepository,
-    private val venueApi: VenueApi
+    private val venueApi: VenueApi,
+    private val passwordEncoder: PasswordEncoder,
+    private val emailService: EmailService,
+    private val emailTemplateService: EmailTemplateService,
+    @Value("\${app.frontend.url}") private val frontendBaseUrl: String
 ) {
     private val logger = KotlinLogging.logger {}
+
+    companion object {
+        private const val INVITE_TOKEN_TTL_SECONDS: Long = 72 * 60 * 60 // 72 hours
+    }
 
     /**
      * Gets the authorized venues list for a staff member.
@@ -74,43 +85,38 @@ class StaffManagementService(
     fun inviteStaff(actorId: UUID, request: InviteStaffRequest): StaffProfileDto {
         logger.info { "Inviting ${request.email} to org ${request.organizationId} as ${request.role}" }
 
-        // Authorization
         enforceOrgAdmin(actorId, request.organizationId)
+        validateVenueOwnership(request.organizationId, request.venuePermissions)
 
-        // Find existing staff identity
-        val staff = staffRepository.findByEmail(request.email.lowercase().trim())
-            ?: throw VenuesException.ResourceNotFound(
-                "No staff account found with email: ${request.email}. They must register first.",
-                "STAFF_NOT_FOUND"
-            )
+        val email = request.email.lowercase().trim()
+        val existing = staffRepository.findByEmail(email)
 
-        // Check if membership already exists
-        val existingMembership = staff.memberships.firstOrNull {
-            it.organizationId == request.organizationId
+        val staff = existing ?: StaffIdentity(
+            email = email,
+            passwordHash = passwordEncoder.encode(UUID.randomUUID().toString()),
+            status = StaffStatus.PENDING_VERIFICATION,
+            preferredLanguage = request.preferredLanguage ?: "en"
+        ).apply {
+            verificationToken = UUID.randomUUID().toString()
+            verificationTokenExpiresAt = Instant.now().plusSeconds(INVITE_TOKEN_TTL_SECONDS)
         }
 
-        if (existingMembership != null) {
-            // Update existing membership
-            existingMembership.orgRole = request.role
-            existingMembership.isActive = true
-            logger.info { "Updated existing membership for ${staff.email} in org ${request.organizationId}" }
-        } else {
-            // Create new membership
-            val membership = StaffMembership(
-                staff = staff,
-                organizationId = request.organizationId,
-                orgRole = request.role,
-                isActive = true
-            )
-            staff.memberships.add(membership)
-            logger.info { "Created new membership for ${staff.email} in org ${request.organizationId}" }
+        val membership = upsertMembership(staff, request.organizationId, request.role)
+        applyVenuePermissions(membership, request.venuePermissions)
+
+        // Refresh invite token if user exists but still pending and we need to send email
+        if (request.sendEmail && staff.status != StaffStatus.ACTIVE) {
+            staff.verificationToken = UUID.randomUUID().toString()
+            staff.verificationTokenExpiresAt = Instant.now().plusSeconds(INVITE_TOKEN_TTL_SECONDS)
         }
 
-        staffRepository.save(staff)
+        val saved = staffRepository.save(staff)
 
-        // TODO: Send invitation email notifying staff of new organization access
+        if (request.sendEmail) {
+            sendInvitationEmail(saved)
+        }
 
-        return StaffMapper.toProfileDto(staff)
+        return StaffMapper.toProfileDto(saved)
     }
 
     /**
@@ -214,6 +220,63 @@ class StaffManagementService(
         return StaffMapper.toProfileDto(target)
     }
 
+    /**
+     * Directly creates an active staff account (admin-driven).
+     *
+     * - Super admin can set platform super admin flag.
+     * - Org owner/admin can create within their org only and cannot set super admin.
+     */
+    @Transactional
+    fun createStaffDirect(actorId: UUID, request: CreateStaffRequest): StaffProfileDto {
+        val actor = staffRepository.findById(actorId).orElseThrow {
+            VenuesException.AuthorizationFailure("Not authorized")
+        }
+        val actorIsSuperAdmin = actor.isPlatformSuperAdmin
+        if (!actorIsSuperAdmin) {
+            enforceOrgAdmin(actorId, request.organizationId)
+        }
+        if (request.isSuperAdmin && !actorIsSuperAdmin) {
+            throw VenuesException.AuthorizationFailure("Only super admin can create a super admin")
+        }
+
+        validateVenueOwnership(request.organizationId, request.venuePermissions)
+
+        val email = request.email.lowercase().trim()
+        if (staffRepository.existsByEmail(email)) {
+            throw VenuesException.ResourceConflict(
+                "A staff account with this email address already exists",
+                "EMAIL_ALREADY_EXISTS"
+            )
+        }
+
+        val staff = StaffIdentity(
+            email = email,
+            passwordHash = passwordEncoder.encode(request.password),
+            firstName = request.firstName?.trim(),
+            lastName = request.lastName?.trim(),
+            status = StaffStatus.ACTIVE,
+            isPlatformSuperAdmin = request.isSuperAdmin,
+            preferredLanguage = request.preferredLanguage ?: "en"
+        )
+
+        val membership = StaffMembership(
+            staff = staff,
+            organizationId = request.organizationId,
+            orgRole = request.role,
+            isActive = true
+        )
+        staff.memberships.add(membership)
+        applyVenuePermissions(membership, request.venuePermissions)
+
+        val saved = staffRepository.save(staff)
+
+        if (request.sendEmail) {
+            sendAccountReadyEmail(saved)
+        }
+
+        return StaffMapper.toProfileDto(saved)
+    }
+
     // ==============================
     // Listings
     // ==============================
@@ -302,6 +365,92 @@ class StaffManagementService(
             )
         ) {
             throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+    }
+
+    private fun upsertMembership(
+        staff: StaffIdentity,
+        organizationId: UUID,
+        orgRole: OrganizationRole
+    ): StaffMembership {
+        val existing = staff.memberships.firstOrNull { it.organizationId == organizationId }
+        return if (existing != null) {
+            existing.orgRole = orgRole
+            existing.isActive = true
+            existing
+        } else {
+            StaffMembership(
+                staff = staff,
+                organizationId = organizationId,
+                orgRole = orgRole,
+                isActive = true
+            ).also { staff.memberships.add(it) }
+        }
+    }
+
+    private fun applyVenuePermissions(
+        membership: StaffMembership,
+        permissions: List<VenuePermissionInput>
+    ) {
+        permissions.forEach { perm ->
+            val existingPerm = membership.venuePermissions.firstOrNull { it.venueId == perm.venueId }
+            if (existingPerm != null) {
+                existingPerm.role = perm.role
+            } else {
+                membership.venuePermissions.add(
+                    StaffVenuePermission(
+                        membership = membership,
+                        venueId = perm.venueId,
+                        role = perm.role
+                    )
+                )
+            }
+        }
+    }
+
+    private fun validateVenueOwnership(organizationId: UUID, permissions: List<VenuePermissionInput>) {
+        permissions.forEach { perm ->
+            val venueOrg = venueApi.getVenueOrganizationId(perm.venueId)
+                ?: throw VenuesException.ResourceNotFound("Venue not found", "VENUE_NOT_FOUND")
+            if (venueOrg != organizationId) {
+                throw VenuesException.AuthorizationFailure("Venue ${perm.venueId} does not belong to organization $organizationId")
+            }
+        }
+    }
+
+    private fun sendInvitationEmail(staff: StaffIdentity) {
+        try {
+            val token = staff.verificationToken ?: return
+            val inviteUrl = "${frontendBaseUrl.trimEnd('/')}/staff/accept-invite?token=$token"
+            val content = emailTemplateService.generateStaffVerificationEmail(
+                name = listOfNotNull(staff.firstName, staff.lastName).joinToString(" ").ifBlank { "there" },
+                verificationUrl = inviteUrl
+            )
+            emailService.sendGlobalEmail(
+                to = staff.email,
+                subject = "You're invited to manage venues",
+                content = content,
+                isHtml = true
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send invitation email to ${staff.email}" }
+        }
+    }
+
+    private fun sendAccountReadyEmail(staff: StaffIdentity) {
+        try {
+            val content = """
+                <p>Your staff account is ready.</p>
+                <p>You can sign in with your email at ${frontendBaseUrl.trimEnd('/')}/staff/login</p>
+            """.trimIndent()
+            emailService.sendGlobalEmail(
+                to = staff.email,
+                subject = "Your staff account is ready",
+                content = content,
+                isHtml = true
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send account ready email to ${staff.email}" }
         }
     }
 

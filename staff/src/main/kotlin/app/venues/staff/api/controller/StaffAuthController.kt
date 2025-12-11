@@ -1,10 +1,7 @@
 package app.venues.staff.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.staff.api.dto.StaffAuthResponse
-import app.venues.staff.api.dto.StaffLoginRequest
-import app.venues.staff.api.dto.StaffRegisterRequest
-import app.venues.staff.api.dto.VerifyEmailRequest
+import app.venues.staff.api.dto.*
 import app.venues.staff.service.StaffAuthService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -88,6 +85,28 @@ class StaffAuthController(
 
         return ApiResponse.success(
             message = "Email verified successfully"
+        )
+    }
+
+    @PostMapping("/accept-invite")
+    @Operation(summary = "Accept staff invite", description = "Sets password and activates invited staff account")
+    fun acceptInvite(
+        @Valid @RequestBody req: AcceptInviteRequest,
+        response: HttpServletResponse
+    ): ApiResponse<StaffAuthResponse> {
+        val authResponse = authService.acceptInvite(req)
+
+        val cookie = Cookie("staff_auth_token", authResponse.token)
+        cookie.isHttpOnly = true
+        cookie.secure = cookieSecure
+        cookie.path = "/"
+        cookie.maxAge = (authResponse.expiresIn).toInt()
+        cookie.setAttribute("SameSite", "Strict")
+        response.addCookie(cookie)
+
+        return ApiResponse.success(
+            data = authResponse,
+            message = "Invite accepted successfully"
         )
     }
 }

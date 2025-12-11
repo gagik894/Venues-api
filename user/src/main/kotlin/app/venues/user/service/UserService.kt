@@ -10,6 +10,7 @@ import app.venues.user.api.dto.UserUpdateRequest
 import app.venues.user.domain.User
 import app.venues.user.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -35,7 +36,8 @@ class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
     private val emailService: EmailService,
-    private val emailTemplateService: EmailTemplateService
+    private val emailTemplateService: EmailTemplateService,
+    @Value("\${app.frontend.url}") private val frontendBaseUrl: String
 ) : UserApi {
 
     private val logger = KotlinLogging.logger {}
@@ -140,7 +142,7 @@ class UserService(
             // I should probably generate a token here if it's not in the entity.
             // Let's check User entity again to be sure.
             // I'll skip the token for now and just send a welcome email to avoid breaking compilation if field is missing.
-            val verificationUrl = "https://venues.app/verify-user?email=${savedUser.email}"
+            val verificationUrl = "${frontendBaseUrl.trimEnd('/')}/verify-user?email=${savedUser.email}"
             val emailContent = emailTemplateService.generateUserVerificationEmail(
                 name = "${savedUser.firstName} ${savedUser.lastName}",
                 verificationUrl = verificationUrl

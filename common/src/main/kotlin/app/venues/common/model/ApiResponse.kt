@@ -1,5 +1,6 @@
 package app.venues.common.model
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 
@@ -16,8 +17,9 @@ import kotlinx.serialization.Serializable
  * @property timestamp ISO-8601 formatted timestamp of the response
  */
 @Serializable
+@JsonInclude(JsonInclude.Include.ALWAYS)
 data class ApiResponse<T>(
-    val success: Boolean = true,
+    val success: Boolean,
     val message: String = "Operation completed successfully",
     val data: T? = null,
     val timestamp: String
@@ -75,8 +77,9 @@ data class ApiResponse<T>(
  * @property traceId Optional trace ID for error tracking and debugging
  */
 @Serializable
+@JsonInclude(JsonInclude.Include.ALWAYS)
 data class ApiErrorResponse(
-    val success: Boolean = false,
+    val success: Boolean,
     val error: ErrorDetail,
     val timestamp: String,
     val path: String? = null,

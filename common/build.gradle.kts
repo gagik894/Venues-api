@@ -32,6 +32,9 @@ dependencies {
     api("org.jetbrains.kotlin:kotlin-stdlib")
     api("org.jetbrains.kotlin:kotlin-reflect")
 
+    // Jackson annotations (for JSON inclusion hints)
+    api("com.fasterxml.jackson.core:jackson-annotations")
+
     // Kotlin Serialization (for framework-agnostic JSON handling)
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 

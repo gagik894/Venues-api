@@ -28,6 +28,20 @@ data class VenuePermissionInput(
 )
 
 /**
+ * Detailed staff view.
+ */
+data class StaffDetailDto(
+    val id: UUID,
+    val email: String,
+    val firstName: String?,
+    val lastName: String?,
+    val status: StaffStatus,
+    val isSuperAdmin: Boolean,
+    val organizations: List<OrganizationAccessDto>,
+    val venueRoles: List<AuthorizedVenueDto>
+)
+
+/**
  * Direct staff creation (admin-driven).
  */
 data class CreateStaffRequest(
@@ -58,6 +72,21 @@ data class ResendInviteRequest(
 data class RevokeInviteRequest(
     val staffId: UUID,
     val organizationId: UUID
+)
+
+/**
+ * Update an organization membership role/active flag.
+ */
+data class UpdateMembershipRequest(
+    val role: OrganizationRole,
+    val isActive: Boolean = true
+)
+
+/**
+ * Update a venue role for a staff member.
+ */
+data class UpdateVenueRoleRequest(
+    val role: VenueRole
 )
 
 /**

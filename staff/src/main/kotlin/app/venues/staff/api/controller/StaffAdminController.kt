@@ -140,6 +140,64 @@ class StaffAdminController(
         return ApiResponse.success(profile, "Venue permission granted")
     }
 
+    @GetMapping("/{staffId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('STAFF')")
+    @Operation(
+        summary = "Get staff detail",
+        description = "Returns full staff profile with org memberships and venue roles. Requires SUPER_ADMIN or org OWNER/ADMIN over the staff's orgs."
+    )
+    fun getStaffDetail(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable staffId: UUID
+    ): ApiResponse<StaffDetailDto> {
+        val detail = managementService.getStaffDetail(actorId, staffId)
+        return ApiResponse.success(detail, "Staff retrieved")
+    }
+
+    @PutMapping("/{staffId}/organizations/{organizationId}")
+    @Operation(
+        summary = "Update org membership",
+        description = "Set org role/active flag for a staff member. Requires SUPER_ADMIN or org OWNER/ADMIN."
+    )
+    fun updateMembership(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable staffId: UUID,
+        @PathVariable organizationId: UUID,
+        @Valid @RequestBody req: UpdateMembershipRequest
+    ): ApiResponse<StaffDetailDto> {
+        val detail = managementService.updateMembership(actorId, staffId, organizationId, req)
+        return ApiResponse.success(detail, "Membership updated")
+    }
+
+    @DeleteMapping("/{staffId}/organizations/{organizationId}")
+    @Operation(
+        summary = "Remove org membership",
+        description = "Removes a staff member from an organization. Requires SUPER_ADMIN or org OWNER/ADMIN."
+    )
+    fun deleteMembership(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable staffId: UUID,
+        @PathVariable organizationId: UUID
+    ): ApiResponse<StaffDetailDto> {
+        val detail = managementService.deleteMembership(actorId, staffId, organizationId)
+        return ApiResponse.success(detail, "Membership removed")
+    }
+
+    @PutMapping("/{staffId}/venues/{venueId}")
+    @Operation(
+        summary = "Update venue role",
+        description = "Sets a venue role for a staff member. Requires SUPER_ADMIN or org OWNER/ADMIN of the venue's org."
+    )
+    fun updateVenueRole(
+        @RequestAttribute("staffId") actorId: UUID,
+        @PathVariable staffId: UUID,
+        @PathVariable venueId: UUID,
+        @Valid @RequestBody req: UpdateVenueRoleRequest
+    ): ApiResponse<StaffDetailDto> {
+        val detail = managementService.updateVenueRole(actorId, staffId, venueId, req)
+        return ApiResponse.success(detail, "Venue role updated")
+    }
+
     // ==============================
     // Listings for admin UI
     // ==============================

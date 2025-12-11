@@ -524,6 +524,152 @@ class StaffManagementService(
         }
     }
 
+    /**
+     * Detailed profile for admin views.
+     */
+    @Transactional(readOnly = true)
+    fun getStaffDetail(actorId: UUID, staffId: UUID): StaffDetailDto {
+        val actor = staffRepository.findById(actorId).orElseThrow {
+            VenuesException.AuthorizationFailure("Not authorized")
+        }
+        val staff = staffRepository.findById(staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        authorizeActorForStaff(actor, staff)
+
+        return toDetailDto(staff)
+    }
+
+    /**
+     * Update org membership role/active flag.
+     */
+    @Transactional
+    fun updateMembership(
+        actorId: UUID,
+        staffId: UUID,
+        organizationId: UUID,
+        request: UpdateMembershipRequest
+    ): StaffDetailDto {
+        enforceOrgAdmin(actorId, organizationId)
+
+        val staff = staffRepository.findById(staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        val membership = upsertMembership(staff, organizationId, request.role)
+        membership.isActive = request.isActive
+
+        val saved = staffRepository.save(staff)
+        return toDetailDto(saved)
+    }
+
+    /**
+     * Remove org membership.
+     */
+    @Transactional
+    fun deleteMembership(
+        actorId: UUID,
+        staffId: UUID,
+        organizationId: UUID
+    ): StaffDetailDto {
+        enforceOrgAdmin(actorId, organizationId)
+
+        val staff = staffRepository.findById(staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        val membership = staff.memberships.firstOrNull { it.organizationId == organizationId }
+            ?: throw VenuesException.ResourceNotFound("Membership not found", "MEMBERSHIP_NOT_FOUND")
+
+        staff.memberships.remove(membership)
+        val saved = staffRepository.save(staff)
+        return toDetailDto(saved)
+    }
+
+    /**
+     * Update venue role (idempotent set).
+     */
+    @Transactional
+    fun updateVenueRole(
+        actorId: UUID,
+        staffId: UUID,
+        venueId: UUID,
+        request: UpdateVenueRoleRequest
+    ): StaffDetailDto {
+        val venueOrgId = venueApi.getVenueOrganizationId(venueId)
+            ?: throw VenuesException.ResourceNotFound("Venue not found", "VENUE_NOT_FOUND")
+
+        enforceOrgAdmin(actorId, venueOrgId)
+
+        val staff = staffRepository.findById(staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        val membership = staff.memberships.firstOrNull { it.organizationId == venueOrgId }
+            ?: StaffMembership(
+                staff = staff,
+                organizationId = venueOrgId,
+                orgRole = OrganizationRole.MEMBER,
+                isActive = true
+            ).also { staff.memberships.add(it) }
+
+        val existingPerm = membership.venuePermissions.firstOrNull { it.venueId == venueId }
+        if (existingPerm != null) {
+            existingPerm.role = request.role
+        } else {
+            membership.venuePermissions.add(
+                StaffVenuePermission(
+                    membership = membership,
+                    venueId = venueId,
+                    role = request.role
+                )
+            )
+        }
+
+        val saved = staffRepository.save(staff)
+        return toDetailDto(saved)
+    }
+
+    private fun authorizeActorForStaff(actor: StaffIdentity, target: StaffIdentity) {
+        if (actor.isPlatformSuperAdmin) return
+        val targetOrgIds = target.memberships.map { it.organizationId }.toSet()
+        val actorAdminOrgIds = actor.memberships
+            .filter { it.isActive && it.orgRole in listOf(OrganizationRole.OWNER, OrganizationRole.ADMIN) }
+            .map { it.organizationId }
+            .toSet()
+        if (targetOrgIds.intersect(actorAdminOrgIds).isEmpty()) {
+            throw VenuesException.AuthorizationFailure("Not authorized to view this staff")
+        }
+    }
+
+    private fun toDetailDto(staff: StaffIdentity): StaffDetailDto {
+        val organizations = staff.memberships
+            .filter { it.isActive }
+            .map { OrganizationAccessDto(id = it.organizationId, role = it.orgRole) }
+        val venueMap = resolveVenues(listOf(staff))
+        val venues = staff.memberships.flatMap { m ->
+            m.venuePermissions.map { vp ->
+                AuthorizedVenueDto(
+                    id = vp.venueId,
+                    name = venueMap[vp.venueId]?.name ?: "",
+                    slug = venueMap[vp.venueId]?.slug ?: "",
+                    role = vp.role
+                )
+            }
+        }
+        return StaffDetailDto(
+            id = staff.id!!,
+            email = staff.email,
+            firstName = staff.firstName,
+            lastName = staff.lastName,
+            status = staff.status,
+            isSuperAdmin = staff.isPlatformSuperAdmin,
+            organizations = organizations,
+            venueRoles = venues
+        )
+    }
+
     private fun resolveVenues(staffList: List<app.venues.staff.domain.StaffIdentity>): Map<UUID, app.venues.venue.api.dto.VenueBasicInfoDto> {
         val ids = staffList
             .flatMap { it.memberships }

@@ -30,8 +30,17 @@ data class HeroConfigDto(
     val ctaLink: String?
 )
 
+enum class ContentBlockType {
+    TEXT,
+    IMAGE,
+    IMAGE_RIGHT,
+    IMAGE_LEFT,
+    CTA,
+    FAQ
+}
+
 data class ContentBlockDto(
-    val type: String,
+    val type: ContentBlockType,
     val title: Map<String, String>?,
     val body: Map<String, String>?, //language code -> body content
     val imageUrl: String?

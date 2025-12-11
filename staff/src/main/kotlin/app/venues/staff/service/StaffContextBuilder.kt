@@ -2,7 +2,9 @@ package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.staff.api.dto.AuthorizedVenueDto
+import app.venues.staff.domain.OrganizationRole
 import app.venues.staff.domain.StaffIdentity
+import app.venues.staff.domain.VenueRole
 import app.venues.staff.repository.StaffIdentityRepository
 import app.venues.venue.api.VenueApi
 import org.springframework.stereotype.Service
@@ -39,27 +41,41 @@ class StaffContextBuilder(
      * @return List of authorized venues with roles
      */
     fun buildAuthorizedVenues(staff: StaffIdentity): List<AuthorizedVenueDto> {
-        val activePermissions = staff.memberships
-            .asSequence()
-            .filter { it.isActive }
-            .flatMap { it.venuePermissions.asSequence() }
-            .toList()
+        val activeMemberships = staff.memberships.filter { it.isActive }
 
-        if (activePermissions.isEmpty()) {
+        // Explicit venue permissions
+        val explicitPermissions = activeMemberships
+            .flatMap { membership -> membership.venuePermissions.map { it.venueId to it.role } }
+            .associate { it }
+
+        // Org admin/owner implied access to all venues in their org
+        val adminOrgIds = activeMemberships
+            .filter { it.orgRole in listOf(OrganizationRole.OWNER, OrganizationRole.ADMIN) }
+            .map { it.organizationId }
+            .toSet()
+
+        val impliedAdminVenues = adminOrgIds
+            .flatMap { orgId -> venueApi.getVenueIdsByOrganizationId(orgId) }
+            .associateWith { VenueRole.MANAGER } // treat org admins as managers for venue-level access
+
+        // Merge explicit and implied, explicit wins
+        val mergedRoles = impliedAdminVenues.toMutableMap()
+        mergedRoles.putAll(explicitPermissions)
+
+        if (mergedRoles.isEmpty()) {
             return emptyList()
         }
 
-        val venueInfos = venueApi.getVenueBasicInfoBatch(activePermissions.map { it.venueId }.toSet())
+        val venueInfos = venueApi.getVenueBasicInfoBatch(mergedRoles.keys.toSet())
 
-        return activePermissions
-            .mapNotNull { permission ->
-                val venueInfo = venueInfos[permission.venueId]
-                venueInfo?.let {
+        return mergedRoles
+            .mapNotNull { (venueId, role) ->
+                venueInfos[venueId]?.let { info ->
                     AuthorizedVenueDto(
-                        id = it.id,
-                        name = it.name,
-                        slug = it.slug,
-                        role = permission.role
+                        id = info.id,
+                        name = info.name,
+                        slug = info.slug,
+                        role = role
                     )
                 }
             }

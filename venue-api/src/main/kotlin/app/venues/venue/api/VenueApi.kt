@@ -108,5 +108,10 @@ interface VenueApi {
      * Must always include at least "en".
      */
     fun getVenueLanguages(venueId: UUID): Set<String>
+
+    /**
+     * Get IDs of venues belonging to an organization.
+     */
+    fun getVenueIdsByOrganizationId(organizationId: UUID): List<UUID>
 }
 

@@ -630,5 +630,12 @@ class VenueService(
         langs.add("en")
         return langs
     }
+
+    /**
+     * Get venue IDs for an organization (implements VenueApi interface).
+     */
+    override fun getVenueIdsByOrganizationId(organizationId: UUID): List<UUID> {
+        return venueRepository.findIdsByOrganizationId(organizationId)
+    }
 }
 

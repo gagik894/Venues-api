@@ -659,18 +659,20 @@ class StaffManagementService(
             }
         }
         return StaffDetailDto(
-            id = staff.id!!,
+            id = staff.id,
             email = staff.email,
             firstName = staff.firstName,
             lastName = staff.lastName,
             status = staff.status,
             isSuperAdmin = staff.isPlatformSuperAdmin,
             organizations = organizations,
-            venueRoles = venues
+            venueRoles = venues,
+            lastLoginAt = staff.lastLoginAt ?: Instant.EPOCH,
+            createdAt = staff.createdAt
         )
     }
 
-    private fun resolveVenues(staffList: List<app.venues.staff.domain.StaffIdentity>): Map<UUID, app.venues.venue.api.dto.VenueBasicInfoDto> {
+    private fun resolveVenues(staffList: List<StaffIdentity>): Map<UUID, app.venues.venue.api.dto.VenueBasicInfoDto> {
         val ids = staffList
             .flatMap { it.memberships }
             .flatMap { it.venuePermissions }

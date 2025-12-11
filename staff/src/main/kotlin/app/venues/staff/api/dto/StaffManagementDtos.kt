@@ -5,6 +5,7 @@ import app.venues.staff.domain.StaffStatus
 import app.venues.staff.domain.VenueRole
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import java.time.Instant
 import java.util.*
 
 /**
@@ -37,6 +38,8 @@ data class StaffDetailDto(
     val lastName: String?,
     val status: StaffStatus,
     val isSuperAdmin: Boolean,
+    val lastLoginAt: Instant,
+    val createdAt: Instant,
     val organizations: List<OrganizationAccessDto>,
     val venueRoles: List<AuthorizedVenueDto>
 )

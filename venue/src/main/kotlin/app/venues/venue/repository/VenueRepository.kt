@@ -187,5 +187,11 @@ interface VenueRepository : JpaRepository<Venue, UUID> {
      * Finds active venue by custom domain (white-label safe lookup).
      */
     fun findByCustomDomainAndStatus(customDomain: String, status: VenueStatus): Venue?
+
+    /**
+     * Returns venue IDs for a given organization.
+     */
+    @Query("SELECT v.id FROM Venue v WHERE v.organizationId = :orgId")
+    fun findIdsByOrganizationId(@Param("orgId") orgId: UUID): List<UUID>
 }
 

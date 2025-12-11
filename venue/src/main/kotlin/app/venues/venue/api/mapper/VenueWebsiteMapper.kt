@@ -105,7 +105,7 @@ class VenueWebsiteMapper(
     )
 
     fun toDto(domain: ContentBlock): ContentBlockDto = ContentBlockDto(
-        type = ContentBlockType.valueOf(domain.type.name),
+        type = ContentBlockType.valueOf(domain.type),
         title = domain.title,
         body = domain.body,
         imageUrl = domain.imageUrl
@@ -125,7 +125,7 @@ class VenueWebsiteMapper(
     )
 
     fun toDomain(dto: ContentBlockDto): ContentBlock = ContentBlock(
-        type = ContentBlock.Type.valueOf(dto.type.name),
+        type = dto.type.name,
         title = dto.title,
         body = dto.body,
         imageUrl = dto.imageUrl

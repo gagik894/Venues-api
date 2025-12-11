@@ -7,6 +7,8 @@ import app.venues.location.domain.Region
 import app.venues.location.repository.CityRepository
 import app.venues.location.repository.RegionRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -52,6 +54,7 @@ class LocationService(
      *
      * @return List of active regions
      */
+    @Cacheable("regions", unless = "#result == null or #result.isEmpty()")
     fun getAllActiveRegions(lang: String = "en"): List<RegionResponse> {
         logger.debug { "Fetching all active regions (lang: $lang)" }
         return regionRepository.findAllActive().map { RegionResponse.from(it, lang) }
@@ -62,6 +65,7 @@ class LocationService(
      *
      * @return List of all regions
      */
+    @Cacheable("regionsAll", unless = "#result == null or #result.isEmpty()")
     fun getAllRegions(lang: String = "en"): List<RegionResponse> {
         logger.debug { "Fetching all regions (admin, lang: $lang)" }
         return regionRepository.findAll().map { RegionResponse.from(it, lang) }
@@ -109,6 +113,7 @@ class LocationService(
      * @throws VenuesException.ResourceConflict if code already exists
      */
     @Transactional
+    @CacheEvict(cacheNames = ["regions", "regionsAll", "cities", "citiesByRegion"], allEntries = true)
     fun createRegion(request: CreateRegionRequest): RegionResponse {
         logger.info { "Creating new region: ${request.code}" }
 
@@ -142,6 +147,7 @@ class LocationService(
      * @throws VenuesException.ResourceNotFound if region not found
      */
     @Transactional
+    @CacheEvict(cacheNames = ["regions", "regionsAll", "cities", "citiesByRegion"], allEntries = true)
     fun updateRegion(code: String, request: UpdateRegionRequest): RegionResponse {
         logger.info { "Updating region: $code" }
 
@@ -173,6 +179,7 @@ class LocationService(
      *
      * @return List of active cities
      */
+    @Cacheable("cities", unless = "#result == null or #result.isEmpty()")
     fun getAllActiveCities(lang: String = "en"): List<CityResponse> {
         logger.debug { "Fetching all active cities (lang: $lang)" }
         return cityRepository.findAllActive().map { CityResponse.from(it, lang) }
@@ -181,6 +188,7 @@ class LocationService(
     /**
      * Get active cities by region code.
      */
+    @Cacheable(cacheNames = ["citiesByRegion"], key = "#regionCode", unless = "#result == null or #result.isEmpty()")
     fun getCitiesByRegionCode(regionCode: String, lang: String = "en"): List<CityResponse> {
         logger.debug { "Fetching cities for region code: $regionCode, lang: $lang" }
         val region = regionRepository.findByCode(regionCode) ?: throw VenuesException.ResourceNotFound(
@@ -245,6 +253,7 @@ class LocationService(
      * @throws VenuesException.ResourceConflict if slug already exists
      */
     @Transactional
+    @CacheEvict(cacheNames = ["cities", "citiesByRegion"], allEntries = true)
     fun createCity(request: CreateCityRequest): CityResponse {
         logger.info { "Creating new city: ${request.slug}" }
 
@@ -286,6 +295,7 @@ class LocationService(
      * @throws VenuesException.ResourceNotFound if city or region not found
      */
     @Transactional
+    @CacheEvict(cacheNames = ["cities", "citiesByRegion"], allEntries = true)
     fun updateCity(slug: String, request: UpdateCityRequest): CityResponse {
         logger.info { "Updating city: $slug" }
 

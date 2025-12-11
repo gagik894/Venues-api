@@ -197,6 +197,7 @@ data class CreateVenueRequest(
 
     // Optional presentation/communication fields
     val socialLinks: Map<String, String>? = null,
+    @field:Size(max = 50, message = "No more than 50 notification emails")
     val notificationEmails: List<String>? = null,
     val logoUrl: String? = null,
     val coverImageUrl: String? = null,
@@ -240,6 +241,7 @@ data class UpdateVenueRequest(
     val contactEmail: String? = null,
 
     val socialLinks: Map<String, String>? = null,
+    @field:Size(max = 50, message = "No more than 50 notification emails")
     val notificationEmails: List<String>? = null,
 
     val logoUrl: String? = null,

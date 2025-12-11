@@ -195,8 +195,8 @@ class VenueMapper(
         )
 
         // Optional presentation/communication fields
-        request.socialLinks?.let { venue.socialLinks = it }
-        request.notificationEmails?.let { venue.notificationEmails = it }
+        venue.socialLinks = normalizeSocialLinks(request.socialLinks)
+        venue.notificationEmails = normalizeEmails(request.notificationEmails)
         request.logoUrl?.let { venue.logoUrl = it }
         request.coverImageUrl?.let { venue.coverImageUrl = it }
         request.customDomain?.let { venue.customDomain = it }
@@ -240,8 +240,8 @@ class VenueMapper(
         request.website?.let { venue.website = it }
         request.contactEmail?.let { venue.contactEmail = it }
 
-        request.socialLinks?.let { venue.socialLinks = it }
-        request.notificationEmails?.let { venue.notificationEmails = it }
+        request.socialLinks?.let { venue.socialLinks = normalizeSocialLinks(it) }
+        request.notificationEmails?.let { venue.notificationEmails = normalizeEmails(it) }
 
         request.logoUrl?.let { venue.logoUrl = it }
         request.coverImageUrl?.let { venue.coverImageUrl = it }
@@ -299,6 +299,30 @@ class VenueMapper(
             userId = photo.userId,
             createdAt = photo.createdAt
         )
+    }
+
+    private fun normalizeSocialLinks(raw: Map<String, String>?): Map<String, String>? {
+        if (raw == null) return null
+        return raw.entries
+            .mapNotNull { (k, v) ->
+                val key = k.trim()
+                val value = v.trim()
+                if (key.isBlank() || value.isBlank()) null else key to value.take(500)
+            }
+            .take(20)
+            .toMap()
+            .ifEmpty { null }
+    }
+
+    private fun normalizeEmails(raw: List<String>?): List<String> {
+        if (raw == null) return emptyList()
+        return raw.asSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { it.take(320) }
+            .distinct()
+            .take(50)
+            .toList()
     }
 }
 

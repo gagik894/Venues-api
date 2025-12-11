@@ -11,6 +11,7 @@ import app.venues.venue.repository.VenueCategoryRepository
 import app.venues.venue.repository.VenueRepository
 import app.venues.venue.repository.VenueTranslationRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -414,6 +415,7 @@ class VenueService(
      * @param lang Language code for localization
      * @return List of categories
      */
+    @Cacheable(cacheNames = ["venueCategories"], unless = "#result == null or #result.isEmpty()")
     fun listCategories(lang: String = "en"): List<VenueCategoryDto> {
         logger.debug { "Listing venue categories, lang: $lang" }
 

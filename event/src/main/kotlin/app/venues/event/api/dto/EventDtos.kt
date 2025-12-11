@@ -87,7 +87,9 @@ data class EventResponse(
     // Price Templates
     val priceTemplates: List<PriceTemplateResponse> = emptyList(),
     // Platform subscriptions (for staff editing)
-    val subscribedPlatformIds: List<UUID> = emptyList()
+    val subscribedPlatformIds: List<UUID> = emptyList(),
+    // Full translations (for admin/staff editors)
+    val translations: List<EventTranslationResponse> = emptyList()
 )
 
 /**

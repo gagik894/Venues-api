@@ -64,7 +64,8 @@ class EventMapper {
             sessionCount = if (includeStats) event.sessions.size else null,
             upcomingSessionCount = if (includeStats) event.sessions.count { it.status == SessionStatus.ON_SALE } else null,
             priceTemplates = event.priceTemplates.map { toPriceTemplateResponse(it) },
-            subscribedPlatformIds = subscribedPlatformIds
+            subscribedPlatformIds = subscribedPlatformIds,
+            translations = event.translations.map { toTranslationResponse(it) }
         )
     }
 

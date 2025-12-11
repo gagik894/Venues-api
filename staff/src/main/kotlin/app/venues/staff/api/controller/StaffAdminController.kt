@@ -77,6 +77,38 @@ class StaffAdminController(
         )
     }
 
+    @PostMapping("/resend-invite")
+    @Operation(
+        summary = "Resend staff invite",
+        description = "Rotates invite token and resends email for a pending staff account"
+    )
+    fun resendInvite(
+        @RequestAttribute("staffId") actorId: UUID,
+        @Valid @RequestBody req: ResendInviteRequest
+    ): ApiResponse<StaffProfileDto> {
+        val profile = managementService.resendInvite(actorId, req)
+        return ApiResponse.success(
+            data = profile,
+            message = "Invite resent successfully"
+        )
+    }
+
+    @PostMapping("/revoke-invite")
+    @Operation(
+        summary = "Revoke staff invite",
+        description = "Invalidates outstanding invite token for a pending staff account"
+    )
+    fun revokeInvite(
+        @RequestAttribute("staffId") actorId: UUID,
+        @Valid @RequestBody req: RevokeInviteRequest
+    ): ApiResponse<StaffProfileDto> {
+        val profile = managementService.revokeInvite(actorId, req)
+        return ApiResponse.success(
+            data = profile,
+            message = "Invite revoked successfully"
+        )
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Status", description = "Suspend or Reactivate a staff member (System Admin only)")

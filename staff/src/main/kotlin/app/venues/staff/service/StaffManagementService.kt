@@ -277,6 +277,76 @@ class StaffManagementService(
         return StaffMapper.toProfileDto(saved)
     }
 
+    /**
+     * Resends an invite by rotating the token and emailing the user (pending accounts only).
+     */
+    @Transactional
+    fun resendInvite(actorId: UUID, request: ResendInviteRequest): StaffProfileDto {
+        enforceOrgAdmin(actorId, request.organizationId)
+
+        val staff = staffRepository.findById(request.staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        val membership = upsertMembership(
+            staff = staff,
+            organizationId = request.organizationId,
+            orgRole = staff.memberships.firstOrNull { it.organizationId == request.organizationId }?.orgRole
+                ?: OrganizationRole.MEMBER
+        )
+
+        if (staff.status == StaffStatus.ACTIVE) {
+            throw VenuesException.BusinessRuleViolation(
+                "Staff is already active",
+                "INVITE_NOT_POSSIBLE_ACTIVE"
+            )
+        }
+
+        staff.verificationToken = UUID.randomUUID().toString()
+        staff.verificationTokenExpiresAt = Instant.now().plusSeconds(INVITE_TOKEN_TTL_SECONDS)
+        val saved = staffRepository.save(staff)
+
+        if (request.sendEmail) {
+            sendInvitationEmail(saved)
+        }
+
+        logger.info { "Resent invite to ${staff.email} for org ${request.organizationId} (membership ${membership.id})" }
+        return StaffMapper.toProfileDto(saved)
+    }
+
+    /**
+     * Revokes an outstanding invite token (keeps membership but invalidates token).
+     */
+    @Transactional
+    fun revokeInvite(actorId: UUID, request: RevokeInviteRequest): StaffProfileDto {
+        enforceOrgAdmin(actorId, request.organizationId)
+
+        val staff = staffRepository.findById(request.staffId).orElseThrow {
+            VenuesException.ResourceNotFound("Staff not found", "STAFF_NOT_FOUND")
+        }
+
+        upsertMembership(
+            staff = staff,
+            organizationId = request.organizationId,
+            orgRole = staff.memberships.firstOrNull { it.organizationId == request.organizationId }?.orgRole
+                ?: OrganizationRole.MEMBER
+        )
+
+        if (staff.status == StaffStatus.ACTIVE) {
+            throw VenuesException.BusinessRuleViolation(
+                "Staff is already active",
+                "REVOKE_NOT_POSSIBLE_ACTIVE"
+            )
+        }
+
+        staff.verificationToken = null
+        staff.verificationTokenExpiresAt = null
+        val saved = staffRepository.save(staff)
+
+        logger.info { "Revoked invite for ${staff.email} in org ${request.organizationId}" }
+        return StaffMapper.toProfileDto(saved)
+    }
+
     // ==============================
     // Listings
     // ==============================

@@ -44,6 +44,23 @@ data class CreateStaffRequest(
 )
 
 /**
+ * Resend an invite to a staff member (pending accounts only).
+ */
+data class ResendInviteRequest(
+    val staffId: UUID,
+    val organizationId: UUID,
+    val sendEmail: Boolean = true
+)
+
+/**
+ * Revoke an outstanding invite token.
+ */
+data class RevokeInviteRequest(
+    val staffId: UUID,
+    val organizationId: UUID
+)
+
+/**
  * Grant specific venue access to an existing member.
  */
 data class GrantVenuePermissionRequest(

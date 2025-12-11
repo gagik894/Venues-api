@@ -9,6 +9,7 @@ import app.venues.venue.domain.Venue
 import app.venues.venue.domain.VenueStatus
 import app.venues.venue.repository.VenueCategoryRepository
 import app.venues.venue.repository.VenueRepository
+import app.venues.venue.repository.VenueTranslationRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -29,6 +30,7 @@ class VenueServiceTest {
     private val venueSettingsService: VenueSettingsService = mockk(relaxed = true)
     private val eventPublisher: ApplicationEventPublisher = mockk(relaxed = true)
     private val venueRevalidationService: VenueRevalidationService = mockk(relaxed = true)
+    private val venueTranslationRepository: VenueTranslationRepository = mockk(relaxed = true)
 
     private val venueService = VenueService(
         venueRepository,
@@ -38,7 +40,8 @@ class VenueServiceTest {
         promoCodeService,
         venueSettingsService,
         eventPublisher,
-        venueRevalidationService
+        venueRevalidationService,
+        venueTranslationRepository
     )
 
     @Test
@@ -126,6 +129,7 @@ class VenueServiceTest {
                 customDomain = saved.customDomain,
                 isAlwaysOpen = saved.isAlwaysOpen,
                 status = saved.status,
+                translations = emptyList(),
                 createdAt = Instant.EPOCH,
                 lastModifiedAt = Instant.EPOCH
             )

@@ -71,10 +71,9 @@ class VenueStaffController(
     )
     fun createVenue(
         @Valid @RequestBody request: CreateVenueRequest
-    ): ApiResponse<VenueDetailResponse> {
+    ): ApiResponse<VenueAdminResponse> {
         val venue = venueService.createVenue(request)
-        val detail = venueService.getVenue(venue.id, LocaleHelper.currentLanguage())
-        return ApiResponse.success(detail, "Venue created successfully")
+        return ApiResponse.success(venue, "Venue created successfully")
     }
 
     @GetMapping("/{venueId}")
@@ -101,11 +100,10 @@ class VenueStaffController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: UpdateVenueRequest
-    ): ApiResponse<VenueDetailResponse> {
+    ): ApiResponse<VenueAdminResponse> {
         venueSecurityService.requireVenueManagementPermission(staffId, venueId)
         val updated = venueService.updateVenue(venueId, request)
-        val detail = venueService.getVenue(updated.id, LocaleHelper.currentLanguage())
-        return ApiResponse.success(detail, "Venue updated successfully")
+        return ApiResponse.success(updated, "Venue updated successfully")
     }
 
     @DeleteMapping("/{venueId}")

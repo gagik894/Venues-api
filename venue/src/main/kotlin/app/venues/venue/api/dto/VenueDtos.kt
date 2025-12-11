@@ -137,6 +137,8 @@ data class VenueAdminResponse(
 
     val status: VenueStatus,
 
+    val translations: List<VenueTranslationDto>,
+
     val createdAt: Instant?,
     val lastModifiedAt: Instant?
 )
@@ -191,7 +193,17 @@ data class CreateVenueRequest(
     val contactEmail: String? = null,
 
     val ownershipType: VenueOwnership? = null,
-    val timeZone: String = "Asia/Yerevan"
+    val timeZone: String = "Asia/Yerevan",
+
+    // Optional presentation/communication fields
+    val socialLinks: Map<String, String>? = null,
+    val notificationEmails: List<String>? = null,
+    val logoUrl: String? = null,
+    val coverImageUrl: String? = null,
+    val customDomain: String? = null,
+    val isAlwaysOpen: Boolean? = null,
+
+    val translations: List<VenueTranslationRequest>? = null
 )
 
 /**
@@ -236,7 +248,9 @@ data class UpdateVenueRequest(
     val isAlwaysOpen: Boolean? = null,
 
     val ownershipType: VenueOwnership? = null,
-    val timeZone: String? = null
+    val timeZone: String? = null,
+
+    val translations: List<VenueTranslationRequest>? = null
 )
 
 // ===========================================

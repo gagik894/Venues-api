@@ -6,8 +6,10 @@ import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueMapper
 import app.venues.venue.domain.VenueStatus
+import app.venues.venue.domain.VenueTranslation
 import app.venues.venue.repository.VenueCategoryRepository
 import app.venues.venue.repository.VenueRepository
+import app.venues.venue.repository.VenueTranslationRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
@@ -36,7 +38,8 @@ class VenueService(
     private val promoCodeService: VenuePromoCodeService,
     private val venueSettingsService: VenueSettingsService,
     private val eventPublisher: ApplicationEventPublisher,
-    private val venueRevalidationService: VenueRevalidationService
+    private val venueRevalidationService: VenueRevalidationService,
+    private val venueTranslationRepository: VenueTranslationRepository
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -241,6 +244,7 @@ class VenueService(
         }
 
         val venue = venueMapper.toEntity(request, city, category)
+        request.translations?.let { applyTranslations(venue, it) }
         val saved = venueRepository.save(venue)
 
         logger.info { "Venue created: id=${saved.id}, slug=${saved.slug}" }
@@ -288,6 +292,7 @@ class VenueService(
         val previousDomain = venue.customDomain
 
         venueMapper.updateEntity(venue, request, city, category)
+        request.translations?.let { applyTranslations(venue, it) }
         val saved = venueRepository.save(venue)
 
         if (previousDomain != saved.customDomain) {
@@ -427,6 +432,30 @@ class VenueService(
                 errorCode = "VENUE_NOT_FOUND"
             )
         }
+
+    private fun applyTranslations(
+        venue: app.venues.venue.domain.Venue,
+        translationRequests: List<VenueTranslationRequest>
+    ) {
+        val existing = venue.translations.associateBy { it.language.lowercase() }.toMutableMap()
+        translationRequests.forEach { req ->
+            val lang = req.language.lowercase()
+            val translation = existing[lang]
+            if (translation != null) {
+                translation.name = req.name
+                translation.description = req.description
+            } else {
+                venue.translations.add(
+                    VenueTranslation(
+                        venue = venue,
+                        language = lang,
+                        name = req.name,
+                        description = req.description
+                    )
+                )
+            }
+        }
+    }
 
     // ===========================================
     // VenueApi IMPLEMENTATION

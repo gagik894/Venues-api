@@ -148,6 +148,8 @@ class VenueMapper(
 
             status = venue.status,
 
+            translations = venue.translations.map(::toTranslationDto),
+
             createdAt = venue.createdAt,
             lastModifiedAt = venue.lastModifiedAt
         )
@@ -166,7 +168,7 @@ class VenueMapper(
         city: City,
         category: VenueCategory?
     ): Venue {
-        return Venue(
+        val venue = Venue(
             name = request.name,
             slug = request.slug,
             description = request.description,
@@ -191,6 +193,16 @@ class VenueMapper(
 
             organizationId = request.organizationId,
         )
+
+        // Optional presentation/communication fields
+        request.socialLinks?.let { venue.socialLinks = it }
+        request.notificationEmails?.let { venue.notificationEmails = it }
+        request.logoUrl?.let { venue.logoUrl = it }
+        request.coverImageUrl?.let { venue.coverImageUrl = it }
+        request.customDomain?.let { venue.customDomain = it }
+        request.isAlwaysOpen?.let { venue.isAlwaysOpen = it }
+
+        return venue
     }
 
     /**

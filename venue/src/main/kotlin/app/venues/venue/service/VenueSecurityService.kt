@@ -77,6 +77,18 @@ class VenueSecurityServiceImpl(
     }
 
     /**
+     * Checks if staff can browse (events list/details) for the specified venue.
+     */
+    override fun requireVenueBrowsePermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "browse",
+            checker = staffSecurityFacade::canBrowseVenue
+        )
+    }
+
+    /**
      * Shared helper to resolve venue organization and enforce permission via StaffSecurityFacade.
      */
     private fun requirePermission(

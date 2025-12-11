@@ -98,14 +98,14 @@ class StaffSecurityFacadeImpl(
      * Logic:
      * 1. Super Admin -> allow
      * 2. Org Owner/Admin -> allow
-     * 3. Venue MANAGER/SELLER/SCANNER -> allow
+     * 3. Venue MANAGER/SCANNER -> allow
      */
     override fun canScanAtVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
         return hasVenueAccess(
             staffId = staffId,
             organizationId = organizationId,
             venueId = venueId,
-            allowedRoles = setOf(VenueRole.MANAGER, VenueRole.SELLER, VenueRole.SCANNER)
+            allowedRoles = setOf(VenueRole.MANAGER, VenueRole.SCANNER)
         )
     }
 
@@ -115,14 +115,37 @@ class StaffSecurityFacadeImpl(
      * Logic:
      * 1. Super Admin -> allow
      * 2. Org Owner/Admin -> allow
-     * 3. Any venue role -> allow
+     * 3. Venue MANAGER/EDITOR/SCANNER/VIEWER -> allow
      */
     override fun canViewVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
         return hasVenueAccess(
             staffId = staffId,
             organizationId = organizationId,
             venueId = venueId,
-            allowedRoles = VenueRole.values().toSet()
+            allowedRoles = setOf(
+                VenueRole.MANAGER,
+                VenueRole.EDITOR,
+                VenueRole.SCANNER,
+                VenueRole.VIEWER
+            )
+        )
+    }
+
+    /**
+     * Browsing (events list/details) includes SELLER plus view roles.
+     */
+    override fun canBrowseVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(
+                VenueRole.MANAGER,
+                VenueRole.EDITOR,
+                VenueRole.SCANNER,
+                VenueRole.VIEWER,
+                VenueRole.SELLER
+            )
         )
     }
 

@@ -27,4 +27,9 @@ interface VenueSecurityService {
      * Throws if staff cannot view the venue (read-only).
      */
     fun requireVenueViewPermission(staffId: UUID, venueId: UUID)
+
+    /**
+     * Throws if staff cannot browse venue content (events list/details).
+     */
+    fun requireVenueBrowsePermission(staffId: UUID, venueId: UUID)
 }

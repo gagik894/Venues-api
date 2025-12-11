@@ -83,7 +83,7 @@ class VenueEventController(
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false, name = "status") statuses: List<EventStatus>?
     ): ApiResponse<Page<EventSummaryResponse>> {
-        venueSecurityService.requireVenueViewPermission(staffId, venueId)
+        venueSecurityService.requireVenueBrowsePermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
 
         logger.debug { "Listing staff events for venue=$venueId statuses=$statuses language=$language" }
@@ -117,7 +117,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventResponse> {
-        venueSecurityService.requireVenueViewPermission(staffId, venueId)
+        venueSecurityService.requireVenueBrowsePermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
 
         logger.debug { "Fetching staff event details: event=$eventId venue=$venueId language=$language" }

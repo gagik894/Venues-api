@@ -36,14 +36,21 @@ interface StaffSecurityFacade {
     /**
      * Checks if staff can scan tickets at the venue.
      *
-     * logic: SuperAdmin -> OrgAdmin -> Venue MANAGER/SELLER/SCANNER
+     * logic: SuperAdmin -> OrgAdmin -> Venue MANAGER/SCANNER
      */
     fun canScanAtVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean
 
     /**
      * Checks if staff can view the venue (read-only access).
      *
-     * logic: SuperAdmin -> OrgAdmin -> any venue role
+     * logic: SuperAdmin -> OrgAdmin -> MANAGER/EDITOR/SCANNER/VIEWER
      */
     fun canViewVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean
+
+    /**
+     * Checks if staff can browse venue content (events list/details).
+     *
+     * logic: SuperAdmin -> OrgAdmin -> MANAGER/EDITOR/SCANNER/VIEWER/SELLER
+     */
+    fun canBrowseVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean
 }

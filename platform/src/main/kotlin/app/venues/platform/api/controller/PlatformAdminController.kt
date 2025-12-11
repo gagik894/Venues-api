@@ -228,7 +228,7 @@ class PlatformAdminController(
 
         val mapped = page.map { event ->
             WebhookEventResponse(
-                id = event.id!!,
+                id = event.id,
                 platformId = event.platformId,
                 platformName = platformName,
                 eventType = event.eventType,

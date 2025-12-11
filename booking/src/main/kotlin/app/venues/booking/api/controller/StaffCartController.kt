@@ -63,7 +63,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId adding seat to cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
@@ -93,7 +93,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId adding GA to cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
@@ -123,7 +123,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId adding table to cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
@@ -152,7 +152,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId fetching cart summary for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
@@ -183,7 +183,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable seatIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing seat from cart" }
 
         val effectiveToken = token ?: cookieToken
@@ -213,7 +213,7 @@ class StaffCartController(
         @PathVariable levelIdentifier: String,
         @Valid @RequestBody request: UpdateGAQuantityRequest
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId updating GA quantity in cart" }
 
         val effectiveToken = token ?: cookieToken
@@ -242,7 +242,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable levelIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing GA from cart" }
 
         val effectiveToken = token ?: cookieToken
@@ -271,7 +271,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable tableIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing table from cart" }
 
         val effectiveToken = token ?: cookieToken
@@ -300,7 +300,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<CartSummaryResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId clearing cart" }
 
         val effectiveToken = token ?: cookieToken
@@ -338,7 +338,7 @@ class StaffCartController(
         @Valid @RequestBody request: StaffCartCheckoutRequest,
         response: HttpServletResponse
     ): ApiResponse<BookingResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.info { "Staff $staffId checking out cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
@@ -381,7 +381,7 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
     ): ApiResponse<Map<String, Any>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.info { "Staff $staffId closing items from cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken

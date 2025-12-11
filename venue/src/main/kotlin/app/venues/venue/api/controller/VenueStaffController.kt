@@ -85,7 +85,7 @@ class VenueStaffController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<VenueAdminResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
         val venue = venueService.getVenueByIdAdmin(venueId, language)
         return ApiResponse.success(venue, "Venue retrieved successfully")
@@ -101,7 +101,7 @@ class VenueStaffController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: UpdateVenueRequest
     ): ApiResponse<VenueAdminResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val updated = venueService.updateVenue(venueId, request)
         return ApiResponse.success(updated, "Venue updated successfully")
     }
@@ -159,7 +159,7 @@ class VenueStaffController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<SmtpConfigResponse?> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val config = venueSettingsService.getSmtpConfigMasked(venueId)
         return ApiResponse.success(
             config?.let { SmtpConfigResponse.from(it) },
@@ -177,7 +177,7 @@ class VenueStaffController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody config: SmtpConfig
     ): ApiResponse<SmtpConfigResponse?> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         venueSettingsService.updateSmtpConfig(venueId, config)
         val masked = venueSettingsService.getSmtpConfigMasked(venueId)
         return ApiResponse.success(SmtpConfigResponse.from(masked), "SMTP configuration updated successfully")
@@ -193,7 +193,7 @@ class VenueStaffController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         venueSettingsService.updateSmtpConfig(venueId, null)
         return ApiResponse.success(Unit, "SMTP configuration deleted")
     }
@@ -211,7 +211,7 @@ class VenueStaffController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<VenueBrandingDto> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val branding = venueWebsiteService.getVenueBranding(venueId)
         return ApiResponse.success(branding, "Branding retrieved successfully")
     }
@@ -226,7 +226,7 @@ class VenueStaffController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: UpdateVenueBrandingRequest
     ): ApiResponse<VenueBrandingDto> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val branding = venueWebsiteService.updateVenueBranding(venueId, request)
         return ApiResponse.success(branding, "Branding updated successfully")
     }

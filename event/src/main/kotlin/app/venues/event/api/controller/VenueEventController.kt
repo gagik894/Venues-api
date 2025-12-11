@@ -83,7 +83,7 @@ class VenueEventController(
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false, name = "status") statuses: List<EventStatus>?
     ): ApiResponse<Page<EventSummaryResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
 
         logger.debug { "Listing staff events for venue=$venueId statuses=$statuses language=$language" }
@@ -117,7 +117,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
 
         logger.debug { "Fetching staff event details: event=$eventId venue=$venueId language=$language" }
@@ -158,7 +158,7 @@ class VenueEventController(
         ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.debug { "Creating event for venue: $venueId by staff: $staffId" }
 
         val event = eventService.createEvent(venueId, request, image, secondaryImages)
@@ -197,7 +197,7 @@ class VenueEventController(
         ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<EventResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Updating event: $eventId for venue: $venueId by staff: $staffId" }
 
@@ -231,7 +231,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Deleting event: $eventId for venue: $venueId by staff: $staffId" }
 
@@ -254,7 +254,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<PriceTemplateResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val templates = eventService.getPriceTemplates(eventId)
         val response = templates.map { eventMapper.toPriceTemplateResponse(it) }
         return ApiResponse.success(response, "Price templates retrieved")
@@ -269,7 +269,7 @@ class VenueEventController(
         @Valid @RequestBody request: PriceTemplateRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<PriceTemplateResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val template = eventService.createPriceTemplate(eventId, venueId, request)
         return ApiResponse.success(eventMapper.toPriceTemplateResponse(template), "Price template created")
     }
@@ -283,7 +283,7 @@ class VenueEventController(
         @Valid @RequestBody request: PriceTemplateRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<PriceTemplateResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val template = eventService.updatePriceTemplate(eventId, venueId, templateId, request)
         return ApiResponse.success(eventMapper.toPriceTemplateResponse(template), "Price template updated")
     }
@@ -296,7 +296,7 @@ class VenueEventController(
         @PathVariable templateId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         eventService.deletePriceTemplate(eventId, venueId, templateId)
         return ApiResponse.success(Unit, "Price template deleted")
     }
@@ -320,7 +320,7 @@ class VenueEventController(
         @Valid @RequestBody request: AssignPriceTemplateRequest,
         @RequestAttribute staffId: UUID,
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Assigning price template for session: $sessionId, event: $eventId by staff: $staffId" }
 
@@ -371,7 +371,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventPricingConfigurationResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.debug { "Fetching pricing configuration for event: $eventId" }
 
@@ -402,7 +402,7 @@ class VenueEventController(
         @Valid @RequestBody request: EventPricingAssignRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Assigning event-level pricing for event: $eventId by staff: $staffId" }
 
@@ -447,7 +447,7 @@ class VenueEventController(
         @Valid @RequestBody request: EventStatusChangeRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<StatusChangeResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Changing event status: eventId=$eventId, targetStatus=${request.status}, staff=$staffId" }
 
@@ -485,7 +485,7 @@ class VenueEventController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<EventStatus>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val allowedTransitions = eventStatusService.getAllowedEventTransitions(eventId, venueId)
 
@@ -504,7 +504,7 @@ class VenueEventController(
         @RequestAttribute staffId: UUID,
         @RequestBody request: SeatIdsRequest
     ): ApiResponse<Int> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
 
         val count = eventApi.closeSeats(sessionId, request.seatIds)
@@ -523,7 +523,7 @@ class VenueEventController(
         @RequestAttribute staffId: UUID,
         @RequestBody request: SeatIdsRequest
     ): ApiResponse<Int> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
 
         val count = eventApi.reopenSeats(sessionId, request.seatIds)
@@ -539,7 +539,7 @@ class VenueEventController(
         @RequestAttribute staffId: UUID,
         @RequestBody request: TableIdsRequest
     ): ApiResponse<Int> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
 
         val count = eventApi.closeTables(sessionId, request.tableIds)
@@ -558,7 +558,7 @@ class VenueEventController(
         @RequestAttribute staffId: UUID,
         @RequestBody request: TableIdsRequest
     ): ApiResponse<Int> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
 
         val count = eventApi.reopenTables(sessionId, request.tableIds)
@@ -603,7 +603,7 @@ class VenueEventController(
         @Valid @RequestBody request: SessionStatusChangeRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<StatusChangeResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Changing session status: sessionId=$sessionId, targetStatus=${request.status}, staff=$staffId" }
 
@@ -642,7 +642,7 @@ class VenueEventController(
         @PathVariable sessionId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<SessionStatus>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val allowedTransitions = eventStatusService.getAllowedSessionTransitions(sessionId, venueId)
 
@@ -664,7 +664,7 @@ class VenueEventController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<AvailablePlatformDto>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val platforms = platformSubscriptionApi.getAvailablePlatforms()
         return ApiResponse.success(platforms, "Platforms retrieved")
     }

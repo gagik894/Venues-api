@@ -61,7 +61,7 @@ class StaffBookingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: DirectSaleRequest
     ): ApiResponse<BookingResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueSellPermission(staffId, venueId)
 
         logger.info { "Staff $staffId creating direct sale for venue $venueId" }
 
@@ -92,7 +92,7 @@ class StaffBookingController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<BookingResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.debug { "Staff $staffId fetching bookings for venue $venueId, status=$status" }
 
@@ -120,7 +120,7 @@ class StaffBookingController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<BookingResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.debug { "Staff $staffId fetching bookings for session $sessionId in venue $venueId" }
 
@@ -148,7 +148,7 @@ class StaffBookingController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<BookingResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.debug { "Staff $staffId fetching bookings for event $eventId in venue $venueId" }
 
@@ -174,7 +174,7 @@ class StaffBookingController(
         @PathVariable bookingId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<BookingResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.debug { "Staff $staffId fetching booking $bookingId for venue $venueId" }
 
@@ -199,7 +199,7 @@ class StaffBookingController(
         @PathVariable bookingId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.info { "Staff $staffId invalidating booking $bookingId for venue $venueId" }
         bookingService.cancelBooking(bookingId)
@@ -224,7 +224,7 @@ class StaffBookingController(
         @PathVariable sessionId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<SessionSalesOverview> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.info { "Staff $staffId requesting sales overview for session $sessionId in venue $venueId" }
         val overview = salesOverviewService.getSessionSalesOverview(sessionId, venueId)
@@ -247,7 +247,7 @@ class StaffBookingController(
         @PathVariable sessionId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventStatsResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         logger.info { "Staff $staffId requesting stats for session $sessionId in venue $venueId" }
         val stats = eventStatsService.getSessionStats(sessionId, venueId)
         return ApiResponse.success(
@@ -269,7 +269,7 @@ class StaffBookingController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventStatsResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         logger.info { "Staff $staffId requesting stats for event $eventId in venue $venueId" }
         val stats = eventStatsService.getEventStats(eventId, venueId)
         return ApiResponse.success(
@@ -292,7 +292,7 @@ class StaffBookingController(
         @RequestParam startDate: LocalDate,
         @RequestParam endDate: LocalDate
     ): ApiResponse<ReportsData> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         logger.info { "Staff $staffId requesting venue reports for $venueId between $startDate and $endDate" }
         val reports = venueReportsService.getVenueReports(venueId, startDate, endDate)
         return ApiResponse.success(
@@ -314,7 +314,7 @@ class StaffBookingController(
         @PathVariable eventId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<EventSalesOverview> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         logger.info { "Staff $staffId requesting sales overview for event $eventId in venue $venueId" }
         val overview = salesOverviewService.getEventSalesOverview(eventId, venueId)

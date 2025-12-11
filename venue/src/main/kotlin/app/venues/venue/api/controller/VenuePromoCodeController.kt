@@ -33,7 +33,7 @@ class VenuePromoCodeController(
         @PathVariable venueId: UUID,
         @Valid @RequestBody request: VenuePromoCodeRequest
     ): ApiResponse<VenuePromoCodeResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val promoCode = promoCodeService.createPromoCode(venueId, request)
         return ApiResponse.success(promoCode, "Promotional code created successfully")
     }
@@ -48,7 +48,7 @@ class VenuePromoCodeController(
         @PathVariable venueId: UUID,
         @RequestParam(required = false) search: String?
     ): ApiResponse<List<VenuePromoCodeResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val promoCodes = promoCodeService.getPromoCodes(venueId, search)
 
@@ -65,7 +65,7 @@ class VenuePromoCodeController(
         @PathVariable venueId: UUID,
         @PathVariable promoCodeId: UUID
     ): ApiResponse<VenuePromoCodeResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val promoCode = promoCodeService.getPromoCodeById(venueId, promoCodeId)
 
@@ -82,7 +82,7 @@ class VenuePromoCodeController(
         @PathVariable venueId: UUID,
         @PathVariable promoCodeId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         promoCodeService.deactivatePromoCode(venueId, promoCodeId)
 
@@ -100,7 +100,7 @@ class VenuePromoCodeController(
         @PathVariable promoCodeId: UUID,
         @Valid @RequestBody request: VenuePromoCodeRequest
     ): ApiResponse<VenuePromoCodeResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         val updatedPromoCode = promoCodeService.updatePromoCode(venueId, promoCodeId, request)
 

@@ -36,7 +36,7 @@ class StaffTicketController(
         @PathVariable bookingId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<TicketResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         logger.debug { "Staff $staffId fetching tickets for booking $bookingId in venue $venueId" }
 
         val tickets = ticketRepository.findByBookingId(bookingId).map { ticketMapper.toResponse(it) }
@@ -51,7 +51,7 @@ class StaffTicketController(
         @RequestParam bookingId: UUID,
         @RequestParam reason: String
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.info { "Staff $staffId invalidating tickets for booking $bookingId in venue $venueId" }
 
         ticketGenerationService.invalidateTicketsForBooking(bookingId, staffId, reason)
@@ -67,7 +67,7 @@ class StaffTicketController(
         @RequestParam bookingItemId: Long,
         @RequestParam reason: String
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.info { "Staff $staffId invalidating tickets for item $bookingItemId in booking $bookingId" }
 
         ticketGenerationService.invalidateTicketsForBookingItem(bookingId, bookingItemId, staffId, reason)
@@ -80,7 +80,7 @@ class StaffTicketController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<ScannerSessionDto>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueScanPermission(staffId, venueId)
         logger.debug { "Staff $staffId fetching scanner sessions for venue $venueId" }
         val sessions = scannerSessionApi.getSessionsForVenue(venueId)
         return ApiResponse.success(sessions, "Scanner sessions retrieved successfully")
@@ -94,7 +94,7 @@ class StaffTicketController(
         @RequestAttribute staffId: UUID,
         @RequestBody request: CreateSessionRequest
     ): ApiResponse<ScannerSessionDto> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueScanPermission(staffId, venueId)
         logger.info { "Staff $staffId creating scanner session for venue $venueId" }
 
         // Ensure the session is created for the correct venue

@@ -51,7 +51,7 @@ class VenueSeatingController(
         @Valid @RequestBody request: SeatingChartRequest, principal: Principal
     ): ApiResponse<SeatingChartResponse> {
         // Check permission: can staff manage this venue?
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         val chart = seatingService.createSeatingChart(venueId, request)
         return ApiResponse.success(chart, "Created successfully")
@@ -64,7 +64,7 @@ class VenueSeatingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatingChartLayoutRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         val chart = seatingService.createSeatingChartWithLayout(venueId, request)
         return ApiResponse.success(chart, "Created successfully")
@@ -76,7 +76,7 @@ class VenueSeatingController(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<List<SeatingChartOverviewResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val charts = seatingService.getSeatingChartsOverviewByVenue(venueId)
         return ApiResponse.success(charts, "Retrieved successfully")
     }
@@ -89,7 +89,7 @@ class VenueSeatingController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<SeatingChartResponse>> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val charts = seatingService.getSeatingChartsByVenue(venueId, pageable)
@@ -103,7 +103,7 @@ class VenueSeatingController(
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<SeatingChartDetailedResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
         val chart = seatingService.getSeatingChartDetailed(chartId)
         return ApiResponse.success(chart, "Retrieved successfully")
@@ -117,7 +117,7 @@ class VenueSeatingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         val chart = seatingService.updateSeatingChart(chartId, venueId, request)
         return ApiResponse.success(chart, "Updated successfully")
@@ -131,7 +131,7 @@ class VenueSeatingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatingChartLayoutRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         val chart = seatingService.replaceSeatingChartLayout(chartId, venueId, request)
         return ApiResponse.success(chart, "Layout replaced")
@@ -145,7 +145,7 @@ class VenueSeatingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: CloneSeatingChartRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val cloned = seatingService.cloneSeatingChart(venueId, chartId, request)
         return ApiResponse.success(cloned, "Cloned successfully")
     }
@@ -158,7 +158,7 @@ class VenueSeatingController(
         @RequestAttribute staffId: UUID,
         @Valid @RequestBody request: SeatingChartVisualUpdateRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val chart = seatingService.updateVisuals(chartId, venueId, request)
         return ApiResponse.success(chart, "Visuals updated")
     }
@@ -170,7 +170,7 @@ class VenueSeatingController(
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID
     ): ApiResponse<Unit> {
-        venueSecurityService.requireVenueManagementPermission(staffId, venueId)
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         seatingService.deleteSeatingChart(chartId, venueId)
         return ApiResponse.success(Unit, "Deleted successfully")

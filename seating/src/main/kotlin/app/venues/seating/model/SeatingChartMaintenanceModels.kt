@@ -10,8 +10,7 @@ import jakarta.validation.constraints.NotBlank
  */
 data class CloneSeatingChartRequest(
     @field:NotBlank(message = "Name is required for cloned chart")
-    val name: String,
-    val backgroundUrl: String? = null
+    val name: String
 )
 
 /**

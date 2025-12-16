@@ -162,6 +162,7 @@ class SeatingServiceTest {
             backgroundUrl = "bg.png",
             backgroundTransform = null,
             rootZones = emptyList(),
+            landmarks = emptyList(),
             createdAt = "now",
             updatedAt = "now"
         )
@@ -170,7 +171,7 @@ class SeatingServiceTest {
         val result = service.cloneSeatingChart(
             venueId = venueId,
             sourceChartId = sourceChartId,
-            request = CloneSeatingChartRequest(name = "Cloned", backgroundUrl = null)
+            request = CloneSeatingChartRequest(name = "Cloned")
         )
 
         assertEquals(dummyResponse, result)
@@ -207,6 +208,55 @@ class SeatingServiceTest {
                 }
             )
         }
+    }
+
+    @Test
+    fun `clone chart inherits background and transform`() {
+        val sourceChart = SeatingChart(
+            venueId = venueId,
+            name = "Original",
+            width = 2000,
+            height = 2000,
+            backgroundUrl = "bg.svg",
+            backgroundTransformJson = BackgroundTransformMapper.toJson(
+                app.venues.seating.model.BackgroundTransform(x = 10.0, y = 20.0, scale = 1.2, opacity = 0.8)
+            )
+        )
+
+        every { seatingChartRepository.findById(sourceChartId) } returns Optional.of(sourceChart)
+        every { seatingChartRepository.existsByVenueIdAndName(venueId, any()) } returns false
+        every { chartZoneRepository.findByChartId(sourceChartId) } returns emptyList()
+        every { chartTableRepository.findByChartId(sourceChartId) } returns emptyList()
+        every { chartSeatRepository.findByChartId(sourceChartId) } returns emptyList()
+        every { gaAreaRepository.findByChartId(sourceChartId) } returns emptyList()
+        every { chartLandmarkRepository.findByChartId(sourceChartId) } returns emptyList()
+
+        val savedSlot = slot<SeatingChart>()
+        every { seatingChartRepository.save(capture(savedSlot)) } answers { savedSlot.captured }
+
+        val dummyResponse = SeatingChartDetailedResponse(
+            id = UUID.randomUUID(),
+            venueId = venueId,
+            name = "Cloned",
+            width = 2000,
+            height = 2000,
+            backgroundUrl = "bg.svg",
+            backgroundTransform = app.venues.seating.model.BackgroundTransform(10.0, 20.0, 1.2, 0.8),
+            rootZones = emptyList(),
+            landmarks = emptyList(),
+            createdAt = "now",
+            updatedAt = "now"
+        )
+        every { service.getSeatingChartDetailed(any()) } returns dummyResponse
+
+        service.cloneSeatingChart(venueId, sourceChartId, CloneSeatingChartRequest(name = "Cloned"))
+
+        val cloned = savedSlot.captured
+        assertEquals("bg.svg", cloned.backgroundUrl)
+        assertEquals(
+            BackgroundTransformMapper.toJson(app.venues.seating.model.BackgroundTransform(10.0, 20.0, 1.2, 0.8)),
+            cloned.backgroundTransformJson
+        )
     }
 
     @Test
@@ -260,6 +310,7 @@ class SeatingServiceTest {
             backgroundUrl = null,
             backgroundTransform = null,
             rootZones = emptyList(),
+            landmarks = emptyList(),
             createdAt = "now",
             updatedAt = "now"
         )
@@ -318,6 +369,65 @@ class SeatingServiceTest {
         assertEquals("Bar Updated", landmark.label)
         assertEquals(2.0, landmark.x)
         assertEquals("icon-bar", landmark.iconKey)
+    }
+
+    @Test
+    fun `staff detailed chart fetch enforces venue ownership`() {
+        val otherVenueId = UUID.randomUUID()
+        val chart = SeatingChart(venueId = venueId, name = "Chart", width = 2000, height = 2000)
+        val chartId = chart.id
+
+        every { seatingChartRepository.findById(chartId) } returns Optional.of(chart)
+        every { chartZoneRepository.findByChartId(chartId) } returns emptyList()
+
+        assertThrows<VenuesException.AuthorizationFailure> {
+            service.getSeatingChartDetailedForVenue(chartId, otherVenueId)
+        }
+    }
+
+    @Test
+    fun `visual updates reject zone updates for other charts`() {
+        val chart = SeatingChart(venueId = venueId, name = "Chart", width = 2000, height = 2000)
+        val chartId = chart.id
+
+        val otherChart = SeatingChart(venueId = venueId, name = "Other", width = 2000, height = 2000)
+        val foreignZone = ChartZone(otherChart, null, "Foreign", "F1", 0.0, 0.0, 0.0, null, null).apply { id = 99L }
+
+        every { seatingChartRepository.findById(chartId) } returns Optional.of(chart)
+        every { chartZoneRepository.findAllById(listOf(foreignZone.id!!)) } returns listOf(foreignZone)
+
+        assertThrows<VenuesException.ValidationFailure> {
+            service.updateVisuals(
+                chartId,
+                venueId,
+                SeatingChartVisualUpdateRequest(zones = listOf(ZoneVisualUpdate(id = foreignZone.id!!, x = 1.0)))
+            )
+        }
+    }
+
+    @Test
+    fun `visual updates reject inventory changes when chart in use`() {
+        val chart = SeatingChart(venueId = venueId, name = "Chart", width = 2000, height = 2000)
+        val chartId = chart.id
+        val zone = ChartZone(chart, null, "Zone", "Z1", 0.0, 0.0, 0.0, null, null).apply { id = 10L }
+        val seat =
+            ChartSeat(zone, null, "A", "1", "Z1_ROW-A_SEAT-1", "STD", false, false, 1.0, 2.0, 0.0).apply { id = 11L }
+        chart.addZone(zone)
+        zone.addSeat(seat)
+
+        every { seatingChartRepository.findById(chartId) } returns Optional.of(chart)
+        every { eventApi.seatingChartInUse(chartId) } returns true
+        every { chartSeatRepository.findAllById(listOf(seat.id!!)) } returns listOf(seat)
+
+        assertThrows<VenuesException.ValidationFailure> {
+            service.updateVisuals(
+                chartId,
+                venueId,
+                SeatingChartVisualUpdateRequest(
+                    seats = listOf(SeatVisualUpdate(id = seat.id!!, categoryKey = "VIP"))
+                )
+            )
+        }
     }
 
     @Test

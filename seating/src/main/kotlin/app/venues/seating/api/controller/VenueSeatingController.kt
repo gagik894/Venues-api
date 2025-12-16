@@ -12,7 +12,6 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
-import java.security.Principal
 import java.util.*
 
 /**
@@ -42,20 +41,6 @@ class VenueSeatingController(
     // ===========================================
     // SEATING CHART
     // ===========================================
-
-    @PostMapping
-    @Operation(summary = "Create seating chart", description = "Requires venue management permission")
-    fun createSeatingChart(
-        @PathVariable venueId: UUID,
-        @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartRequest, principal: Principal
-    ): ApiResponse<SeatingChartResponse> {
-        // Check permission: can staff manage this venue?
-        venueSecurityService.requireVenueEditPermission(staffId, venueId)
-
-        val chart = seatingService.createSeatingChart(venueId, request)
-        return ApiResponse.success(chart, "Created successfully")
-    }
 
     @PostMapping("/layout")
     @Operation(summary = "Create seating chart with layout")
@@ -97,7 +82,14 @@ class VenueSeatingController(
     }
 
     @GetMapping("/{chartId}")
-    @Operation(summary = "Get detailed chart")
+    @Operation(
+        summary = "Get detailed chart",
+        description = """
+            Returns the full chart structure (zones, seats, tables, GA areas).
+
+            Security note: the chartId must belong to the provided venueId; otherwise the request fails.
+        """
+    )
     fun getSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
@@ -105,12 +97,20 @@ class VenueSeatingController(
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
-        val chart = seatingService.getSeatingChartDetailed(chartId)
+        val chart = seatingService.getSeatingChartDetailedForVenue(chartId, venueId)
         return ApiResponse.success(chart, "Retrieved successfully")
     }
 
     @PutMapping("/{chartId}")
-    @Operation(summary = "Update chart details")
+    @Operation(
+        summary = "Update chart details",
+        description = """
+            Updates chart metadata only: name, canvas size, background URL, and background transform.
+
+            This endpoint does NOT modify the layout component tree (zones, seats, tables, GA areas).
+            For layout changes, clone the chart and update the clone.
+        """
+    )
     fun updateSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
@@ -124,7 +124,15 @@ class VenueSeatingController(
     }
 
     @PutMapping("/{chartId}/layout")
-    @Operation(summary = "Replace seating chart layout")
+    @Operation(
+        summary = "Replace seating chart layout",
+        description = """
+            Disabled by design.
+
+            Reason: replacing a layout changes inventory identifiers and can break existing sessions/bookings.
+            Use POST /{chartId}/clone for major changes, then update visuals on the clone.
+        """
+    )
     fun replaceSeatingChartLayout(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
@@ -151,7 +159,26 @@ class VenueSeatingController(
     }
 
     @PatchMapping("/{chartId}/visuals")
-    @Operation(summary = "Update visual attributes only (non-destructive)")
+    @Operation(
+        summary = "Update visual attributes (non-destructive)",
+        description = """
+            Applies partial updates to visual rendering attributes for existing components.
+
+            Always allowed fields (even when chart is in use):
+            - Zones: name, x/y/rotation, boundaryPath, displayColor
+            - Seats: x/y/rotation
+            - Tables: x/y/width/height/rotation/shape
+            - GA areas: boundaryPath, displayColor
+            - Landmarks: create/update/delete
+
+            When the chart is referenced by events/sessions, inventory semantics are frozen and these are rejected:
+            - Seats: categoryKey, isAccessible, isObstructed
+            - Tables: categoryKey
+            - GA areas: capacity, categoryKey
+
+            For those changes, clone the chart and update the clone.
+        """
+    )
     fun updateVisuals(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,

@@ -170,6 +170,7 @@ class ChartStructureService(
             code = table.code,
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
+            categoryKey = table.categoryKey,
             shape = table.shape.name,
             x = table.x,
             y = table.y,

@@ -10,12 +10,30 @@ port used by booking/event flows.
 - **Seats / Tables / GA areas**: bookable inventory; codes are immutable business keys.
 - **Landmarks**: visual-only elements.
 
+## Architecture: DRY DTO strategy
+
+The seating chart structure (zones/seats/tables/GA/landmarks) is represented by a **single canonical shape**
+defined in `seating-api` module:
+
+- `ZoneStructureDto` (recursive hierarchy)
+- `SeatStructureDto`, `TableStructureDto`, `GaAreaStructureDto`, `LandmarkDto`
+
+Both **staff** and **public cached** endpoints return these structures wrapped in different envelopes:
+
+- Staff: `SeatingChartDetailedResponse` (includes `venueId`, `createdAt`, `updatedAt`)
+- Public: `StaticChartStructureResponse` (includes `chartId`, `chartName`, cache-friendly)
+
+This ensures consistency, eliminates duplication, and keeps the recursive payload shape identical across all endpoints.
+
 ## Invariants / safety
 
 - **Seat codes are immutable**; sessions/bookings refer to `seatId`, but 3rd parties use `seatCode`. Do not change
   row/number/zone/table for existing seats.
 - **Layout replace is disabled**. For major changes, **clone** the chart to get new IDs but keep codes.
-- **Visual-only edits** are allowed in place (position/rotation/color/accessibility/category, GA capacity, landmarks).
+- **Visual edits** are allowed in place (position/rotation/color/boundaries/landmarks).
+- When a chart is **in use** by events/sessions, inventory semantics are frozen: do not change seat flags/category,
+  table
+  category, or GA capacity/category in place; **clone** instead.
 - **Deletion is guarded**: charts cannot be deleted if referenced by events/sessions (`EventApi.seatingChartInUse`).
 
 ## Staff-facing endpoints
@@ -44,6 +62,16 @@ port used by booking/event flows.
 - Layout create: `SeatingChartLayoutRequest` (zones, tables, gaAreas, seats).
 - Visual update: `SeatingChartVisualUpdateRequest` (zones/seats/tables/gaAreas/landmarks; no code/relationship changes).
 - Clone: `CloneSeatingChartRequest` (name, optional backgroundUrl).
+- Clone: `CloneSeatingChartRequest` (name only; background and transforms are inherited to keep visual consistency).
+- Background image/transform can be changed **only** via chart metadata update (not clone, not visuals).
+
+**Unified structure DTOs** (consistency across endpoints):
+
+- Staff GET and public cached GET both use `ZoneStructureDto`, `SeatStructureDto`, `TableStructureDto`,
+  `GaAreaStructureDto` from `seating-api` module for DRY.
+- Only the top-level envelope differs:
+    - Staff: `SeatingChartDetailedResponse` (includes venueId, timestamps)
+    - Public cached: `StaticChartStructureResponse` (includes chartId/chartName, no timestamps)
 
 ## Event/booking integration
 

@@ -1,12 +1,19 @@
 package app.venues.seating.mapper
 
+import app.venues.seating.api.dto.*
 import app.venues.seating.domain.*
-import app.venues.seating.model.*
+import app.venues.seating.model.BackgroundTransform
+import app.venues.seating.model.SeatingChartDetailedResponse
+import app.venues.seating.model.SeatingChartOverviewResponse
+import app.venues.seating.model.SeatingChartResponse
 import org.springframework.stereotype.Component
 
 /**
  * Maps domain entities to REST response models.
  * Handles internal service layer mapping only.
+ *
+ * Uses unified structure DTOs from seating-api for consistency
+ * with the public cached structure endpoint.
  */
 @Component
 class SeatingResponseMapper {
@@ -52,16 +59,20 @@ class SeatingResponseMapper {
 
     /**
      * Map chart entity to detailed hierarchical response.
+     *
+     * Uses the same ZoneStructureDto as the public cached endpoint for consistency.
      */
     fun toDetailedResponse(
         chart: SeatingChart,
-        venueName: String,
-        allZones: List<ChartZone>
+        allZones: List<ChartZone>,
+        landmarks: List<ChartLandmark>
     ): SeatingChartDetailedResponse {
         val rootZones = allZones
             .filter { it.parentZone == null }
             .sortedBy { it.name }
-            .map { toZoneResponse(it) }
+            .map { toZoneStructureDto(it) }
+
+        val landmarkDtos = landmarks.map { toLandmarkDto(it) }
 
         return SeatingChartDetailedResponse(
             id = chart.id,
@@ -70,20 +81,25 @@ class SeatingResponseMapper {
             width = chart.width,
             height = chart.height,
             backgroundUrl = chart.backgroundUrl,
-            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson),
+            backgroundTransform = BackgroundTransformMapper.fromJson(chart.backgroundTransformJson)?.let {
+                BackgroundTransform(it.x, it.y, it.scale, it.opacity)
+            },
             rootZones = rootZones,
+            landmarks = landmarkDtos,
             createdAt = chart.createdAt.toString(),
             updatedAt = chart.lastModifiedAt.toString()
         )
     }
 
     /**
-     * Map zone entity to response with recursive children.
+     * Map zone entity to unified structure DTO with recursive children.
+     *
+     * This is the same structure used by the public cached endpoint.
      */
-    fun toZoneResponse(zone: ChartZone): ZoneResponse {
-        return ZoneResponse(
-            id = zone.id ?: throw IllegalStateException("Zone ID is required but was null when mapping to ZoneResponse"),
-            parentZoneId = zone.parentZone?.id,
+    private fun toZoneStructureDto(zone: ChartZone): ZoneStructureDto {
+        return ZoneStructureDto(
+            id = zone.id
+                ?: throw IllegalStateException("Zone ID is required but was null when mapping to ZoneStructureDto"),
             name = zone.name,
             code = zone.code,
             x = zone.x,
@@ -91,24 +107,19 @@ class SeatingResponseMapper {
             rotation = zone.rotation,
             boundaryPath = zone.boundaryPath,
             displayColor = zone.displayColor,
-            seatCount = zone.seats.size,
-            tableCount = zone.tables.size,
-            gaCount = zone.gaAreas.size,
-            childZones = zone.childZones.map { toZoneResponse(it) },
-            seats = zone.seats.map { toSeatResponse(it) },
-            tables = zone.tables.map { toTableResponse(it) },
-            gaAreas = zone.gaAreas.map { toGaAreaResponse(it) }
+            children = zone.childZones.map { toZoneStructureDto(it) },
+            seats = zone.seats.map { toSeatStructureDto(it) },
+            tables = zone.tables.map { toTableStructureDto(it) },
+            gaAreas = zone.gaAreas.map { toGaAreaStructureDto(it) }
         )
     }
 
     /**
-     * Map seat entity to response.
+     * Map seat entity to unified structure DTO.
      */
-    fun toSeatResponse(seat: ChartSeat): SeatResponse {
-        return SeatResponse(
+    private fun toSeatStructureDto(seat: ChartSeat): SeatStructureDto {
+        return SeatStructureDto(
             id = seat.id ?: error("Seat ID cannot be null"),
-            zoneId = seat.zone.id ?: error("Zone ID cannot be null"),
-            tableId = seat.table?.id,
             code = seat.code,
             rowLabel = seat.rowLabel,
             seatNumber = seat.seatNumber,
@@ -117,17 +128,17 @@ class SeatingResponseMapper {
             y = seat.y,
             rotation = seat.rotation,
             isAccessible = seat.isAccessible,
-            isObstructed = seat.isObstructedView
+            isObstructed = seat.isObstructedView,
+            tableId = seat.table?.id
         )
     }
 
     /**
-     * Map table entity to response.
+     * Map table entity to unified structure DTO.
      */
-    fun toTableResponse(table: ChartTable): TableResponse {
-        return TableResponse(
+    private fun toTableStructureDto(table: ChartTable): TableStructureDto {
+        return TableStructureDto(
             id = table.id ?: error("Table ID cannot be null"),
-            zoneId = table.zone.id ?: error("Zone ID cannot be null"),
             code = table.code,
             tableNumber = table.tableNumber,
             seatCapacity = table.seatCapacity,
@@ -142,18 +153,36 @@ class SeatingResponseMapper {
     }
 
     /**
-     * Map GA area entity to response.
+     * Map GA area entity to unified structure DTO.
      */
-    fun toGaAreaResponse(ga: GeneralAdmissionArea): GaAreaResponse {
-        return GaAreaResponse(
+    private fun toGaAreaStructureDto(ga: GeneralAdmissionArea): GaAreaStructureDto {
+        return GaAreaStructureDto(
             id = ga.id ?: error("GA Area ID cannot be null"),
-            zoneId = ga.zone.id ?: error("Zone ID cannot be null"),
             code = ga.code,
             name = ga.name,
             capacity = ga.capacity,
             categoryKey = ga.categoryKey,
             boundaryPath = ga.boundaryPath,
             displayColor = ga.displayColor
+        )
+    }
+
+    /**
+     * Map landmark entity to unified DTO.
+     */
+    private fun toLandmarkDto(landmark: ChartLandmark): LandmarkDto {
+        return LandmarkDto(
+            id = landmark.id ?: error("Landmark ID cannot be null"),
+            label = landmark.label,
+            type = landmark.type.name,
+            shapeType = landmark.shapeType.name,
+            x = landmark.x,
+            y = landmark.y,
+            width = landmark.width,
+            height = landmark.height,
+            rotation = landmark.rotation,
+            boundaryPath = landmark.boundaryPath,
+            iconKey = landmark.iconKey
         )
     }
 }

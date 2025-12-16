@@ -98,6 +98,7 @@ data class TableStructureDto(
     val code: String,
     val tableNumber: String,
     val seatCapacity: Int,
+    val categoryKey: String,
     val shape: String,
 
     // Visual attributes

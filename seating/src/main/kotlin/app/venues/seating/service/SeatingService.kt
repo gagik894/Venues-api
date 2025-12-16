@@ -205,9 +205,27 @@ class SeatingService(
             .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
 
         val allZones = chartZoneRepository.findByChartId(id)
-        val venueName = venueApi.getVenueName(chart.venueId)
+        val landmarks = chartLandmarkRepository.findByChartId(id)
+        return mapper.toDetailedResponse(chart, allZones, landmarks)
+    }
 
-        return mapper.toDetailedResponse(chart, venueName, allZones)
+    /**
+     * Staff-safe variant of [getSeatingChartDetailed] that enforces venue ownership.
+     *
+     * This prevents cross-venue data exposure when a caller knows another chartId.
+     */
+    @Transactional(readOnly = true)
+    fun getSeatingChartDetailedForVenue(chartId: UUID, venueId: UUID): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+
+        if (chart.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        val allZones = chartZoneRepository.findByChartId(chartId)
+        val landmarks = chartLandmarkRepository.findByChartId(chartId)
+        return mapper.toDetailedResponse(chart, allZones, landmarks)
     }
 
     private fun applyLayout(chart: SeatingChart, request: SeatingChartLayoutRequest) {
@@ -327,6 +345,26 @@ class SeatingService(
         if (seatEntities.isNotEmpty()) {
             chartSeatRepository.saveAll(seatEntities)
         }
+
+        // Persist landmarks
+        val landmarkEntities = request.landmarks.map { dto ->
+            ChartLandmark(
+                chart = chart,
+                label = dto.label,
+                type = LandmarkType.valueOf(dto.type.trim().uppercase()),
+                shapeType = LandmarkShapeType.valueOf(dto.shapeType.trim().uppercase()),
+                x = dto.x,
+                y = dto.y,
+                width = dto.width,
+                height = dto.height,
+                rotation = dto.rotation,
+                boundaryPath = dto.boundaryPath,
+                iconKey = dto.iconKey
+            )
+        }
+        if (landmarkEntities.isNotEmpty()) {
+            chartLandmarkRepository.saveAll(landmarkEntities)
+        }
     }
 
     private fun resolveSeatCapacity(dto: TableLayoutRequest, seatCount: Int): Int {
@@ -389,7 +427,7 @@ class SeatingService(
             name = request.name,
             width = source.width,
             height = source.height,
-            backgroundUrl = request.backgroundUrl ?: source.backgroundUrl,
+            backgroundUrl = source.backgroundUrl,
             styleConfigJson = source.styleConfigJson,
             backgroundTransformJson = source.backgroundTransformJson
         )
@@ -526,15 +564,94 @@ class SeatingService(
             throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
         }
 
+        val chartInUse = eventApi.seatingChartInUse(chartId)
+
+        fun <T> ensureNoDuplicateIds(items: List<T>, idSelector: (T) -> Long, label: String) {
+            val ids = items.map(idSelector)
+            val dupes = ids.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+            if (dupes.isNotEmpty()) {
+                throw VenuesException.ValidationFailure("Duplicate $label ids in request: ${dupes.joinToString(", ")}")
+            }
+        }
+
+        ensureNoDuplicateIds(request.zones, { it.id }, "zone")
+        ensureNoDuplicateIds(request.seats, { it.id }, "seat")
+        ensureNoDuplicateIds(request.tables, { it.id }, "table")
+        ensureNoDuplicateIds(request.gaAreas, { it.id }, "GA area")
+
+        if (chartInUse) {
+            val violations = mutableListOf<String>()
+
+            if (request.seats.any { it.categoryKey != null || it.isAccessible != null || it.isObstructed != null }) {
+                violations += "seats: categoryKey/isAccessible/isObstructed"
+            }
+            if (request.tables.any { it.categoryKey != null }) {
+                violations += "tables: categoryKey"
+            }
+            if (request.gaAreas.any { it.capacity != null || it.categoryKey != null }) {
+                violations += "gaAreas: capacity/categoryKey"
+            }
+
+            if (violations.isNotEmpty()) {
+                throw VenuesException.ValidationFailure(
+                    "Chart is in use by events/sessions; only visual updates are allowed. Not allowed fields: ${
+                        violations.joinToString(
+                            "; "
+                        )
+                    }. " +
+                            "Clone the chart for inventory or category changes."
+                )
+            }
+        }
+
+        fun parseTableShape(value: String): TableShape {
+            val normalized = value.trim().uppercase()
+            return try {
+                TableShape.valueOf(normalized)
+            } catch (e: IllegalArgumentException) {
+                throw VenuesException.ValidationFailure(
+                    "Invalid table shape '$value'. Allowed values: ${TableShape.entries.joinToString(", ") { it.name }}"
+                )
+            }
+        }
+
+        fun parseLandmarkType(value: String): LandmarkType {
+            val normalized = value.trim().uppercase()
+            return try {
+                LandmarkType.valueOf(normalized)
+            } catch (e: IllegalArgumentException) {
+                throw VenuesException.ValidationFailure(
+                    "Invalid landmark type '$value'. Allowed values: ${LandmarkType.entries.joinToString(", ") { it.name }}"
+                )
+            }
+        }
+
+        fun parseLandmarkShapeType(value: String): LandmarkShapeType {
+            val normalized = value.trim().uppercase()
+            return try {
+                LandmarkShapeType.valueOf(normalized)
+            } catch (e: IllegalArgumentException) {
+                throw VenuesException.ValidationFailure(
+                    "Invalid landmark shapeType '$value'. Allowed values: ${LandmarkShapeType.entries.joinToString(", ") { it.name }}"
+                )
+            }
+        }
+
         // Zones
         if (request.zones.isNotEmpty()) {
-            val zoneIds = request.zones.map { it.id }
+            val updatesById = request.zones.associateBy { it.id }
+            val zoneIds = updatesById.keys.toList()
             val zones = chartZoneRepository.findAllById(zoneIds)
-            if (zones.size != zoneIds.toSet().size) {
-                throw VenuesException.ValidationFailure("One or more zones not found for this chart")
+
+            if (zones.size != zoneIds.size) {
+                throw VenuesException.ValidationFailure("One or more zones not found")
             }
             zones.forEach { zone ->
-                val upd = request.zones.first { it.id == zone.id }
+                if (zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("Zone ${zone.id} does not belong to chart $chartId")
+                }
+
+                val upd = updatesById.getValue(zone.id ?: error("Zone ID cannot be null"))
                 upd.name?.let { zone.name = it }
                 upd.x?.let { zone.x = it }
                 upd.y?.let { zone.y = it }
@@ -547,17 +664,18 @@ class SeatingService(
 
         // Seats
         if (request.seats.isNotEmpty()) {
-            val seatIds = request.seats.map { it.id }
+            val updatesById = request.seats.associateBy { it.id }
+            val seatIds = updatesById.keys.toList()
             val seats = chartSeatRepository.findAllById(seatIds)
-            if (seats.size != seatIds.toSet().size) {
-                throw VenuesException.ValidationFailure("One or more seats not found for this chart")
+            if (seats.size != seatIds.size) {
+                throw VenuesException.ValidationFailure("One or more seats not found")
             }
             seats.forEach { seat ->
-                val upd = request.seats.first { it.id == seat.id }
                 // Ensure seat belongs to chart
                 if (seat.zone.chart.id != chartId) {
                     throw VenuesException.ValidationFailure("Seat ${seat.id} does not belong to chart $chartId")
                 }
+                val upd = updatesById.getValue(seat.id ?: error("Seat ID cannot be null"))
                 upd.x?.let { seat.x = it }
                 upd.y?.let { seat.y = it }
                 upd.rotation?.let { seat.rotation = it }
@@ -570,22 +688,23 @@ class SeatingService(
 
         // Tables
         if (request.tables.isNotEmpty()) {
-            val tableIds = request.tables.map { it.id }
+            val updatesById = request.tables.associateBy { it.id }
+            val tableIds = updatesById.keys.toList()
             val tables = chartTableRepository.findAllById(tableIds)
-            if (tables.size != tableIds.toSet().size) {
-                throw VenuesException.ValidationFailure("One or more tables not found for this chart")
+            if (tables.size != tableIds.size) {
+                throw VenuesException.ValidationFailure("One or more tables not found")
             }
             tables.forEach { table ->
                 if (table.zone.chart.id != chartId) {
                     throw VenuesException.ValidationFailure("Table ${table.id} does not belong to chart $chartId")
                 }
-                val upd = request.tables.first { it.id == table.id }
+                val upd = updatesById.getValue(table.id ?: error("Table ID cannot be null"))
                 upd.x?.let { table.x = it }
                 upd.y?.let { table.y = it }
                 upd.width?.let { table.width = it }
                 upd.height?.let { table.height = it }
                 upd.rotation?.let { table.rotation = it }
-                upd.shape?.let { table.shape = TableShape.valueOf(it.uppercase()) }
+                upd.shape?.let { table.shape = parseTableShape(it) }
                 upd.categoryKey?.let { table.categoryKey = it }
             }
             chartTableRepository.saveAll(tables)
@@ -593,16 +712,17 @@ class SeatingService(
 
         // GA Areas
         if (request.gaAreas.isNotEmpty()) {
-            val gaIds = request.gaAreas.map { it.id }
+            val updatesById = request.gaAreas.associateBy { it.id }
+            val gaIds = updatesById.keys.toList()
             val gaAreas = gaAreaRepository.findAllById(gaIds)
-            if (gaAreas.size != gaIds.toSet().size) {
-                throw VenuesException.ValidationFailure("One or more GA areas not found for this chart")
+            if (gaAreas.size != gaIds.size) {
+                throw VenuesException.ValidationFailure("One or more GA areas not found")
             }
             gaAreas.forEach { ga ->
                 if (ga.zone.chart.id != chartId) {
                     throw VenuesException.ValidationFailure("GA area ${ga.id} does not belong to chart $chartId")
                 }
-                val upd = request.gaAreas.first { it.id == ga.id }
+                val upd = updatesById.getValue(ga.id ?: error("GA area ID cannot be null"))
                 upd.capacity?.let { ga.updateCapacity(it) }
                 upd.boundaryPath?.let { ga.boundaryPath = it }
                 upd.displayColor?.let { ga.displayColor = it }
@@ -633,8 +753,8 @@ class SeatingService(
                         ChartLandmark(
                             chart = chart,
                             label = upd.label,
-                            type = LandmarkType.valueOf(upd.type.uppercase()),
-                            shapeType = LandmarkShapeType.valueOf(upd.shapeType.uppercase()),
+                            type = parseLandmarkType(upd.type),
+                            shapeType = parseLandmarkShapeType(upd.shapeType),
                             x = upd.x,
                             y = upd.y,
                             width = upd.width,
@@ -650,8 +770,8 @@ class SeatingService(
                             throw VenuesException.ValidationFailure("Landmark ${entity.id} does not belong to chart $chartId")
                         }
                         entity.label = upd.label
-                        entity.type = LandmarkType.valueOf(upd.type.uppercase())
-                        entity.shapeType = LandmarkShapeType.valueOf(upd.shapeType.uppercase())
+                        entity.type = parseLandmarkType(upd.type)
+                        entity.shapeType = parseLandmarkShapeType(upd.shapeType)
                         entity.x = upd.x
                         entity.y = upd.y
                         entity.width = upd.width

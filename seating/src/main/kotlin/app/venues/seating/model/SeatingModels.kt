@@ -1,5 +1,7 @@
 package app.venues.seating.model
 
+import app.venues.seating.api.dto.LandmarkDto
+import app.venues.seating.api.dto.ZoneStructureDto
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -8,6 +10,9 @@ import java.util.*
 /**
  * REST contract DTOs for seating chart management.
  * These types are used by controllers for HTTP request/response.
+ *
+ * Note: Recursive zone/seat/table/GA structures are imported from seating-api
+ * to maintain DRY and consistency with the public cached structure endpoint.
  */
 
 // =================================================================================
@@ -63,81 +68,10 @@ data class SeatingChartDetailedResponse(
     val height: Int,
     val backgroundUrl: String?,
     val backgroundTransform: BackgroundTransform?,
-    val rootZones: List<ZoneResponse>,
+    val rootZones: List<ZoneStructureDto>,
+    val landmarks: List<LandmarkDto>,
     val createdAt: String,
     val updatedAt: String
-)
-
-// =================================================================================
-// ZONE
-// =================================================================================
-
-data class ZoneResponse(
-    val id: Long,
-    val parentZoneId: Long?,
-    val name: String,
-    val code: String,
-    val x: Double,
-    val y: Double,
-    val rotation: Double,
-    val boundaryPath: String?,
-    val displayColor: String?,
-    val seatCount: Int,
-    val tableCount: Int,
-    val gaCount: Int,
-    val childZones: List<ZoneResponse>,
-    val seats: List<SeatResponse>,
-    val tables: List<TableResponse>,
-    val gaAreas: List<GaAreaResponse>
-)
-
-data class SeatResponse(
-    val id: Long,
-    val zoneId: Long,
-    val tableId: Long?,
-    val code: String,
-    val rowLabel: String,
-    val seatNumber: String,
-    val categoryKey: String,
-    val x: Double,
-    val y: Double,
-    val rotation: Double,
-    val isAccessible: Boolean,
-    val isObstructed: Boolean
-)
-
-// =================================================================================
-// TABLE
-// =================================================================================
-
-data class TableResponse(
-    val id: Long,
-    val zoneId: Long,
-    val code: String,
-    val tableNumber: String,
-    val seatCapacity: Int,
-    val categoryKey: String,
-    val shape: String,
-    val x: Double,
-    val y: Double,
-    val width: Double,
-    val height: Double,
-    val rotation: Double
-)
-
-// =================================================================================
-// GENERAL ADMISSION
-// =================================================================================
-
-data class GaAreaResponse(
-    val id: Long,
-    val zoneId: Long,
-    val code: String,
-    val name: String,
-    val capacity: Int,
-    val categoryKey: String,
-    val boundaryPath: String?,
-    val displayColor: String?
 )
 
 /**

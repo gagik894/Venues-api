@@ -18,7 +18,8 @@ data class SeatingChartLayoutRequest(
 
     val tables: List<@Valid TableLayoutRequest> = emptyList(),
     val gaAreas: List<@Valid GaAreaLayoutRequest> = emptyList(),
-    val seats: List<@Valid SeatLayoutRequest> = emptyList()
+    val seats: List<@Valid SeatLayoutRequest> = emptyList(),
+    val landmarks: List<@Valid LandmarkLayoutRequest> = emptyList()
 )
 
 data class ZoneLayoutRequest(
@@ -74,4 +75,17 @@ data class SeatLayoutRequest(
     val x: Double,
     val y: Double,
     val rotation: Double = 0.0
+)
+
+data class LandmarkLayoutRequest(
+    @field:NotBlank val label: String,
+    @field:NotBlank val type: String,
+    @field:NotBlank val shapeType: String,
+    val x: Double,
+    val y: Double,
+    val width: Double? = null,
+    val height: Double? = null,
+    val rotation: Double = 0.0,
+    val boundaryPath: String? = null,
+    val iconKey: String? = null
 )

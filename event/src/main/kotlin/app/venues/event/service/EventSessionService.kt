@@ -43,7 +43,9 @@ class EventSessionService(
         val sessionsToRemove = event.sessions.filter { it.id !in requestSessionIds }
         sessionsToRemove.forEach { session ->
             if (session.ticketsSold > 0) {
-                throw VenuesException.ValidationFailure("Cannot remove session with sold tickets: ${session.id}")
+                throw VenuesException.ResourceConflict(
+                    "Cannot remove session ${session.id} because tickets have been sold. Archive event or keep the session."
+                )
             }
         }
         event.sessions.removeAll(sessionsToRemove)

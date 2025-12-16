@@ -98,7 +98,7 @@ class DirectSalesServiceEasyReserveTest {
         every { seatingApi.getSeatInfoByCode("S1") } returns seatInfo
         every { eventApi.reserveSeat(sessionId, seatInfo.id) } returns BigDecimal("50.00")
         every { eventApi.getSeatPriceTemplateNames(sessionId, listOf(seatInfo.id)) } returns mapOf(seatInfo.id to "STD")
-        every { guestService.findOrCreateGuest(any(), any(), any()) } returns guest
+        every { guestService.findOrCreateGuest(any(), any(), any(), any()) } returns guest
         every { bookingRepository.save(any()) } answers { firstArg() }
         every { bookingResponseService.prepareBookingResponse(any()) } returns mockk<BookingResponse>(relaxed = true)
         every { venueApi.validatePromoCode(any(), any()) } returns mockk<PromoCodeDto>(relaxed = true)

@@ -15,10 +15,9 @@ import jakarta.validation.constraints.Size
  * and needs to finalize the booking immediately.
  */
 data class StaffCartCheckoutRequest(
-    @field:NotBlank(message = "Customer email is required")
     @field:Email(message = "Invalid email format")
     @field:Size(max = 255, message = "Email must not exceed 255 characters")
-    val customerEmail: String,
+    val customerEmail: String?,
 
     @field:NotBlank(message = "Customer name is required")
     @field:Size(max = 200, message = "Name must not exceed 200 characters")
@@ -32,4 +31,31 @@ data class StaffCartCheckoutRequest(
 
     @field:Size(max = 50, message = "Promo code must not exceed 50 characters")
     val promoCode: String? = null
+)
+
+/**
+ * Ticket delivery metadata to indicate where tickets were sent.
+ */
+data class TicketDeliveryInfo(
+    val emailed: Boolean,
+    val email: String?,
+    val pdfIncluded: Boolean
+)
+
+/**
+ * Ticket delivery payload returned to staff checkout.
+ */
+data class TicketDeliveryPayload(
+    val ticketCount: Int,
+    val ticketsPdfBase64: String?,
+    val pdfFileName: String?,
+    val delivery: TicketDeliveryInfo
+)
+
+/**
+ * Response for staff cart checkout including printable tickets.
+ */
+data class StaffCartCheckoutResponse(
+    val booking: BookingResponse,
+    val ticketDelivery: TicketDeliveryPayload
 )

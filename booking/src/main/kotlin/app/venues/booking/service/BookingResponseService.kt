@@ -4,6 +4,7 @@ import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.mapper.BookingItemData
 import app.venues.booking.api.mapper.BookingMapper
 import app.venues.booking.domain.Booking
+import app.venues.booking.service.GuestService.Companion.isPlaceholderEmail
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
@@ -37,9 +38,10 @@ class BookingResponseService(
             ?: throw VenuesException.ResourceNotFound("Event session not found")
 
         // Get customer info using UserApi (Hexagonal Architecture)
-        val customerEmail = booking.userId?.let {
+        val rawEmail = booking.userId?.let {
             userApi.getUserEmail(it) ?: ""
         } ?: booking.guest?.email ?: ""
+        val customerEmail = if (isPlaceholderEmail(rawEmail) || rawEmail.isBlank()) "" else rawEmail.trim()
 
         val customerName = booking.userId?.let {
             userApi.getUserFullName(it) ?: ""

@@ -1,7 +1,7 @@
 package app.venues.booking.api
 
-import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.StaffCartCheckoutRequest
+import app.venues.booking.api.dto.StaffCartCheckoutResponse
 import java.util.*
 
 /**
@@ -29,5 +29,5 @@ interface StaffCartApi {
         request: StaffCartCheckoutRequest,
         venueId: UUID,
         staffId: UUID
-    ): BookingResponse
+    ): StaffCartCheckoutResponse
 }

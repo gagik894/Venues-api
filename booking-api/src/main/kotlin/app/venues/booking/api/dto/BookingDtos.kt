@@ -75,7 +75,7 @@ data class BookingResponse(
     val eventDescription: String?,
     val sessionStartTime: String,
     val sessionEndTime: String,
-    val customerEmail: String,
+    var customerEmail: String,
     val customerName: String,
     val items: List<BookingItemResponse>,
     val totalPrice: MoneyAmount,

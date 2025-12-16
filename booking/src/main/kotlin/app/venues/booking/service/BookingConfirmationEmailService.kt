@@ -2,6 +2,7 @@ package app.venues.booking.service
 
 import app.venues.booking.domain.Booking
 import app.venues.booking.repository.BookingRepository
+import app.venues.booking.service.GuestService.Companion.isPlaceholderEmail
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import app.venues.shared.email.*
@@ -165,8 +166,13 @@ class BookingConfirmationEmailService(
     }
 
     private fun getCustomerEmail(booking: Booking): String? {
-        return booking.userId?.let { userApi.getUserEmail(it) }
+        val email = booking.userId?.let { userApi.getUserEmail(it) }
             ?: booking.guest?.email
+        val trimmed = email?.trim()
+        if (trimmed.isNullOrBlank() || isPlaceholderEmail(trimmed)) {
+            return null
+        }
+        return trimmed
     }
 
     private fun getCustomerName(booking: Booking): String {

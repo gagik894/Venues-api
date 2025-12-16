@@ -337,14 +337,14 @@ class StaffCartController(
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @Valid @RequestBody request: StaffCartCheckoutRequest,
         response: HttpServletResponse
-    ): ApiResponse<BookingResponse> {
+    ): ApiResponse<StaffCartCheckoutResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.info { "Staff $staffId checking out cart for venue $venueId" }
 
         val effectiveToken = token ?: cookieToken
         ?: throw app.venues.common.exception.VenuesException.ValidationFailure("Cart token is required")
 
-        val booking = staffCartService.checkoutStaffCart(effectiveToken, request, venueId, staffId)
+        val checkout = staffCartService.checkoutStaffCart(effectiveToken, request, venueId, staffId)
 
         // Clear cart cookie after successful checkout
         val cookie = jakarta.servlet.http.Cookie("cart_token", "")
@@ -353,7 +353,7 @@ class StaffCartController(
         response.addCookie(cookie)
 
         return ApiResponse.success(
-            data = booking,
+            data = checkout,
             message = "Booking created successfully"
         )
     }

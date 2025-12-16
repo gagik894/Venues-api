@@ -313,8 +313,8 @@ class EventService(
 
     /**
      * Delete event.
-     * Performs a soft delete if the event has any sales or is published.
-     * Hard deletes only if it's a draft with no sales.
+     * Government-quality rule: events with any sold tickets cannot be deleted.
+     * If there are no sales, allow hard delete; otherwise, instruct to archive.
      */
     fun deleteEvent(eventId: UUID, venueId: UUID) {
         logger.debug { "Deleting event: $eventId" }
@@ -333,16 +333,16 @@ class EventService(
         val hasSales = event.sessions.any { it.ticketsSold > 0 }
 
         if (hasSales) {
-            // Soft delete
-            logger.info { "Soft deleting event $eventId due to existing sales" }
-            event.markAsDeleted()
-            eventRepository.save(event)
-        } else {
-            // Hard delete - clean up subscriptions
-            platformSubscriptionApi.updateEventSubscriptions(eventId, emptyList())
-            eventRepository.delete(event)
-            logger.info { "Event hard deleted successfully: $eventId" }
+            logger.warn { "Attempt to delete event $eventId with sold tickets" }
+            throw VenuesException.ResourceConflict(
+                "Event cannot be deleted because tickets have been sold. Please archive the event instead."
+            )
         }
+
+        // Hard delete - clean up subscriptions
+        platformSubscriptionApi.updateEventSubscriptions(eventId, emptyList())
+        eventRepository.delete(event)
+        logger.info { "Event hard deleted successfully: $eventId" }
 
         if (previousStatus in setOf(EventStatus.PUBLISHED, EventStatus.SUSPENDED, EventStatus.ARCHIVED)) {
             eventRevalidationService.onUnpublish(event, "event-deleted")

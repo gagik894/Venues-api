@@ -51,8 +51,6 @@ class CartItemPersistence(
 
         logger.info { "Seat added to cart: $seatIdentifier, price=$price, cart=${cart.token}" }
 
-        inventoryChangePublisher.seatsClosed(sessionId, listOf(seatId))
-
         return saved
     }
 
@@ -155,8 +153,6 @@ class CartItemPersistence(
         cartSeatRepository.delete(cartSeat)
 
         logger.info { "Seat removed from cart: $seatIdentifier, cart=${cart.token}" }
-
-        inventoryChangePublisher.seatsOpened(sessionId, listOf(seatId))
     }
 
     fun getAllSeats(cart: Cart): List<CartSeat> = cartSeatRepository.findByCart(cart)

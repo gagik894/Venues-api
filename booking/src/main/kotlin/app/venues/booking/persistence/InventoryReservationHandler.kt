@@ -55,6 +55,9 @@ class InventoryReservationHandler(
         // This prevents tables from being booked when individual seats are reserved
         blockTablesContainingSeat(sessionId, seatId)
 
+        // Publish seat-closed once per reservation
+        inventoryChangePublisher.seatsClosed(sessionId, listOf(seatId))
+
         return SeatReservationResult(seatId = seatId, price = price)
     }
 

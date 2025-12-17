@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.util.ContentCachingRequestWrapper
+import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
 import java.util.*
@@ -18,11 +19,17 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * Filter to authenticate platform API requests using HMAC signature verification.
  *
+ * Security: Signature includes request body hash to prevent body tampering (audit finding AUTH-02).
+ *
  * Verifies:
  * 1. X-Platform-ID header is present and valid (UUID)
- * 2. X-Platform-Signature header matches HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
+ * 2. X-Platform-Signature header matches HMAC-SHA256(auth|platformId|timestamp|nonce|bodyHash, sharedSecret)
  * 3. X-Platform-Timestamp is recent (within 5 minutes)
  * 4. X-Platform-Nonce is unique (prevents replay attacks via Redis)
+ * 5. Request body matches the hash included in signature (prevents body modification)
+ *
+ * The body hash ensures that if an attacker intercepts a valid signed request and modifies
+ * the body (e.g., changing seat count from 1 to 100), the signature will no longer match.
  */
 @Component
 class PlatformAuthenticationFilter(
@@ -39,6 +46,8 @@ class PlatformAuthenticationFilter(
         private const val NONCE_HEADER = "X-Platform-Nonce"
         private const val PLATFORM_API_PATH = "/api/v1/platforms/"
         private const val MAX_TIMESTAMP_AGE_SECONDS = 300L // 5 minutes
+        private const val BODY_ATTRIBUTE = "platformAuthRequestBody"
+        private const val BODY_HASH_ATTRIBUTE = "platformAuthBodyHash"
     }
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
@@ -89,11 +98,16 @@ class PlatformAuthenticationFilter(
             // Verify nonce is unique
             verifyNonce(nonce, platformId)
 
-            // Read request body (for service layer validation if needed)
-            wrappedRequest.inputStream.readBytes().toString(Charsets.UTF_8)
+            // Read request body and calculate hash
+            val bodyBytes = wrappedRequest.inputStream.readBytes()
+            val bodyHash = calculateSHA256(bodyBytes)
 
-            // Verify signature
-            verifySignature(signature, timestamp, nonce, platformId, platform.sharedSecret)
+            // Store body and hash in request for controller access
+            wrappedRequest.setAttribute(BODY_ATTRIBUTE, bodyBytes)
+            wrappedRequest.setAttribute(BODY_HASH_ATTRIBUTE, bodyHash)
+
+            // Verify signature (includes body hash)
+            verifySignature(signature, timestamp, nonce, platformId, bodyHash, platform.sharedSecret)
 
             logger.debug { "Platform ${platform.name} authenticated successfully" }
 
@@ -101,10 +115,11 @@ class PlatformAuthenticationFilter(
             filterChain.doFilter(wrappedRequest, response)
 
         } catch (e: VenuesException) {
-            logger.warn { "Platform authentication failed: ${e.message}" }
+            // Generic error message - don't leak platform existence, status, or signature details
+            logger.warn { "Platform authentication failed: ${e.javaClass.simpleName} - ${e.message}" }
             response.status = HttpServletResponse.SC_UNAUTHORIZED
             response.contentType = "application/json"
-            response.writer.write("""{"success":false,"message":"${e.message}"}""")
+            response.writer.write("""{"success":false,"message":"Authentication failed"}""")
         } catch (e: Exception) {
             logger.error(e) { "Unexpected error in platform authentication filter" }
             response.status = HttpServletResponse.SC_INTERNAL_SERVER_ERROR
@@ -143,19 +158,24 @@ class PlatformAuthenticationFilter(
 
     /**
      * Verify HMAC-SHA256 signature
-     * Signature format: HMAC-SHA256(platformId|timestamp|nonce, sharedSecret)
+     *
+     * Signature format: HMAC-SHA256(auth|platformId|timestamp|nonce|bodyHash, sharedSecret)
+     *
+     * The "auth|" prefix distinguishes authentication signatures from webhook signatures
+     * to prevent replay attacks across different contexts.
      */
     private fun verifySignature(
         providedSignature: String,
         timestamp: String,
         nonce: String,
         platformId: UUID,
+        bodyHash: String,
         sharedSecret: String
     ) {
-        val data = "$platformId|$timestamp|$nonce"
+        val data = "auth|$platformId|$timestamp|$nonce|$bodyHash"
         val expectedSignature = generateSignature(data, sharedSecret)
 
-        if (providedSignature != expectedSignature) {
+        if (!secureEqualsHex(providedSignature, expectedSignature)) {
             throw VenuesException.AuthenticationFailure("Invalid signature")
         }
     }
@@ -169,5 +189,30 @@ class PlatformAuthenticationFilter(
         mac.init(secretKeySpec)
         val hmac = mac.doFinal(data.toByteArray(Charsets.UTF_8))
         return hmac.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Constant-time comparison for hex-encoded strings.
+     */
+    private fun secureEqualsHex(a: String, b: String): Boolean {
+        val aBytes = hexToBytes(a)
+        val bBytes = hexToBytes(b)
+        return aBytes != null && bBytes != null && MessageDigest.isEqual(aBytes, bBytes)
+    }
+
+    private fun hexToBytes(hex: String): ByteArray? {
+        if (hex.length % 2 != 0) return null
+        return runCatching {
+            hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        }.getOrNull()
+    }
+
+    /**
+     * Calculate SHA-256 hash of byte array
+     */
+    private fun calculateSHA256(data: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val hash = digest.digest(data)
+        return hash.joinToString("") { "%02x".format(it) }
     }
 }

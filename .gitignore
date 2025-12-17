@@ -46,3 +46,8 @@ bin/
 
 ### GitHub ###
 .github
+
+### Uploads ###
+/uploads
+
+.env

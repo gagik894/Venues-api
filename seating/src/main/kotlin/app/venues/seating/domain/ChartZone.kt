@@ -111,9 +111,10 @@ class ChartZone(
      * @throws IllegalArgumentException if the seat code format is invalid.
      */
     fun addSeat(seat: ChartSeat) {
-        if (!seat.code.startsWith(this.code)) {
+        val expectedPrefix = SeatCodeFormatter.buildZonePrefix(this)
+        if (!seat.code.startsWith(expectedPrefix)) {
             throw IllegalArgumentException(
-                "Seat code '${seat.code}' invalid. Must start with Zone prefix '${this.code}'."
+                "Seat code '${seat.code}' invalid. Must start with zone hierarchy prefix '${expectedPrefix}'."
             )
         }
         _seats.add(seat)
@@ -129,13 +130,18 @@ class ChartZone(
     }
 
     /**
+     * Adds a general admission area to this zone.
+     */
+    fun addGaArea(gaArea: GeneralAdmissionArea) {
+        _gaAreas.add(gaArea)
+        gaArea.zone = this
+    }
+
+    /**
      * Helper to generate a standardized API Key for a seat in this zone.
      * Format: `{ZONE_CODE}_ROW-{ROW}_SEAT-{NUMBER}`
      */
     fun generateSeatKey(row: String, number: String): String {
-        // Sanitization ensures URL-safe and readable keys
-        val r = row.replace(" ", "").uppercase()
-        val n = number.replace(" ", "").uppercase()
-        return "${this.code}_ROW-${r}_SEAT-${n}"
+        return SeatCodeFormatter.buildSeatCode(this, row, number)
     }
 }

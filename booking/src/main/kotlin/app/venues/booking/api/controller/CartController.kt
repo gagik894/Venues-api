@@ -3,11 +3,15 @@ package app.venues.booking.api.controller
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
+import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
@@ -23,9 +27,23 @@ import java.util.*
 @Tag(name = "Cart", description = "Shopping cart management")
 class CartController(
     private val cartService: CartService,
-    private val cartQueryService: CartQueryService // NEW: Inject query service
+    private val cartQueryService: CartQueryService
 ) {
     private val logger = KotlinLogging.logger {}
+
+    @Value("\${app.security.cookie.secure}")
+    private var cookieSecure: Boolean = true
+
+    private fun setCartCookie(response: HttpServletResponse, token: UUID) {
+        val cookie = Cookie("cart_token", token.toString())
+        cookie.isHttpOnly = true
+        cookie.path = "/"
+        cookie.maxAge = 60 * 30
+        cookie.secure = cookieSecure
+        cookie.setAttribute("SameSite", "Strict")
+        response.addCookie(cookie)
+    }
+
 
     /**
      * Add seat to cart.
@@ -37,15 +55,20 @@ class CartController(
     )
     fun addSeatToCart(
         @Valid @RequestBody request: AddSeatToCartRequest,
-        @RequestParam(required = false) token: UUID?
-    ): ApiResponse<AddToCartResponse> {
-        logger.debug { "Adding seat to cart: $request" }
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        logger.debug { "Adding seat to cart: $request, token=$effectiveToken" }
 
-        val result = cartService.addSeatToCart(request, token)
+        val result = cartService.addSeatToCart(request, effectiveToken)
+
+        setCartCookie(response, result.token)
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Seat added to cart"
         )
     }
 
@@ -59,15 +82,20 @@ class CartController(
     )
     fun addGAToCart(
         @Valid @RequestBody request: AddGAToCartRequest,
-        @RequestParam(required = false) token: UUID?
-    ): ApiResponse<AddToCartResponse> {
-        logger.debug { "Adding GA to cart: $request" }
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        logger.debug { "Adding GA to cart: $request, token=$effectiveToken" }
 
-        val result = cartService.addGAToCart(request, token)
+        val result = cartService.addGAToCart(request, effectiveToken)
+
+        setCartCookie(response, result.token)
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "GA tickets added to cart"
         )
     }
 
@@ -81,31 +109,45 @@ class CartController(
     )
     fun addTableToCart(
         @Valid @RequestBody request: AddTableToCartRequest,
-        @RequestParam(required = false) token: UUID?
-    ): ApiResponse<AddToCartResponse> {
-        logger.debug { "Adding Table to cart: $request" }
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        logger.debug { "Adding Table to cart: $request, token=$effectiveToken" }
 
-        val result = cartService.addTableToCart(request, token)
+        val result = cartService.addTableToCart(request, effectiveToken)
+
+        setCartCookie(response, result.token)
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Table added to cart"
         )
     }
-
 
     /**
      * Get cart summary.
      */
-    @GetMapping("/{token}")
+    @GetMapping("/summary")
     @Operation(
         summary = "Get cart summary",
-        description = "Retrieve complete cart with all items and pricing"
+        description = "Retrieve complete cart with all items and pricing. Uses token from cookie or query param."
     )
-    fun getCartSummary(@PathVariable token: UUID): ApiResponse<CartSummaryResponse> {
-        logger.debug { "Fetching cart: $token" }
+    fun getCartSummary(
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        val cart = cartQueryService.getCartSummary(token)
+        logger.debug { "Fetching cart: $effectiveToken" }
+
+        val cart = cartQueryService.getCartSummary(effectiveToken)
+
+        // Refresh cookie expiration on read activity
+        setCartCookie(response, effectiveToken)
 
         return ApiResponse.success(
             data = cart,
@@ -116,21 +158,25 @@ class CartController(
     /**
      * Remove seat from cart.
      */
-    @DeleteMapping("/{token}/seats/{seatIdentifier}")
+    @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
         summary = "Remove seat from cart",
         description = "Remove a specific seat from cart"
     )
     fun removeSeatFromCart(
-        @PathVariable token: UUID,
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable seatIdentifier: String
-    ): ApiResponse<Unit> {
-        logger.debug { "Removing seat from cart: token=$token, seatIdentifier=$seatIdentifier" }
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        cartService.removeSeatFromCart(token, seatIdentifier)
+        logger.debug { "Removing seat from cart: token=$effectiveToken, seatIdentifier=$seatIdentifier" }
+
+        val result = cartService.removeSeatFromCart(effectiveToken, seatIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Seat removed from cart"
         )
     }
@@ -138,23 +184,26 @@ class CartController(
     /**
      * Update GA ticket quantity in cart.
      */
-    // FIX: Changed to a consistent RESTful URL
-    @PutMapping("/{token}/ga/{levelIdentifier}")
+    @PutMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Update GA quantity",
         description = "Update quantity of GA tickets for a level. Setting quantity to 0 removes the item."
     )
     fun updateGAQuantity(
-        @PathVariable token: UUID,
-        @PathVariable levelIdentifier: String, // ID is now in the path
-        @Valid @RequestBody request: UpdateGAQuantityRequest // DTO only contains quantity
-    ): ApiResponse<Unit> {
-        logger.debug { "Updating GA quantity: token=$token, level=$levelIdentifier, qty=${request.quantity}" }
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        @PathVariable levelIdentifier: String,
+        @Valid @RequestBody request: UpdateGAQuantityRequest
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        cartService.updateGAQuantity(token, levelIdentifier, request)
+        logger.debug { "Updating GA quantity: token=$effectiveToken, level=$levelIdentifier, qty=${request.quantity}" }
+
+        val result = cartService.updateGAQuantity(effectiveToken, levelIdentifier, request)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "GA quantity updated successfully"
         )
     }
@@ -162,21 +211,25 @@ class CartController(
     /**
      * Remove GA item from cart.
      */
-    @DeleteMapping("/{token}/ga/{levelIdentifier}")
+    @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Remove GA item from cart",
         description = "Remove all GA tickets for a specific level from cart."
     )
     fun removeGAFromCart(
-        @PathVariable token: UUID,
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable levelIdentifier: String
-    ): ApiResponse<Unit> {
-        logger.debug { "Removing GA item: token=$token, level=$levelIdentifier" }
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        cartService.removeGAFromCart(token, levelIdentifier)
+        logger.debug { "Removing GA item: token=$effectiveToken, level=$levelIdentifier" }
+
+        val result = cartService.removeGAFromCart(effectiveToken, levelIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "GA item removed from cart"
         )
     }
@@ -184,21 +237,25 @@ class CartController(
     /**
      * Remove table from cart.
      */
-    @DeleteMapping("/{token}/tables/{tableIdentifier}")
+    @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
         summary = "Remove table from cart",
         description = "Remove a specific table from cart."
     )
     fun removeTableFromCart(
-        @PathVariable token: UUID,
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @PathVariable tableIdentifier: String
-    ): ApiResponse<Unit> {
-        logger.debug { "Removing table: token=$token, table=$tableIdentifier" }
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        cartService.removeTableFromCart(token, tableIdentifier)
+        logger.debug { "Removing table: token=$effectiveToken, table=$tableIdentifier" }
+
+        val result = cartService.removeTableFromCart(effectiveToken, tableIdentifier)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Table removed from cart"
         )
     }
@@ -206,18 +263,32 @@ class CartController(
     /**
      * Clear cart.
      */
-    @DeleteMapping("/{token}")
+    @DeleteMapping("/clear")
     @Operation(
         summary = "Clear cart",
         description = "Remove all items from cart"
     )
-    fun clearCart(@PathVariable token: UUID): ApiResponse<Unit> {
-        logger.debug { "Clearing cart: $token" }
+    fun clearCart(
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
+        response: HttpServletResponse
+    ): ApiResponse<CartSummaryResponse> {
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        cartService.clearCart(token)
+        logger.debug { "Clearing cart: $effectiveToken" }
+
+        val result = cartService.clearCart(effectiveToken)
+
+        // Clear cookie
+        val cookie = Cookie("cart_token", "")
+        cookie.path = "/"
+        cookie.maxAge = 0
+        cookie.secure = cookieSecure
+        response.addCookie(cookie)
 
         return ApiResponse.success(
-            data = Unit,
+            data = result,
             message = "Cart cleared"
         )
     }
@@ -225,22 +296,26 @@ class CartController(
     /**
      * Apply promo code to cart.
      */
-    @PostMapping("/{token}/promo-code")
+    @PostMapping("/promo-code")
     @Operation(
         summary = "Apply promo code",
         description = "Apply a promo code to the cart and recalculate totals."
     )
     fun applyPromoCode(
-        @PathVariable token: UUID,
+        @RequestParam(required = false) token: UUID?,
+        @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @Valid @RequestBody request: ApplyPromoCodeRequest
     ): ApiResponse<PromoCodeAppliedResponse> {
-        logger.debug { "Applying promo code: token=$token, code=${request.code}" }
+        val effectiveToken = token ?: cookieToken
+        ?: throw VenuesException.ResourceNotFound("Cart not found")
 
-        val result = cartService.applyPromoCode(token, request.code)
+        logger.debug { "Applying promo code: token=$effectiveToken, code=${request.code}" }
+
+        val result = cartService.applyPromoCode(effectiveToken, request.code)
 
         return ApiResponse.success(
             data = result,
-            message = result.message
+            message = "Promo code applied successfully"
         )
     }
 }

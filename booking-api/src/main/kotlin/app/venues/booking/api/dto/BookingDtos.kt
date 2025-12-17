@@ -1,9 +1,9 @@
 package app.venues.booking.api.dto
 
 import app.venues.booking.api.domain.BookingStatus
+import app.venues.shared.money.MoneyAmount
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import java.util.*
 
@@ -15,8 +15,7 @@ import java.util.*
  * Checkout request to convert cart to booking
  */
 data class CheckoutRequest(
-    @field:NotNull(message = "Reservation token is required")
-    val token: UUID,
+    val token: UUID? = null, // Optional if cookie is present
 
     @field:NotBlank(message = "Email is required")
     @field:Email(message = "Invalid email format")
@@ -61,8 +60,8 @@ data class BookingItemResponse(
     val levelName: String?,
     val tableId: Long?,
     val quantity: Int,
-    val unitPrice: String,
-    val totalPrice: String,
+    val unitPrice: MoneyAmount,
+    val totalPrice: MoneyAmount,
     val priceTemplateName: String?
 )
 
@@ -76,14 +75,14 @@ data class BookingResponse(
     val eventDescription: String?,
     val sessionStartTime: String,
     val sessionEndTime: String,
-    val customerEmail: String,
+    var customerEmail: String,
     val customerName: String,
     val items: List<BookingItemResponse>,
-    val totalPrice: String,
-    val serviceFeeAmount: String,
-    val discountAmount: String,
+    val totalPrice: MoneyAmount,
+    val platformId: UUID?,
+    val serviceFeeAmount: MoneyAmount,
+    val discountAmount: MoneyAmount,
     val promoCode: String?,
-    val currency: String,
     val status: BookingStatus,
     val confirmedAt: String?,
     val cancelledAt: String?,

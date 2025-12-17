@@ -1,25 +1,44 @@
 package app.venues.event.service
 
+import app.venues.booking.event.SeatClosedEvent
+import app.venues.booking.event.SeatOpenedEvent
+import app.venues.booking.event.TableClosedEvent
+import app.venues.booking.event.TableOpenedEvent
+import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
-import app.venues.event.api.dto.EventSessionDto
-import app.venues.event.api.dto.GaAvailabilityDto
-import app.venues.event.repository.EventSessionRepository
-import app.venues.event.repository.SessionGAConfigRepository
-import app.venues.event.repository.SessionSeatConfigRepository
-import app.venues.event.repository.SessionTableConfigRepository
+import app.venues.event.api.dto.*
+import app.venues.event.domain.ConfigStatus
+import app.venues.event.domain.EventPriceTemplate
+import app.venues.event.domain.EventSession
+import app.venues.event.domain.SessionSeatConfig
+import app.venues.event.repository.*
+import app.venues.seating.api.SeatingApi
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
+import java.time.Duration
 import java.util.*
 import kotlin.jvm.optionals.getOrNull
 
 @Service
 class EventApiService(
     private val eventSessionRepository: EventSessionRepository,
+    private val eventRepository: EventRepository,
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
-    private val sessionTableConfigRepository: SessionTableConfigRepository
+    private val sessionTableConfigRepository: SessionTableConfigRepository,
+    private val seatingApi: SeatingApi,
+    private val seatConfigSparseService: SeatConfigSparseService,
+    private val sessionSeatingService: SessionSeatingService,
+    private val sessionCapacityService: SessionCapacityService,
+    private val redisTemplate: StringRedisTemplate,
+    private val eventPublisher: ApplicationEventPublisher
 ) : EventApi {
+    private val logger = KotlinLogging.logger {}
 
     @Transactional(readOnly = true)
     override fun getEventSessionInfo(sessionId: UUID): EventSessionDto? {
@@ -38,9 +57,143 @@ class EventApiService(
         )
     }
 
+    @Transactional(readOnly = true)
+    override fun getSessionInventory(sessionId: UUID): SessionInventoryResponse? {
+        return try {
+            sessionSeatingService.getSessionInventory(sessionId)
+        } catch (ex: VenuesException.ResourceNotFound) {
+            null
+        }
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEventTitleTranslated(eventId: UUID, language: String?): String? {
+        val event = eventRepository.findById(eventId).getOrNull() ?: return null
+
+        // If no language specified or language is default, return default title
+        if (language.isNullOrBlank()) {
+            return event.title
+        }
+
+        // Try to find translation for requested language
+        val translation = event.translations.find { it.language.equals(language, ignoreCase = true) }
+        return translation?.title ?: event.title
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSessionIdsForEvent(eventId: UUID): List<UUID> {
+        return eventSessionRepository.findSessionIdsByEventId(eventId)
+    }
+
     @Transactional
     override fun reserveSeat(sessionId: UUID, seatId: Long): BigDecimal? {
-        return sessionSeatConfigRepository.reserveSeatAndGetPrice(sessionId, seatId)
+        // Redis Guard: Prevent thundering herd on the database
+        val lockKey = "lock:seat:$sessionId:$seatId"
+        val acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(5))
+        if (acquired != true) {
+            return null // Fast fail: Seat is busy
+        }
+
+        try {
+            // 1. Try atomic update first (handles "exists and available" case)
+            val updatedRows = sessionSeatConfigRepository.reserveSeatAtomic(sessionId, seatId)
+
+            if (updatedRows > 0) {
+                // Successfully reserved existing row. Now fetch it to calculate price.
+                val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+                    ?: throw VenuesException.ResourceNotFound("Config missing after reservation")
+
+                val session = config.session
+                val template = config.priceTemplate
+
+                return if (template != null) {
+                    val override = session.priceTemplateOverrides.find { it.templateName == template.templateName }
+                    override?.price ?: template.price
+                } else {
+                    BigDecimal.ZERO
+                }
+            }
+
+            // 2. Update failed. Check if row exists.
+            val existing = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
+            if (existing != null) {
+                // Row exists but update failed -> it was not AVAILABLE
+                return null
+            }
+
+            // 3. Row missing: Implicitly AVAILABLE -> Create RESERVED
+            try {
+                val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+                val seatInfo = seatingApi.getSeatInfo(seatId) ?: return null
+
+                // Resolve template
+                val (price, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+
+                if (template == null) {
+                    // Cannot reserve if no price template
+                    return null
+                }
+
+                val newConfig = SessionSeatConfig(
+                    session = session,
+                    seatId = seatId,
+                    priceTemplate = template,
+                    status = ConfigStatus.RESERVED
+                )
+                sessionSeatConfigRepository.saveAndFlush(newConfig)
+                return price
+            } catch (e: DataIntegrityViolationException) {
+                // Race condition: someone else created the row
+                return null
+            }
+        } finally {
+            redisTemplate.delete(lockKey)
+        }
+    }
+
+    private fun resolvePriceAndTemplate(
+        session: EventSession,
+        categoryKey: String
+    ): Pair<BigDecimal?, EventPriceTemplate?> {
+        val event = session.event
+        val template = event.priceTemplates.find { it.templateName == categoryKey } ?: return null to null
+
+        val override = session.priceTemplateOverrides.find { it.templateName == categoryKey }
+        val price = override?.price ?: template.price
+
+        return price to template
+    }
+
+    private fun publishSeatClosedEvents(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isEmpty()) return
+        val seats = seatingApi.getSeatInfoBatch(seatIds)
+        seats.forEach { seat ->
+            eventPublisher.publishEvent(SeatClosedEvent(sessionId, seat.code))
+        }
+    }
+
+    private fun publishSeatOpenedEvents(sessionId: UUID, seatIds: List<Long>) {
+        if (seatIds.isEmpty()) return
+        val seats = seatingApi.getSeatInfoBatch(seatIds)
+        seats.forEach { seat ->
+            eventPublisher.publishEvent(SeatOpenedEvent(sessionId, seat.code))
+        }
+    }
+
+    private fun publishTableClosedEvents(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isEmpty()) return
+        val tables = tableIds.mapNotNull { seatingApi.getTableInfo(it) }
+        tables.forEach { table ->
+            eventPublisher.publishEvent(TableClosedEvent(sessionId, table.code))
+        }
+    }
+
+    private fun publishTableOpenedEvents(sessionId: UUID, tableIds: List<Long>) {
+        if (tableIds.isEmpty()) return
+        val tables = tableIds.mapNotNull { seatingApi.getTableInfo(it) }
+        tables.forEach { table ->
+            eventPublisher.publishEvent(TableOpenedEvent(sessionId, table.code))
+        }
     }
 
     @Transactional
@@ -48,6 +201,7 @@ class EventApiService(
         sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)?.let { config ->
             config.release()
             sessionSeatConfigRepository.save(config)
+            seatConfigSparseService.purgeDefaultRows(sessionId, listOf(seatId))
         }
     }
 
@@ -55,6 +209,7 @@ class EventApiService(
     override fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>) {
         if (seatIds.isNotEmpty()) {
             sessionSeatConfigRepository.releaseSeats(sessionId, seatIds)
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
         }
     }
 
@@ -124,13 +279,121 @@ class EventApiService(
     @Transactional
     override fun blockSeats(sessionId: UUID, seatIds: List<Long>): Int {
         if (seatIds.isEmpty()) return 0
-        return sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+
+        // 1. Update existing rows (set to BLOCKED)
+        val updated = sessionSeatConfigRepository.blockSeats(sessionId, seatIds)
+
+        // 2. Handle missing rows (Sparse Matrix: Create them as BLOCKED)
+        val existingConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(sessionId, seatIds)
+        val existingSeatIds = existingConfigs.map { it.seatId }.toSet()
+
+        val missingSeatIds = seatIds.filter { it !in existingSeatIds }
+
+        if (missingSeatIds.isNotEmpty()) {
+            val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return updated
+
+            // We need to fetch seat info to get category keys for templates
+            // This might be slow for large lists, but blocking is usually admin action
+            val newConfigs = mutableListOf<SessionSeatConfig>()
+
+            missingSeatIds.forEach { seatId ->
+                val seatInfo = seatingApi.getSeatInfo(seatId)
+                if (seatInfo != null) {
+                    val (_, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+
+                    newConfigs.add(
+                        SessionSeatConfig(
+                            session = session,
+                            seatId = seatId,
+                            priceTemplate = template,
+                            status = ConfigStatus.BLOCKED
+                        )
+                    )
+                }
+            }
+
+            if (newConfigs.isNotEmpty()) {
+                sessionSeatConfigRepository.saveAll(newConfigs)
+                val total = updated + newConfigs.size
+                sessionCapacityService.recalculateForSession(sessionId)
+                return total
+            }
+        }
+
+        sessionCapacityService.recalculateForSession(sessionId)
+        return updated
     }
 
     @Transactional
     override fun unblockSeats(sessionId: UUID, seatIds: List<Long>): Int {
         if (seatIds.isEmpty()) return 0
-        return sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+        val updated = sessionSeatConfigRepository.unblockSeats(sessionId, seatIds)
+        if (updated > 0) {
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
+            sessionCapacityService.recalculateForSession(sessionId)
+        }
+        return updated
+    }
+
+    @Transactional
+    override fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int {
+        if (seatIds.isEmpty()) return 0
+
+        val updated = sessionSeatConfigRepository.closeSeats(sessionId, seatIds)
+
+        val existingConfigs = sessionSeatConfigRepository.findBySessionIdAndSeatIdIn(sessionId, seatIds)
+        val existingSeatIds = existingConfigs.map { it.seatId }.toSet()
+        val missingSeatIds = seatIds.filter { it !in existingSeatIds }
+
+        if (missingSeatIds.isNotEmpty()) {
+            val session = eventSessionRepository.findById(sessionId).getOrNull()
+                ?: return updated
+            val seatInfos = seatingApi.getSeatInfoBatch(missingSeatIds)
+            val newConfigs = seatInfos.map { seatInfo ->
+                val (_, template) = resolvePriceAndTemplate(session, seatInfo.categoryKey)
+                SessionSeatConfig(
+                    session = session,
+                    seatId = seatInfo.id,
+                    priceTemplate = template,
+                    status = ConfigStatus.CLOSED
+                )
+            }
+            if (newConfigs.isNotEmpty()) {
+                sessionSeatConfigRepository.saveAll(newConfigs)
+            }
+        }
+
+        sessionCapacityService.recalculateForSession(sessionId)
+        publishSeatClosedEvents(sessionId, seatIds)
+        return updated + missingSeatIds.size
+    }
+
+    @Transactional
+    override fun reopenSeats(sessionId: UUID, seatIds: List<Long>): Int {
+        if (seatIds.isEmpty()) return 0
+        val updated = sessionSeatConfigRepository.reopenClosedSeats(sessionId, seatIds)
+        if (updated > 0) {
+            seatConfigSparseService.purgeDefaultRows(sessionId, seatIds)
+            sessionCapacityService.recalculateForSession(sessionId)
+            publishSeatOpenedEvents(sessionId, seatIds)
+        }
+        return updated
+    }
+
+    @Transactional
+    override fun closeTables(sessionId: UUID, tableIds: List<Long>): Int {
+        if (tableIds.isEmpty()) return 0
+        val updated = sessionTableConfigRepository.closeTables(sessionId, tableIds)
+        publishTableClosedEvents(sessionId, tableIds)
+        return updated
+    }
+
+    @Transactional
+    override fun reopenTables(sessionId: UUID, tableIds: List<Long>): Int {
+        if (tableIds.isEmpty()) return 0
+        val updated = sessionTableConfigRepository.reopenClosedTables(sessionId, tableIds)
+        publishTableOpenedEvents(sessionId, tableIds)
+        return updated
     }
 
     @Transactional
@@ -172,7 +435,7 @@ class EventApiService(
             val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
                 ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Seat config not found")
 
-            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+            if (config.status != ConfigStatus.RESERVED) {
                 throw app.venues.common.exception.VenuesException.ResourceConflict("Seat $seatId is not RESERVED (status: ${config.status})")
             }
         }
@@ -207,7 +470,7 @@ class EventApiService(
             val config = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
                 ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Table config not found")
 
-            if (config.status != app.venues.event.domain.ConfigStatus.RESERVED) {
+            if (config.status != ConfigStatus.RESERVED) {
                 throw app.venues.common.exception.VenuesException.ResourceConflict("Table $tableId is not RESERVED (status: ${config.status})")
             }
         }
@@ -219,4 +482,151 @@ class EventApiService(
             sessionTableConfigRepository.sellTables(sessionId, tableIds)
         }
     }
+
+    @Transactional
+    override fun incrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = eventSessionRepository.incrementTicketsSold(sessionId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to increment ticketsSold for session $sessionId by $quantity due to capacity limit" }
+        }
+        return updated > 0
+    }
+
+    @Transactional
+    override fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = eventSessionRepository.decrementTicketsSold(sessionId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to decrement ticketsSold for session $sessionId by $quantity because there are not enough sold tickets" }
+        }
+        return updated > 0
+    }
+
+    /**
+     * Reconcile cached ticketsSold with authoritative inventory state.
+     * Counts: SOLD seats + GA soldCount + seats for SOLD tables.
+     */
+    @Transactional
+    override fun reconcileTicketsSold(sessionId: UUID) {
+        val session = eventSessionRepository.findById(sessionId).getOrNull()
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
+
+        val soldSeats = sessionSeatConfigRepository.countSoldSeats(sessionId)
+        val soldGa = sessionGAConfigRepository.sumSoldBySessionId(sessionId)
+
+        // For sold tables, use seating API to derive seat capacity per table.
+        val soldTableIds = sessionTableConfigRepository.findSoldTableIds(sessionId)
+        val soldTableSeats = soldTableIds.sumOf { tableId ->
+            seatingApi.getSeatsForTable(tableId).size.takeIf { it > 0 }
+                ?: seatingApi.getTableInfo(tableId)?.seatCapacity ?: 0
+        }
+
+        val totalSold = soldSeats + soldGa + soldTableSeats
+        if (totalSold > Int.MAX_VALUE) {
+            throw VenuesException.ValidationFailure("ticketsSold exceeds supported range for session $sessionId")
+        }
+
+        val updated = eventSessionRepository.setTicketsSold(sessionId, totalSold.toInt())
+        if (updated == 0) {
+            throw VenuesException.ResourceNotFound("Failed to update ticketsSold during reconciliation for $sessionId")
+        }
+        logger.info { "Reconciled ticketsSold for session $sessionId: seats=$soldSeats, ga=$soldGa, tables=$soldTableSeats, total=$totalSold" }
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSessionTicketStats(sessionId: UUID): SessionTicketStatsDto? {
+        val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+        val event = session.event
+
+        return SessionTicketStatsDto(
+            sessionId = session.id,
+            eventId = event.id,
+            currency = event.currency,
+            ticketsSold = session.ticketsSold,
+            ticketsTotal = session.ticketsCount
+        )
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEventTicketStats(eventId: UUID): List<SessionTicketStatsDto> {
+        val sessions = eventSessionRepository.findByEventIdOrderByStartTimeAsc(eventId)
+
+        return sessions.map { session ->
+            val event = session.event
+            SessionTicketStatsDto(
+                sessionId = session.id,
+                eventId = event.id,
+                currency = event.currency,
+                ticketsSold = session.ticketsSold,
+                ticketsTotal = session.ticketsCount
+            )
+        }
+    }
+
+    @Transactional(readOnly = true)
+    override fun seatingChartInUse(chartId: UUID): Boolean {
+        return eventRepository.existsBySeatingChartId(chartId)
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEventsByVenue(
+        venueId: UUID,
+        language: String?,
+        limit: Int,
+        offset: Int
+    ): List<EventSummaryDto> {
+        val events = eventRepository.findByVenueIdAndStatusOrderByFirstSessionStartAsc(
+            venueId,
+            app.venues.event.domain.EventStatus.PUBLISHED
+        ).drop(offset).take(limit)
+
+        return events.map { event ->
+            val categoryName = event.category?.getName(language ?: "en")
+            val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(java.time.Instant.now()) }
+                ?: event.sessions.firstOrNull()
+
+            // Get translated title if language specified
+            val title = if (!language.isNullOrBlank()) {
+                event.translations.find { it.language.equals(language, ignoreCase = true) }?.title
+                    ?: event.title
+            } else {
+                event.title
+            }
+
+            EventSummaryDto(
+                id = event.id,
+                title = title,
+                imgUrl = event.imgUrl,
+                venueId = event.venueId,
+                venueName = "", // Not needed for same-venue listings
+                location = event.location,
+                categoryName = categoryName,
+                priceRange = event.priceRange,
+                currency = event.currency,
+                status = event.status.name,
+                startDateTime = nextSession?.startTime?.toString()
+            )
+        }
+    }
+
+    @Transactional
+    override fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Boolean {
+        if (quantity <= 0) {
+            return true
+        }
+        val updated = sessionGAConfigRepository.reduceGACapacity(sessionId, gaAreaId, quantity)
+        if (updated == 0) {
+            logger.warn { "Failed to reduce GA capacity for session $sessionId, GA $gaAreaId by $quantity (would go below soldCount)" }
+        }
+        if (updated > 0) {
+            sessionCapacityService.recalculateForSession(sessionId)
+        }
+        return updated > 0
+    }
 }
+

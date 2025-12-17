@@ -82,11 +82,11 @@ class NonceService(
             val keys = redisTemplate.keys(pattern)
             val totalNonces = keys.size
 
-            // Count by platform (for monitoring)
-            val byPlatform = keys.groupBy { key ->
-                // Extract platform ID from key pattern: "platform:nonce:{platformId}:{nonce}"
-                key.split(":").getOrNull(2)?.toLongOrNull()
-            }.mapValues { it.value.size }
+            // Count by platform UUID (for monitoring)
+            val byPlatform: Map<UUID?, Int> = keys.groupBy { key ->
+                val platformPart = key.split(":").getOrNull(2)
+                platformPart?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            }.mapValues { entry -> entry.value.size }
 
             NonceStats(
                 totalActivenonces = totalNonces,
@@ -102,7 +102,7 @@ class NonceService(
      * Clear all nonces for a specific platform (admin operation).
      * Use with caution - only for emergency situations.
      */
-    fun clearNoncesForPlatform(platformId: Long): Int {
+    fun clearNoncesForPlatform(platformId: UUID): Int {
         return try {
             val pattern = "$NONCE_KEY_PREFIX:$platformId:*"
             val keys = redisTemplate.keys(pattern)
@@ -126,7 +126,7 @@ class NonceService(
  */
 data class NonceStats(
     val totalActivenonces: Int,
-    val noncesByPlatform: Map<Long, Int>
+    val noncesByPlatform: Map<UUID, Int>
 )
 
 /**

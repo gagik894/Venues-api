@@ -12,6 +12,20 @@ import java.util.*
 // ===========================================
 
 /**
+ * Minimal venue identifier for ISR static path generation.
+ * Used by Next.js to build domain → venueId mappings.
+ *
+ * @property id Immutable venue UUID (use as ISR cache key)
+ * @property slug Human-readable identifier (for debugging/logs)
+ * @property customDomain Optional vanity domain (for middleware routing)
+ */
+data class VenueIdentifierDto(
+    val id: UUID,
+    val slug: String,
+    val customDomain: String?
+)
+
+/**
  * Public venue information (list view).
  * Used for venue discovery, search results, and listings.
  */
@@ -123,6 +137,8 @@ data class VenueAdminResponse(
 
     val status: VenueStatus,
 
+    val translations: List<VenueTranslationDto>,
+
     val createdAt: Instant?,
     val lastModifiedAt: Instant?
 )
@@ -154,8 +170,8 @@ data class CreateVenueRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String,
 
-    @field:NotNull(message = "City is required")
-    var cityId: Long,
+    @field:NotBlank(message = "City slug is required")
+    var citySlug: String,
 
     val categoryCode: String? = null,
 
@@ -177,7 +193,18 @@ data class CreateVenueRequest(
     val contactEmail: String? = null,
 
     val ownershipType: VenueOwnership? = null,
-    val timeZone: String = "Asia/Yerevan"
+    val timeZone: String = "Asia/Yerevan",
+
+    // Optional presentation/communication fields
+    val socialLinks: Map<String, String>? = null,
+    @field:Size(max = 50, message = "No more than 50 notification emails")
+    val notificationEmails: List<String>? = null,
+    val logoUrl: String? = null,
+    val coverImageUrl: String? = null,
+    val customDomain: String? = null,
+    val isAlwaysOpen: Boolean? = null,
+
+    val translations: List<VenueTranslationRequest>? = null
 )
 
 /**
@@ -193,7 +220,7 @@ data class UpdateVenueRequest(
     @field:Size(max = 500, message = "Address must not exceed 500 characters")
     val address: String? = null,
 
-    val cityId: Long? = null,
+    val citySlug: String? = null,
     val categoryCode: String? = null,
 
     val legalName: String? = null,
@@ -214,6 +241,7 @@ data class UpdateVenueRequest(
     val contactEmail: String? = null,
 
     val socialLinks: Map<String, String>? = null,
+    @field:Size(max = 50, message = "No more than 50 notification emails")
     val notificationEmails: List<String>? = null,
 
     val logoUrl: String? = null,
@@ -222,7 +250,9 @@ data class UpdateVenueRequest(
     val isAlwaysOpen: Boolean? = null,
 
     val ownershipType: VenueOwnership? = null,
-    val timeZone: String? = null
+    val timeZone: String? = null,
+
+    val translations: List<VenueTranslationRequest>? = null
 )
 
 // ===========================================
@@ -258,4 +288,3 @@ data class VenueCategoryDto(
     val icon: String?,
     val displayOrder: Int
 )
-

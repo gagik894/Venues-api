@@ -3,6 +3,7 @@ package app.venues.shared.security.config
 import app.venues.shared.security.jwt.JwtAccessDeniedHandler
 import app.venues.shared.security.jwt.JwtAuthenticationEntryPoint
 import app.venues.shared.security.jwt.JwtAuthenticationFilter
+import app.venues.shared.web.filter.DomainContextFilter
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -29,28 +30,57 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
  *
  * Security Strategy:
  * - Stateless JWT-based authentication (no server-side sessions)
- * - Dual authentication: Users and Venues have separate authentication flows
- * - Role-based access control (RBAC)
+ * - Dual authentication: Users and Staff have separate authentication flows
+ * - Role-based access control (RBAC) with @PreAuthorize annotations
  * - BCrypt password encoding with strength 12
  * - CORS enabled for specified origins
  * - CSRF disabled (stateless API with JWT)
+ * - Granular path-based security (specific public endpoints only)
  *
- * Public endpoints (no authentication required):
- * - /api/v1/auth/user/ - User authentication (login, register)
- * - /api/v1/auth/venue/ - Venue authentication
- * - /api/v1/venues/ (GET only) - Public venue information
- * - /api/v1/events/ (GET only) - Public event information
- * - /actuator/health - Health check endpoint
+ * Public Endpoints (No Authentication Required):
  *
- * Protected endpoints require valid JWT token in Authorization header.
+ * Authentication:
+ * - POST /api/v1/auth/user/ - User authentication (login, register)
+ * - POST /api/v1/auth/staff/ - Staff authentication
+ *
+ * Public Browsing (GET only):
+ * - GET /api/v1/venues - List venues
+ * - GET /api/v1/venues/{id} - View venue details
+ * - GET /api/v1/venues/{id}/website - View venue public website
+ * - GET /api/v1/events - List events
+ * - GET /api/v1/events/{id} - View event details
+ * - GET /api/v1/events/{id}/sessions - View event sessions
+ * - GET /api/v1/event/categories - List event categories
+ * - GET /api/v1/sessions/{id} - View session details
+ * - GET /api/v1/sessions/{id}/seating - View seating availability
+ * - GET /api/v1/locations/ - Location data
+ *
+ * Cart & Checkout:
+ * - ALL /api/v1/cart/ - Cart operations (guest + authenticated)
+ * - POST /api/v1/checkout - Guest checkout
+ * - GET /api/v1/bookings/{id} - View booking details
+ *
+ * System:
+ * - GET /api/v1/health/ - Health checks
+ * - /actuator/ - Spring Actuator endpoints
+ *
+ * Protected Endpoints (Authentication Required):
+ * - /api/v1/venues/{id}/seating-charts - Venue seating management (STAFF)
+ * - /api/v1/venues/{id}/events - Venue event management (STAFF)
+ * - /api/v1/admin/ - Administrative operations (SUPER_ADMIN)
+ * - All POST/PUT/PATCH/DELETE operations (except auth & checkout)
  *
  * @property jwtAuthenticationFilter Custom filter for JWT token validation
- */
+ *
+ **/
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 class SecurityConfig(
-    private val jwtAuthenticationFilter: JwtAuthenticationFilter
+    private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
+    private val jwtAccessDeniedHandler: JwtAccessDeniedHandler,
+    private val domainContextFilter: DomainContextFilter
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -80,29 +110,95 @@ class SecurityConfig(
             // Authorization rules
             .authorizeHttpRequests { auth ->
                 auth
-                    // Public endpoints - no authentication required
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/user/**").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/staff/**").permitAll()
+                    // ============================================
+                    // AUTHENTICATION ENDPOINTS (Public)
+                    // ============================================
+                    .requestMatchers(HttpMethod.POST, "/api/v1/user/auth/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/staff/auth/**").permitAll()
+                    // ============================================
+                    // PUBLIC VENUE BROWSING (Read-only)
+                    // ============================================
+                    // Public venue list and details
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/domains").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/slug/{slug}").permitAll()
 
-                    .requestMatchers(HttpMethod.GET, "/api/v1/venues/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/events/**").permitAll()
+                    // White-label website (public read-only)
+                    // Admin operations at /api/v1/venues/{id}/website/** require authentication
+                    .requestMatchers(HttpMethod.GET, "/api/v1/venue/website/**").permitAll()
+
+                    // ⚠️ IMPORTANT: All other /api/v1/venues/** endpoints are PROTECTED
+                    // Includes: website management, seating-charts, events, etc.
+
+                    .requestMatchers(HttpMethod.GET, "/api/v1/seating-charts/{chartId}/structure").permitAll()
+                    // ============================================
+                    // PUBLIC EVENT BROWSING (Read-only)
+                    // ============================================
+                    // Public event browsing and details
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/search").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/sessions").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/{id}/seating").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/events/venue/**").permitAll()
+
+                    // Event categories (public)
+                    .requestMatchers(HttpMethod.GET, "/api/v1/event/categories/**").permitAll()
+
+                    // ⚠️ IMPORTANT: All other /api/v1/events/** endpoints are PROTECTED
+
+                    // ============================================
+                    // PUBLIC SESSION & SEATING (Read-only for customers)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/seating").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/inventory").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/sessions/{id}/availability").permitAll()
+
+                    // ============================================
+                    // CART & CHECKOUT (Guest + Authenticated)
+                    // ============================================
+                    .requestMatchers("/api/v1/cart/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/checkout").permitAll()
+
+                    // ============================================
+                    // BOOKINGS (Guest + Authenticated)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/bookings/{id}").permitAll()
+
+                    // ============================================
+                    // LOCATIONS (Public)
+                    // ============================================
+                    .requestMatchers(HttpMethod.GET, "/api/v1/locations/**").permitAll()
+
+                    // ============================================
+                    // PUBLIC CONFIG (White-label)
+                    // ============================================
+                    // legacy path removed; new site endpoints handled above
+
+                    // ============================================
+                    // HEALTH & MONITORING
+                    // ============================================
                     .requestMatchers(HttpMethod.GET, "/api/v1/health/**").permitAll()
                     .requestMatchers("/actuator/**").permitAll()
-                    .requestMatchers("/api/v1/public/**").permitAll()
-
-                    // Swagger UI and OpenAPI endpoints
+                    .requestMatchers("/api/test/**").permitAll()
+                    // ============================================
+                    // SWAGGER / API DOCUMENTATION
+                    // ============================================
                     .requestMatchers("/v1/swagger-ui/**").permitAll()
                     .requestMatchers("/v1/swagger-ui.html").permitAll()
                     .requestMatchers("/v1/api-docs/**").permitAll()
                     .requestMatchers("/v1/api-docs").permitAll()
 
-                    // Admin endpoints - require ADMIN role
-                    .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-
-                    // Venue management - require VENUE role
-                    .requestMatchers("/api/v1/venue/management/**").hasRole("VENUE")
-
-                    // All other endpoints require authentication
+                    // ============================================
+                    // ALL OTHER ENDPOINTS REQUIRE AUTHENTICATION
+                    // ============================================
+                    // This includes:
+                    // - /api/v1/admin/** (Super Admin)
+                    // - /api/v1/venues/{id}/seating-charts (Staff)
+                    // - /api/v1/venues/{id}/events (Management)
+                    // - All POST/PUT/PATCH/DELETE operations
                     .anyRequest().authenticated()
             }
 
@@ -115,11 +211,13 @@ class SecurityConfig(
             .exceptionHandling { exceptions ->
                 exceptions
                     // Delegate to custom entry point for consistent error responses
-                    .authenticationEntryPoint(JwtAuthenticationEntryPoint())
+                    .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                     // Delegate to custom handler for consistent error responses
-                    .accessDeniedHandler(JwtAccessDeniedHandler())
+                    .accessDeniedHandler(jwtAccessDeniedHandler)
             }
 
+        // Add domain context filter before JWT (to resolve domain before auth)
+        http.addFilterBefore(domainContextFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add JWT authentication filter before username/password authentication
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
@@ -143,11 +241,15 @@ class SecurityConfig(
 
         val configuration = CorsConfiguration().apply {
             // Allowed origins - UPDATE IN PRODUCTION with specific domains
+            //TODO: Restrict origins before deploying to production
             allowedOrigins = listOf(
                 "http://localhost:3000",  // React/Vue dev server
+                "http://localhost:5173",  // Vite dev server
                 "http://localhost:4200",  // Angular dev server
                 "http://localhost:8080"   // Same origin
             )
+            // If a wildcard is required while `allowCredentials = true`, use:
+            allowedOriginPatterns = listOf("*")
 
             // Allowed HTTP methods
             allowedMethods = listOf(
@@ -166,7 +268,8 @@ class SecurityConfig(
                 "Accept",
                 "X-Requested-With",
                 "X-Correlation-ID",
-                "X-Request-ID"
+                "X-Request-ID",
+                "X-Venue-Domain"  // White-label domain header
             )
 
             // Headers exposed to the client

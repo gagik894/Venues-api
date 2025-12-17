@@ -18,30 +18,95 @@ class VenueSecurityServiceImpl(
 
     /**
      * Checks if staff has permission to manage the specified venue.
-     *
-     * Uses StaffSecurityFacade which checks:
-     * 1. Is staff a SUPER_ADMIN? → Allow
-     * 2. Is staff OWNER/ADMIN of venue's organization? → Allow
-     * 3. Does staff have explicit venue MANAGER permission? → Allow
-     * 4. Otherwise → Deny
-     *
-     * @param staffId Staff UUID from JWT
-     * @param venueId Venue UUID from path
-     * @throws VenuesException.AuthorizationFailure if staff cannot manage venue
      */
     override fun requireVenueManagementPermission(staffId: UUID, venueId: UUID) {
-        // Get venue's organization ID (needed for permission check)
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "manage",
+            checker = staffSecurityFacade::canManageVenue
+        )
+    }
+
+    /**
+     * Checks if staff has permission to edit the specified venue.
+     */
+    override fun requireVenueEditPermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "edit",
+            checker = staffSecurityFacade::canEditVenue
+        )
+    }
+
+    /**
+     * Checks if staff has permission to sell for the specified venue.
+     */
+    override fun requireVenueSellPermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "sell for",
+            checker = staffSecurityFacade::canSellAtVenue
+        )
+    }
+
+    /**
+     * Checks if staff has permission to scan tickets for the specified venue.
+     */
+    override fun requireVenueScanPermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "scan at",
+            checker = staffSecurityFacade::canScanAtVenue
+        )
+    }
+
+    /**
+     * Checks if staff has permission to view the specified venue.
+     */
+    override fun requireVenueViewPermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "view",
+            checker = staffSecurityFacade::canViewVenue
+        )
+    }
+
+    /**
+     * Checks if staff can browse (events list/details) for the specified venue.
+     */
+    override fun requireVenueBrowsePermission(staffId: UUID, venueId: UUID) {
+        requirePermission(
+            staffId = staffId,
+            venueId = venueId,
+            action = "browse",
+            checker = staffSecurityFacade::canBrowseVenue
+        )
+    }
+
+    /**
+     * Shared helper to resolve venue organization and enforce permission via StaffSecurityFacade.
+     */
+    private fun requirePermission(
+        staffId: UUID,
+        venueId: UUID,
+        action: String,
+        checker: (UUID, UUID, UUID) -> Boolean
+    ) {
         val organizationId = venueApi.getVenueOrganizationId(venueId)
             ?: throw VenuesException.ResourceNotFound(
                 "Venue not found or has no organization",
                 AppConstants.ErrorCode.NOT_FOUND.code
             )
 
-        // Check permission via facade
-        if (!staffSecurityFacade.canManageVenue(staffId, venueId, organizationId)) {
-            logger.warn { "Staff $staffId attempted to manage venue $venueId without permission" }
+        if (!checker(staffId, venueId, organizationId)) {
+            logger.warn { "Staff $staffId attempted to $action venue $venueId without permission" }
             throw VenuesException.AuthorizationFailure(
-                "You don't have permission to manage this venue",
+                "You don't have permission to $action this venue",
                 AppConstants.ErrorCode.AUTHORIZATION_FAILED.code
             )
         }

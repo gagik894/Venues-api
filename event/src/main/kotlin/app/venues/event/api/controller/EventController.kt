@@ -3,8 +3,13 @@ package app.venues.event.api.controller
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.EventResponse
 import app.venues.event.api.dto.EventSessionResponse
+import app.venues.event.api.dto.EventSummaryResponse
+import app.venues.event.api.mapper.EventMapper
 import app.venues.event.service.EventService
+import app.venues.seating.api.SeatingApi
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
+import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -25,31 +30,36 @@ import java.util.*
 @RequestMapping("/api/v1/events")
 @Tag(name = "Events", description = "Public event browsing and search")
 class EventController(
-    private val eventService: EventService
+    private val eventService: EventService,
+    private val eventMapper: EventMapper,
+    private val venueApi: VenueApi,
+    private val seatingApi: SeatingApi
 ) {
     private val logger = KotlinLogging.logger {}
 
     /**
      * Get all publicly visible events.
+     *
+     * Language is resolved from Accept-Language header.
      */
     @GetMapping
     @Operation(
         summary = "Get all events",
-        description = "Browse all publicly visible upcoming events. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
+        description = "Browse all publicly visible upcoming events. Use Accept-Language header for translations (e.g., 'hy' for Armenian)"
     )
     fun getAllEvents(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false) sortBy: String?,
-        @RequestParam(required = false) sortDirection: String?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
-        logger.debug { "Fetching all events, language: $lang" }
+        @RequestParam(required = false) sortDirection: String?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching all events, language: $language" }
 
-        val allowedSortFields = setOf("createdAt", "title", "id")
+        val allowedSortFields = setOf("createdAt", "title", "id", "firstSessionStart")
         val pageable = PageableMapper.createPageable(limit, offset, sortBy, sortDirection, allowedSortFields)
 
-        val events = eventService.getAllEvents(pageable, language = lang)
+        val events = eventService.getAllEventSummaries(pageable, language)
 
         return ApiResponse.success(
             data = events,
@@ -59,44 +69,48 @@ class EventController(
 
     /**
      * Get event by ID.
+     *
+     * Language is resolved from Accept-Language header.
      */
     @GetMapping("/{id}")
     @Operation(
         summary = "Get event details",
-        description = "Get detailed information about a specific event. Use 'lang' parameter for translations (e.g., ?lang=hy for Armenian)"
+        description = "Get detailed information about a specific event. Use Accept-Language header for translations"
     )
-    fun getEventById(
-        @PathVariable id: UUID,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<EventResponse> {
-        logger.debug { "Fetching event: $id, language: $lang" }
+    fun getEventById(@PathVariable id: UUID): ApiResponse<EventResponse> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching event: $id, language: $language" }
 
-        val event = eventService.getEventById(id, includeStats = true, language = lang)
+        val event = eventService.getPublishedEventById(id)
+        val venueName = venueApi.getVenueNameTranslated(event.venueId, language) ?: "Unknown"
+        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
 
         return ApiResponse.success(
-            data = event,
+            data = eventMapper.toResponse(event, venueName, seatingChartName, includeStats = true, language = language),
             message = "Event retrieved successfully"
         )
     }
 
     /**
      * Search events by title.
+     *
+     * Language is resolved from Accept-Language header.
      */
     @GetMapping("/search")
     @Operation(
         summary = "Search events",
-        description = "Search events by title (case-insensitive). Use 'lang' parameter for translations"
+        description = "Search events by title (case-insensitive). Use Accept-Language header for translations"
     )
     fun searchEvents(
         @RequestParam("q") searchTerm: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
-        logger.debug { "Searching events: $searchTerm, language: $lang" }
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Searching events: $searchTerm, language: $language" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val events = eventService.searchEvents(searchTerm, pageable, language = lang)
+        val events = eventService.searchEventSummaries(searchTerm, pageable, language)
 
         return ApiResponse.success(
             data = events,
@@ -106,22 +120,24 @@ class EventController(
 
     /**
      * Get events by venue.
+     *
+     * Language is resolved from Accept-Language header.
      */
     @GetMapping("/venue/{venueId}")
     @Operation(
         summary = "Get events by venue",
-        description = "Get all events for a specific venue. Use 'lang' parameter for translations"
+        description = "Get all events for a specific venue. Use Accept-Language header for translations"
     )
     fun getEventsByVenue(
         @PathVariable venueId: UUID,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
-        logger.debug { "Fetching events for venue: $venueId, language: $lang" }
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching events for venue: $venueId, language: $language" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val events = eventService.getEventsByVenue(venueId, pageable, language = lang)
+        val events = eventService.getEventSummariesByVenue(venueId, pageable, language)
 
         return ApiResponse.success(
             data = events,
@@ -131,22 +147,24 @@ class EventController(
 
     /**
      * Get events by category.
+     *
+     * Language is resolved from Accept-Language header.
      */
-    @GetMapping("/category/{categoryId}")
+    @GetMapping("/category/{categoryCode}")
     @Operation(
         summary = "Get events by category",
-        description = "Get all events in a specific category. Use 'lang' parameter for translations"
+        description = "Get all events in a specific category. Use Accept-Language header for translations"
     )
     fun getEventsByCategory(
-        @PathVariable categoryId: Long,
+        @PathVariable categoryCode: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
-        logger.debug { "Fetching events for category: $categoryId, language: $lang" }
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching events for category: $categoryCode, language: $language" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val events = eventService.getEventsByCategory(categoryId, pageable, language = lang)
+        val events = eventService.getEventSummariesByCategory(categoryCode, pageable, language)
 
         return ApiResponse.success(
             data = events,
@@ -156,22 +174,24 @@ class EventController(
 
     /**
      * Get events by tag.
+     *
+     * Language is resolved from Accept-Language header.
      */
     @GetMapping("/tag/{tag}")
     @Operation(
         summary = "Get events by tag",
-        description = "Get all events with a specific tag. Use 'lang' parameter for translations"
+        description = "Get all events with a specific tag. Use Accept-Language header for translations"
     )
     fun getEventsByTag(
         @PathVariable tag: String,
         @RequestParam(required = false) limit: Int?,
-        @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false) lang: String?
-    ): ApiResponse<Page<EventResponse>> {
-        logger.debug { "Fetching events for tag: $tag, language: $lang" }
+        @RequestParam(required = false) offset: Int?
+    ): ApiResponse<Page<EventSummaryResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "Fetching events for tag: $tag, language: $language" }
 
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val events = eventService.getEventsByTag(tag, pageable, language = lang)
+        val events = eventService.getEventSummariesByTag(tag, pageable, language)
 
         return ApiResponse.success(
             data = events,

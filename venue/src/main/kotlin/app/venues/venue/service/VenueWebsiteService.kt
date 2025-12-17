@@ -15,14 +15,14 @@ import java.util.*
 class VenueWebsiteService(
     private val venueRepository: VenueRepository,
     private val venueBrandingRepository: VenueBrandingRepository,
-    private val venueWebsiteMapper: VenueWebsiteMapper
+    private val venueWebsiteMapper: VenueWebsiteMapper,
+    private val venueRevalidationService: VenueRevalidationService
 ) {
 
     @Transactional(readOnly = true)
     fun getVenueBranding(venueId: UUID): VenueBrandingDto {
-        val branding = venueBrandingRepository.findById(venueId)
-            .orElseThrow { VenuesException.ResourceNotFound("Branding not found for venue $venueId") }
-
+        val venue = getVenueOrThrow(venueId)
+        val branding = venueBrandingRepository.findById(venueId).orElseGet { VenueBranding(venue = venue) }
         return venueWebsiteMapper.toDto(branding)
     }
 
@@ -53,8 +53,29 @@ class VenueWebsiteService(
     fun updateVenueBranding(venueId: UUID, request: UpdateVenueBrandingRequest): VenueBrandingDto {
         val venue = getVenueOrThrow(venueId)
 
+        // Update venue-level public fields consumed by the website.
+        request.venueName?.let { venue.name = it }
+        request.logoUrl?.let { venue.logoUrl = it }
+        request.coverImageUrl?.let { venue.coverImageUrl = it }
+        request.socialLinks?.let { venue.socialLinks = it }
+        if (request.contactEmail != null) {
+            venue.contactEmail = request.contactEmail
+        }
+        if (request.phoneNumber != null) {
+            venue.phoneNumber = request.phoneNumber
+        }
+        request.address?.let { venue.address = it }
+        if (request.website != null) {
+            venue.website = request.website
+        }
+        if (request.latitude != null || request.longitude != null) {
+            venue.latitude = request.latitude
+            venue.longitude = request.longitude
+        }
+
+        // Use existing branding or create new one. Do NOT set id manually with @MapsId.
         val branding = venueBrandingRepository.findById(venueId)
-            .orElse(VenueBranding(id = venueId, venue = venue))
+            .orElseGet { VenueBranding(venue = venue) }
 
         branding.primaryColor = request.primaryColor
         branding.secondaryColor = request.secondaryColor
@@ -64,6 +85,7 @@ class VenueWebsiteService(
         branding.contactConfig = request.contactConfig?.let { venueWebsiteMapper.toDomain(it) }
 
         val saved = venueBrandingRepository.save(branding)
+        venueRevalidationService.revalidate(venue, reason = "venue-branding-updated")
         return venueWebsiteMapper.toDto(saved)
     }
 

@@ -11,6 +11,7 @@ repositories {
 }
 
 dependencies {
+    api(project(":shared"))
     implementation(kotlin("stdlib"))
 }
 

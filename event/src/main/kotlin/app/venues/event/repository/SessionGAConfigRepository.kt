@@ -52,6 +52,44 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     fun findBySessionId(sessionId: UUID): List<SessionGAConfig>
 
     /**
+     * Calculate total GA capacity for a session.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(COALESCE(gc.capacity, 0)), 0)
+        FROM SessionGAConfig gc
+        WHERE gc.session.id = :sessionId
+    """
+    )
+    fun sumCapacityBySessionId(sessionId: UUID): Long
+
+    /**
+     * Sum GA capacity for session filtered by statuses.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(COALESCE(gc.capacity, 0)), 0)
+        FROM SessionGAConfig gc
+        WHERE gc.session.id = :sessionId
+        AND gc.status IN :statuses
+    """
+    )
+    fun sumCapacityBySessionIdAndStatusIn(sessionId: UUID, statuses: Collection<ConfigStatus>): Long
+
+    /**
+     * Sum GA sold counts for a session.
+     * Used for ticket counter reconciliation.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(gc.soldCount), 0)
+        FROM SessionGAConfig gc
+        WHERE gc.session.id = :sessionId
+    """
+    )
+    fun sumSoldBySessionId(sessionId: UUID): Long
+
+    /**
      * Get GA area price if available capacity exists.
      */
     @Query(
@@ -107,6 +145,28 @@ interface SessionGAConfigRepository : JpaRepository<SessionGAConfig, Long> {
     """
     )
     fun adjustGATickets(sessionId: UUID, gaAreaId: Long, quantityDelta: Int): Int
+
+    /**
+     * Reduce GA capacity by specified quantity (for closing tickets).
+     * Ensures capacity doesn't go below soldCount.
+     *
+     * @param sessionId Session ID
+     * @param gaAreaId GA area ID
+     * @param quantity Quantity to reduce capacity by
+     * @return Number of rows updated (0 if capacity would go below soldCount)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionGAConfig gc
+        SET gc.capacity = gc.capacity - :quantity
+        WHERE gc.session.id = :sessionId
+        AND gc.gaAreaId = :gaAreaId
+        AND gc.capacity IS NOT NULL
+        AND (gc.capacity - :quantity) >= gc.soldCount
+    """
+    )
+    fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Int
 
     /**
      * Check if any configs exist for the session.

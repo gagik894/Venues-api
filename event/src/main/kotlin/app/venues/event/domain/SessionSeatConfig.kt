@@ -32,14 +32,14 @@ class SessionSeatConfig(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "price_template_id")
-    var priceTemplate: EventPriceTemplate? = null
-) : AbstractLongEntity() {
+    var priceTemplate: EventPriceTemplate? = null,
 
     @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @Access(AccessType.FIELD)
     var status: ConfigStatus = ConfigStatus.AVAILABLE
-        protected set
+
+) : AbstractLongEntity() {
 
     /**
      * Check if seat is available for purchase.

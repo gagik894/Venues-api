@@ -30,6 +30,7 @@ dependencyManagement {
 dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
+    api(project(":platform-api"))
 
     // API Contract Modules - depend on interfaces, not implementations
     // This enforces Hexagonal Architecture boundaries
@@ -37,9 +38,12 @@ dependencies {
     api(project(":venue-api"))    // VenueApi for venue information
     api(project(":seating-api"))  // SeatingApi for seating chart information
     api(project(":staff-api"))    // StaffApi for staff information
+    api(project(":media-api"))    // MediaApi for file uploads
+    implementation(project(":booking-api")) // For inventory events (SeatClosed/Opened)
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")

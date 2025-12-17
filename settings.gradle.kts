@@ -31,6 +31,7 @@ include(":shared")
 include(":user-api")
 include(":venue-api")
 include(":seating-api")
+include(":platform-api")
 
 // Feature Implementation Modules (Hexagonal Architecture Adapters)
 include(":user")
@@ -38,18 +39,26 @@ include(":venue")
 include(":seating")
 include(":event")
 include(":booking")
+include(":ticket")
 include(":platform")
 include(":location")
 include(":staff")
 include(":organization")
 include(":finance")
+include(":payment")
 
 // API Modules
 include(":finance-api")
+include(":payment-api")
 include(":organization-api")
 include(":staff-api")
 include(":event-api")
+include(":booking-api")
+include(":ticket-api")
+include(":media-api")
+
+// Media Module (centralized file storage)
+include(":media")
 
 
 rootProject.name = "Venues-api"
-include("booking-api")

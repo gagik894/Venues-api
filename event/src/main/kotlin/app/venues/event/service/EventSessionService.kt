@@ -8,6 +8,7 @@ import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventSession
 import app.venues.event.domain.EventSessionPriceOverride
 import app.venues.event.repository.EventSessionRepository
+import app.venues.event.support.requireCurrency
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,7 +43,9 @@ class EventSessionService(
         val sessionsToRemove = event.sessions.filter { it.id !in requestSessionIds }
         sessionsToRemove.forEach { session ->
             if (session.ticketsSold > 0) {
-                throw VenuesException.ValidationFailure("Cannot remove session with sold tickets: ${session.id}")
+                throw VenuesException.ResourceConflict(
+                    "Cannot remove session ${session.id} because tickets have been sold. Archive event or keep the session."
+                )
             }
         }
         event.sessions.removeAll(sessionsToRemove)
@@ -73,6 +76,9 @@ class EventSessionService(
      */
     fun generateConfigsForNewSessions(event: Event) {
         if (event.seatingChartId == null) return
+
+        // Ensure price templates exist for all categories in the chart (Requirement 1)
+        eventSeatingService.ensurePriceTemplatesForChart(event, event.seatingChartId!!)
 
         event.sessions.forEach { session ->
             // Check if configs already exist using repositories to avoid loading large collections
@@ -118,7 +124,10 @@ class EventSessionService(
             val override = EventSessionPriceOverride(
                 session = session,
                 templateName = overrideRequest.templateName,
-                price = overrideRequest.price
+                price = overrideRequest.price.requireCurrency(
+                    session.event.currency,
+                    "Price override '${overrideRequest.templateName}'"
+                )
             )
             session.priceTemplateOverrides.add(override)
         }
@@ -149,5 +158,28 @@ class EventSessionService(
      */
     fun assignPriceTemplateToGa(sessionId: UUID, template: EventPriceTemplate?, gaId: Long) {
         eventSeatingService.assignPriceTemplateToGa(sessionId, template, gaId)
+    }
+
+    //TODO: Call these methods from the booking service when creating/cancelling bookings
+    /**
+     * Reserve tickets for a session.
+     * Uses atomic database update to prevent race conditions.
+     *
+     * @return true if reservation was successful, false if not enough capacity
+     */
+    fun reserveTickets(sessionId: UUID, quantity: Int): Boolean {
+        val updatedRows = eventSessionRepository.incrementTicketsSold(sessionId, quantity)
+        return updatedRows > 0
+    }
+
+    /**
+     * Decrement tickets sold for a session (e.g., on cancellation).
+     * Uses atomic database update to prevent race conditions.
+     *
+     * @return true if decrement was successful, false otherwise
+     */
+    fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean {
+        val updatedRows = eventSessionRepository.decrementTicketsSold(sessionId, quantity)
+        return updatedRows > 0
     }
 }

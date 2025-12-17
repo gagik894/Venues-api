@@ -46,7 +46,10 @@ class SeatingChart(
     var backgroundUrl: String? = null,
 
     @Column(name = "style_config_json", columnDefinition = "TEXT")
-    var styleConfigJson: String? = null
+    var styleConfigJson: String? = null,
+
+    @Column(name = "background_transform_json", columnDefinition = "TEXT")
+    var backgroundTransformJson: String? = null
 
 ) : AbstractUuidEntity() {
 
@@ -88,7 +91,7 @@ class SeatingChart(
      * @throws IllegalArgumentException if the zone is already attached to another chart.
      */
     fun addZone(zone: ChartZone) {
-        if (zone.chart != null && zone.chart != this) {
+        if (zone.chart != this) {
             throw IllegalArgumentException("Zone belongs to a different chart")
         }
         if (!_zones.contains(zone)) {

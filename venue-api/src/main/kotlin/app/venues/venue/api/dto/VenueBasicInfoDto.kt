@@ -8,10 +8,12 @@ import java.util.*
 data class VenueBasicInfoDto(
     val id: UUID,
     val name: String,
+    val slug: String, // Added slug
     val address: String?,
     val latitude: Double?,
     val longitude: Double?,
     val organizationId: UUID,
-    val merchantProfileId: UUID?
+    val merchantProfileId: UUID?,
+    val customDomain: String? = null
 )
 

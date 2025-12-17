@@ -73,14 +73,26 @@ class VenueWebsiteMapper(
     // ===========================================
 
     fun toDto(domain: VenueBranding): VenueBrandingDto {
+        val venue = domain.venue
+        val brandingId = domain.id ?: venue.id
         return VenueBrandingDto(
-            venueId = domain.id!!,
+            venueId = brandingId,
             primaryColor = domain.primaryColor,
             secondaryColor = domain.secondaryColor,
             faviconUrl = domain.faviconUrl,
             homeHero = domain.homeHero?.let { toDto(it) },
             aboutBlocks = domain.aboutBlocks?.map { toDto(it) },
-            contactConfig = domain.contactConfig?.let { toDto(it) }
+            contactConfig = domain.contactConfig?.let { toDto(it) },
+            venueName = venue.name,
+            logoUrl = venue.logoUrl,
+            coverImageUrl = venue.coverImageUrl,
+            socialLinks = venue.socialLinks,
+            contactEmail = venue.contactEmail,
+            phoneNumber = venue.phoneNumber,
+            address = venue.address,
+            website = venue.website,
+            latitude = venue.latitude,
+            longitude = venue.longitude
         )
     }
 
@@ -93,7 +105,7 @@ class VenueWebsiteMapper(
     )
 
     fun toDto(domain: ContentBlock): ContentBlockDto = ContentBlockDto(
-        type = domain.type,
+        type = ContentBlockType.valueOf(domain.type),
         title = domain.title,
         body = domain.body,
         imageUrl = domain.imageUrl
@@ -113,7 +125,7 @@ class VenueWebsiteMapper(
     )
 
     fun toDomain(dto: ContentBlockDto): ContentBlock = ContentBlock(
-        type = dto.type,
+        type = dto.type.name,
         title = dto.title,
         body = dto.body,
         imageUrl = dto.imageUrl

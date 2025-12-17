@@ -64,7 +64,14 @@ class StaffIdentity(
     var verificationToken: String? = null,
 
     @Column(name = "verification_token_expires_at")
-    var verificationTokenExpiresAt: Instant? = null
+    var verificationTokenExpiresAt: Instant? = null,
+
+    /**
+     * The staff member's preferred language for email communications.
+     * Supports: 'en' (English), 'hy' (Armenian), 'ru' (Russian)
+     */
+    @Column(name = "preferred_language", length = 5, nullable = false)
+    var preferredLanguage: String = "en"
 
 ) : AbstractUuidEntity() {
 

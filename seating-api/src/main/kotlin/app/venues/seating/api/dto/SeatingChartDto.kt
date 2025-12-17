@@ -10,7 +10,9 @@ data class SeatingChartInfoDto(
     val venueId: UUID,
     val chartName: String,
     val width: Int,
-    val height: Int
+    val height: Int,
+    val backgroundUrl: String? = null,
+    val backgroundTransform: BackgroundTransformDto? = null
 )
 
 /**
@@ -22,6 +24,8 @@ data class SeatingChartStructureDto(
     val chartName: String,
     val width: Int,
     val height: Int,
+    val backgroundUrl: String? = null,
+    val backgroundTransform: BackgroundTransformDto? = null,
     val zones: List<ZoneDto>,
     val tables: List<TableDto>,
     val seats: List<SeatDto>,
@@ -53,6 +57,7 @@ data class TableDto(
     val code: String,
     val shape: String,
     val seatCapacity: Int,
+    val categoryKey: String,
     val x: Double,
     val y: Double,
     val width: Double,
@@ -69,6 +74,7 @@ data class GaAreaDto(
     val name: String,
     val code: String,
     val capacity: Int,
+    val categoryKey: String,
     val boundaryPath: String?,
     val displayColor: String?
 )

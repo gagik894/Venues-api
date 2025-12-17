@@ -15,17 +15,8 @@ data class OrganizationResponse(
     val id: UUID,
     val slug: String,
     val name: String,
-    val description: String?,
     val type: OrganizationType,
-    val citySlug: String?,
-    val cityName: String?,
-    val phoneNumber: String?,
-    val email: String?,
-    val website: String?,
-    val logoUrl: String?,
-    val venueCount: Int = 0,
-    val createdAt: Instant?,
-    val lastModifiedAt: Instant?
+    val isActive: Boolean,
 )
 
 /**
@@ -37,20 +28,13 @@ data class OrganizationDetailResponse(
     val name: String,
     val legalName: String?,
     val taxId: String?,
-    val registrationNumber: String?,
-    val description: String?,
     val type: OrganizationType,
-    val address: String?,
-    val citySlug: String?,
-    val cityName: String?,
     val phoneNumber: String?,
     val email: String?,
     val website: String?,
-    val socialLinks: Map<String, String>?,
-    val logoUrl: String?,
+    val customDomain: String?,
+    val defaultMerchantProfileId: UUID?,
     val isActive: Boolean,
-    val staffCount: Long = 0,
-    val venueCount: Int = 0,
     val createdAt: Instant?,
     val lastModifiedAt: Instant?
 )
@@ -68,24 +52,18 @@ data class CreateOrganizationRequest(
     @field:Size(min = 2, max = 100, message = "Slug must be 2-100 characters")
     val slug: String,
 
-    @field:Size(max = 2000, message = "Description must not exceed 2000 characters")
-    val description: String? = null,
-
     val type: OrganizationType = OrganizationType.PRIVATE,
 
     val legalName: String? = null,
     val taxId: String? = null,
-    val registrationNumber: String? = null,
-
-    val cityId: Long? = null,
-    val address: String? = null,
 
     @field:Email(message = "Email must be valid")
     val email: String? = null,
 
     val phoneNumber: String? = null,
     val website: String? = null,
-    val logoUrl: String? = null
+    val customDomain: String? = null,
+    val defaultMerchantProfileId: UUID? = null
 )
 
 /**
@@ -95,25 +73,18 @@ data class UpdateOrganizationRequest(
     @field:Size(min = 2, max = 255, message = "Name must be 2-255 characters")
     val name: String? = null,
 
-    @field:Size(max = 2000, message = "Description must not exceed 2000 characters")
-    val description: String? = null,
-
     val type: OrganizationType? = null,
 
     val legalName: String? = null,
     val taxId: String? = null,
-    val registrationNumber: String? = null,
-
-    val cityId: Long? = null,
-    val address: String? = null,
 
     @field:Email(message = "Email must be valid")
     val email: String? = null,
 
     val phoneNumber: String? = null,
     val website: String? = null,
-    val socialLinks: Map<String, String>? = null,
-    val logoUrl: String? = null,
+    val customDomain: String? = null,
+    val defaultMerchantProfileId: UUID? = null,
 
     val isActive: Boolean? = null
 )

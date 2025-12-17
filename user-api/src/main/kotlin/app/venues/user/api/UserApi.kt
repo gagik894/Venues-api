@@ -44,5 +44,13 @@ interface UserApi {
      * @return true if user exists, false otherwise
      */
     fun userExists(userId: UUID): Boolean
+
+    /**
+     * Get user's preferred language for email communications.
+     *
+     * @param userId User ID
+     * @return Language code (e.g., "en", "hy", "ru") or null if not found
+     */
+    fun getUserLanguage(userId: UUID): String?
 }
 

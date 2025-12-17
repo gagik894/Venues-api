@@ -2,6 +2,7 @@ package app.venues.staff.service
 
 import app.venues.staff.api.StaffSecurityFacade
 import app.venues.staff.domain.OrganizationRole
+import app.venues.staff.domain.VenueRole
 import app.venues.staff.repository.StaffIdentityRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
@@ -27,28 +28,15 @@ class StaffSecurityFacadeImpl(
      * Logic:
      * 1. Super Admin -> can manage any venue
      * 2. Organization Admin/Owner -> can manage any venue in their org
-     * 3. Venue Manager -> can only manage venues they have explicit permission for
+     * 3. Venue Manager -> must have MANAGER role for that venue
      */
     override fun canManageVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
-        val staff = staffRepository.findById(staffId).orElse(null) ?: return false
-
-        // Super Admin has global access
-        if (staff.isPlatformSuperAdmin) {
-            return true
-        }
-
-        // Find membership for this organization
-        val membership = staff.memberships.firstOrNull {
-            it.organizationId == organizationId && it.isActive
-        } ?: return false
-
-        // Organization Owner/Admin can manage all venues in their org
-        if (membership.orgRole in listOf(OrganizationRole.OWNER, OrganizationRole.ADMIN)) {
-            return true
-        }
-
-        // Regular members need explicit venue permission
-        return membership.venuePermissions.any { it.venueId == venueId }
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(VenueRole.MANAGER)
+        )
     }
 
     /**
@@ -68,5 +56,128 @@ class StaffSecurityFacadeImpl(
                     it.isActive &&
                     it.orgRole in listOf(OrganizationRole.OWNER, OrganizationRole.ADMIN)
         }
+    }
+
+    /**
+     * Checks if staff can edit venue content (events, details, etc.).
+     *
+     * Logic:
+     * 1. Super Admin -> allow
+     * 2. Org Owner/Admin -> allow
+     * 3. Venue MANAGER or EDITOR -> allow
+     */
+    override fun canEditVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(VenueRole.MANAGER, VenueRole.EDITOR)
+        )
+    }
+
+    /**
+     * Checks if staff can sell tickets/operate box office.
+     *
+     * Logic:
+     * 1. Super Admin -> allow
+     * 2. Org Owner/Admin -> allow
+     * 3. Venue MANAGER or SELLER -> allow
+     */
+    override fun canSellAtVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(VenueRole.MANAGER, VenueRole.SELLER)
+        )
+    }
+
+    /**
+     * Checks if staff can scan tickets at the venue.
+     *
+     * Logic:
+     * 1. Super Admin -> allow
+     * 2. Org Owner/Admin -> allow
+     * 3. Venue MANAGER/SCANNER -> allow
+     */
+    override fun canScanAtVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(VenueRole.MANAGER, VenueRole.SCANNER)
+        )
+    }
+
+    /**
+     * Checks if staff can view venue data (read-only).
+     *
+     * Logic:
+     * 1. Super Admin -> allow
+     * 2. Org Owner/Admin -> allow
+     * 3. Venue MANAGER/EDITOR/SCANNER/VIEWER -> allow
+     */
+    override fun canViewVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(
+                VenueRole.MANAGER,
+                VenueRole.EDITOR,
+                VenueRole.SCANNER,
+                VenueRole.VIEWER
+            )
+        )
+    }
+
+    /**
+     * Browsing (events list/details) includes SELLER plus view roles.
+     */
+    override fun canBrowseVenue(staffId: UUID, venueId: UUID, organizationId: UUID): Boolean {
+        return hasVenueAccess(
+            staffId = staffId,
+            organizationId = organizationId,
+            venueId = venueId,
+            allowedRoles = setOf(
+                VenueRole.MANAGER,
+                VenueRole.EDITOR,
+                VenueRole.SCANNER,
+                VenueRole.VIEWER,
+                VenueRole.SELLER
+            )
+        )
+    }
+
+    /**
+     * Shared permission evaluator for venue-scoped actions.
+     *
+     * Order of checks:
+     * 1. Super Admin -> allow
+     * 2. Active membership in org -> required
+     * 3. Org Owner/Admin -> allow
+     * 4. Venue role must be in allowedRoles
+     */
+    private fun hasVenueAccess(
+        staffId: UUID,
+        organizationId: UUID,
+        venueId: UUID,
+        allowedRoles: Set<VenueRole>
+    ): Boolean {
+        val staff = staffRepository.findById(staffId).orElse(null) ?: return false
+
+        if (staff.isPlatformSuperAdmin) {
+            return true
+        }
+
+        val membership = staff.memberships.firstOrNull {
+            it.organizationId == organizationId && it.isActive
+        } ?: return false
+
+        if (membership.orgRole in listOf(OrganizationRole.OWNER, OrganizationRole.ADMIN)) {
+            return true
+        }
+
+        return membership.venuePermissions.any { it.venueId == venueId && it.role in allowedRoles }
     }
 }

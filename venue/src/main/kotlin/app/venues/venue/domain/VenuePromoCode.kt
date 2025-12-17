@@ -71,23 +71,6 @@ class VenuePromoCode(
     var isActive: Boolean = true
         protected set
 
-    fun isValidForUse(): Boolean {
-        if (!isActive) return false
-        if (expiresAt?.isBefore(Instant.now()) == true) return false
-        return maxUsageCount == null || currentUsageCount < maxUsageCount!!
-    }
-
-    /**
-     * Increments the usage counter for this promo code.
-     * @return true if successful, false if limit was already reached.
-     */
-    fun redeem(): Boolean {
-        if (!isValidForUse()) {
-            return false
-        }
-        this.currentUsageCount++
-        return true
-    }
 
     fun deactivate() {
         this.isActive = false

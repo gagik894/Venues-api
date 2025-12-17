@@ -2,28 +2,35 @@ package app.venues.event.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.*
-import app.venues.event.domain.Event
+import app.venues.event.domain.ConfigStatus
 import app.venues.event.domain.EventSession
+import app.venues.event.domain.SessionSeatConfig
 import app.venues.event.repository.EventSessionRepository
 import app.venues.event.repository.SessionGAConfigRepository
 import app.venues.event.repository.SessionSeatConfigRepository
 import app.venues.event.repository.SessionTableConfigRepository
 import app.venues.seating.api.SeatingApi
-import app.venues.seating.api.dto.ZoneDto
+import app.venues.shared.money.toMoney
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
 /**
- * Service for managing session-specific seating configurations.
- * Uses SeatingApi for cross-module communication (Ports & Adapters architecture).
- * Zero knowledge of seating module's internal entities.
+ * Service for session-specific inventory (Split Strategy - Dynamic Layer).
  *
- * Architecture notes:
- * - Seating module provides: chart structure (zones, seats, tables, GA areas)
- * - Event module provides: session-specific pricing and availability status
- * - This service merges both to create session seating response
+ * Architecture (Split Strategy for 10k+ seat venues):
+ * - Static Structure: GET /seating-charts/{chartId}/structure (cached 24h)
+ * - Dynamic Inventory: GET /sessions/{sessionId}/inventory (real-time, this service)
+ *
+ * This service provides ONLY dynamic state (status, pricing) without geometry.
+ * Client merges with cached static structure using ID matching.
+ *
+ * Performance optimizations:
+ * - Zero calls to SeatingApi for inventory queries
+ * - Prices in cents (Long) for efficient JSON transfer
+ * - Short status codes (A/R/S/B/C) to reduce payload
+ * - ID-keyed maps for O(1) client-side lookup
  */
 @Service
 @Transactional
@@ -37,254 +44,205 @@ class SessionSeatingService(
 
     private val logger = KotlinLogging.logger {}
 
+    // =================================================================================
+    // DYNAMIC INVENTORY API (Split Strategy)
+    // =================================================================================
+
     /**
-     * Get complete seating chart for session with pricing and availability.
-     * Optimized for large venues (10k+ seats).
+     * Get lightweight session inventory without geometry.
+     *
+     * Returns only dynamic state (status, pricing) keyed by ID for client-side
+     * merging with cached static structure from /seating-charts/{chartId}/structure.
+     *
+     * This endpoint is designed for high-frequency polling:
+     * - No geometry data (X, Y, rotation)
+     * - Maps keyed by ID for O(1) lookup
+     * - Prices in cents for efficient transfer
+     * - Short status codes (A/R/S/B/C)
+     *
+     * Uses Waterfall pricing logic: Seat Config > Session Override > Event Template
      */
     @Transactional(readOnly = true)
-    fun getSessionSeating(sessionId: UUID): SessionSeatingResponse {
-        logger.debug { "Fetching session seating for session: $sessionId" }
+    fun getSessionInventory(sessionId: UUID): SessionInventoryResponse {
+        logger.debug { "Fetching session inventory for session: $sessionId" }
 
         val session = getSessionOrThrow(sessionId)
         val event = session.event
         val seatingChartId = event.seatingChartId
             ?: throw VenuesException.ValidationFailure("Event does not have a seating chart assigned")
 
-        // Fetch complete chart structure via SeatingApi (single call)
-        val chartStructure = seatingApi.getChartStructure(seatingChartId)
-            ?: throw VenuesException.ResourceNotFound("Seating chart not found")
-
-        // Batch load all session configs (3 queries total)
+        // Batch load all session configs (3 queries total - no calls to seating module)
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
-        val seatConfigMap = seatConfigs.associateBy { it.seatId }
-
         val gaConfigs = sessionGAConfigRepository.findBySessionId(sessionId)
-        val gaConfigMap = gaConfigs.associateBy { it.gaAreaId }
-
         val tableConfigs = sessionTableConfigRepository.findBySessionId(sessionId)
-        val tableConfigMap = tableConfigs.associateBy { it.tableId }
 
-        // Build zone hierarchy map for breadcrumb display
-        val zoneHierarchyMap = buildZoneHierarchyMap(chartStructure.zones)
+        // Build category key to template map for waterfall pricing
+        val categoryTemplateMap = event.priceTemplates.associateBy { it.templateName }
+        val sessionOverrideMap = session.priceTemplateOverrides.associateBy { it.templateName }
 
-        // Process seats
-        val seats = chartStructure.seats.mapNotNull { seatDto ->
-            val config = seatConfigMap[seatDto.id]
-            if (config == null) {
-                logger.warn { "Seat config missing for seat ${seatDto.code}" }
-                return@mapNotNull null
-            }
-
-            SessionSeatResponse(
-                seatIdentifier = seatDto.code,
-                seatNumber = seatDto.seatNumber,
-                rowLabel = seatDto.rowLabel,
-                levels = zoneHierarchyMap[seatDto.zoneId] ?: listOf("Unknown"),
-                positionX = seatDto.x,
-                positionY = seatDto.y,
-                status = config.status.name,
-                price = config.priceTemplate?.price?.toString(),
-                priceTemplateName = config.priceTemplate?.templateName,
-                priceTemplateColor = config.priceTemplate?.color
+        // Map seat states
+        val seatStates = seatConfigs.associate { config ->
+            val (price, templateName, color) = resolveSeatPricingFromConfig(config, sessionOverrideMap)
+            config.seatId to SeatStateDto(
+                status = config.status.toShortCode(),
+                templateName = templateName
             )
         }
 
-        // Process GA areas
-        val gaAreas = chartStructure.gaAreas.mapNotNull { gaDto ->
-            val config = gaConfigMap[gaDto.id]
-            if (config == null) {
-                logger.warn { "GA config missing for GA area ${gaDto.code}" }
-                return@mapNotNull null
-            }
+        // Map table states
+        val tableStates = tableConfigs.associate { config ->
+            val template = config.priceTemplate
 
-            val capacity = config.capacity ?: 0
+            config.tableId to TableStateDto(
+                status = config.status.toShortCode(),
+                templateName = template?.templateName,
+                bookingMode = config.bookingMode.name
+            )
+        }
+
+        // Map GA area states
+        val gaStates = gaConfigs.associate { config ->
+            val template = config.priceTemplate
+            val override = template?.let { sessionOverrideMap[it.templateName] }
+            val finalPrice = override?.price ?: template?.price
             val available = config.getAvailableCapacity() ?: 0
 
-            SessionGaAreaResponse(
-                levelIdentifier = gaDto.code,
-                levelName = gaDto.name,
-                levels = zoneHierarchyMap[gaDto.zoneId] ?: listOf(gaDto.name),
-                capacity = capacity,
+            config.gaAreaId to GaAreaStateDto(
+                status = config.status.toShortCode(),
                 available = available,
-                price = config.priceTemplate?.price?.toString(),
-                priceTemplateName = config.priceTemplate?.templateName
+                soldCount = config.soldCount,
+                templateName = template?.templateName
             )
         }
 
-        // Process tables
-        val tables = chartStructure.tables.mapNotNull { tableDto ->
-            val config = tableConfigMap[tableDto.id]
-            if (config == null) {
-                logger.warn { "Table config missing for table ${tableDto.code}" }
-                return@mapNotNull null
-            }
-
-            // Find all seats for this table
-            val tableSeats = chartStructure.seats.filter { it.tableId == tableDto.id }
-
-            SessionTableResponse(
-                tableId = tableDto.id,
-                tableName = tableDto.tableNumber,
-                tableIdentifier = tableDto.code,
-                levels = zoneHierarchyMap[tableDto.zoneId] ?: listOf(tableDto.tableNumber),
-                positionX = tableDto.x,
-                positionY = tableDto.y,
-                bookingMode = config.bookingMode.name,
-                seatCount = tableSeats.size,
-                seatIdentifiers = tableSeats.map { it.code },
-                status = config.status.name,
-                price = config.priceTemplate?.price?.toString(),
-                priceTemplateName = config.priceTemplate?.templateName,
-                priceTemplateColor = config.priceTemplate?.color
+        // Build price templates list
+        val priceTemplates = event.priceTemplates.map { template ->
+            val override = sessionOverrideMap[template.templateName]
+            InventoryPriceTemplateDto(
+                id = template.id,
+                templateName = template.templateName,
+                color = template.color,
+                price = override?.price?.toMoney(event.currency) ?: template.price.toMoney(event.currency),
+                isOverride = override != null
             )
         }
 
-        // Calculate statistics
-        val totalSeats = seatConfigs.size
-        val availableSeats = seatConfigs.count { it.isAvailable() }
-        val soldSeats = session.ticketsSold
-
-        // Get price templates
-        val priceTemplates = getPriceTemplatesForSession(event)
-
-        logger.info {
-            "Session seating loaded: $totalSeats seats ($availableSeats available), " +
-                    "${tables.size} tables, ${gaAreas.size} GA areas"
+        // Calculate stats (using optimized seat count from seating module)
+        val totalSeats = seatingApi.getSeatCount(seatingChartId)
+        val unavailableSeats = seatConfigs.count { !it.isAvailable() }
+        val availableSeats = (totalSeats - unavailableSeats).coerceAtLeast(0)
+        val reservedSeats = seatConfigs.count { it.status.name == "RESERVED" }
+        val soldSeats = seatConfigs.count { it.status.name == "SOLD" }
+        val blockedSeats = seatConfigs.count { it.status.name == "BLOCKED" }
+        val totalGaCapacity = gaConfigs.sumOf { it.capacity ?: 0 }
+        val availableGaCapacity = gaConfigs.sumOf { config ->
+            if (config.status == ConfigStatus.AVAILABLE || config.status == ConfigStatus.RESERVED) {
+                config.getAvailableCapacity() ?: 0
+            } else 0
         }
 
-        return SessionSeatingResponse(
-            sessionId = sessionId,
-            eventId = event.id ?: throw VenuesException.ValidationFailure("Event ID is null"),
-            eventTitle = event.title,
-            seatingChartId = seatingChartId,
-            seatingChartName = chartStructure.chartName,
-            priceTemplates = priceTemplates,
-            seats = seats,
-            gaAreas = gaAreas,
-            tables = tables,
+        val stats = InventoryStatsDto(
             totalSeats = totalSeats,
             availableSeats = availableSeats,
-            soldSeats = soldSeats
+            reservedSeats = reservedSeats,
+            soldSeats = soldSeats,
+            blockedSeats = blockedSeats,
+            totalGaCapacity = totalGaCapacity,
+            availableGaCapacity = availableGaCapacity
+        )
+
+        logger.info { "Session inventory loaded: $totalSeats seats, ${tableConfigs.size} tables, ${gaConfigs.size} GA areas" }
+
+        return SessionInventoryResponse(
+            sessionId = sessionId,
+            eventId = event.id,
+            seatingChartId = seatingChartId,
+            seats = seatStates,
+            tables = tableStates,
+            gaAreas = gaStates,
+            priceTemplates = priceTemplates,
+            stats = stats
         )
     }
 
     /**
-     * Build zone hierarchy map for breadcrumb display.
-     * Returns Map<zoneId, List<zoneNames>> from root to leaf.
-     * Example: zoneId=5 -> ["Orchestra", "Center", "Row A"]
-     */
-    private fun buildZoneHierarchyMap(zones: List<ZoneDto>): Map<Long, List<String>> {
-        if (zones.isEmpty()) {
-            return emptyMap()
-        }
-
-        val zoneMap = zones.associateBy { it.id }
-        val hierarchyCache = mutableMapOf<Long, List<String>>()
-
-        fun getHierarchy(zoneId: Long, visited: Set<Long> = emptySet()): List<String> {
-            hierarchyCache[zoneId]?.let { return it }
-
-            val zone = zoneMap[zoneId] ?: return emptyList()
-
-            if (zoneId in visited) {
-                logger.warn { "Circular zone hierarchy detected for zone $zoneId" }
-                return listOf(zone.name)
-            }
-
-            val hierarchy = if (zone.parentZoneId == null) {
-                listOf(zone.name)
-            } else {
-                val parentId = zone.parentZoneId
-                if (parentId != null) {
-                    val parentHierarchy = getHierarchy(parentId, visited + zoneId)
-                    if (parentHierarchy.isNotEmpty()) {
-                        parentHierarchy + zone.name
-                    } else {
-                        listOf(zone.name)
-                    }
-                } else {
-                    listOf(zone.name)
-                }
-            }
-
-            hierarchyCache[zoneId] = hierarchy
-            return hierarchy
-        }
-
-        zones.forEach { zone ->
-            if (zone.id !in hierarchyCache) {
-                getHierarchy(zone.id)
-            }
-        }
-
-        return hierarchyCache.toMap()
-    }
-
-    /**
-     * Get quick availability info without full seating structure.
-     * Optimized for large venues.
+     * Get quick availability statistics.
+     * Optimized for high-frequency polling without full structure.
      */
     @Transactional(readOnly = true)
     fun getSessionAvailability(sessionId: UUID): SeatAvailabilityResponse {
         logger.debug { "Fetching seat availability for session: $sessionId" }
 
         val session = getSessionOrThrow(sessionId)
+        val event = session.event
+        val seatingChartId = event.seatingChartId
+            ?: throw VenuesException.ValidationFailure("Event does not have a seating chart assigned")
 
+        // Use optimized COUNT query instead of fetching full structure
+        val totalSeats = seatingApi.getSeatCount(seatingChartId).toInt()
         val seatConfigs = sessionSeatConfigRepository.findBySessionId(sessionId)
-        val totalSeats = seatConfigs.size
-        val availableSeats = seatConfigs.count { it.isAvailable() }
-        val reservedSeats = seatConfigs.count { it.status.name == "RESERVED" }
 
-        // Only include seat codes for small venues (< 1000 seats)
-        val availableIdentifiers = if (totalSeats < 1000) {
-            seatConfigs
-                .filter { it.isAvailable() }
-                .mapNotNull { config ->
-                    seatingApi.getSeatInfo(config.seatId)?.code
-                }
-                .sorted()
-        } else {
-            emptyList()
-        }
+        // Count by status
+        val statusCounts = seatConfigs.groupBy { it.status.name }
+        val soldSeats = statusCounts["SOLD"]?.size ?: 0
+        val reservedSeats = statusCounts["RESERVED"]?.size ?: 0
+        val blockedSeats = statusCounts["BLOCKED"]?.size ?: 0
+        val closedSeats = statusCounts["CLOSED"]?.size ?: 0
+        val unavailableSeats = soldSeats + blockedSeats + closedSeats
+        val availableSeats = (totalSeats - unavailableSeats).coerceAtLeast(0)
+
+        // GA area stats
+        val gaConfigs = sessionGAConfigRepository.findBySessionId(sessionId)
+        val totalGaCapacity = gaConfigs.sumOf { (it.capacity ?: 0) }
+        val soldGaCount = gaConfigs.sumOf { it.soldCount }
+        val availableGaCapacity = gaConfigs.sumOf { config ->
+            if (config.status == ConfigStatus.AVAILABLE || config.status == ConfigStatus.RESERVED) {
+                (config.capacity ?: 0) - config.soldCount
+            } else 0
+        }.coerceAtLeast(0)
 
         return SeatAvailabilityResponse(
             sessionId = sessionId,
             totalSeats = totalSeats,
             availableSeats = availableSeats,
-            soldSeats = session.ticketsSold,
+            soldSeats = soldSeats,
             reservedSeats = reservedSeats,
-            availableSeatIdentifiers = availableIdentifiers
+            blockedSeats = blockedSeats,
+            totalGaCapacity = totalGaCapacity,
+            availableGaCapacity = availableGaCapacity
         )
     }
 
-    /**
-     * Get price templates for session (event + session overrides).
-     */
-    private fun getPriceTemplatesForSession(event: Event): List<SessionPriceTemplateResponse> {
-        val templates = mutableListOf<SessionPriceTemplateResponse>()
+    // =================================================================================
+    // PRIVATE HELPERS
+    // =================================================================================
 
-        // Add event-level price templates
-        event.priceTemplates.forEach { template ->
-            templates.add(
-                SessionPriceTemplateResponse(
-                    id = template.id,
-                    templateName = template.templateName,
-                    color = template.color,
-                    price = template.price.toString(),
-                    isOverride = false
-                )
-            )
-        }
-
-        return templates
-    }
-
-    /**
-     * Get session or throw exception.
-     */
     private fun getSessionOrThrow(sessionId: UUID): EventSession {
         return eventSessionRepository.findById(sessionId)
             .orElseThrow { VenuesException.ResourceNotFound("Event session not found") }
     }
+
+    /**
+     * Resolves pricing from config using waterfall logic.
+     */
+    private fun resolveSeatPricingFromConfig(
+        config: SessionSeatConfig,
+        sessionOverrideMap: Map<String, app.venues.event.domain.EventSessionPriceOverride>
+    ): Triple<java.math.BigDecimal?, String?, String?> {
+        val template = config.priceTemplate ?: return Triple(null, null, null)
+        val override = sessionOverrideMap[template.templateName]
+        val finalPrice = override?.price ?: template.price
+        return Triple(finalPrice, template.templateName, template.color)
+    }
 }
 
+/**
+ * Extension to convert ConfigStatus to short code for efficient transfer.
+ */
+private fun app.venues.event.domain.ConfigStatus.toShortCode(): String = when (this) {
+    app.venues.event.domain.ConfigStatus.AVAILABLE -> "A"
+    app.venues.event.domain.ConfigStatus.RESERVED -> "R"
+    app.venues.event.domain.ConfigStatus.SOLD -> "S"
+    app.venues.event.domain.ConfigStatus.BLOCKED -> "B"
+    app.venues.event.domain.ConfigStatus.CLOSED -> "C"
+}

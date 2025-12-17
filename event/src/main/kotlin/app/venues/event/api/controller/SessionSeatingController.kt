@@ -2,7 +2,7 @@ package app.venues.event.api.controller
 
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.dto.SeatAvailabilityResponse
-import app.venues.event.api.dto.SessionSeatingResponse
+import app.venues.event.api.dto.SessionInventoryResponse
 import app.venues.event.service.SessionSeatingService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -14,19 +14,17 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.*
 
 /**
- * Controller for session seating operations.
+ * Controller for session inventory operations (Split Strategy - Dynamic Layer).
  *
- * Provides endpoints for retrieving seating charts with session-specific data:
- * - Pricing per seat
- * - Seat availability status
- * - Level hierarchy with positions
- * - Price templates
+ * Provides real-time inventory state designed to work with cached static structure:
+ * - Static: GET /seating-charts/{chartId}/structure (cached 24h, seating module)
+ * - Dynamic: GET /sessions/{sessionId}/inventory (real-time, this controller)
  *
- * Optimized for large venues (10k+ seats).
+ * Optimized for high-traffic large venues (10k+ seats).
  */
 @RestController
 @RequestMapping("/api/v1/sessions")
-@Tag(name = "Session Seating", description = "Seating charts for event sessions with pricing and availability")
+@Tag(name = "Session Inventory", description = "Real-time inventory state for event sessions")
 class SessionSeatingController(
     private val sessionSeatingService: SessionSeatingService
 ) {
@@ -34,75 +32,79 @@ class SessionSeatingController(
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Get complete seating chart for a session.
+     * Get lightweight session inventory (Split Strategy - Dynamic Layer).
      *
-     * Returns the full seating structure with:
-     * - Level hierarchy with positions
-     * - Seats with positions, pricing, and status
-     * - Price templates
-     * - Availability statistics
+     * Returns only dynamic state (status, pricing) without geometry data.
+     * Designed to work alongside cached static structure:
+     * - Static: GET /seating-charts/{chartId}/structure (cached 24h)
+     * - Dynamic: GET /sessions/{sessionId}/inventory (real-time)
      *
-     * Use this endpoint to display the interactive seating map to users.
+     * Client merges the two responses using ID matching for optimal performance.
      *
      * @param sessionId Event session ID
-     * @return Complete seating structure with session-specific data
+     * @return Lightweight inventory state keyed by ID
      */
-    @GetMapping("/{sessionId}/seating")
+    @GetMapping("/{sessionId}/inventory")
     @Operation(
-        summary = "Get session seating chart",
+        summary = "Get session inventory (real-time)",
         description = """
-            Get complete seating chart for an event session including:
-            - Level hierarchy (sections, rows, etc.)
-            - Seat positions and identifiers
-            - Seat status (available, reserved, sold)
-            - Pricing per seat
-            - Price templates
-            - GA (General Admission) capacity
+            Get lightweight session inventory for real-time status updates.
             
-            Optimized for large venues with 10k+ seats.
+            This endpoint is part of the Split Strategy for high-performance venues:
+            1. Cache static structure from GET /seating-charts/{chartId}/structure
+            2. Poll this endpoint for real-time status/pricing
+            3. Merge client-side using ID matching
+            
+            Returns:
+            - Seat states (status, price, color, templateName) keyed by seat ID
+            - Table states keyed by table ID
+            - GA area states keyed by GA area ID
+            - Price templates with override information
+            - Quick statistics
+            
+            NO geometry data (X, Y, rotation) is included.
+            Prices are in cents (smallest currency unit) for efficient transfer.
+            Status codes: A=Available, R=Reserved, S=Sold, B=Blocked, C=Closed
         """
     )
-    fun getSessionSeating(
+    fun getSessionInventory(
         @PathVariable sessionId: UUID
-    ): ApiResponse<SessionSeatingResponse> {
-        logger.debug { "Fetching session seating for session: $sessionId" }
+    ): ApiResponse<SessionInventoryResponse> {
+        logger.debug { "Fetching session inventory for session: $sessionId" }
 
-        val seating = sessionSeatingService.getSessionSeating(sessionId)
+        val inventory = sessionSeatingService.getSessionInventory(sessionId)
 
         return ApiResponse.success(
-            data = seating,
-            message = "Session seating retrieved successfully"
+            data = inventory,
+            message = "Session inventory retrieved successfully"
         )
     }
 
     /**
-     * Get quick availability info for a session.
+     * Get quick availability statistics.
      *
-     * Returns availability statistics without the full seating structure.
-     * Much faster than getSessionSeating() for large venues.
-     *
-     * Use this endpoint for:
-     * - Checking if tickets are available
-     * - Displaying availability count in listings
-     * - Quick availability checks before showing full seating map
+     * Returns availability counts without full inventory detail.
+     * Optimized for quick checks (event listings, availability badges).
      *
      * @param sessionId Event session ID
      * @return Availability statistics
      */
     @GetMapping("/{sessionId}/availability")
     @Operation(
-        summary = "Get seat availability",
+        summary = "Get seat availability (quick stats)",
         description = """
-            Get quick availability statistics for a session without loading full seating structure.
+            Get quick availability statistics for a session.
             
             Returns:
             - Total seat count
             - Available seat count
             - Sold seat count
             - Reserved seat count
-            - Available seat identifiers (for small venues only)
             
-            Much faster than loading full seating chart.
+            Use for:
+            - Event listing badges ("X seats left")
+            - Quick availability checks
+            - Dashboard statistics
         """
     )
     fun getSessionAvailability(

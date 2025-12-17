@@ -4,46 +4,42 @@ package app.venues.event.domain
  * Enumeration of possible event statuses.
  *
  * Status Lifecycle:
- * DRAFT → UPCOMING → PAST
+ * DRAFT → PUBLISHED → ARCHIVED
  *         ↓
- *      PAUSED/CANCELLED/MAINTENANCE
- *         ↓
- *      ARCHIVED
+ *      SUSPENDED/DELETED
  */
 enum class EventStatus {
     /**
-     * Event is published and scheduled for the future
-     */
-    UPCOMING,
-
-    /**
-     * Event is temporarily paused (not visible to public)
-     */
-    PAUSED,
-
-    /**
-     * Event has already occurred
-     */
-    PAST,
-
-    /**
-     * Event has been cancelled
-     */
-    CANCELLED,
-
-    /**
-     * Event is in draft mode (not published)
+     * The Event is being created.
+     * VISIBILITY: Hidden (Host only).
+     * ACTION: Host can edit details, add photos, set prices.
      */
     DRAFT,
 
     /**
-     * Event is under maintenance (technical issues)
+     * The Event is live.
+     * VISIBILITY: Public.
+     * ACTION: Users can view the page. Whether they can *buy* depends on Session Status.
      */
-    MAINTENANCE,
+    PUBLISHED,
 
     /**
-     * Event has been archived (historical record)
+     * Temporarily taken down (e.g. for maintenance or policy violation).
+     * VISIBILITY: Hidden (404 Not Found for users).
      */
-    ARCHIVED
+    SUSPENDED,
+
+    /**
+     * The event is finished and old.
+     * VISIBILITY: Visible in "Past Events" lists, but removed from "Upcoming" search index.
+     * ACTION: Read-only mode.
+     */
+    ARCHIVED,
+
+    /**
+     * Soft Delete.
+     * VISIBILITY: Hidden everywhere except database admin tools.
+     */
+    DELETED
 }
 

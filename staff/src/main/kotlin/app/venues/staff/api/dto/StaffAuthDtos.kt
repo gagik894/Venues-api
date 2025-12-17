@@ -73,3 +73,22 @@ data class StaffLoginRequest(
     @field:NotBlank(message = "Password is required")
     val password: String
 )
+
+/**
+ * Accepts a staff invite by setting password and optional profile details.
+ */
+data class AcceptInviteRequest(
+    @field:NotBlank(message = "Invite token is required")
+    val token: String,
+
+    @field:NotBlank(message = "Password is required")
+    @field:Size(
+        min = AppConstants.Validation.MIN_PASSWORD_LENGTH,
+        max = AppConstants.Validation.MAX_PASSWORD_LENGTH,
+        message = "Password must be between \${AppConstants.Validation.MIN_PASSWORD_LENGTH} and \${AppConstants.Validation.MAX_PASSWORD_LENGTH} characters"
+    )
+    val password: String,
+
+    val firstName: String? = null,
+    val lastName: String? = null
+)

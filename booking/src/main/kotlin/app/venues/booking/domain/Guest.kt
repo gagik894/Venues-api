@@ -28,4 +28,11 @@ class Guest(
     @Column(name = "phone", length = 20)
     var phone: String? = null,
 
+    /**
+     * The guest's preferred language for email communications.
+     * Supports: 'en' (English), 'hy' (Armenian), 'ru' (Russian)
+     */
+    @Column(name = "preferred_language", length = 5, nullable = false)
+    var preferredLanguage: String = "en"
+
     ) : AbstractUuidEntity()

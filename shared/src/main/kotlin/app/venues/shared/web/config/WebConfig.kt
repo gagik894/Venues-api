@@ -1,5 +1,6 @@
 package app.venues.shared.web.config
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -74,6 +75,9 @@ class WebConfig {
                     DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                     DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES
                 )
+
+                // Ensure default-valued fields are included (e.g., ApiResponse.success)
+                serializationInclusion(JsonInclude.Include.ALWAYS)
             }
             .build<ObjectMapper>()
             .registerKotlinModule()

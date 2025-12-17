@@ -148,6 +148,8 @@ class VenueMapper(
 
             status = venue.status,
 
+            translations = venue.translations.map(::toTranslationDto),
+
             createdAt = venue.createdAt,
             lastModifiedAt = venue.lastModifiedAt
         )
@@ -166,7 +168,7 @@ class VenueMapper(
         city: City,
         category: VenueCategory?
     ): Venue {
-        return Venue(
+        val venue = Venue(
             name = request.name,
             slug = request.slug,
             description = request.description,
@@ -191,6 +193,16 @@ class VenueMapper(
 
             organizationId = request.organizationId,
         )
+
+        // Optional presentation/communication fields
+        venue.socialLinks = normalizeSocialLinks(request.socialLinks)
+        venue.notificationEmails = normalizeEmails(request.notificationEmails)
+        request.logoUrl?.let { venue.logoUrl = it }
+        request.coverImageUrl?.let { venue.coverImageUrl = it }
+        request.customDomain?.let { venue.customDomain = it }
+        request.isAlwaysOpen?.let { venue.isAlwaysOpen = it }
+
+        return venue
     }
 
     /**
@@ -199,7 +211,7 @@ class VenueMapper(
      *
      * @param venue Existing venue entity to update
      * @param request UpdateVenueRequest with changes
-     * @param city Optional new city (if cityId provided)
+     * @param city Optional new city (if citySlug provided)
      * @param category Optional new category (if categoryCode provided)
      */
     fun updateEntity(
@@ -228,8 +240,8 @@ class VenueMapper(
         request.website?.let { venue.website = it }
         request.contactEmail?.let { venue.contactEmail = it }
 
-        request.socialLinks?.let { venue.socialLinks = it }
-        request.notificationEmails?.let { venue.notificationEmails = it }
+        request.socialLinks?.let { venue.socialLinks = normalizeSocialLinks(it) }
+        request.notificationEmails?.let { venue.notificationEmails = normalizeEmails(it) }
 
         request.logoUrl?.let { venue.logoUrl = it }
         request.coverImageUrl?.let { venue.coverImageUrl = it }
@@ -287,6 +299,30 @@ class VenueMapper(
             userId = photo.userId,
             createdAt = photo.createdAt
         )
+    }
+
+    private fun normalizeSocialLinks(raw: Map<String, String>?): Map<String, String>? {
+        if (raw == null) return null
+        return raw.entries
+            .mapNotNull { (k, v) ->
+                val key = k.trim()
+                val value = v.trim()
+                if (key.isBlank() || value.isBlank()) null else key to value.take(500)
+            }
+            .take(20)
+            .toMap()
+            .ifEmpty { null }
+    }
+
+    private fun normalizeEmails(raw: List<String>?): List<String> {
+        if (raw == null) return emptyList()
+        return raw.asSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { it.take(320) }
+            .distinct()
+            .take(50)
+            .toList()
     }
 }
 

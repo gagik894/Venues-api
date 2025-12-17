@@ -1,50 +1,51 @@
 package app.venues.staff.api.dto
 
 import app.venues.staff.domain.OrganizationRole
-import app.venues.staff.domain.StaffStatus
 import app.venues.staff.domain.VenueRole
 import java.util.*
 
 /**
- * Basic Profile Info (No permissions here).
+ * Basic staff profile information.
+ *
+ * Contains identifying information and name fields only.
  */
 data class StaffProfileDto(
     val id: UUID,
     val email: String,
     val firstName: String?,
-    val lastName: String?,
-    val status: StaffStatus,
-    val isPlatformSuperAdmin: Boolean
+    val lastName: String?
 )
 
 /**
- * THE HIERARCHY.
- * This tells the Frontend: "Here are the Orgs this user belongs to,
- * and the specific Venues inside those Orgs they can access."
+ * Organization access entry.
  */
-data class StaffGlobalContextDto(
-    val memberships: List<OrganizationMembershipDto>
+data class OrganizationAccessDto(
+    val id: UUID,
+    val role: OrganizationRole
 )
 
-data class OrganizationMembershipDto(
-    val organizationId: UUID,
-    val orgRole: OrganizationRole, // OWNER, ADMIN, MEMBER
-    val venuePermissions: List<VenuePermissionDto>
-)
-
-data class VenuePermissionDto(
-    val venueId: UUID,
-    val role: VenueRole // MANAGER, SCANNER, etc.
+/**
+ * Authorized venue access entry.
+ *
+ * Represents a single venue the staff member can access with their assigned role.
+ */
+data class AuthorizedVenueDto(
+    val id: UUID,
+    val name: String,
+    val slug: String,
+    val role: VenueRole
 )
 
 /**
  * Response DTO for successful staff authentication.
  *
- * Contains JWT token, user profile, and organizational context.
+ * Contains JWT token, basic profile, and flat list of authorized venues with roles.
  */
 data class StaffAuthResponse(
     val token: String,
     val expiresIn: Long,
     val profile: StaffProfileDto,
-    val context: StaffGlobalContextDto
+    val authorizedVenues: List<AuthorizedVenueDto>,
+    val organizations: List<OrganizationAccessDto>,
+    val isSuperAdmin: Boolean
 )

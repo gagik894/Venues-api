@@ -1,6 +1,8 @@
 package app.venues.event.api.dto
 
 import app.venues.event.domain.EventStatus
+import app.venues.event.domain.SessionStatus
+import app.venues.shared.money.MoneyAmount
 import jakarta.validation.constraints.*
 import java.math.BigDecimal
 import java.time.Instant
@@ -32,12 +34,9 @@ data class EventRequest(
 
     val longitude: Double? = null,
 
-    val categoryId: Long? = null,
+    val categoryCode: String? = null,
 
     val tags: Set<String> = emptySet(),
-
-    @field:Size(max = 100, message = "Price range must not exceed 100 characters")
-    val priceRange: String? = null,
 
     @field:Size(min = 3, max = 3, message = "Currency must be 3 characters (ISO 4217)")
     val currency: String = "AMD",
@@ -46,13 +45,15 @@ data class EventRequest(
 
     val status: EventStatus = EventStatus.DRAFT,
 
-    val venueId: UUID,
-
     val sessions: List<EventSessionRequest> = emptyList(),
 
     val translations: List<EventTranslationRequest> = emptyList(),
 
-    val priceTemplates: List<PriceTemplateRequest> = emptyList()
+    /**
+     * Platforms to subscribe for webhook notifications for this event.
+     * Empty list means no external platform will receive updates.
+     */
+    val subscribedPlatformIds: List<UUID> = emptyList()
 )
 
 /**
@@ -69,7 +70,7 @@ data class EventResponse(
     val location: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val categoryId: Long?,
+    val categoryCode: String?,
     val categoryName: String?,
     val tags: Set<String>,
     val priceRange: String?,
@@ -82,7 +83,30 @@ data class EventResponse(
     val sessions: List<EventSessionResponse> = emptyList(),
     // Statistics
     val sessionCount: Int? = null,
-    val upcomingSessionCount: Int? = null
+    val upcomingSessionCount: Int? = null,
+    // Price Templates
+    val priceTemplates: List<PriceTemplateResponse> = emptyList(),
+    // Platform subscriptions (for staff editing)
+    val subscribedPlatformIds: List<UUID> = emptyList(),
+    // Full translations (for admin/staff editors)
+    val translations: List<EventTranslationResponse> = emptyList()
+)
+
+/**
+ * Lightweight response DTO for event lists.
+ */
+data class EventSummaryResponse(
+    val id: UUID,
+    val title: String,
+    val imgUrl: String?,
+    val venueId: UUID,
+    val venueName: String,
+    val location: String?,
+    val categoryName: String?,
+    val priceRange: String?,
+    val currency: String,
+    val status: EventStatus,
+    val startDateTime: String?
 )
 
 // ===========================================
@@ -123,7 +147,7 @@ data class EventSessionResponse(
     val ticketsCount: Int?,
     val ticketsSold: Int,
     val remainingTickets: Int?,
-    val status: EventStatus,
+    val status: SessionStatus,
     val priceOverride: String?,
     val priceRangeOverride: String?,
     val effectivePriceRange: String?,
@@ -149,8 +173,7 @@ data class PriceTemplateRequest(
     val color: String? = null,
 
     @field:NotNull(message = "Price is required")
-    @field:DecimalMin(value = "0.0", message = "Price must be non-negative")
-    var price: BigDecimal,
+    var price: MoneyAmount,
 
     @field:Min(value = 0, message = "Display order must be non-negative")
     val displayOrder: Int = 0
@@ -163,7 +186,8 @@ data class PriceTemplateResponse(
     val id: UUID,
     val templateName: String,
     val color: String?,
-    val price: String
+    val price: MoneyAmount,
+    val isRemovable: Boolean = true // UI hint: false if it's an "Anchor" template
 )
 
 /**
@@ -174,8 +198,24 @@ data class PriceTemplateOverrideRequest(
     val templateName: String,
 
     @field:NotNull(message = "Price is required")
-    @field:DecimalMin(value = "0.0", message = "Price must be non-negative")
-    var price: BigDecimal
+    var price: MoneyAmount
+)
+
+/**
+ * Request DTO for batch assigning price template to seats/tables/GA areas.
+ */
+data class AssignPriceTemplateRequest(
+    @field:NotNull(message = "Template ID is required")
+    var templateId: UUID,
+
+    /** Seat IDs to assign the template to. */
+    val seatIds: List<Long>? = null,
+
+    /** Table IDs to assign the template to. */
+    val tableIds: List<Long>? = null,
+
+    /** GA area IDs to assign the template to. */
+    val gaIds: List<Long>? = null
 )
 
 // ===========================================
@@ -220,9 +260,129 @@ data class EventTranslationResponse(
 data class EventCategoryResponse(
     val id: Long,
     val code: String,
-    val names: Map<String, String>,
+    val names: Map<String, String>, // language code to name
+    val name: String, // localized name
     val color: String?,
     val icon: String?,
     val displayOrder: Int,
 )
 
+// ===========================================
+// EVENT PRICING CONFIGURATION DTOs
+// ===========================================
+
+/**
+ * Response DTO for event-level pricing configuration.
+ *
+ * Aggregates pricing from all sessions to show a unified view:
+ * - If all sessions have same template -> priceTemplateId is set
+ * - If sessions differ -> priceTemplateId is null, isMixed is true
+ *
+ * Does NOT include availability info (sold/reserved status).
+ */
+data class EventPricingConfigurationResponse(
+    val eventId: UUID,
+    val seatingChartId: UUID?,
+
+    /** Price templates available for this event. */
+    val priceTemplates: List<PriceTemplateResponse>,
+
+    /** Seat pricing map: seatId -> pricing info. */
+    val seats: Map<Long, SeatPricingDto>,
+
+    /** Table pricing map: tableId -> pricing info. */
+    val tables: Map<Long, TablePricingDto>,
+
+    /** GA area pricing map: gaAreaId -> pricing info. */
+    val gaAreas: Map<Long, GAPricingDto>
+)
+
+/**
+ * DTO for seat pricing in the aggregated view.
+ *
+ * @property priceTemplateId Template ID if all sessions agree, null if mixed
+ * @property isMixed True if sessions have different templates for this seat
+ */
+data class SeatPricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * DTO for table pricing in the aggregated view.
+ */
+data class TablePricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * DTO for GA area pricing in the aggregated view.
+ */
+data class GAPricingDto(
+    val priceTemplateId: UUID?,
+    val templateName: String?,
+    val color: String?,
+    val isMixed: Boolean = false
+)
+
+/**
+ * Request DTO for assigning price templates at the event level.
+ * Applies to ALL sessions of the event.
+ */
+data class EventPricingAssignRequest(
+    @field:NotNull(message = "Template ID is required")
+    var templateId: UUID,
+
+    /** Seat IDs to assign the template to. */
+    val seatIds: List<Long>? = null,
+
+    /** Table IDs to assign the template to. */
+    val tableIds: List<Long>? = null,
+
+    /** GA area IDs to assign the template to. */
+    val gaIds: List<Long>? = null
+)
+
+// ===========================================
+// STATUS MANAGEMENT DTOs
+// ===========================================
+
+/**
+ * Request DTO for changing event status.
+ * Staff endpoint for status transitions.
+ */
+data class EventStatusChangeRequest(
+    @field:NotNull(message = "Target status is required")
+    val status: EventStatus,
+
+    @field:Size(max = 500, message = "Reason must not exceed 500 characters")
+    val reason: String? = null
+)
+
+/**
+ * Request DTO for changing session status.
+ * Staff endpoint for status transitions.
+ */
+data class SessionStatusChangeRequest(
+    @field:NotNull(message = "Target status is required")
+    val status: SessionStatus,
+
+    @field:Size(max = 500, message = "Reason must not exceed 500 characters")
+    val reason: String? = null
+)
+
+/**
+ * Response DTO for status change operations.
+ * Includes the result and allowed next transitions.
+ */
+data class StatusChangeResponse(
+    val success: Boolean,
+    val currentStatus: String,
+    val allowedTransitions: List<String>,
+    val message: String
+)

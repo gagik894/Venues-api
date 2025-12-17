@@ -111,7 +111,7 @@ DELETE /api/v1/admin/organizations/{id}/venues/{vid}  # Remove venue
   "type": "NON_PROFIT",
   "legalName": "Armenian Opera House SNCO",
   "taxId": "0123456789",
-  "cityId": 1,
+  "citySlug": "yerevan",
   "email": "info@opera.am",
   "phoneNumber": "+37412345678",
   "website": "https://opera.am"

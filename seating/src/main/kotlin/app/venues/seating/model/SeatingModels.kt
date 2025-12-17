@@ -1,11 +1,18 @@
 package app.venues.seating.model
 
-import jakarta.validation.constraints.*
+import app.venues.seating.api.dto.LandmarkDto
+import app.venues.seating.api.dto.ZoneStructureDto
+import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.util.*
 
 /**
  * REST contract DTOs for seating chart management.
  * These types are used by controllers for HTTP request/response.
+ *
+ * Note: Recursive zone/seat/table/GA structures are imported from seating-api
+ * to maintain DRY and consistency with the public cached structure endpoint.
  */
 
 // =================================================================================
@@ -24,7 +31,17 @@ data class SeatingChartRequest(
     val height: Int = 2000,
 
     @field:Size(max = 500, message = "Background URL must not exceed 500 characters")
-    val backgroundUrl: String? = null
+    val backgroundUrl: String? = null,
+
+    /**
+     * Optional transform to position/scale a background image.
+     */
+    val backgroundTransform: BackgroundTransform? = null
+)
+
+data class SeatingChartOverviewResponse(
+    val id: UUID,
+    val name: String,
 )
 
 data class SeatingChartResponse(
@@ -35,6 +52,7 @@ data class SeatingChartResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
+    val backgroundTransform: BackgroundTransform?,
     val totalCapacity: Int,
     val zoneCount: Int,
     val seatCount: Int,
@@ -49,165 +67,20 @@ data class SeatingChartDetailedResponse(
     val width: Int,
     val height: Int,
     val backgroundUrl: String?,
-    val rootZones: List<ZoneResponse>,
+    val backgroundTransform: BackgroundTransform?,
+    val rootZones: List<ZoneStructureDto>,
+    val landmarks: List<LandmarkDto>,
     val createdAt: String,
     val updatedAt: String
 )
 
-// =================================================================================
-// ZONE
-// =================================================================================
-
-data class ZoneRequest(
-    val parentZoneId: Long? = null,
-
-    @field:NotBlank(message = "Zone name is required")
-    @field:Size(max = 100)
-    val name: String,
-
-    @field:NotBlank(message = "Code prefix is required")
-    @field:Pattern(regexp = "^[A-Z0-9_]+$", message = "Code must be uppercase alphanumeric")
-    @field:Size(max = 50)
-    val code: String,
-
-    val x: Double = 0.0,
-    val y: Double = 0.0,
-    val rotation: Double = 0.0,
-    val boundaryPath: String? = null,
-    val displayColor: String? = null
-)
-
-data class ZoneResponse(
-    val id: Long,
-    val parentZoneId: Long?,
-    val name: String,
-    val code: String,
+/**
+ * Optional background transform for chart rendering.
+ */
+data class BackgroundTransform(
     val x: Double,
     val y: Double,
-    val rotation: Double,
-    val boundaryPath: String?,
-    val displayColor: String?,
-    val seatCount: Int,
-    val tableCount: Int,
-    val gaCount: Int,
-    val childZones: List<ZoneResponse>,
-    val seats: List<SeatResponse>,
-    val tables: List<TableResponse>,
-    val gaAreas: List<GaAreaResponse>
-)
-
-// =================================================================================
-// SEAT
-// =================================================================================
-
-data class SeatRequest(
-    @field:NotNull(message = "Zone ID is required")
-    val zoneId: Long,
-
-    val tableId: Long? = null,
-
-    @field:NotBlank(message = "Row label is required")
-    val rowLabel: String,
-
-    @field:NotBlank(message = "Seat number is required")
-    val seatNumber: String,
-
-    val categoryKey: String = "STANDARD",
-
-    val x: Double,
-    val y: Double,
-    val rotation: Double = 0.0,
-
-    val isAccessible: Boolean = false,
-    val isObstructed: Boolean = false
-)
-
-data class SeatResponse(
-    val id: Long,
-    val zoneId: Long,
-    val tableId: Long?,
-    val code: String,
-    val rowLabel: String,
-    val seatNumber: String,
-    val categoryKey: String,
-    val x: Double,
-    val y: Double,
-    val rotation: Double,
-    val isAccessible: Boolean,
-    val isObstructed: Boolean
-)
-
-data class BatchSeatRequest(
-    @field:NotNull val zoneId: Long,
-    @field:NotEmpty val seats: List<SeatBatchItem>
-)
-
-data class SeatBatchItem(
-    @field:NotBlank val rowLabel: String,
-    @field:NotBlank val seatNumber: String,
-    val x: Double,
-    val y: Double,
-    val rotation: Double = 0.0,
-    val categoryKey: String = "STANDARD"
-)
-
-// =================================================================================
-// TABLE
-// =================================================================================
-
-data class TableRequest(
-    @field:NotNull val zoneId: Long,
-
-    @field:NotBlank val tableNumber: String,
-    @field:NotBlank val code: String,
-
-    @field:Min(1) val seatCapacity: Int = 4,
-
-    val shape: String = "ROUND",
-
-    val x: Double,
-    val y: Double,
-    val width: Double,
-    val height: Double,
-    val rotation: Double = 0.0
-)
-
-data class TableResponse(
-    val id: Long,
-    val zoneId: Long,
-    val code: String,
-    val tableNumber: String,
-    val seatCapacity: Int,
-    val shape: String,
-    val x: Double,
-    val y: Double,
-    val width: Double,
-    val height: Double,
-    val rotation: Double
-)
-
-// =================================================================================
-// GENERAL ADMISSION
-// =================================================================================
-
-data class GaAreaRequest(
-    @field:NotNull val zoneId: Long,
-
-    @field:NotBlank val name: String,
-    @field:NotBlank val code: String,
-    @field:Min(1) val capacity: Int,
-
-    val boundaryPath: String? = null,
-    val displayColor: String? = null
-)
-
-data class GaAreaResponse(
-    val id: Long,
-    val zoneId: Long,
-    val code: String,
-    val name: String,
-    val capacity: Int,
-    val boundaryPath: String?,
-    val displayColor: String?
+    val scale: Double,
+    val opacity: Double
 )
 

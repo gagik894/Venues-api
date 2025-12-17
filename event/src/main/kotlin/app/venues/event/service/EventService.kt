@@ -4,10 +4,15 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
 import app.venues.event.domain.Event
+import app.venues.event.domain.EventPriceTemplate
 import app.venues.event.domain.EventStatus
 import app.venues.event.domain.EventTranslation
+import app.venues.event.repository.EventCategoryRepository
 import app.venues.event.repository.EventRepository
 import app.venues.event.repository.EventSessionRepository
+import app.venues.media.api.MediaApi
+import app.venues.media.api.MediaCategory
+import app.venues.platform.api.PlatformSubscriptionApi
 import app.venues.seating.api.SeatingApi
 import app.venues.venue.api.VenueApi
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -36,13 +41,19 @@ import java.util.*
 class EventService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
+    private val eventCategoryRepository: EventCategoryRepository,
     private val eventSessionService: EventSessionService,
     private val eventPriceService: EventPriceService,
-    private val eventMapper: EventMapper,
     private val venueApi: VenueApi,
-    private val seatingApi: SeatingApi
+    private val seatingApi: SeatingApi,
+    private val mediaApi: MediaApi,
+    private val eventMapper: EventMapper,
+    private val eventRevalidationService: EventRevalidationService,
+    private val platformSubscriptionApi: PlatformSubscriptionApi
 ) {
     private val logger = KotlinLogging.logger {}
+    private val staffVisibleStatuses: Set<EventStatus> =
+        EventStatus.entries.filterNot { it == EventStatus.DELETED }.toSet()
 
     // ===========================================
     // EVENT CRUD
@@ -50,40 +61,85 @@ class EventService(
 
     /**
      * Create a new event for a venue.
+     *
+     * @param venueId The ID of the venue creating the event.
+     * @param request The event creation request data.
+     * @param image Optional main image file.
+     * @param secondaryImages Optional list of secondary image files.
+     * @return The created Event entity.
+     * @throws VenuesException.ResourceNotFound If venue, seating chart, or category is not found.
      */
-    fun createEvent(venueId: UUID, request: EventRequest): EventResponse {
+    fun createEvent(
+        venueId: UUID,
+        request: EventRequest,
+        image: org.springframework.web.multipart.MultipartFile? = null,
+        secondaryImages: List<org.springframework.web.multipart.MultipartFile>? = null
+    ): Event {
         logger.debug { "Creating event for venue: $venueId" }
 
         if (!venueApi.venueExists(venueId)) {
             throw VenuesException.ResourceNotFound("Venue not found with ID: $venueId")
         }
 
+        // Fallback to venue location if not provided
+        var location = request.location
+        var latitude = request.latitude
+        var longitude = request.longitude
+
+        if (location == null || latitude == null || longitude == null) {
+            val venueInfo = venueApi.getVenueBasicInfo(venueId)
+            if (venueInfo != null) {
+                if (location == null) location = venueInfo.address
+                if (latitude == null) latitude = venueInfo.latitude
+                if (longitude == null) longitude = venueInfo.longitude
+            }
+        }
+
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
-                ?: throw VenuesException.ResourceNotFound("Seating chart not found with ID: ${request.seatingChartId}")
+        }
+
+        val category = request.categoryCode?.let { code ->
+            eventCategoryRepository.findByCode(code)
+                ?: throw VenuesException.ResourceNotFound("Category not found with code: $code")
+        }
+
+        // Handle image uploads
+        val mainImgUrl = if (image != null && !image.isEmpty) {
+            mediaApi.upload(image, MediaCategory.EVENT, venueId).url
+        } else {
+            request.imgUrl
         }
 
         val event = Event(
             title = request.title,
             description = request.description,
-            imgUrl = request.imgUrl,
+            imgUrl = mainImgUrl,
             venueId = venueId,
-            location = request.location,
-            latitude = request.latitude,
-            longitude = request.longitude,
-            priceRange = request.priceRange,
+            location = location,
+            latitude = latitude,
+            longitude = longitude,
+            priceRange = null,
             currency = request.currency,
             seatingChartId = request.seatingChartId,
+            category = category
         )
 
+        // Handle secondary images
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
+        secondaryImages?.forEach { file ->
+            if (!file.isEmpty) {
+                event.secondaryImgUrls.add(mediaApi.upload(file, MediaCategory.EVENT, venueId).url)
+            }
+        }
         event.tags.addAll(request.tags)
-
-        // Delegate Price Templates
-        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
 
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
+
+        // Update session timestamps for sorting/filtering
+        event.firstSessionStart = event.sessions.minOfOrNull { it.startTime }
+        event.lastSessionEnd = event.sessions.maxOfOrNull { it.endTime }
 
         // Create translations
         updateTranslationsCollection(event, request.translations)
@@ -92,41 +148,69 @@ class EventService(
 
         // Generate configs for sessions now that event is saved
         eventSessionService.generateConfigsForNewSessions(savedEvent)
-        
+        platformSubscriptionApi.updateEventSubscriptions(savedEvent.id, request.subscribedPlatformIds)
+
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
-        val venueName = venueApi.getVenueName(venueId)
-        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-
-        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
+        return savedEvent
     }
 
     /**
      * Get event by ID.
+     *
+     * @param id The ID of the event to retrieve.
+     * @return The Event entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
      */
     @Transactional(readOnly = true)
-    fun getEventById(id: UUID, includeStats: Boolean = false, language: String? = null): EventResponse {
-        logger.debug { "Fetching event by ID: $id, language: $language" }
+    fun getEventById(id: UUID): Event {
+        logger.debug { "Fetching event by ID: $id" }
 
-        val event = eventRepository.findById(id)
+        return eventRepository.findById(id)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $id") }
+    }
 
-        val venueName = venueApi.getVenueNameTranslated(event.venueId, language) ?: "Unknown"
-        val seatingChartName = event.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
+    @Transactional(readOnly = true)
+    fun getPublishedEventById(id: UUID): Event {
+        val event = getEventById(id)
+        if (event.status != EventStatus.PUBLISHED) {
+            throw VenuesException.ResourceNotFound("Event not found with ID: $id")
+        }
+        return event
+    }
 
-        return eventMapper.toResponse(
-            event,
-            venueName = venueName,
-            seatingChartName = seatingChartName,
-            includeStats = includeStats,
-            language = language
-        )
+    @Transactional(readOnly = true)
+    fun getEventForVenueStaff(eventId: UUID, venueId: UUID): Event {
+        val event = getEventById(eventId)
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Event does not belong to this venue")
+        }
+        if (event.status == EventStatus.DELETED) {
+            throw VenuesException.ResourceNotFound("Event not found with ID: $eventId")
+        }
+        return event
     }
 
     /**
      * Update event.
+     *
+     * @param eventId The ID of the event to update.
+     * @param venueId The ID of the venue requesting the update (for ownership check).
+     * @param request The event update request data.
+     * @param image Optional new main image file.
+     * @param secondaryImages Optional list of new secondary image files.
+     * @return The updated Event entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     * @throws VenuesException.AuthorizationFailure If venueId does not match event owner.
+     * @throws VenuesException.ValidationFailure If event is not in editable state.
      */
-    fun updateEvent(eventId: UUID, venueId: UUID, request: EventRequest): EventResponse {
+    fun updateEvent(
+        eventId: UUID,
+        venueId: UUID,
+        request: EventRequest,
+        image: org.springframework.web.multipart.MultipartFile? = null,
+        secondaryImages: List<org.springframework.web.multipart.MultipartFile>? = null
+    ): Event {
         logger.debug { "Updating event: $eventId for venue: $venueId" }
 
         val event = eventRepository.findById(eventId)
@@ -142,32 +226,70 @@ class EventService(
             throw VenuesException.ValidationFailure("Event cannot be edited in current status: ${event.status}")
         }
 
+        if (event.seatingChartId != null && request.seatingChartId != event.seatingChartId) {
+            throw VenuesException.ValidationFailure("Seating chart cannot be changed after event creation")
+        }
+
         if (request.seatingChartId != null) {
             seatingApi.getSeatingChartName(request.seatingChartId)
+        }
+
+        // Fallback to venue location if not provided
+        var location = request.location
+        var latitude = request.latitude
+        var longitude = request.longitude
+
+        if (location == null || latitude == null || longitude == null) {
+            val venueInfo = venueApi.getVenueBasicInfo(venueId)
+            if (venueInfo != null) {
+                if (location == null) location = venueInfo.address
+                if (latitude == null) latitude = venueInfo.latitude
+                if (longitude == null) longitude = venueInfo.longitude
+            }
         }
 
         // Update fields
         event.title = request.title
         event.description = request.description
-        event.imgUrl = request.imgUrl
-        event.location = request.location
-        event.latitude = request.latitude
-        event.longitude = request.longitude
-        event.priceRange = request.priceRange
+
+        // Update main image if provided, otherwise keep existing or use URL from request
+        if (image != null && !image.isEmpty) {
+            event.imgUrl = mediaApi.upload(image, MediaCategory.EVENT, venueId).url
+        } else if (request.imgUrl != null) {
+            event.imgUrl = request.imgUrl
+        }
+
+        event.location = location
+        event.latitude = latitude
+        event.longitude = longitude
         event.currency = request.currency
         event.seatingChartId = request.seatingChartId
+
+        if (request.categoryCode != null) {
+            event.category = eventCategoryRepository.findByCode(request.categoryCode)
+                ?: throw VenuesException.ResourceNotFound("Category not found with code: ${request.categoryCode}")
+        } else {
+            event.category = null
+        }
 
         // Update collections
         event.secondaryImgUrls.clear()
         event.secondaryImgUrls.addAll(request.secondaryImgUrls)
+        secondaryImages?.forEach { file ->
+            if (!file.isEmpty) {
+                event.secondaryImgUrls.add(mediaApi.upload(file, MediaCategory.EVENT, venueId).url)
+            }
+        }
+        
         event.tags.clear()
         event.tags.addAll(request.tags)
 
-        // Delegate Price Templates
-        eventPriceService.updatePriceTemplates(event, request.priceTemplates)
-
         // Delegate Sessions
         eventSessionService.updateSessions(event, request.sessions)
+
+        // Update session timestamps for sorting/filtering
+        event.firstSessionStart = event.sessions.minOfOrNull { it.startTime }
+        event.lastSessionEnd = event.sessions.maxOfOrNull { it.endTime }
 
         // Update translations
         updateTranslationsCollection(event, request.translations)
@@ -176,17 +298,23 @@ class EventService(
 
         // Generate configs for any new sessions
         eventSessionService.generateConfigsForNewSessions(savedEvent)
+
+        eventRevalidationService.onEventUpdated(savedEvent, includeDetail = true, reason = "event-updated")
+        platformSubscriptionApi.updateEventSubscriptions(savedEvent.id, request.subscribedPlatformIds)
         
         logger.info { "Event updated successfully: $eventId" }
 
-        val venueName = venueApi.getVenueName(venueId) ?: "Unknown"
-        val seatingChartName = savedEvent.seatingChartId?.let { seatingApi.getSeatingChartName(it) }
-
-        return eventMapper.toResponse(savedEvent, venueName = venueName, seatingChartName = seatingChartName)
+        return savedEvent
     }
+
+    @Transactional(readOnly = true)
+    fun getPlatformSubscriptions(eventId: UUID): List<UUID> =
+        platformSubscriptionApi.getEventSubscriptions(eventId)
 
     /**
      * Delete event.
+     * Government-quality rule: events with any sold tickets cannot be deleted.
+     * If there are no sales, allow hard delete; otherwise, instruct to archive.
      */
     fun deleteEvent(eventId: UUID, venueId: UUID) {
         logger.debug { "Deleting event: $eventId" }
@@ -194,13 +322,31 @@ class EventService(
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
 
+        val previousStatus = event.status
+
         // Verify ownership
         if (event.venueId != venueId) {
             throw VenuesException.AuthorizationFailure("You can only delete your own events")
         }
 
+        // Check for any sales across all sessions
+        val hasSales = event.sessions.any { it.ticketsSold > 0 }
+
+        if (hasSales) {
+            logger.warn { "Attempt to delete event $eventId with sold tickets" }
+            throw VenuesException.ResourceConflict(
+                "Event cannot be deleted because tickets have been sold. Please archive the event instead."
+            )
+        }
+
+        // Hard delete - clean up subscriptions
+        platformSubscriptionApi.updateEventSubscriptions(eventId, emptyList())
         eventRepository.delete(event)
-        logger.info { "Event deleted successfully: $eventId" }
+        logger.info { "Event hard deleted successfully: $eventId" }
+
+        if (previousStatus in setOf(EventStatus.PUBLISHED, EventStatus.SUSPENDED, EventStatus.ARCHIVED)) {
+            eventRevalidationService.onUnpublish(event, "event-deleted")
+        }
     }
 
     // ===========================================
@@ -208,96 +354,272 @@ class EventService(
     // ===========================================
 
     /**
-     * Get all publicly visible events.
+     * Get all publicly visible events as summaries.
+     *
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
      */
     @Transactional(readOnly = true)
-    fun getAllEvents(pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching all publicly visible events, language: $language" }
-        return mapEventsWithVenueNames(eventRepository.findByStatus(EventStatus.UPCOMING, pageable), language)
+    fun getAllEventSummaries(pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching all publicly visible events (summary)" }
+        val events = eventRepository.findByStatus(EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Search events by title as summaries.
+     *
+     * @param searchTerm The term to search for in event titles.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun searchEventSummaries(searchTerm: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Searching events (summary): $searchTerm" }
+        val events = eventRepository.searchByTitle(searchTerm, EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by venue as summaries.
+     *
+     * @param venueId The ID of the venue.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByVenue(venueId: UUID, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for venue (summary): $venueId" }
+        val events = eventRepository.findByVenueIdAndStatus(venueId, EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    @Transactional(readOnly = true)
+    fun getStaffEventSummariesByVenue(
+        venueId: UUID,
+        pageable: Pageable,
+        statuses: Set<EventStatus>?,
+        language: String?
+    ): Page<EventSummaryResponse> {
+        val effectiveStatuses = statuses?.takeIf { it.isNotEmpty() } ?: staffVisibleStatuses
+        val resolvedStatuses =
+            effectiveStatuses.filterNot { it == EventStatus.DELETED }.toSet().ifEmpty { staffVisibleStatuses }
+        val events = eventRepository.findByVenueIdAndStatusIn(venueId, resolvedStatuses, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by category (code) as summaries.
+     *
+     * @param categoryCode The code of the category.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByCategory(
+        categoryCode: String,
+        pageable: Pageable,
+        language: String?
+    ): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for category (summary): $categoryCode" }
+        val events = eventRepository.findByCategoryCodeAndStatus(categoryCode, EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    /**
+     * Get events by tag as summaries.
+     *
+     * @param tag The tag to filter by.
+     * @param pageable Pagination information.
+     * @param language Optional language code for translations.
+     * @return Page of EventSummaryResponse DTOs.
+     */
+    @Transactional(readOnly = true)
+    fun getEventSummariesByTag(tag: String, pageable: Pageable, language: String?): Page<EventSummaryResponse> {
+        logger.debug { "Fetching events for tag (summary): $tag" }
+        val events = eventRepository.findByTag(tag, EventStatus.PUBLISHED, pageable)
+        return mapToSummary(events, language)
+    }
+
+    private fun mapToSummary(events: Page<Event>, language: String?): Page<EventSummaryResponse> {
+        val venueIds = events.content.map { it.venueId }.toSet()
+        val venueNames = venueApi.getVenueNamesBatch(venueIds, language)
+
+        return events.map { event ->
+            // Fetch category name within transaction scope
+            val categoryName = event.category?.getName(language ?: "en")
+
+            // Fetch next session time within transaction scope (uses @BatchSize)
+            val nextSession = event.sessions.firstOrNull { it.startTime.isAfter(Instant.now()) }
+                ?: event.sessions.firstOrNull()
+
+            eventMapper.toSummaryResponse(
+                event = event,
+                venueName = venueNames[event.venueId] ?: "Unknown",
+                categoryName = categoryName,
+                startDateTime = nextSession?.startTime?.toString(),
+                language = language
+            )
+        }
+    }
+
+    /**
+     * Get all publicly visible events.
+     *
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
+     */
+    @Transactional(readOnly = true)
+    fun getAllEvents(pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching all publicly visible events" }
+        return eventRepository.findByStatus(EventStatus.PUBLISHED, pageable)
     }
 
     /**
      * Search events by title.
+     *
+     * @param searchTerm The term to search for in event titles.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun searchEvents(searchTerm: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Searching events: $searchTerm, language: $language" }
-        return mapEventsWithVenueNames(
-            eventRepository.searchByTitle(searchTerm, EventStatus.UPCOMING, pageable),
-            language
-        )
+    fun searchEvents(searchTerm: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Searching events: $searchTerm" }
+        return eventRepository.searchByTitle(searchTerm, EventStatus.PUBLISHED, pageable)
     }
 
     /**
      * Get events by venue.
+     *
+     * @param venueId The ID of the venue.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getEventsByVenue(venueId: UUID, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for venue: $venueId, language: $language" }
-
-        val venueName = venueApi.getVenueNameTranslated(venueId, language) ?: "Unknown"
-
-        return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.UPCOMING, pageable)
-            .map { event -> mapEventToResponse(event, venueName, language) }
+    fun getEventsByVenue(venueId: UUID, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for venue: $venueId" }
+        return eventRepository.findByVenueIdAndStatus(venueId, EventStatus.PUBLISHED, pageable)
     }
 
     /**
-     * Get events by category.
+     * Get events by category code.
      */
     @Transactional(readOnly = true)
-    fun getEventsByCategory(categoryId: Long, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for category: $categoryId, language: $language" }
-        return mapEventsWithVenueNames(
-            eventRepository.findByCategoryIdAndStatus(
-                categoryId,
-                EventStatus.UPCOMING,
-                pageable
-            ), language
-        )
+    fun getEventsByCategory(categoryCode: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for category: $categoryCode" }
+        return eventRepository.findByCategoryCodeAndStatus(categoryCode, EventStatus.PUBLISHED, pageable)
     }
 
     /**
      * Get events by tag.
+     *
+     * @param tag The tag to filter by.
+     * @param pageable Pagination information.
+     * @return Page of Event entities.
      */
     @Transactional(readOnly = true)
-    fun getEventsByTag(tag: String, pageable: Pageable, language: String? = null): Page<EventResponse> {
-        logger.debug { "Fetching events for tag: $tag, language: $language" }
-        return mapEventsWithVenueNames(eventRepository.findByTag(tag, EventStatus.UPCOMING, pageable), language)
+    fun getEventsByTag(tag: String, pageable: Pageable): Page<Event> {
+        logger.debug { "Fetching events for tag: $tag" }
+        return eventRepository.findByTag(tag, EventStatus.PUBLISHED, pageable)
     }
 
     // ===========================================
-    // PRIVATE HELPER METHODS
+    // PRICE TEMPLATE MANAGEMENT
     // ===========================================
 
-    private fun mapEventsWithVenueNames(
-        eventsPage: Page<Event>,
-        language: String?
-    ): Page<EventResponse> {
-        val venueIds = eventsPage.content.map { it.venueId }.toSet()
-        val venueNamesMap = venueApi.getVenueNamesBatch(venueIds, language)
+    /**
+     * Get price templates for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventPriceTemplate entities.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     */
+    fun getPriceTemplates(eventId: UUID): List<EventPriceTemplate> {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
 
-        return eventsPage.map { event ->
-            val venueName = venueNamesMap[event.venueId] ?: "Unknown"
-            mapEventToResponse(event, venueName, language)
-        }
+        return event.priceTemplates.toList()
     }
 
-    private fun mapEventToResponse(
-        event: Event,
-        venueName: String,
-        language: String?
-    ): EventResponse {
-        val seatingChartName = event.seatingChartId?.let {
-            seatingApi.getSeatingChartName(it)
+    /**
+     * Create a price template for an event.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue (for ownership check).
+     * @param request The price template creation request.
+     * @return The created EventPriceTemplate entity.
+     * @throws VenuesException.ResourceNotFound If event is not found.
+     * @throws VenuesException.AuthorizationFailure If venueId does not match event owner.
+     */
+    fun createPriceTemplate(eventId: UUID, venueId: UUID, request: PriceTemplateRequest): EventPriceTemplate {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
         }
 
-        return eventMapper.toResponse(
-            event,
-            venueName = venueName,
-            seatingChartName = seatingChartName,
-            includeStats = true,
-            language = language
-        )
+        val template = eventPriceService.createTemplate(event, request)
+        eventRepository.save(event)
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-created")
+
+        return template
+    }
+
+    /**
+     * Update a price template.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue.
+     * @param templateId The ID of the template to update.
+     * @param request The update request.
+     * @return The updated EventPriceTemplate entity.
+     */
+    fun updatePriceTemplate(
+        eventId: UUID,
+        venueId: UUID,
+        templateId: UUID,
+        request: PriceTemplateRequest
+    ): EventPriceTemplate {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+
+        val template = eventPriceService.updateTemplate(event, templateId, request)
+        eventRepository.save(event)
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-updated")
+
+        return template
+    }
+
+    /**
+     * Delete a price template.
+     *
+     * @param eventId The ID of the event.
+     * @param venueId The ID of the venue.
+     * @param templateId The ID of the template to delete.
+     */
+    fun deletePriceTemplate(eventId: UUID, venueId: UUID, templateId: UUID) {
+        val event = eventRepository.findById(eventId)
+            .orElseThrow { VenuesException.ResourceNotFound("Event not found: $eventId") }
+
+        if (event.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Not authorized")
+        }
+
+        eventPriceService.deleteTemplate(event, templateId)
+        eventRepository.save(event)
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-deleted")
     }
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {
@@ -333,35 +655,49 @@ class EventService(
 
     /**
      * Get sessions for an event.
+     *
+     * @param eventId The ID of the event.
+     * @param pageable Pagination information.
+     * @return Page of EventSessionResponse DTOs.
      */
     @Transactional(readOnly = true)
     fun getEventSessions(eventId: UUID, pageable: Pageable): Page<EventSessionResponse> {
         logger.debug { "Fetching sessions for event: $eventId" }
-        return eventSessionRepository.findByEventId(eventId, pageable)
-            .map { eventMapper.toSessionResponse(it) }
+        val sessions = eventSessionRepository.findByEventId(eventId, pageable)
+        return sessions.map { session ->
+            eventMapper.toSessionResponse(session)
+        }
     }
 
     /**
      * Get upcoming bookable sessions for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventSessionResponse DTOs.
      */
     @Transactional(readOnly = true)
     fun getBookableSessions(eventId: UUID): List<EventSessionResponse> {
         logger.debug { "Fetching bookable sessions for event: $eventId" }
-        return eventSessionRepository.findBookableSessions(eventId, Instant.now())
-            .map { eventMapper.toSessionResponse(it) }
+        val sessions = eventSessionRepository.findBookableSessions(eventId, Instant.now())
+        return sessions.map { session ->
+            eventMapper.toSessionResponse(session)
+        }
     }
 
     /**
      * Get translations for an event.
+     *
+     * @param eventId The ID of the event.
+     * @return List of EventTranslation entities.
      */
     @Transactional(readOnly = true)
-    fun getTranslations(eventId: UUID): List<EventTranslationResponse> {
+    fun getTranslations(eventId: UUID): List<EventTranslation> {
         logger.debug { "Fetching translations for event: $eventId" }
 
         val event = eventRepository.findById(eventId)
             .orElseThrow { VenuesException.ResourceNotFound("Event not found with ID: $eventId") }
 
-        return event.translations.map { eventMapper.toTranslationResponse(it) }
+        return event.translations.toList()
     }
 
     // ===========================================
@@ -407,6 +743,8 @@ class EventService(
                 eventSessionService.assignPriceTemplateToGa(sessionId, template, gaId)
             }
         }
+
+        eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-assigned")
     }
 }
 

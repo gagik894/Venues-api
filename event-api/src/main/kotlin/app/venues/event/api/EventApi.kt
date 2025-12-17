@@ -1,7 +1,6 @@
 package app.venues.event.api
 
-import app.venues.event.api.dto.EventSessionDto
-import app.venues.event.api.dto.GaAvailabilityDto
+import app.venues.event.api.dto.*
 import java.math.BigDecimal
 import java.util.*
 
@@ -32,6 +31,52 @@ interface EventApi {
      * @return [EventSessionDto] with session details, or null if not found.
      */
     fun getEventSessionInfo(sessionId: UUID): EventSessionDto?
+
+    /**
+     * Returns the dynamic inventory snapshot for a session (seat, GA, table state).
+     *
+     * Used by downstream modules for analytics and dashboards without duplicating
+     * the heavy inventory mapping logic from the event module.
+     *
+     * @param sessionId Event session ID.
+     * @return [SessionInventoryResponse] or null if the session cannot be resolved.
+     */
+    fun getSessionInventory(sessionId: UUID): SessionInventoryResponse?
+
+    /**
+     * Get event title with translation support.
+     *
+     * @param eventId Event UUID.
+     * @param language Language code (e.g., "hy", "ru", "en"). Null returns default title.
+     * @return Translated title if available, or default title, or null if event not found.
+     */
+    fun getEventTitleTranslated(eventId: UUID, language: String?): String?
+
+    /**
+     * Returns all session IDs for a given event.
+     * Used for event-level booking queries.
+     *
+     * @param eventId Event UUID.
+     * @return List of session UUIDs for the event.
+     */
+    fun getSessionIdsForEvent(eventId: UUID): List<UUID>
+
+    /**
+     * Returns published events for a venue.
+     * Used by white-label sites for venue-scoped event listings.
+     *
+     * @param venueId Venue UUID.
+     * @param language Language code for translations.
+     * @param limit Max events to return (default 20).
+     * @param offset Pagination offset (default 0).
+     * @return List of event summaries.
+     */
+    fun getEventsByVenue(
+        venueId: UUID,
+        language: String?,
+        limit: Int = 20,
+        offset: Int = 0
+    ): List<EventSummaryDto>
 
     // Seat Reservation
 
@@ -216,6 +261,26 @@ interface EventApi {
      */
     fun getTablePriceTemplateNames(sessionId: UUID, tableIds: List<Long>): Map<Long, String?>
 
+    /**
+     * Close seats (set status to CLOSED).
+     */
+    fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Reopen closed seats (CLOSED -> AVAILABLE).
+     */
+    fun reopenSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Close tables (set status to CLOSED).
+     */
+    fun closeTables(sessionId: UUID, tableIds: List<Long>): Int
+
+    /**
+     * Reopen closed tables (CLOSED -> AVAILABLE).
+     */
+    fun reopenTables(sessionId: UUID, tableIds: List<Long>): Int
+
     // Sale Confirmation (Reserved -> Sold)
 
     /**
@@ -269,4 +334,58 @@ interface EventApi {
      * @param tableIds List of table IDs to sell.
      */
     fun sellTablesBatch(sessionId: UUID, tableIds: List<Long>)
+
+    /**
+     * Atomically increments the session-level tickets sold counter.
+     *
+     * @return true if the increment succeeded, false if capacity would be exceeded.
+     */
+    fun incrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
+
+    /**
+     * Atomically decrements the session-level tickets sold counter.
+     *
+     * @return true if the decrement succeeded, false if there were not enough sold tickets.
+     */
+    fun decrementTicketsSold(sessionId: UUID, quantity: Int): Boolean
+
+    /**
+     * Reconcile cached ticketsSold with authoritative inventory state.
+     */
+    fun reconcileTicketsSold(sessionId: UUID)
+
+    // Ticket Stats
+
+    /**
+     * Returns ticket statistics for a session.
+     *
+     * @param sessionId Event session ID.
+     * @return Session ticket stats or null if session not found.
+     */
+    fun getSessionTicketStats(sessionId: UUID): SessionTicketStatsDto?
+
+    /**
+     * Returns ticket statistics for all sessions of an event.
+     *
+     * @param eventId Event ID.
+     * @return List of session ticket stats (empty if event not found or has no sessions).
+     */
+    fun getEventTicketStats(eventId: UUID): List<SessionTicketStatsDto>
+
+    /**
+     * Check if any event/session references the given seating chart.
+     * Used by seating module to guard destructive operations.
+     */
+    fun seatingChartInUse(chartId: UUID): Boolean
+
+    /**
+     * Reduce GA capacity by specified quantity (for closing tickets from cart).
+     * Ensures capacity doesn't go below soldCount.
+     *
+     * @param sessionId Event session ID.
+     * @param gaAreaId GA area ID.
+     * @param quantity Quantity to reduce capacity by.
+     * @return true if successful, false if capacity would go below soldCount.
+     */
+    fun reduceGACapacity(sessionId: UUID, gaAreaId: Long, quantity: Int): Boolean
 }

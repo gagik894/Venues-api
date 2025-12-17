@@ -1,6 +1,6 @@
 package app.venues.finance.converter
 
-import app.venues.finance.dto.PaymentConfig
+import app.venues.finance.api.dto.PaymentConfig
 import app.venues.shared.security.VenueConfigEncryptionService
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging

@@ -64,6 +64,64 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     fun findAvailableSeatIdsBySession(sessionId: UUID): List<Long>
 
     /**
+     * Count seats marked as SOLD for a session.
+     * Used for ticket counter reconciliation.
+     */
+    @Query(
+        """
+        SELECT COUNT(sc)
+        FROM SessionSeatConfig sc
+        WHERE sc.session.id = :sessionId
+        AND sc.status = app.venues.event.domain.ConfigStatus.SOLD
+    """
+    )
+    fun countSoldSeats(sessionId: UUID): Long
+
+    /**
+     * Count seats for a session by status (supports sparse matrix).
+     */
+    @Query(
+        """
+        SELECT COUNT(sc)
+        FROM SessionSeatConfig sc
+        WHERE sc.session.id = :sessionId
+        AND sc.status IN :statuses
+    """
+    )
+    fun countBySessionIdAndStatusIn(sessionId: UUID, statuses: Collection<ConfigStatus>): Long
+
+    /**
+     * Atomically close multiple seats (set to CLOSED status).
+     * Does not affect SOLD seats.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status != app.venues.event.domain.ConfigStatus.SOLD
+        """
+    )
+    fun closeSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
+     * Atomically reopen previously closed seats (CLOSED -> AVAILABLE).
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """
+        UPDATE SessionSeatConfig sc
+        SET sc.status = app.venues.event.domain.ConfigStatus.AVAILABLE
+        WHERE sc.session.id = :sessionId
+        AND sc.seatId IN :seatIds
+        AND sc.status = app.venues.event.domain.ConfigStatus.CLOSED
+        """
+    )
+    fun reopenClosedSeats(sessionId: UUID, seatIds: List<Long>): Int
+
+    /**
      * Get the price for a seat if it's available for reservation.
      * This should be called BEFORE reserveSeatIfAvailable to check price.
      *
@@ -111,6 +169,14 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
     """
     )
     fun reserveSeatAndGetPrice(sessionId: UUID, seatId: Long): java.math.BigDecimal?
+
+    /**
+     * Atomically reserves a seat if it is available.
+     * Returns 1 if successful, 0 if seat was not found or not available.
+     */
+    @Modifying
+    @Query("UPDATE SessionSeatConfig s SET s.status = app.venues.event.domain.ConfigStatus.RESERVED WHERE s.session.id = :sessionId AND s.seatId = :seatId AND s.status = app.venues.event.domain.ConfigStatus.AVAILABLE")
+    fun reserveSeatAtomic(sessionId: UUID, seatId: Long): Int
 
     /**
      * Atomically block multiple seats (set to BLOCKED status).
@@ -190,7 +256,7 @@ interface SessionSeatConfigRepository : JpaRepository<SessionSeatConfig, Long> {
         SET sc.priceTemplate = :template
         WHERE sc.session.id = :sessionId
         AND sc.seatId IN :seatIds
-        AND sc.status != app.venues.event.domain.ConfigStatus.SOLD
+        AND sc.status NOT IN (app.venues.event.domain.ConfigStatus.SOLD, app.venues.event.domain.ConfigStatus.RESERVED)
     """
     )
     fun batchUpdatePriceTemplate(

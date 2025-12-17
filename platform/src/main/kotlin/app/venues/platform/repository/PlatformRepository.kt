@@ -33,6 +33,15 @@ interface PlatformRepository : JpaRepository<Platform, UUID> {
     ): List<Platform>
 
     /**
+     * Find active platforms with webhooks enabled from a list of IDs.
+     */
+    fun findByIdInAndStatusAndWebhookEnabled(
+        ids: List<UUID>,
+        status: PlatformStatus,
+        webhookEnabled: Boolean
+    ): List<Platform>
+
+    /**
      * Check if platform exists by name
      */
     fun existsByName(name: String): Boolean

@@ -68,7 +68,7 @@ data class LocalizedHeroConfigDto(
 )
 
 data class LocalizedContentBlockDto(
-    val type: String,
+    val type: String, // "text", "image", "image_right", "image_left"
     val title: String?,
     val body: String?,
     val imageUrl: String?

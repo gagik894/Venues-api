@@ -1,5 +1,6 @@
 package app.venues.common.model
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 
@@ -14,15 +15,14 @@ import kotlinx.serialization.Serializable
  * @property message Human-readable success message
  * @property data The actual response payload (optional - null for operations like delete, password change)
  * @property timestamp ISO-8601 formatted timestamp of the response
- * @property metadata Optional metadata about the response (pagination, etc.)
  */
 @Serializable
+@JsonInclude(JsonInclude.Include.ALWAYS)
 data class ApiResponse<T>(
-    val success: Boolean = true,
+    val success: Boolean,
     val message: String = "Operation completed successfully",
     val data: T? = null,
-    val timestamp: String,
-    val metadata: ResponseMetadata? = null
+    val timestamp: String
 ) {
     companion object {
         /**
@@ -30,20 +30,17 @@ data class ApiResponse<T>(
          *
          * @param data The payload to return
          * @param message Optional success message
-         * @param metadata Optional response metadata
          * @return ApiResponse wrapping the provided data
          */
         fun <T> success(
             data: T,
-            message: String = "Operation completed successfully",
-            metadata: ResponseMetadata? = null
+            message: String = "Operation completed successfully"
         ): ApiResponse<T> {
             return ApiResponse(
                 success = true,
                 message = message,
                 data = data,
-                timestamp = Clock.System.now().toString(),
-                metadata = metadata
+                timestamp = Clock.System.now().toString()
             )
         }
 
@@ -61,8 +58,7 @@ data class ApiResponse<T>(
                 success = true,
                 message = message,
                 data = null,
-                timestamp = Clock.System.now().toString(),
-                metadata = null
+                timestamp = Clock.System.now().toString()
             )
         }
     }
@@ -81,8 +77,9 @@ data class ApiResponse<T>(
  * @property traceId Optional trace ID for error tracking and debugging
  */
 @Serializable
+@JsonInclude(JsonInclude.Include.ALWAYS)
 data class ApiErrorResponse(
-    val success: Boolean = false,
+    val success: Boolean,
     val error: ErrorDetail,
     val timestamp: String,
     val path: String? = null,
@@ -104,23 +101,7 @@ data class ErrorDetail(
 )
 
 /**
- * Response metadata for pagination and additional information.
- *
- * @property page Current page number (0-indexed)
- * @property size Number of items per page
- * @property totalElements Total number of items available
- * @property totalPages Total number of pages available
- */
-@Serializable
-data class ResponseMetadata(
-    val page: Int? = null,
-    val size: Int? = null,
-    val totalElements: Long? = null,
-    val totalPages: Int? = null
-)
-
-/**
- * Paginated response wrapper combining data and pagination metadata.
+ * Paginated response wrapper combining data and pagination information.
  *
  * @param T The type of items in the paginated list
  * @property items List of items for the current page
@@ -149,7 +130,7 @@ data class PagedResponse<T>(
          * @param page Current page number (0-indexed)
          * @param size Number of items per page
          * @param totalElements Total number of items available
-         * @return PagedResponse with calculated metadata
+         * @return PagedResponse with calculated pagination data
          */
         fun <T> of(
             items: List<T>,

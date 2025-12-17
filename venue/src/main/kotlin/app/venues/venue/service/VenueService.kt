@@ -6,9 +6,13 @@ import app.venues.venue.api.VenueApi
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.mapper.VenueMapper
 import app.venues.venue.domain.VenueStatus
+import app.venues.venue.domain.VenueTranslation
 import app.venues.venue.repository.VenueCategoryRepository
 import app.venues.venue.repository.VenueRepository
+import app.venues.venue.repository.VenueTranslationRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.cache.annotation.Cacheable
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -32,7 +36,11 @@ class VenueService(
     private val cityRepository: CityRepository,
     private val categoryRepository: VenueCategoryRepository,
     private val venueMapper: VenueMapper,
-    private val promoCodeService: VenuePromoCodeService
+    private val promoCodeService: VenuePromoCodeService,
+    private val venueSettingsService: VenueSettingsService,
+    private val eventPublisher: ApplicationEventPublisher,
+    private val venueRevalidationService: VenueRevalidationService,
+    private val venueTranslationRepository: VenueTranslationRepository
 ) : VenueApi {
     private val logger = KotlinLogging.logger {}
 
@@ -108,6 +116,17 @@ class VenueService(
 
         return venueRepository.findByStatus(VenueStatus.ACTIVE, pageable)
             .map { venueMapper.toPublicResponse(it, lang, includeStats = true) }
+    }
+
+    /**
+     * Lists all active venue custom domains.
+     *
+     * @return List of active venue domains
+     */
+    fun listActiveVenueDomains(): List<String> {
+        logger.debug { "Listing active venue domains" }
+
+        return venueRepository.findAllActiveDomains()
     }
 
     /**
@@ -210,13 +229,11 @@ class VenueService(
             )
         }
 
-        // Fetch and validate city
-        val city = cityRepository.findById(request.cityId).orElseThrow {
-            VenuesException.ValidationFailure(
-                message = "Invalid city ID",
-                errorCode = "INVALID_CITY"
-            )
-        }
+        // Fetch and validate city by slug
+        val city = cityRepository.findBySlug(request.citySlug) ?: throw VenuesException.ValidationFailure(
+            message = "Invalid city slug",
+            errorCode = "INVALID_CITY"
+        )
 
         // Fetch and validate category (optional)
         val category = request.categoryCode?.let { code ->
@@ -228,6 +245,7 @@ class VenueService(
         }
 
         val venue = venueMapper.toEntity(request, city, category)
+        request.translations?.let { applyTranslations(venue, it) }
         val saved = venueRepository.save(venue)
 
         logger.info { "Venue created: id=${saved.id}, slug=${saved.slug}" }
@@ -255,14 +273,12 @@ class VenueService(
             )
         }
 
-        // Fetch new city if provided
-        val city = request.cityId?.let { cityId ->
-            cityRepository.findById(cityId).orElseThrow {
-                VenuesException.ValidationFailure(
-                    message = "Invalid city ID",
-                    errorCode = "INVALID_CITY"
-                )
-            }
+        // Fetch new city if provided (slug)
+        val city = request.citySlug?.let { citySlug ->
+            cityRepository.findBySlug(citySlug) ?: throw VenuesException.ValidationFailure(
+                message = "Invalid city slug",
+                errorCode = "INVALID_CITY"
+            )
         }
 
         // Fetch new category if provided
@@ -274,8 +290,23 @@ class VenueService(
                 )
         }
 
+        val previousDomain = venue.customDomain
+
         venueMapper.updateEntity(venue, request, city, category)
+        request.translations?.let { applyTranslations(venue, it) }
         val saved = venueRepository.save(venue)
+
+        if (previousDomain != saved.customDomain) {
+            eventPublisher.publishEvent(
+                app.venues.shared.web.context.DomainChangedEvent(
+                    venueId = saved.id,
+                    oldDomain = previousDomain,
+                    newDomain = saved.customDomain
+                )
+            )
+        }
+
+        venueRevalidationService.revalidate(saved, reason = "venue-updated")
 
         logger.info { "Venue updated: id=${saved.id}, slug=${saved.slug}" }
         return venueMapper.toAdminResponse(saved)
@@ -330,6 +361,8 @@ class VenueService(
         venue.activate()
         val saved = venueRepository.save(venue)
 
+        venueRevalidationService.revalidate(saved, reason = "venue-activated", force = true)
+
         logger.info { "Venue activated: ${saved.id}" }
         return venueMapper.toAdminResponse(saved)
     }
@@ -348,6 +381,8 @@ class VenueService(
         venue.suspend()
         val saved = venueRepository.save(venue)
 
+        venueRevalidationService.revalidate(saved, reason = "venue-suspended", force = true)
+
         logger.info { "Venue suspended: ${saved.id}" }
         return venueMapper.toAdminResponse(saved)
     }
@@ -365,6 +400,8 @@ class VenueService(
         venue.delete()
         venueRepository.save(venue)
 
+        venueRevalidationService.revalidate(venue, reason = "venue-deleted", force = true)
+
         logger.info { "Venue deleted: $id" }
     }
 
@@ -378,6 +415,7 @@ class VenueService(
      * @param lang Language code for localization
      * @return List of categories
      */
+    @Cacheable(cacheNames = ["venueCategories"], unless = "#result == null or #result.isEmpty()")
     fun listCategories(lang: String = "en"): List<VenueCategoryDto> {
         logger.debug { "Listing venue categories, lang: $lang" }
 
@@ -397,6 +435,30 @@ class VenueService(
             )
         }
 
+    private fun applyTranslations(
+        venue: app.venues.venue.domain.Venue,
+        translationRequests: List<VenueTranslationRequest>
+    ) {
+        val existing = venue.translations.associateBy { it.language.lowercase() }.toMutableMap()
+        translationRequests.forEach { req ->
+            val lang = req.language.lowercase()
+            val translation = existing[lang]
+            if (translation != null) {
+                translation.name = req.name
+                translation.description = req.description
+            } else {
+                venue.translations.add(
+                    VenueTranslation(
+                        venue = venue,
+                        language = lang,
+                        name = req.name,
+                        description = req.description
+                    )
+                )
+            }
+        }
+    }
+
     // ===========================================
     // VenueApi IMPLEMENTATION
     // ===========================================
@@ -409,12 +471,34 @@ class VenueService(
         return VenueBasicInfoDto(
             id = venue.id,
             name = venue.name,
+            slug = venue.slug,
             address = venue.address,
             latitude = venue.latitude,
             longitude = venue.longitude,
             organizationId = venue.organizationId,
-            merchantProfileId = venue.merchantProfileId
+            merchantProfileId = venue.merchantProfileId,
+            customDomain = venue.customDomain
         )
+    }
+
+    /**
+     * Get venue basic info in batch (implements VenueApi interface).
+     */
+    override fun getVenueBasicInfoBatch(venueIds: Set<UUID>): Map<UUID, VenueBasicInfoDto> {
+        val venues = venueRepository.findAllById(venueIds)
+        return venues.associate { venue ->
+            venue.id to VenueBasicInfoDto(
+                id = venue.id,
+                name = venue.name,
+                slug = venue.slug,
+                address = venue.address,
+                latitude = venue.latitude,
+                longitude = venue.longitude,
+                organizationId = venue.organizationId,
+                merchantProfileId = venue.merchantProfileId,
+                customDomain = venue.customDomain
+            )
+        }
     }
 
     /**
@@ -494,7 +578,64 @@ class VenueService(
      */
     @Transactional
     override fun redeemPromoCode(venueId: UUID, code: String) {
-        promoCodeService.redeemPromoCode(venueId, code)
+        promoCodeService.reservePromoCode(venueId, code)
+    }
+
+    @Transactional
+    override fun releasePromoCode(venueId: UUID, code: String) {
+        promoCodeService.releasePromoCode(venueId, code)
+    }
+
+    /**
+     * Get venue's SMTP configuration (implements VenueApi interface).
+     */
+    override fun getSmtpConfig(venueId: UUID): SmtpConfigDto? {
+        val config = venueSettingsService.getSmtpConfig(venueId) ?: return null
+        return SmtpConfigDto(
+            email = config.email,
+            password = config.password,
+            host = config.host,
+            port = config.port,
+            tls = config.tls
+        )
+    }
+
+    /**
+     * Get venue by custom domain (implements VenueApi interface).
+     * Used for white-label site resolution.
+     */
+    override fun getVenueByDomain(domain: String): VenueBasicInfoDto? {
+        val venue = venueRepository.findByCustomDomainAndStatus(domain, VenueStatus.ACTIVE) ?: return null
+        return VenueBasicInfoDto(
+            id = venue.id,
+            name = venue.name,
+            slug = venue.slug,
+            address = venue.address,
+            latitude = venue.latitude,
+            longitude = venue.longitude,
+            organizationId = venue.organizationId,
+            merchantProfileId = venue.merchantProfileId,
+            customDomain = venue.customDomain
+        )
+    }
+
+    override fun getVenueLanguages(venueId: UUID): Set<String> {
+        val venue = venueRepository.findById(venueId).orElseThrow {
+            VenuesException.ResourceNotFound(
+                message = "Venue not found",
+                errorCode = "VENUE_NOT_FOUND"
+            )
+        }
+        val langs = venue.translations.map { it.language.lowercase() }.toMutableSet()
+        langs.add("en")
+        return langs
+    }
+
+    /**
+     * Get venue IDs for an organization (implements VenueApi interface).
+     */
+    override fun getVenueIdsByOrganizationId(organizationId: UUID): List<UUID> {
+        return venueRepository.findIdsByOrganizationId(organizationId)
     }
 }
 

@@ -31,8 +31,18 @@ interface SeatingApi {
     fun getSeatingChartName(chartId: UUID): String
 
     /**
-     * Get complete chart structure for frontend rendering.
-     * Returns immutable snapshot of zones, tables, seats, and GA areas.
+     * Get total seat count for a chart (optimized - single COUNT query).
+     * Use this instead of getChartStructure when only count is needed.
+     * @return seat count or 0 if chart not found
+     */
+    fun getSeatCount(chartId: UUID): Int
+
+    /**
+     * Get complete chart structure for backend operations (admin, session setup).
+     * NOTE: For user-facing APIs, use the Split Strategy:
+     * - Static: GET /seating-charts/{chartId}/structure (cached)
+     * - Dynamic: GET /sessions/{sessionId}/inventory (real-time)
+     *
      * @return full structure or null if chart not found
      */
     fun getChartStructure(chartId: UUID): SeatingChartStructureDto?
@@ -112,4 +122,44 @@ interface SeatingApi {
      * @return list of seats in the table (empty if table has no seats)
      */
     fun getSeatsForTable(tableId: Long): List<SeatInfoDto>
+
+    /**
+     * Get the full hierarchy of zones for a given zone ID.
+     * Returns a list of SectionInfoDto ordered from Root -> Leaf.
+     * @param zoneId The ID of the zone (leaf or intermediate)
+     * @return List of zones in the hierarchy
+     */
+    fun getZoneHierarchy(zoneId: Long): List<SectionInfoDto>
+
+    // --- Location Display Operations ---
+
+    /**
+     * Get formatted location lines for a seat (for tickets, emails, PDFs).
+     * Returns hierarchy + row + seat, each on separate line for multi-line display.
+     * Example: ["Right Tribune", "Sector 5", "Row 3", "Seat 10"]
+     * @param seatId The seat ID
+     * @param locale The locale for i18n (e.g., "en", "hy", "ru")
+     * @return List of location lines, or empty if seat not found
+     */
+    fun getSeatLocationLines(seatId: Long, locale: String?): List<String>
+
+    /**
+     * Get formatted location lines for a GA area (for tickets, emails, PDFs).
+     * Returns hierarchy + GA name.
+     * Example: ["Main Hall", "Fan Zone"]
+     * @param gaAreaId The GA area ID
+     * @param locale The locale for i18n
+     * @return List of location lines, or empty if GA not found
+     */
+    fun getGaLocationLines(gaAreaId: Long, locale: String?): List<String>
+
+    /**
+     * Get formatted location lines for a table (for tickets, emails, PDFs).
+     * Returns hierarchy + table number.
+     * Example: ["VIP Section", "Table 5"]
+     * @param tableId The table ID
+     * @param locale The locale for i18n
+     * @return List of location lines, or empty if table not found
+     */
+    fun getTableLocationLines(tableId: Long, locale: String?): List<String>
 }

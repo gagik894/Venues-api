@@ -19,7 +19,9 @@ import java.util.*
  * @param sessionId The [UUID] of the `EventSession` this booking applies to.
  * @param totalPrice The total monetary value of the booking.
  * @param currency The 3-letter ISO currency code (default "AMD").
- * @param platformId The [UUID] of the external platform initiating the booking (if applicable).
+ * @param salesChannel The channel through which this booking was created (WEBSITE, DIRECT_SALE, PLATFORM).
+ * @param platformId The [UUID] of the external platform initiating the booking (only for PLATFORM sales).
+ * @param staffId The [UUID] of the staff member who created this booking (only for DIRECT_SALE).
  * @param venueId The [UUID] of the venue (denormalized for faster reporting).
  * @param externalOrderNumber An optional reference number from an external system.
  */
@@ -31,7 +33,10 @@ import java.util.*
         Index(name = "idx_booking_guest_id", columnList = "guest_id"),
         Index(name = "idx_booking_session_id", columnList = "session_id"),
         Index(name = "idx_booking_platform_id", columnList = "platform_id"),
-        Index(name = "idx_booking_venue_id", columnList = "venue_id")
+        Index(name = "idx_booking_venue_id", columnList = "venue_id"),
+        Index(name = "idx_booking_sales_channel", columnList = "sales_channel"),
+        Index(name = "idx_booking_staff_id", columnList = "staff_id"),
+        Index(name = "idx_booking_channel_status", columnList = "sales_channel, status")
     ]
 )
 class Booking(
@@ -51,8 +56,15 @@ class Booking(
     @Column(name = "currency", nullable = false, length = 3)
     var currency: String = "AMD",
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sales_channel", nullable = false, length = 20)
+    var salesChannel: SalesChannel,
+
     @Column(name = "platform_id")
     var platformId: UUID?,
+
+    @Column(name = "staff_id")
+    var staffId: UUID?,
 
     @Column(name = "venue_id")
     var venueId: UUID?,
@@ -78,7 +90,25 @@ class Booking(
     init {
         require(serviceFeeAmount.signum() >= 0) { "serviceFeeAmount must be >= 0" }
         require(discountAmount.signum() >= 0) { "discountAmount must be >= 0" }
-        // Total price check is complex because it depends on calculation order (base + fee - discount)
+
+        // Validate sales channel constraints
+        when (salesChannel) {
+            SalesChannel.PLATFORM -> {
+                require(platformId != null) {
+                    "PLATFORM sales must have platformId set"
+                }
+            }
+
+            SalesChannel.DIRECT_SALE -> {
+                require(staffId != null) {
+                    "DIRECT_SALE must have staffId set to track which staff member made the sale"
+                }
+            }
+
+            SalesChannel.WEBSITE -> {
+                // No additional constraints for website sales
+            }
+        }
     }
 
     // --- Internal State (Encapsulated) ---
@@ -113,9 +143,6 @@ class Booking(
     val items: MutableList<BookingItem> = mutableListOf()
 
     // --- Public Behaviors ---
-    fun isCancellable(): Boolean {
-        return status == BookingStatus.PENDING || status == BookingStatus.CONFIRMED
-    }
 
     /**
      * Apply a service fee given as a percentage of a provided base amount.
@@ -140,12 +167,15 @@ class Booking(
      * Confirms the booking, moving it to a confirmed state
      * and recording the payment.
      *
+     * Security: Enforces state machine - only PENDING bookings can be confirmed.
+     * Audit finding: MED-03
+     *
      * @param paymentId The unique identifier for the payment transaction (internal UUID).
-     * @throws IllegalStateException if the booking is not in a PENDING state.
+     * @throws IllegalStateException if the booking is not in a confirmable state.
      */
     fun confirm(paymentId: UUID?) {
-        if (this.status != BookingStatus.PENDING) {
-            throw IllegalStateException("Booking $id cannot be confirmed (status is ${status}).")
+        require(isConfirmable()) {
+            "Booking $id cannot be confirmed from state $status. Only PENDING bookings can be confirmed."
         }
         this.status = BookingStatus.CONFIRMED
         this.confirmedAt = Instant.now()
@@ -155,16 +185,34 @@ class Booking(
     /**
      * Cancels the booking and records a reason.
      *
+     * Security: Enforces state machine - only PENDING or CONFIRMED bookings can be cancelled.
+     * Audit finding: MED-03
+     *
      * @param reason A reason for the cancellation (e.g., "User request", "Payment failed").
+     * @throws IllegalStateException if the booking is not in a cancellable state.
      */
     fun cancel(reason: String?) {
-        if (this.status == BookingStatus.CANCELLED) {
-            return // Already cancelled
+        require(isCancellable()) {
+            "Booking $id cannot be cancelled from state $status. Only PENDING or CONFIRMED bookings can be cancelled."
         }
         this.status = BookingStatus.CANCELLED
         this.cancelledAt = Instant.now()
         this.cancellationReason = reason
     }
+
+    /**
+     * Checks if this booking can be confirmed.
+     *
+     * @return true if booking is in PENDING state
+     */
+    fun isConfirmable(): Boolean = status == BookingStatus.PENDING
+
+    /**
+     * Checks if this booking can be cancelled.
+     *
+     * @return true if booking is in PENDING or CONFIRMED state (not already CANCELLED or REFUNDED)
+     */
+    fun isCancellable(): Boolean = status == BookingStatus.PENDING || status == BookingStatus.CONFIRMED
 
     /**
      * Adds a [BookingItem] to this booking.

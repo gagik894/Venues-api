@@ -1,8 +1,6 @@
 package app.venues.booking.service
 
 import app.venues.booking.domain.Cart
-import app.venues.booking.event.TableReleasedEvent
-import app.venues.booking.event.TableReservedEvent
 import app.venues.booking.repository.CartTableRepository
 import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
@@ -28,7 +26,8 @@ class TableReservationService(
     private val eventApi: EventApi,
     private val cartTableRepository: CartTableRepository,
     private val seatingApi: SeatingApi,
-    private val eventPublisher: ApplicationEventPublisher
+    private val eventPublisher: ApplicationEventPublisher,
+    private val inventoryChangePublisher: InventoryChangePublisher
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -95,14 +94,7 @@ class TableReservationService(
         // Block all individual seats
         blockAllSeatsInTable(sessionId, tableId, seats)
 
-        // Publish table reserved event
-        eventPublisher.publishEvent(
-            TableReservedEvent(
-                sessionId = sessionId,
-                tableId = tableId,
-                tableName = tableInfo.tableNumber
-            )
-        )
+        inventoryChangePublisher.tablesClosed(sessionId, listOf(tableId))
 
         logger.info { "Table reserved successfully: tableId=$tableId, sessionId=$sessionId" }
 
@@ -139,15 +131,7 @@ class TableReservationService(
         }
 
         // Get table info for event
-        val tableInfo = seatingApi.getTableInfo(tableId)
-
-        eventPublisher.publishEvent(
-            TableReleasedEvent(
-                sessionId = sessionId,
-                tableId = tableId,
-                tableName = tableInfo?.tableNumber ?: "Table $tableId"
-            )
-        )
+        inventoryChangePublisher.tablesOpened(sessionId, listOf(tableId))
 
         logger.info { "Table released: tableId=$tableId, sessionId=$sessionId" }
     }

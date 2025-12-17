@@ -1,17 +1,16 @@
 package app.venues.location.api.controller
 
 import app.venues.common.model.ApiResponse
-import app.venues.location.api.dto.*
+import app.venues.location.api.dto.CityCompact
+import app.venues.location.api.dto.CityResponse
+import app.venues.location.api.dto.RegionResponse
 import app.venues.location.service.LocationService
+import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import jakarta.validation.Valid
 import org.springframework.data.domain.Page
-import org.springframework.http.HttpStatus
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
 
 /**
@@ -64,8 +63,9 @@ class LocationController(
         description = "Returns list of active administrative regions for location selection"
     )
     fun getAllRegions(): ApiResponse<List<RegionResponse>> {
-        logger.debug { "GET /api/v1/locations/regions" }
-        val regions = locationService.getAllActiveRegions()
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions (lang: $language)" }
+        val regions = locationService.getAllActiveRegions(language)
         return ApiResponse.success(
             data = regions,
             message = "Regions retrieved successfully"
@@ -84,8 +84,9 @@ class LocationController(
         description = "Returns detailed region information"
     )
     fun getRegionById(@PathVariable id: Long): ApiResponse<RegionResponse> {
-        logger.debug { "GET /api/v1/locations/regions/$id" }
-        val region = locationService.getRegionById(id)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/$id (lang: $language)" }
+        val region = locationService.getRegionById(id, language)
         return ApiResponse.success(
             data = region,
             message = "Region retrieved successfully"
@@ -104,8 +105,9 @@ class LocationController(
         description = "Returns region by ISO/government code (e.g., AM-ER)"
     )
     fun getRegionByCode(@PathVariable code: String): ApiResponse<RegionResponse> {
-        logger.debug { "GET /api/v1/locations/regions/code/$code" }
-        val region = locationService.getRegionByCode(code)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/code/$code (lang: $language)" }
+        val region = locationService.getRegionByCode(code, language)
         return ApiResponse.success(
             data = region,
             message = "Region retrieved successfully"
@@ -130,8 +132,9 @@ class LocationController(
         description = "Returns list of active cities for location selection"
     )
     fun getAllCities(): ApiResponse<List<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/cities" }
-        val cities = locationService.getAllActiveCities()
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities (lang: $language)" }
+        val cities = locationService.getAllActiveCities(language)
         return ApiResponse.success(
             data = cities,
             message = "Cities retrieved successfully"
@@ -153,8 +156,9 @@ class LocationController(
         description = "Returns city by URL-friendly slug (e.g., gyumri, yerevan)"
     )
     fun getCityBySlug(@PathVariable slug: String): ApiResponse<CityResponse> {
-        logger.debug { "GET /api/v1/locations/cities/$slug" }
-        val city = locationService.getCityBySlug(slug)
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/$slug (lang: $language)" }
+        val city = locationService.getCityBySlug(slug, language)
         return ApiResponse.success(
             data = city,
             message = "City retrieved successfully"
@@ -166,17 +170,18 @@ class LocationController(
      *
      * Returns all active cities in a specific region.
      *
-     * @param regionId Parent region ID
+     * @param regionCode Parent region code
      * @return List of cities in the region
      */
-    @GetMapping("/regions/{regionId}/cities")
+    @GetMapping("/regions/{regionCode}/cities")
     @Operation(
         summary = "Get cities by region",
         description = "Returns all active cities in a specific region"
     )
-    fun getCitiesByRegion(@PathVariable regionId: Long): ApiResponse<List<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/regions/$regionId/cities" }
-        val cities = locationService.getCitiesByRegion(regionId)
+    fun getCitiesByRegion(@PathVariable regionCode: String): ApiResponse<List<CityResponse>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/regions/$regionCode/cities (lang: $language)" }
+        val cities = locationService.getCitiesByRegionCode(regionCode, language)
         return ApiResponse.success(
             data = cities,
             message = "Cities retrieved successfully"
@@ -203,9 +208,10 @@ class LocationController(
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?
     ): ApiResponse<Page<CityResponse>> {
-        logger.debug { "GET /api/v1/locations/cities/search?q=$q" }
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/search?q=$q (lang: $language)" }
         val pageable = PageableMapper.createPageableUnsorted(limit, offset)
-        val cities = locationService.searchCities(q, pageable)
+        val cities = locationService.searchCities(q, pageable, language)
         return ApiResponse.success(
             data = cities,
             message = "Search completed successfully"
@@ -216,151 +222,24 @@ class LocationController(
      * Get compact city list for dropdowns.
      *
      * Returns lightweight representation suitable for UI dropdowns.
+     * Language resolved from Accept-Language header.
      *
-     * @param lang Language code for names (default: en)
      * @return List of compact city data
      */
     @GetMapping("/cities/compact")
     @Operation(
         summary = "Get compact city list",
-        description = "Returns lightweight city list for dropdowns and selectors"
+        description = "Returns lightweight city list for dropdowns and selectors. Localization via Accept-Language header."
     )
-    fun getCitiesCompact(
-        @RequestParam(required = false, defaultValue = "en") lang: String
-    ): ApiResponse<List<CityCompact>> {
-        logger.debug { "GET /api/v1/locations/cities/compact?lang=$lang" }
-        val cities = locationService.getCitiesCompact(lang)
+    fun getCitiesCompact(): ApiResponse<List<CityCompact>> {
+        val language = LocaleHelper.currentLanguage()
+        logger.debug { "GET /api/v1/locations/cities/compact (Accept-Language: $language)" }
+        val cities = locationService.getCitiesCompact(language)
         return ApiResponse.success(
             data = cities,
             message = "Compact city list retrieved successfully"
         )
     }
 
-    // ===========================================
-    // ADMIN REGION ENDPOINTS
-    // ===========================================
-
-    /**
-     * Get all regions (including inactive) for admin purposes.
-     *
-     * @return List of all regions
-     */
-    @GetMapping("/admin/regions")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Get all regions (admin)",
-        description = "Returns all regions including inactive ones (admin only)"
-    )
-    fun getAllRegionsAdmin(): ApiResponse<List<RegionResponse>> {
-        logger.debug { "GET /api/v1/locations/admin/regions (admin)" }
-        val regions = locationService.getAllRegions()
-        return ApiResponse.success(
-            data = regions,
-            message = "All regions retrieved successfully"
-        )
-    }
-
-    /**
-     * Create a new region (admin only).
-     *
-     * @param request Region creation data
-     * @return Created region
-     */
-    @PostMapping("/admin/regions")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create region (admin)",
-        description = "Create a new administrative region (admin only)"
-    )
-    fun createRegion(@Valid @RequestBody request: CreateRegionRequest): ApiResponse<RegionResponse> {
-        logger.info { "POST /api/v1/locations/admin/regions (admin)" }
-        val region = locationService.createRegion(request)
-        return ApiResponse.success(
-            data = region,
-            message = "Region created successfully"
-        )
-    }
-
-    /**
-     * Update an existing region (admin only).
-     *
-     * @param id Region ID
-     * @param request Update data
-     * @return Updated region
-     */
-    @PutMapping("/admin/regions/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Update region (admin)",
-        description = "Update an existing region (admin only)"
-    )
-    fun updateRegion(
-        @PathVariable id: Long,
-        @Valid @RequestBody request: UpdateRegionRequest
-    ): ApiResponse<RegionResponse> {
-        logger.info { "PUT /api/v1/locations/admin/regions/$id (admin)" }
-        val region = locationService.updateRegion(id, request)
-        return ApiResponse.success(
-            data = region,
-            message = "Region updated successfully"
-        )
-    }
-
-    // ===========================================
-    // ADMIN CITY ENDPOINTS
-    // ===========================================
-
-    /**
-     * Create a new city (admin only).
-     *
-     * @param request City creation data
-     * @return Created city
-     */
-    @PostMapping("/admin/cities")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "Create city (admin)",
-        description = "Create a new city (admin only)"
-    )
-    fun createCity(@Valid @RequestBody request: CreateCityRequest): ApiResponse<CityResponse> {
-        logger.info { "POST /api/v1/locations/admin/cities (admin)" }
-        val city = locationService.createCity(request)
-        return ApiResponse.success(
-            data = city,
-            message = "City created successfully"
-        )
-    }
-
-    /**
-     * Update an existing city (admin only).
-     *
-     * @param id City ID
-     * @param request Update data
-     * @return Updated city
-     */
-    @PutMapping("/admin/cities/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @SecurityRequirement(name = "bearer-jwt")
-    @Operation(
-        summary = "Update city (admin)",
-        description = "Update an existing city (admin only)"
-    )
-    fun updateCity(
-        @PathVariable id: Long,
-        @Valid @RequestBody request: UpdateCityRequest
-    ): ApiResponse<CityResponse> {
-        logger.info { "PUT /api/v1/locations/admin/cities/$id (admin)" }
-        val city = locationService.updateCity(id, request)
-        return ApiResponse.success(
-            data = city,
-            message = "City updated successfully"
-        )
-    }
 }
 

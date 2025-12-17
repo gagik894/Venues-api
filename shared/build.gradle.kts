@@ -26,6 +26,8 @@ dependencyManagement {
 }
 
 dependencies {
+    api(platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES))
+
     // Common module dependency
     api(project(":common"))
 
@@ -34,6 +36,8 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-validation")
     api("org.springframework.boot:spring-boot-starter-security")
     api("org.springframework.boot:spring-boot-starter-data-jpa")
+    api("org.springframework.boot:spring-boot-starter-mail")
+    api("org.springframework.boot:spring-boot-starter-thymeleaf")
 
     // Database Migration
     api("org.flywaydb:flyway-core")
@@ -57,6 +61,16 @@ dependencies {
 
     // Logging
     api("io.github.oshai:kotlin-logging-jvm:5.1.0")
+
+    // QR Code generation
+    api("com.google.zxing:core:3.5.3")
+    api("com.google.zxing:javase:3.5.3")
+
+    // PDF generation for ticket attachments
+    api("com.github.librepdf:openpdf:2.0.3")
+
+    // Caffeine cache for domain resolution
+    api("com.github.ben-manes.caffeine:caffeine:3.1.8")
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")

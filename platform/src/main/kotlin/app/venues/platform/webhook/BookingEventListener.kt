@@ -1,8 +1,6 @@
 package app.venues.platform.webhook
 
-import app.venues.booking.event.GAAvailabilityChangedEvent
-import app.venues.booking.event.SeatReleasedEvent
-import app.venues.booking.event.SeatReservedEvent
+import app.venues.booking.event.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
@@ -25,10 +23,10 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleSeatReserved(event: SeatReservedEvent) {
-        logger.debug { "Received SeatReservedEvent: ${event.seatIdentifier}" }
+    fun handleSeatClosed(event: SeatClosedEvent) {
+        logger.debug { "Received SeatClosedEvent: ${event.seatIdentifier}" }
 
-        webhookService.notifySeatReserved(
+        webhookService.notifySeatClosed(
             sessionId = event.sessionId,
             seatIdentifier = event.seatIdentifier
         )
@@ -39,10 +37,10 @@ class BookingEventListener(
      */
     @Async
     @EventListener
-    fun handleSeatReleased(event: SeatReleasedEvent) {
-        logger.debug { "Received SeatReleasedEvent: ${event.seatIdentifier}" }
+    fun handleSeatOpened(event: SeatOpenedEvent) {
+        logger.debug { "Received SeatOpenedEvent: ${event.seatIdentifier}" }
 
-        webhookService.notifySeatReleased(
+        webhookService.notifySeatOpened(
             sessionId = event.sessionId,
             seatIdentifier = event.seatIdentifier,
         )
@@ -59,9 +57,35 @@ class BookingEventListener(
         webhookService.notifyGAAvailabilityChanged(
             sessionId = event.sessionId,
             levelIdentifier = event.levelIdentifier,
-            levelName = event.levelName,
-            availableTickets = event.availableTickets,
-            totalCapacity = event.totalCapacity
+            availableTickets = event.availableTickets
+        )
+    }
+
+    /**
+     * Handle table reserved event
+     */
+    @Async
+    @EventListener
+    fun handleTableClosed(event: TableClosedEvent) {
+        logger.debug { "Received TableClosedEvent: ${event.tableIdentifier}" }
+
+        webhookService.notifyTableClosed(
+            sessionId = event.sessionId,
+            tableIdentifier = event.tableIdentifier
+        )
+    }
+
+    /**
+     * Handle table released event
+     */
+    @Async
+    @EventListener
+    fun handleTableOpened(event: TableOpenedEvent) {
+        logger.debug { "Received TableOpenedEvent: ${event.tableIdentifier}" }
+
+        webhookService.notifyTableOpened(
+            sessionId = event.sessionId,
+            tableIdentifier = event.tableIdentifier
         )
     }
 }

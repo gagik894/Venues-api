@@ -1,10 +1,12 @@
 package app.venues.venue.service
 
+import app.venues.common.exception.VenuesException
 import app.venues.venue.domain.VenueSettings
 import app.venues.venue.dto.SmtpConfig
 import app.venues.venue.repository.VenueRepository
 import app.venues.venue.repository.VenueSettingsRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -24,7 +26,8 @@ import java.util.*
 @Transactional
 class VenueSettingsService(
     private val venueSettingsRepository: VenueSettingsRepository,
-    private val venueRepository: VenueRepository
+    private val venueRepository: VenueRepository,
+    private val entityManager: EntityManager
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -32,16 +35,18 @@ class VenueSettingsService(
     /**
      * Get or create settings for a venue.
      * Automatically creates settings record if it doesn't exist.
+     * Note: Only use for read operations. For updates, use updateSmtpConfig directly.
      */
     fun getOrCreateSettings(venueId: UUID): VenueSettings {
         return venueSettingsRepository.findById(venueId).orElseGet {
             val venue = venueRepository.findById(venueId).orElseThrow {
-                IllegalArgumentException("Venue not found: $venueId")
+                VenuesException.ResourceNotFound("Venue not found: $venueId", "VENUE_NOT_FOUND")
             }
 
             val settings = VenueSettings(venue = venue)
             settings.id = venueId
-            venueSettingsRepository.save(settings)
+            entityManager.persist(settings)
+            settings
         }
     }
 
@@ -49,13 +54,33 @@ class VenueSettingsService(
     /**
      * Update SMTP configuration for a venue.
      * Encryption happens automatically via JPA AttributeConverter.
+     * Pass null to remove the configuration.
      */
-    fun updateSmtpConfig(venueId: UUID, config: SmtpConfig) {
-        val settings = getOrCreateSettings(venueId)
-        settings.smtpConfig = config
-        venueSettingsRepository.save(settings)
+    fun updateSmtpConfig(venueId: UUID, config: SmtpConfig?) {
+        // Check if settings exist
+        val existing = venueSettingsRepository.findById(venueId).orElse(null)
 
-        logger.info { "Updated SMTP config for venue $venueId (email: ${config.email})" }
+        val settings = if (existing != null) {
+            // Update existing - it's already managed
+            existing.smtpConfig = config
+            existing
+        } else {
+            // Create new
+            val venue = venueRepository.findById(venueId).orElseThrow {
+                VenuesException.ResourceNotFound("Venue not found: $venueId", "VENUE_NOT_FOUND")
+            }
+            val newSettings = VenueSettings(venue = venue)
+            newSettings.id = venueId
+            newSettings.smtpConfig = config
+            entityManager.persist(newSettings)
+            newSettings
+        }
+
+        if (config != null) {
+            logger.info { "Updated SMTP config for venue $venueId (email: ${config.email})" }
+        } else {
+            logger.info { "Deleted SMTP config for venue $venueId" }
+        }
     }
 
     /**

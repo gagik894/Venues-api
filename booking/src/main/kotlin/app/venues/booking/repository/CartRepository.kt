@@ -1,6 +1,7 @@
 package app.venues.booking.repository
 
 import app.venues.booking.domain.Cart
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -15,9 +16,24 @@ import java.util.*
 interface CartRepository : JpaRepository<Cart, UUID> {
 
     /**
-     * Find cart by token
+     * Find cart by token (simple lookup, no child collections loaded).
      */
     fun findByToken(token: UUID): Cart?
+
+    /**
+     * Find cart by token with all child collections eagerly loaded.
+     *
+     * Uses @EntityGraph to prevent N+1 query problem by fetching
+     * cart + seats + gaItems + tables in a single optimized SQL query
+     * with LEFT JOIN FETCH for all collections.
+     *
+     * Use this method when you need to access cart items (e.g., checkout, cart summary).
+     *
+     * @param token The cart's public token.
+     * @return Cart with all collections initialized, or null if not found.
+     */
+    @EntityGraph(attributePaths = ["seats", "gaItems", "tables"])
+    fun findWithItemsByToken(token: UUID): Cart?
 
     /**
      * Find all carts for a user
@@ -37,17 +53,16 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     fun deleteExpired(now: Instant): Int
 
     /**
-     * Extend cart expiration (touch session)
+     * Extend cart expiration
      */
     @Modifying
     @Query(
         """
         UPDATE Cart c
-        SET c.expiresAt = :newExpiration,
-            c.lastActivityAt = :now
+        SET c.expiresAt = :newExpiration
         WHERE c.token = :token
     """
     )
-    fun extendExpiration(token: UUID, newExpiration: Instant, now: Instant): Int
+    fun extendExpiration(token: UUID, newExpiration: Instant): Int
 }
 

@@ -1,0 +1,71 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{email/layout :: layout('Booking Confirmation', ~{::content})}">
+
+<body>
+<div th:fragment="content">
+<p><span th:text="#{email.greeting}">Hello</span> <span th:text="${name}">Customer</span>,</p>
+<p th:text="#{email.booking.confirmation.thanks}">Thank you for your purchase! Your booking has been confirmed.</p>
+
+<h3 th:text="#{email.booking.event.details}">Event Details</h3>
+<table class="info-table">
+<tr>
+<th th:text="#{email.booking.event.label}">Event</th>
+<td th:text="${eventTitle}">Event Title</td>
+</tr>
+<tr>
+<th th:text="#{email.booking.date.label}">Date</th>
+<td th:text="${eventDate}">Date</td>
+</tr>
+<tr>
+<th th:text="#{email.booking.time.label}">Time</th>
+<td th:text="${eventTime}">Time</td>
+</tr>
+<tr>
+<th th:text="#{email.booking.venue.label}">Venue</th>
+<td th:text="${venueName}">Venue Name</td>
+</tr>
+</table>
+
+<h3 th:text="#{email.booking.order.summary}">Order Summary</h3>
+<p><strong th:text="#{email.booking.reference.label}">Booking Reference:</strong> <span th:text="${bookingReference}">REF123</span></p>
+
+<table class="info-table">
+<thead>
+<tr>
+<th th:text="#{email.booking.item.label}">Item</th>
+<th th:text="#{email.booking.qty.label}">Qty</th>
+<th th:text="#{email.booking.price.label}">Price</th>
+</tr>
+</thead>
+<tbody>
+<tr th:each="item : ${items}">
+<td th:text="${item.description}">Ticket Type</td>
+<td th:text="${item.quantity}">1</td>
+    <td th:text="${item.price.currency + ' ' + item.price.amount}">$10.00</td>
+</tr>
+<tr>
+<td colspan="2" style="text-align: right; font-weight: bold;" th:text="#{email.booking.total.label}">Total:</td>
+    <td style="font-weight: bold;" th:text="${totalPrice.currency + ' ' + totalPrice.amount}">$10.00</td>
+</tr>
+</tbody>
+</table>
+
+    <!-- PDF Attachment Notice -->
+    <div style="margin-top: 30px; padding: 20px; background-color: #f0f8ff; border: 2px solid #4CAF50; border-radius: 8px;">
+        <h2 style="color: #4CAF50; margin-top: 0;" th:text="#{email.booking.pdf.attached.title}">📎 Your Tickets Are
+            Attached</h2>
+        <p th:text="#{email.booking.pdf.attached.message}">Your tickets are attached to this email as a PDF file. You
+            can view them on your device or print them for entry.</p>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li th:text="#{email.booking.pdf.instruction.open}">Open the attached PDF file</li>
+            <li th:text="#{email.booking.pdf.instruction.show}">Show the QR codes at the venue entrance</li>
+            <li th:text="#{email.booking.pdf.instruction.print}">Or print the tickets if you prefer</li>
+        </ul>
+    </div>
+
+    <p style="margin-top: 30px; color: #666; font-size: 14px;" th:text="#{email.booking.thanks.footer}">Thank you for
+        choosing us. We look forward to seeing you at the event!</p>
+</div>
+</body>
+
+</html>

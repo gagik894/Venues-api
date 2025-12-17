@@ -1,6 +1,7 @@
 package app.venues.booking.api
 
 import app.venues.booking.api.dto.BookingResponse
+import app.venues.booking.api.dto.DirectSaleRequest
 import java.util.*
 
 /**
@@ -31,10 +32,63 @@ interface BookingApi {
     fun createBookingFromCart(
         cartToken: UUID,
         platformId: UUID,
-        paymentMethod: String,
-        paymentReference: String?,
-        guestEmail: String,
-        guestName: String,
-        guestPhone: String?
+        paymentReference: String? = null,
+        guestEmail: String? = null,
+        guestName: String? = null,
+        guestPhone: String? = null
+    ): BookingResponse
+
+    /**
+     * Confirms a booking after successful payment.
+     * This should finalize the sale and generate tickets.
+     *
+     * @param bookingId The ID of the booking to confirm.
+     * @param paymentId The ID of the successful payment transaction.
+     */
+    fun confirmBooking(bookingId: UUID, paymentId: UUID)
+
+    /**
+     * Confirms a platform booking (payment handled externally).
+     *
+     * @param bookingId The ID of the booking to confirm.
+     */
+    fun confirmPlatformBooking(bookingId: UUID)
+
+    /**
+     * Cancels a booking after failed payment.
+     * This should release held seats.
+     *
+     * @param bookingId The ID of the booking to cancel.
+     */
+    fun cancelBooking(bookingId: UUID)
+
+    /**
+     * Refunds a booking and updates its status.
+     *
+     * @param bookingId The ID of the booking to refund.
+     * @param reason An optional reason for the refund.
+     */
+    fun refundBooking(bookingId: UUID, reason: String?)
+
+    /**
+     * Retrieves a booking by its ID.
+     *
+     * @param bookingId The unique identifier of the booking.
+     * @return The booking response.
+     * @throws app.venues.common.exception.VenuesException.ResourceNotFound if not found.
+     */
+    fun getBookingById(bookingId: UUID): BookingResponse
+
+    /**
+     * Creates a confirmed platform booking directly (skip cart).
+     * Uses platform sales channel and optional guest info.
+     */
+    fun createPlatformDirectBooking(
+        request: DirectSaleRequest,
+        platformId: UUID,
+        guestEmail: String? = null,
+        guestName: String? = null,
+        guestPhone: String? = null,
+        confirmBooking: Boolean = true
     ): BookingResponse
 }

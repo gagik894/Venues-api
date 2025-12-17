@@ -2,7 +2,9 @@ package app.venues.event.api.mapper
 
 import app.venues.event.api.dto.*
 import app.venues.event.domain.*
+import app.venues.shared.money.toMoney
 import org.springframework.stereotype.Component
+import java.util.*
 
 /**
  * Mapper for converting between Event entities and DTOs.
@@ -26,7 +28,8 @@ class EventMapper {
         venueName: String,
         seatingChartName: String? = null,
         includeStats: Boolean = false,
-        language: String? = null
+        language: String? = null,
+        subscribedPlatformIds: List<UUID> = emptyList()
     ): EventResponse {
         // Apply event translation if requested language exists
         val translation = language?.let { lang ->
@@ -47,7 +50,7 @@ class EventMapper {
             location = event.location,
             latitude = event.latitude,
             longitude = event.longitude,
-            categoryId = event.category?.id,
+            categoryCode = event.category?.code,
             categoryName = categoryName,
             tags = event.tags.toSet(),
             priceRange = event.priceRange,
@@ -59,7 +62,10 @@ class EventMapper {
             // Automatically populate sessions
             sessions = event.sessions.map { toSessionResponse(it) },
             sessionCount = if (includeStats) event.sessions.size else null,
-            upcomingSessionCount = if (includeStats) event.sessions.count { it.status == EventStatus.UPCOMING } else null
+            upcomingSessionCount = if (includeStats) event.sessions.count { it.status == SessionStatus.ON_SALE } else null,
+            priceTemplates = event.priceTemplates.map { toPriceTemplateResponse(it) },
+            subscribedPlatformIds = subscribedPlatformIds,
+            translations = event.translations.map { toTranslationResponse(it) }
         )
     }
 
@@ -78,7 +84,7 @@ class EventMapper {
             status = session.status,
             priceOverride = session.priceOverride?.toString(),
             priceRangeOverride = session.priceRangeOverride,
-            effectivePriceRange = session.getEffectivePriceRange(),
+            effectivePriceRange = session.priceRangeOverride ?: session.event.priceRange,
             isBookable = session.isBookable(),
             createdAt = session.createdAt.toString()
         )
@@ -86,13 +92,18 @@ class EventMapper {
 
     /**
      * Convert EventPriceTemplate entity to PriceTemplateResponse DTO.
+     *
+     * @param template The template entity
      */
-    fun toPriceTemplateResponse(template: EventPriceTemplate): PriceTemplateResponse {
+    fun toPriceTemplateResponse(
+        template: EventPriceTemplate
+    ): PriceTemplateResponse {
         return PriceTemplateResponse(
             id = template.id,
             templateName = template.templateName,
             color = template.color,
-            price = template.price.toString()
+            price = template.price.toMoney(template.event.currency),
+            isRemovable = !template.isAnchor
         )
     }
 
@@ -113,14 +124,45 @@ class EventMapper {
     /**
      * Convert EventCategory entity to EventCategoryResponse DTO.
      */
-    fun toCategoryResponse(category: EventCategory): EventCategoryResponse {
+    fun toCategoryResponse(category: EventCategory, lang: String = "en"): EventCategoryResponse {
         return EventCategoryResponse(
             id = category.id ?: throw IllegalArgumentException("Category ID must not be null"),
             code = category.code,
             names = category.names,
+            name = category.getName(lang),
             color = category.color,
             icon = category.icon,
             displayOrder = category.displayOrder,
+        )
+    }
+
+    /**
+     * Convert Event entity to EventSummaryResponse DTO.
+     * Note: categoryName and startDateTime must be pre-fetched and provided.
+     */
+    fun toSummaryResponse(
+        event: Event,
+        venueName: String,
+        categoryName: String?,
+        startDateTime: String?,
+        language: String? = null
+    ): EventSummaryResponse {
+        val translation = language?.let { lang ->
+            event.translations.find { it.language.equals(lang, ignoreCase = true) }
+        }
+
+        return EventSummaryResponse(
+            id = event.id,
+            title = translation?.title ?: event.title,
+            imgUrl = event.imgUrl,
+            venueId = event.venueId,
+            venueName = venueName,
+            location = event.location,
+            categoryName = categoryName,
+            priceRange = event.priceRange,
+            currency = event.currency,
+            status = event.status,
+            startDateTime = startDateTime
         )
     }
 }

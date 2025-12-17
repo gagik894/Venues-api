@@ -15,6 +15,7 @@ enum class OrganizationRole {
 enum class VenueRole {
     MANAGER,    // Full venue management
     EDITOR,     // Create/update events
+    SELLER,     // Sell tickets/box office
     SCANNER,    // Ticket scanning only
     VIEWER      // Read-only
 }

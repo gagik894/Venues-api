@@ -39,7 +39,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = profileId
+            merchantProfileId = profileId,
+            slug = "test-venue"
         )
 
         every { venueApi.getVenueBasicInfo(venueId) } returns venueInfo
@@ -52,6 +53,7 @@ class PaymentRoutingServiceTest {
         every { profile.taxId } returns "12345"
         every { profile.organizationId } returns organizationId
         every { profile.hasPaymentConfig() } returns true
+        every { profile.config } returns null
 
         val result = service.resolveMerchant(venueId)
 
@@ -74,7 +76,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = null
+            merchantProfileId = null,
+            slug = "test-venue"
         )
 
         val organizationDto = OrganizationDto(
@@ -95,6 +98,7 @@ class PaymentRoutingServiceTest {
         every { profile.taxId } returns "12345"
         every { profile.organizationId } returns organizationId
         every { profile.hasPaymentConfig() } returns true
+        every { profile.config } returns null
 
         val result = service.resolveMerchant(venueId)
 
@@ -114,7 +118,8 @@ class PaymentRoutingServiceTest {
             latitude = 0.0,
             longitude = 0.0,
             organizationId = organizationId,
-            merchantProfileId = null
+            merchantProfileId = null,
+            slug = "test-venue"
         )
 
         val organizationDto = OrganizationDto(

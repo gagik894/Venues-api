@@ -39,6 +39,7 @@ dependencies {
     api(project(":venue-api"))    // Venue module - for venue and level details
     // Event module - we use the API interface
     api(project(":event-api"))
+    api(project(":ticket-api"))    // Ticket module - for ticket generation
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -74,4 +75,3 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
-

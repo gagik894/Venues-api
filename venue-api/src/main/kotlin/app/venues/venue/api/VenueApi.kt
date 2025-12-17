@@ -70,5 +70,48 @@ interface VenueApi {
      * @throws RuntimeException if redemption fails (e.g. limit reached)
      */
     fun redeemPromoCode(venueId: UUID, code: String)
+
+    /**
+     * Release a reserved promo code (decrement usage).
+     * Should be called when a booking is cancelled.
+     *
+     * @param venueId The venue ID
+     * @param code The promo code string
+     */
+    fun releasePromoCode(venueId: UUID, code: String)
+
+    /**
+     * Get venue basic info in batch.
+     * Returns a map of venueId to VenueBasicInfoDto.
+     */
+    fun getVenueBasicInfoBatch(venueIds: Set<UUID>): Map<UUID, VenueBasicInfoDto>
+
+    /**
+     * Get venue's SMTP configuration.
+     * Used by other modules (e.g. Booking) to send white-labeled emails.
+     *
+     * @param venueId Venue UUID
+     * @return SMTP config or null if not configured
+     */
+    fun getSmtpConfig(venueId: UUID): app.venues.venue.api.dto.SmtpConfigDto?
+
+    /**
+     * Get venue by custom domain (for white-label sites).
+     *
+     * @param domain The custom domain (e.g., "opera.am")
+     * @return VenueBasicInfoDto if found, null otherwise
+     */
+    fun getVenueByDomain(domain: String): VenueBasicInfoDto?
+
+    /**
+     * Get all language codes the venue serves (e.g., ["en", "hy", "ru"]).
+     * Must always include at least "en".
+     */
+    fun getVenueLanguages(venueId: UUID): Set<String>
+
+    /**
+     * Get IDs of venues belonging to an organization.
+     */
+    fun getVenueIdsByOrganizationId(organizationId: UUID): List<UUID>
 }
 

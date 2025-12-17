@@ -1,16 +1,17 @@
 package app.venues.staff.service
 
 import app.venues.common.exception.VenuesException
+import app.venues.shared.email.EmailService
+import app.venues.shared.email.EmailTemplateService
 import app.venues.shared.security.jwt.JwtService
-import app.venues.staff.api.dto.StaffAuthResponse
-import app.venues.staff.api.dto.StaffLoginRequest
-import app.venues.staff.api.dto.StaffRegisterRequest
-import app.venues.staff.api.dto.VerifyEmailRequest
+import app.venues.staff.api.dto.*
 import app.venues.staff.api.mapper.StaffMapper
 import app.venues.staff.domain.StaffIdentity
 import app.venues.staff.domain.StaffStatus
 import app.venues.staff.repository.StaffIdentityRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.i18n.LocaleContextHolder
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -41,9 +42,29 @@ class StaffAuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     private val failedLoginService: FailedStaffLoginService,
-    private val staffContextBuilder: StaffContextBuilder
+    private val staffContextBuilder: StaffContextBuilder,
+    private val emailService: EmailService,
+    private val emailTemplateService: EmailTemplateService,
+    @Value("\${app.frontend.url}") private val frontendBaseUrl: String
 ) {
     private val logger = KotlinLogging.logger {}
+
+    private fun jwtRole(staff: StaffIdentity): String = if (staff.isPlatformSuperAdmin) "SUPER_ADMIN" else "STAFF"
+
+    private fun jwtExpiresInSeconds(): Long = jwtService.getExpirationMs() / 1000
+
+    private fun buildAuthResponse(
+        staff: StaffIdentity,
+        authorizedVenues: List<AuthorizedVenueDto>,
+        token: String
+    ): StaffAuthResponse {
+        return StaffMapper.toAuthResponse(
+            staff = staff,
+            authorizedVenues = authorizedVenues,
+            token = token,
+            expiresInSeconds = jwtExpiresInSeconds()
+        )
+    }
 
     /**
      * Registers a new staff identity (global account).
@@ -84,11 +105,30 @@ class StaffAuthService(
             verificationTokenExpiresAt = Instant.now().plusSeconds(86400) // 24 hours
         )
 
+        // Capture staff's preferred language from Accept-Language header
+        staffIdentity.preferredLanguage = LocaleContextHolder.getLocale().language
+
         val saved = staffRepository.save(staffIdentity)
 
         logger.info { "Staff registered successfully: ${saved.email}, ID=${saved.id}" }
 
-        // TODO: Send verification email
+        // Send verification email
+        try {
+            val verificationUrl = "${frontendBaseUrl.trimEnd('/')}/verify-staff?token=${saved.verificationToken}"
+            val emailContent = emailTemplateService.generateStaffVerificationEmail(
+                name = "${saved.firstName} ${saved.lastName}",
+                verificationUrl = verificationUrl
+            )
+            emailService.sendGlobalEmail(
+                to = saved.email,
+                subject = "Verify Your Staff Account",
+                content = emailContent,
+                isHtml = true
+            )
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to send verification email to ${saved.email}" }
+            // Don't fail registration if email fails, but log it
+        }
 
         // Generate JWT token with appropriate role
         // Role mapping:
@@ -107,12 +147,44 @@ class StaffAuthService(
             role = role
         )
 
-        return StaffMapper.toAuthResponse(
-            staff = saved,
-            context = staffContextBuilder.buildContext(saved),
-            token = token,
-            expiresIn = jwtService.getExpirationMs()
+        return buildAuthResponse(saved, staffContextBuilder.buildAuthorizedVenues(saved), token)
+    }
+
+    /**
+     * Accepts an invite by setting password and activating the staff account.
+     */
+    @Transactional
+    fun acceptInvite(request: AcceptInviteRequest): StaffAuthResponse {
+        logger.info { "Accepting staff invite" }
+
+        val staff = staffRepository.findByVerificationToken(request.token)
+            ?: throw VenuesException.ResourceNotFound(
+                "Invalid or expired invite token",
+                "INVALID_TOKEN"
+            )
+
+        if (staff.verificationTokenExpiresAt?.isBefore(Instant.now()) == true) {
+            throw VenuesException.BusinessRuleViolation(
+                "Invite token has expired",
+                "TOKEN_EXPIRED"
+            )
+        }
+
+        staff.passwordHash = passwordEncoder.encode(request.password)
+        request.firstName?.let { staff.firstName = it.trim() }
+        request.lastName?.let { staff.lastName = it.trim() }
+        staff.verifyEmail()
+
+        val saved = staffRepository.save(staff)
+
+        val token = jwtService.generateToken(
+            email = saved.email,
+            id = saved.id,
+            role = jwtRole(saved)
         )
+
+        val authorizedVenues = staffContextBuilder.buildAuthorizedVenues(saved)
+        return buildAuthResponse(saved, authorizedVenues, token)
     }
 
     /**
@@ -193,12 +265,12 @@ class StaffAuthService(
         // Successful authentication - now record it in write transaction
         recordSuccessfulLoginInWriteTransaction(staff.id)
 
-        // Load organizational context (uses @EntityGraph for efficiency)
-        val context = staffContextBuilder.buildContext(staff)
+        // Load authorized venues list (uses @EntityGraph for efficiency)
+        val authorizedVenues = staffContextBuilder.buildAuthorizedVenues(staff)
 
         // Determine JWT role - PLATFORM LEVEL ONLY
         // JWT roles represent system-wide permissions, not organization-specific roles.
-        // Organization/venue permissions are checked separately via context in service layer.
+        // Organization/venue permissions are checked separately via authorizedVenues in service layer.
         //
         // Role assignment:
         // - SUPER_ADMIN: Platform administrator (can manage all organizations/venues)
@@ -214,12 +286,7 @@ class StaffAuthService(
 
         logger.info { "Login successful for staff: ${staff.email}, ID=${staff.id}" }
 
-        return StaffMapper.toAuthResponse(
-            staff = staff,
-            context = context,
-            token = token,
-            expiresIn = jwtService.getExpirationMs()
-        )
+        return buildAuthResponse(staff, authorizedVenues, token)
     }
 
     /**

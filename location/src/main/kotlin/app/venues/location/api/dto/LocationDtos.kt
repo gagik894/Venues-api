@@ -9,25 +9,24 @@ import jakarta.validation.constraints.Size
 /**
  * Response DTO for Region data.
  *
- * @property id Region ID
  * @property code ISO/government code (e.g., "AM-ER")
  * @property names Multilingual names
  * @property displayOrder Optional display order
  * @property isActive Active status
  */
 data class RegionResponse(
-    val id: Long,
     val code: String,
     val names: Map<String, String>,
+    val name: String,
     val displayOrder: Int?,
     val isActive: Boolean
 ) {
     companion object {
-        fun from(region: Region): RegionResponse {
+        fun from(region: Region, lang: String = "en"): RegionResponse {
             return RegionResponse(
-                id = region.id ?: 0L,
                 code = region.code,
                 names = region.names,
+                name = region.getName(lang),
                 displayOrder = region.displayOrder,
                 isActive = region.isActive
             )
@@ -75,7 +74,6 @@ data class UpdateRegionRequest(
 /**
  * Response DTO for City data.
  *
- * @property id City ID
  * @property slug URL-friendly slug
  * @property names Multilingual names
  * @property region Parent region (compact representation)
@@ -84,24 +82,23 @@ data class UpdateRegionRequest(
  * @property isActive Active status
  */
 data class CityResponse(
-    val id: Long,
     val slug: String,
     val names: Map<String, String>,
+    val name: String,
     val region: RegionCompact,
     val officialId: String?,
     val displayOrder: Int?,
     val isActive: Boolean
 ) {
     companion object {
-        fun from(city: City): CityResponse {
+        fun from(city: City, lang: String = "en"): CityResponse {
             return CityResponse(
-                id = city.id ?: 0L,
                 slug = city.slug,
                 names = city.names,
+                name = city.getName(lang),
                 region = RegionCompact(
-                    id = city.region.id ?: 0L,
                     code = city.region.code,
-                    name = city.region.getName("en")
+                    name = city.region.getName(lang)
                 ),
                 officialId = city.officialId,
                 displayOrder = city.displayOrder,
@@ -114,12 +111,10 @@ data class CityResponse(
 /**
  * Compact region representation (for embedding in city responses).
  *
- * @property id Region ID
  * @property code Region code
  * @property name Region name (single language)
  */
 data class RegionCompact(
-    val id: Long,
     val code: String,
     val name: String
 )
@@ -127,14 +122,14 @@ data class RegionCompact(
 /**
  * Request DTO for creating a new city (admin only).
  *
- * @property regionId Parent region ID (mandatory)
+ * @property regionCode Parent region code (mandatory)
  * @property slug URL-friendly slug (unique, lowercase)
  * @property names Multilingual names (at least "hy" and "en" required)
  * @property officialId Optional cadastre ID
  * @property displayOrder Optional display order
  */
 data class CreateCityRequest(
-    val regionId: Long,
+    val regionCode: String,
 
     @field:NotBlank(message = "City slug is required")
     @field:Size(min = 2, max = 100, message = "Slug must be 2-100 characters")
@@ -161,14 +156,14 @@ data class CreateCityRequest(
 /**
  * Request DTO for updating a city (admin only).
  *
- * @property regionId Updated parent region ID
+ * @property regionCode Updated parent region ID
  * @property names Updated multilingual names
  * @property officialId Updated cadastre ID
  * @property displayOrder Updated display order
  * @property isActive Updated active status
  */
 data class UpdateCityRequest(
-    val regionId: Long? = null,
+    val regionCode: String? = null,
     val names: Map<String, String>? = null,
     val officialId: String? = null,
     val displayOrder: Int? = null,
@@ -178,13 +173,11 @@ data class UpdateCityRequest(
 /**
  * Lightweight city representation for dropdowns and lists.
  *
- * @property id City ID
  * @property slug City slug
  * @property name City name (single language)
  * @property regionName Parent region name
  */
 data class CityCompact(
-    val id: Long,
     val slug: String,
     val name: String,
     val regionName: String
@@ -192,7 +185,6 @@ data class CityCompact(
     companion object {
         fun from(city: City, lang: String = "en"): CityCompact {
             return CityCompact(
-                id = city.id ?: 0L,
                 slug = city.slug,
                 name = city.getName(lang),
                 regionName = city.region.getName(lang)

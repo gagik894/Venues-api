@@ -9,6 +9,7 @@ import app.venues.venue.repository.VenueRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import java.util.*
 
 @Service
@@ -21,20 +22,23 @@ class VenuePromoCodeService(
 
     /**
      * Create a new promo code for a venue.
+     * Normalizes code to UPPERCASE to ensure consistent lookup.
      */
     fun createPromoCode(venueId: UUID, request: VenuePromoCodeRequest): VenuePromoCodeResponse {
-        logger.info { "Creating promo code for venue $venueId: ${request.code}" }
+        val normalizedCode = request.code.trim().uppercase()
+
+        logger.info { "Creating promo code for venue $venueId: $normalizedCode" }
 
         val venue = venueRepository.findById(venueId)
             .orElseThrow { VenuesException.ResourceNotFound("Venue not found") }
 
-        if (promoCodeRepository.existsByVenueIdAndCode(venueId, request.code)) {
-            throw VenuesException.ResourceConflict("Promo code '${request.code}' already exists for this venue")
+        if (promoCodeRepository.existsByVenueIdAndCode(venueId, normalizedCode)) {
+            throw VenuesException.ResourceConflict("Promo code '$normalizedCode' already exists for this venue")
         }
 
         val promoCode = VenuePromoCode(
             venue = venue,
-            code = request.code,
+            code = normalizedCode,
             discountType = request.discountType,
             discountValue = request.discountValue,
             description = request.description,
@@ -49,62 +53,119 @@ class VenuePromoCodeService(
     }
 
     /**
-     * List all promo codes for a venue.
+     * Update an existing promo code.
+     * Enforces strict uniqueness (name cannot exist, even if inactive).
      */
-    @Transactional(readOnly = true)
-    fun getPromoCodes(venueId: UUID): List<VenuePromoCodeResponse> {
-        return promoCodeRepository.findByVenueId(venueId)
-            .map { toResponse(it) }
+    fun updatePromoCode(venueId: UUID, promoCodeId: UUID, request: VenuePromoCodeRequest): VenuePromoCodeResponse {
+        val normalizedCode = request.code.trim().uppercase()
+
+        val promoCode = promoCodeRepository.findByIdAndVenueId(promoCodeId, venueId)
+            .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
+
+        if (promoCode.code != normalizedCode) {
+            if (promoCodeRepository.existsByVenueIdAndCode(venueId, normalizedCode)) {
+                throw VenuesException.ResourceConflict("Promo code '$normalizedCode' already exists")
+            }
+        }
+
+        if (request.maxUsageCount != null && request.maxUsageCount < promoCode.currentUsageCount) {
+            throw VenuesException.ValidationFailure(
+                "Cannot limit max usage to ${request.maxUsageCount} because ${promoCode.currentUsageCount} have already been used."
+            )
+        }
+
+        promoCode.apply {
+            this.code = normalizedCode
+            this.discountType = request.discountType
+            this.discountValue = request.discountValue
+            this.description = request.description
+            this.minOrderAmount = request.minOrderAmount
+            this.maxDiscountAmount = request.maxDiscountAmount
+            this.maxUsageCount = request.maxUsageCount
+            this.expiresAt = request.expiresAt
+
+        }
+
+        val saved = promoCodeRepository.save(promoCode)
+        return toResponse(saved)
     }
 
     /**
-     * Get a specific promo code.
+     * List all promo codes for a venue.
      */
     @Transactional(readOnly = true)
-    fun getPromoCode(id: UUID): VenuePromoCodeResponse {
-        val promoCode = promoCodeRepository.findById(id)
+    fun getPromoCodes(venueId: UUID, search: String? = null): List<VenuePromoCodeResponse> {
+        val codes = if (search.isNullOrBlank()) {
+            promoCodeRepository.findByVenueId(venueId)
+        } else {
+            promoCodeRepository.findByVenueIdAndCodeContainingIgnoreCase(venueId, search)
+        }
+        return codes.map { toResponse(it) }
+    }
+
+    @Transactional(readOnly = true)
+    fun getPromoCodeById(venueId: UUID, promoCodeId: UUID): VenuePromoCodeResponse {
+        val promoCode = promoCodeRepository.findByIdAndVenueId(promoCodeId, venueId)
             .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
+
         return toResponse(promoCode)
     }
 
     /**
      * Deactivate a promo code.
      */
-    fun deactivatePromoCode(id: UUID) {
-        val promoCode = promoCodeRepository.findById(id)
+    fun deactivatePromoCode(venueId: UUID, promoCodeId: UUID) {
+        val promoCode = promoCodeRepository.findByIdAndVenueId(promoCodeId, venueId)
             .orElseThrow { VenuesException.ResourceNotFound("Promo code not found") }
+
         promoCode.deactivate()
         promoCodeRepository.save(promoCode)
-        logger.info { "Deactivated promo code: $id" }
+        logger.info { "Deactivated promo code: $promoCodeId" }
     }
 
     /**
-     * Validate a promo code for use.
-     * Returns the entity if valid, throws exception if not.
+     * Validate a promo code for use (UI Feedback / Cart Preview).
+     * Uses SQL logic to strictly check Active/Expired/Limit status.
+     * Returns the entity if valid, throws generic exception if not.
      */
     @Transactional(readOnly = true)
     fun validatePromoCode(venueId: UUID, code: String): VenuePromoCode {
-        val promoCode = promoCodeRepository.findByVenueIdAndCode(venueId, code)
-            .orElseThrow { VenuesException.ResourceNotFound("Invalid promo code") }
+        val normalizedCode = code.trim().uppercase()
 
-        if (!promoCode.isValidForUse()) {
-            throw VenuesException.ValidationFailure("Promo code is not valid for use (expired or limit reached)")
-        }
-
+        val promoCode = promoCodeRepository.findValidPromoCodeByVenueIdAndCode(venueId, normalizedCode, Instant.now())
+            .orElseThrow {
+                VenuesException.ResourceNotFound("Promo code not found or invalid")
+            }
         return promoCode
     }
 
     /**
-     * Redeem a promo code (increment usage).
+     * Reserve a promo code (Order Creation).
+     * Attempts to atomically increment the usage count.
+     * If successful, the spot is held. If Order creation fails later, releasePromoCode MUST be called.
      */
-    fun redeemPromoCode(venueId: UUID, code: String) {
-        val promoCode = promoCodeRepository.findByVenueIdAndCode(venueId, code)
-            .orElseThrow { VenuesException.ResourceNotFound("Invalid promo code") }
+    fun reservePromoCode(venueId: UUID, code: String) {
+        val normalizedCode = code.trim().uppercase()
 
-        if (!promoCode.redeem()) {
-            throw VenuesException.ValidationFailure("Promo code cannot be redeemed (limit reached or expired)")
+        val rowsUpdated = promoCodeRepository.incrementUsageIfAllowed(venueId, normalizedCode, Instant.now())
+
+        if (rowsUpdated == 0) {
+            throw VenuesException.ResourceNotFound("Promo code not found or invalid")
         }
-        promoCodeRepository.save(promoCode)
+
+        logger.info { "Reserved usage for code $normalizedCode" }
+    }
+
+    /**
+     * Release a promo code (Cancellation / Payment Failure).
+     * Decrements the usage count safely.
+     */
+    fun releasePromoCode(venueId: UUID, code: String) {
+        val normalizedCode = code.trim().uppercase()
+
+        promoCodeRepository.decrementUsage(venueId, normalizedCode)
+
+        logger.info { "Released usage for code $normalizedCode" }
     }
 
     private fun toResponse(entity: VenuePromoCode): VenuePromoCodeResponse {

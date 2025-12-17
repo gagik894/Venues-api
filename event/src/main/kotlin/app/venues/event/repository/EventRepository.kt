@@ -4,9 +4,12 @@ import app.venues.event.domain.Event
 import app.venues.event.domain.EventStatus
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.time.Instant
 import java.util.*
 
 /**
@@ -21,9 +24,24 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByVenueId(venueId: UUID, pageable: Pageable): Page<Event>
 
     /**
+     * Check if any event references the seating chart.
+     */
+    fun existsBySeatingChartId(seatingChartId: UUID): Boolean
+
+    /**
      * Find events by venue ID and status
      */
     fun findByVenueIdAndStatus(venueId: UUID, status: EventStatus, pageable: Pageable): Page<Event>
+
+    /**
+     * Find events by venue ID and status, ordered by first session start (for API Port)
+     */
+    fun findByVenueIdAndStatusOrderByFirstSessionStartAsc(venueId: UUID, status: EventStatus): List<Event>
+
+    /**
+     * Find events by venue ID and multiple statuses
+     */
+    fun findByVenueIdAndStatusIn(venueId: UUID, statuses: Collection<EventStatus>, pageable: Pageable): Page<Event>
 
     /**
      * Find events by status
@@ -31,14 +49,16 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByStatus(status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
-     * Find events by category ID
+     * Find events by category code and status
      */
-    fun findByCategoryId(categoryId: Long, pageable: Pageable): Page<Event>
-
-    /**
-     * Find events by category ID and status
-     */
-    fun findByCategoryIdAndStatus(categoryId: Long, status: EventStatus, pageable: Pageable): Page<Event>
+    @Query(
+        """
+        SELECT e FROM Event e 
+        JOIN e.category c 
+        WHERE c.code = :categoryCode AND e.status = :status
+    """
+    )
+    fun findByCategoryCodeAndStatus(categoryCode: String, status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
      * Search events by title (case-insensitive)
@@ -66,6 +86,12 @@ interface EventRepository : JpaRepository<Event, UUID> {
     fun findByTag(tag: String, status: EventStatus, pageable: Pageable): Page<Event>
 
     /**
+     * Find event by ID with all details loaded.
+     */
+    @EntityGraph(attributePaths = ["secondaryImgUrls", "tags", "translations", "category", "priceTemplates", "sessions"])
+    override fun findById(id: UUID): Optional<Event>
+
+    /**
      * Count events by venue ID
      */
     fun countByVenueId(venueId: UUID): Long
@@ -74,5 +100,12 @@ interface EventRepository : JpaRepository<Event, UUID> {
      * Count events by venue ID and status
      */
     fun countByVenueIdAndStatus(venueId: UUID, status: EventStatus): Long
+
+    /**
+     * Archive past events.
+     */
+    @Modifying
+    @Query("UPDATE Event e SET e.status = :newStatus WHERE e.status = :oldStatus AND e.lastSessionEnd < :cutoff")
+    fun archivePastEvents(oldStatus: EventStatus, newStatus: EventStatus, cutoff: Instant): Int
 }
 

@@ -165,7 +165,7 @@ ON CONFLICT (slug) DO NOTHING;
 -- ==================================================================
 -- 5. EVENT CATEGORIES (Modified to match Venue Category Style)
 -- ==================================================================
-INSERT INTO event_categories (code, names, icon, color, display_order, is_active, created_at, last_modified_at)
+INSERT INTO ref_event_categories (code, names, icon, color, display_order, is_active, created_at, last_modified_at)
 VALUES ('CONCERT', '{
          "en": "Concerts",
          "hy": "Համերգներ",

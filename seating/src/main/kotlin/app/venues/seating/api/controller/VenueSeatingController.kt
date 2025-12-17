@@ -158,6 +158,38 @@ class VenueSeatingController(
         return ApiResponse.success(cloned, "Cloned successfully")
     }
 
+    @PatchMapping("/{chartId}/default-category")
+    @Operation(
+        summary = "Set default category for chart",
+        description = "Bulk updates categoryKey for seats, tables, and GA areas when the chart is not in use."
+    )
+    fun updateDefaultCategory(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: DefaultCategoryUpdateRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
+        val chart = seatingService.updateDefaultCategory(chartId, venueId, request)
+        return ApiResponse.success(chart, "Default category updated")
+    }
+
+    @PatchMapping("/{chartId}/categories/selected")
+    @Operation(
+        summary = "Set category for selected seats/tables/GA areas",
+        description = "Bulk updates categoryKey for the provided component IDs when the chart is not in use."
+    )
+    fun updateSelectedCategories(
+        @PathVariable venueId: UUID,
+        @PathVariable chartId: UUID,
+        @RequestAttribute staffId: UUID,
+        @Valid @RequestBody request: SelectiveCategoryUpdateRequest
+    ): ApiResponse<SeatingChartDetailedResponse> {
+        venueSecurityService.requireVenueEditPermission(staffId, venueId)
+        val chart = seatingService.updateSelectedCategories(chartId, venueId, request)
+        return ApiResponse.success(chart, "Categories updated for selected components")
+    }
+
     @PatchMapping("/{chartId}/visuals")
     @Operation(
         summary = "Update visual attributes (non-destructive)",

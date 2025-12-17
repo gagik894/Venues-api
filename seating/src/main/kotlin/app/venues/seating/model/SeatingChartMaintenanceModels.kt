@@ -3,6 +3,7 @@ package app.venues.seating.model
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 
 /**
  * Request to clone an existing seating chart into a new chart.
@@ -11,6 +12,27 @@ import jakarta.validation.constraints.NotBlank
 data class CloneSeatingChartRequest(
     @field:NotBlank(message = "Name is required for cloned chart")
     val name: String
+)
+
+/**
+ * Bulk category update for an entire chart.
+ */
+data class DefaultCategoryUpdateRequest(
+    @field:NotBlank(message = "Category key is required")
+    @field:Size(max = 50, message = "Category key must not exceed 50 characters")
+    val categoryKey: String
+)
+
+/**
+ * Bulk category update for selected components.
+ */
+data class SelectiveCategoryUpdateRequest(
+    @field:NotBlank(message = "Category key is required")
+    @field:Size(max = 50, message = "Category key must not exceed 50 characters")
+    val categoryKey: String,
+    val seatIds: List<Long> = emptyList(),
+    val tableIds: List<Long> = emptyList(),
+    val gaAreaIds: List<Long> = emptyList()
 )
 
 /**

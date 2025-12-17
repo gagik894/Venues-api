@@ -81,14 +81,17 @@ class VenueEventController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
-        @RequestParam(required = false, name = "status") statuses: List<EventStatus>?
+        @RequestParam(required = false, name = "status") statuses: List<EventStatus>?,
+        @RequestParam(required = false) sortBy: String?,
+        @RequestParam(required = false) sortDirection: String?
     ): ApiResponse<Page<EventSummaryResponse>> {
         venueSecurityService.requireVenueBrowsePermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
 
         logger.debug { "Listing staff events for venue=$venueId statuses=$statuses language=$language" }
+        val allowedSortFields = setOf("createdAt", "title", "id", "firstSessionStart")
+        val pageable = PageableMapper.createPageable(limit, offset, sortBy, sortDirection, allowedSortFields)
 
-        val pageable = PageableMapper.createPageableUnsorted(limit, offset)
         val events = eventService.getStaffEventSummariesByVenue(
             venueId = venueId,
             pageable = pageable,

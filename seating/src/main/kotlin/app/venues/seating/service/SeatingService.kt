@@ -403,6 +403,136 @@ class SeatingService(
     }
 
     /**
+     * Bulk update the category for selected seats/tables/GA areas.
+     */
+    fun updateSelectedCategories(
+        chartId: UUID,
+        venueId: UUID,
+        request: SelectiveCategoryUpdateRequest
+    ): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+
+        if (chart.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        if (eventApi.seatingChartInUse(chartId)) {
+            throw VenuesException.ValidationFailure(
+                "Chart is in use by events/sessions; clone the chart to change categories"
+            )
+        }
+
+        val normalizedCategory = request.categoryKey.trim()
+        if (normalizedCategory.isEmpty()) {
+            throw VenuesException.ValidationFailure("Category key cannot be blank")
+        }
+
+        val seatIds = request.seatIds.toSet()
+        val tableIds = request.tableIds.toSet()
+        val gaIds = request.gaAreaIds.toSet()
+
+        if (seatIds.isEmpty() && tableIds.isEmpty() && gaIds.isEmpty()) {
+            throw VenuesException.ValidationFailure("No seat/table/GA IDs provided")
+        }
+
+        if (seatIds.isNotEmpty()) {
+            val seats = chartSeatRepository.findAllById(seatIds)
+            if (seats.size != seatIds.size) {
+                throw VenuesException.ValidationFailure("One or more seats not found")
+            }
+            seats.forEach { seat ->
+                if (seat.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("Seat ${seat.id} does not belong to chart $chartId")
+                }
+                seat.categoryKey = normalizedCategory
+            }
+            chartSeatRepository.saveAll(seats)
+        }
+
+        if (tableIds.isNotEmpty()) {
+            val tables = chartTableRepository.findAllById(tableIds)
+            if (tables.size != tableIds.size) {
+                throw VenuesException.ValidationFailure("One or more tables not found")
+            }
+            tables.forEach { table ->
+                if (table.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("Table ${table.id} does not belong to chart $chartId")
+                }
+                table.categoryKey = normalizedCategory
+            }
+            chartTableRepository.saveAll(tables)
+        }
+
+        if (gaIds.isNotEmpty()) {
+            val gaAreas = gaAreaRepository.findAllById(gaIds)
+            if (gaAreas.size != gaIds.size) {
+                throw VenuesException.ValidationFailure("One or more GA areas not found")
+            }
+            gaAreas.forEach { ga ->
+                if (ga.zone.chart.id != chartId) {
+                    throw VenuesException.ValidationFailure("GA area ${ga.id} does not belong to chart $chartId")
+                }
+                ga.categoryKey = normalizedCategory
+            }
+            gaAreaRepository.saveAll(gaAreas)
+        }
+
+        logger.info { "Updated selected categories for chart $chartId to '$normalizedCategory'" }
+
+        return getSeatingChartDetailedForVenue(chartId, venueId)
+    }
+
+    /**
+     * Bulk update the category for all seats, tables, and GA areas in a chart.
+     */
+    fun updateDefaultCategory(
+        chartId: UUID,
+        venueId: UUID,
+        request: DefaultCategoryUpdateRequest
+    ): SeatingChartDetailedResponse {
+        val chart = seatingChartRepository.findById(chartId)
+            .orElseThrow { VenuesException.ResourceNotFound("Chart not found") }
+
+        if (chart.venueId != venueId) {
+            throw VenuesException.AuthorizationFailure("Chart does not belong to venue")
+        }
+
+        if (eventApi.seatingChartInUse(chartId)) {
+            throw VenuesException.ValidationFailure(
+                "Chart is in use by events/sessions; clone the chart to change categories"
+            )
+        }
+
+        val normalizedCategory = request.categoryKey.trim()
+        if (normalizedCategory.isEmpty()) {
+            throw VenuesException.ValidationFailure("Category key cannot be blank")
+        }
+
+        val seats = chartSeatRepository.findByChartId(chartId)
+        val tables = chartTableRepository.findByChartId(chartId)
+        val gaAreas = gaAreaRepository.findByChartId(chartId)
+
+        seats.forEach { it.categoryKey = normalizedCategory }
+        tables.forEach { it.categoryKey = normalizedCategory }
+        gaAreas.forEach { it.categoryKey = normalizedCategory }
+
+        if (seats.isNotEmpty()) {
+            chartSeatRepository.saveAll(seats)
+        }
+        if (tables.isNotEmpty()) {
+            chartTableRepository.saveAll(tables)
+        }
+        if (gaAreas.isNotEmpty()) {
+            gaAreaRepository.saveAll(gaAreas)
+        }
+
+        logger.info { "Updated default category for chart $chartId to '$normalizedCategory'" }
+
+        return getSeatingChartDetailedForVenue(chartId, venueId)
+    }
+
+    /**
      * Clone an existing chart into a new chart (new IDs, same codes/geometry by default).
      * Used for major changes while keeping existing charts stable for active sessions.
      */

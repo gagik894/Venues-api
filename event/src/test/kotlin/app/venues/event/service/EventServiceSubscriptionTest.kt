@@ -30,6 +30,7 @@ class EventServiceSubscriptionTest {
     private lateinit var eventMapper: EventMapper
     private lateinit var eventRevalidationService: EventRevalidationService
     private lateinit var platformSubscriptionApi: PlatformSubscriptionApi
+    private lateinit var auditActionRecorder: app.venues.audit.service.AuditActionRecorder
     private lateinit var service: EventService
 
     private val venueId = UUID.randomUUID()
@@ -48,6 +49,7 @@ class EventServiceSubscriptionTest {
         eventMapper = mockk(relaxed = true)
         eventRevalidationService = mockk(relaxed = true)
         platformSubscriptionApi = mockk(relaxed = true)
+        auditActionRecorder = mockk(relaxed = true)
 
         service = EventService(
             eventRepository = eventRepository,
@@ -60,7 +62,8 @@ class EventServiceSubscriptionTest {
             mediaApi = mediaApi,
             eventMapper = eventMapper,
             eventRevalidationService = eventRevalidationService,
-            platformSubscriptionApi = platformSubscriptionApi
+            platformSubscriptionApi = platformSubscriptionApi,
+            auditActionRecorder = auditActionRecorder
         )
     }
 

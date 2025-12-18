@@ -1,5 +1,7 @@
 package app.venues.staff.service
 
+import app.venues.shared.email.EmailService
+import app.venues.shared.email.EmailTemplateService
 import app.venues.staff.api.dto.VenuePermissionDto
 import app.venues.staff.domain.OrganizationRole
 import app.venues.staff.domain.StaffMembership
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import org.springframework.security.crypto.password.PasswordEncoder
 import java.util.*
 
 class StaffManagementServiceTest {
@@ -23,6 +26,9 @@ class StaffManagementServiceTest {
     private lateinit var staffContextBuilder: StaffContextBuilder
     private lateinit var venuePermissionRepository: StaffVenuePermissionRepository
     private lateinit var venueApi: VenueApi
+    private lateinit var passwordEncoder: PasswordEncoder
+    private lateinit var emailService: EmailService
+    private lateinit var emailTemplateService: EmailTemplateService
     private lateinit var service: StaffManagementService
 
     private val actorId = UUID.randomUUID()
@@ -35,11 +41,18 @@ class StaffManagementServiceTest {
         staffContextBuilder = mockk(relaxed = true)
         venuePermissionRepository = mockk()
         venueApi = mockk()
+        passwordEncoder = mockk(relaxed = true)
+        emailService = mockk(relaxed = true)
+        emailTemplateService = mockk(relaxed = true)
         service = StaffManagementService(
             staffRepository = staffRepository,
             staffContextBuilder = staffContextBuilder,
             venuePermissionRepository = venuePermissionRepository,
-            venueApi = venueApi
+            venueApi = venueApi,
+            passwordEncoder = passwordEncoder,
+            emailService = emailService,
+            emailTemplateService = emailTemplateService,
+            frontendBaseUrl = "https://frontend.test"
         )
     }
 

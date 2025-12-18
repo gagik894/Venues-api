@@ -1,5 +1,6 @@
 package app.venues.location.api.controller
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.location.api.dto.CreateCityRequest
 import app.venues.location.api.dto.CreateRegionRequest
 import app.venues.location.api.dto.RegionResponse
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.util.*
 
 @WebMvcTest(AdminLocationController::class)
 class AdminLocationControllerTest(
@@ -29,6 +31,9 @@ class AdminLocationControllerTest(
 
     @MockBean
     lateinit var locationService: LocationService
+
+    @MockBean
+    lateinit var auditActionRecorder: AuditActionRecorder
 
     @Test
     @WithMockUser(roles = ["SUPER_ADMIN"])
@@ -71,6 +76,7 @@ class AdminLocationControllerTest(
         mockMvc.perform(
             post("/api/v1/locations/admin/regions")
                 .with(csrf())
+                .requestAttr("staffId", UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -96,6 +102,7 @@ class AdminLocationControllerTest(
         mockMvc.perform(
             put("/api/v1/locations/admin/regions/AM-ER")
                 .with(csrf())
+                .requestAttr("staffId", UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )
@@ -129,6 +136,7 @@ class AdminLocationControllerTest(
         mockMvc.perform(
             post("/api/v1/locations/admin/cities")
                 .with(csrf())
+                .requestAttr("staffId", UUID.randomUUID())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )

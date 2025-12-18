@@ -38,7 +38,6 @@ class BookingServiceTicketCounterTest {
     private lateinit var venueApi: VenueApi
     private lateinit var ticketApi: TicketApi
     private lateinit var eventPublisher: ApplicationEventPublisher
-    private lateinit var inventoryChangePublisher: InventoryChangePublisher
     private lateinit var service: BookingService
 
     @BeforeEach
@@ -54,7 +53,6 @@ class BookingServiceTicketCounterTest {
         venueApi = mockk(relaxed = true)
         ticketApi = mockk(relaxed = true)
         eventPublisher = mockk(relaxed = true)
-        inventoryChangePublisher = mockk(relaxed = true)
         val directSalesService = mockk<DirectSalesService>(relaxed = true)
 
         val bookingFulfillmentService = BookingFulfillmentService(
@@ -77,8 +75,7 @@ class BookingServiceTicketCounterTest {
             venueApi,
             ticketApi,
             bookingFulfillmentService,
-            eventPublisher,
-            inventoryChangePublisher
+            eventPublisher
         )
 
         every {

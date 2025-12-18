@@ -1,5 +1,7 @@
 package app.venues.user.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.shared.security.util.SecurityUtil
 import app.venues.user.api.dto.PasswordChangeRequest
@@ -79,8 +81,9 @@ class UserController(
         summary = "Update current user profile",
         description = "Update profile information (name, phone number)"
     )
+    @Auditable(action = "USER_PROFILE_UPDATE", subjectType = "user", includeVenueId = false)
     fun updateCurrentUser(
-        @Valid @RequestBody request: UserUpdateRequest
+        @AuditMetadata("request") @Valid @RequestBody request: UserUpdateRequest
     ): ApiResponse<UserResponse> {
         val userId = securityUtil.getCurrentUserId()
         logger.info { "Update user profile request: userId=$userId" }
@@ -107,8 +110,9 @@ class UserController(
         summary = "Change password",
         description = "Change password for the authenticated user. Requires current password."
     )
+    @Auditable(action = "USER_PASSWORD_CHANGE", subjectType = "user", includeVenueId = false)
     fun changePassword(
-        @Valid @RequestBody request: PasswordChangeRequest
+        @AuditMetadata("request") @Valid @RequestBody request: PasswordChangeRequest
     ): ApiResponse<Unit> {
         val userId = securityUtil.getCurrentUserId()
         logger.info { "Change password request: userId=$userId" }

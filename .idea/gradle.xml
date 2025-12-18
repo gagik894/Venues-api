@@ -10,6 +10,8 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/audit" />
+            <option value="$PROJECT_DIR$/audit-api" />
             <option value="$PROJECT_DIR$/booking" />
             <option value="$PROJECT_DIR$/booking-api" />
             <option value="$PROJECT_DIR$/common" />

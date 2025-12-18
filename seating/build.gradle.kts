@@ -38,6 +38,9 @@ dependencies {
     // Venue module dependency (seating charts belong to venues)
     api(project(":venue"))
 
+    // Audit logging
+    implementation(project(":audit"))
+
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")

@@ -1,5 +1,7 @@
 package app.venues.venue.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.venue.api.dto.VenuePromoCodeRequest
 import app.venues.venue.api.dto.VenuePromoCodeResponse
@@ -19,7 +21,7 @@ import java.util.*
 @Tag(name = "Venue Promo Codes", description = "Management of promotional codes for venues")
 class VenuePromoCodeController(
     private val promoCodeService: VenuePromoCodeService,
-    private val venueSecurityService: VenueSecurityService,
+    private val venueSecurityService: VenueSecurityService
 ) {
 
     @PostMapping
@@ -28,10 +30,11 @@ class VenuePromoCodeController(
         summary = "Create promo code",
         description = "Create a new promotional code for the venue."
     )
+    @Auditable(action = "VENUE_PROMO_CREATE", subjectType = "promo_code")
     fun createPromoCode(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
-        @Valid @RequestBody request: VenuePromoCodeRequest
+        @AuditMetadata("request") @Valid @RequestBody request: VenuePromoCodeRequest
     ): ApiResponse<VenuePromoCodeResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val promoCode = promoCodeService.createPromoCode(venueId, request)
@@ -77,6 +80,7 @@ class VenuePromoCodeController(
         summary = "Deactivate promo code",
         description = "Deactivate (soft delete) a promotional code."
     )
+    @Auditable(action = "VENUE_PROMO_DEACTIVATE", subjectType = "promo_code")
     fun deactivatePromoCode(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
@@ -94,11 +98,12 @@ class VenuePromoCodeController(
         summary = "Update promo code",
         description = "Update details of an existing promotional code (e.g., extend expiry, increase limit)."
     )
+    @Auditable(action = "VENUE_PROMO_UPDATE", subjectType = "promo_code")
     fun updatePromoCode(
         @RequestAttribute staffId: UUID,
         @PathVariable venueId: UUID,
         @PathVariable promoCodeId: UUID,
-        @Valid @RequestBody request: VenuePromoCodeRequest
+        @AuditMetadata("request") @Valid @RequestBody request: VenuePromoCodeRequest
     ): ApiResponse<VenuePromoCodeResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 

@@ -1,5 +1,6 @@
 package app.venues.booking.api.controller
 
+import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.BookingService
 import app.venues.common.model.ApiResponse
@@ -41,6 +42,7 @@ class BookingController(
     /**
      * Checkout - convert cart to booking.
      */
+    @Auditable(action = "BOOKING_CHECKOUT", subjectType = "booking", includeVenueId = false)
     @PostMapping("/checkout")
     @Operation(
         summary = "Checkout",
@@ -159,6 +161,7 @@ class BookingController(
     /**
      * Confirm booking payment.
      */
+    @Auditable(action = "BOOKING_CONFIRM", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/confirm")
     @Operation(
         summary = "Confirm booking",
@@ -187,6 +190,7 @@ class BookingController(
     /**
      * Cancel booking.
      */
+    @Auditable(action = "BOOKING_CANCEL", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/cancel")
     @Operation(
         summary = "Cancel booking",

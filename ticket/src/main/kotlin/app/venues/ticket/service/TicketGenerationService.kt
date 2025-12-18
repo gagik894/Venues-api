@@ -1,5 +1,6 @@
 package app.venues.ticket.service
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.seating.api.SeatingApi
 import app.venues.ticket.api.TicketApi
 import app.venues.ticket.api.dto.TicketDto
@@ -16,7 +17,8 @@ class TicketGenerationService(
     private val ticketRepository: TicketRepository,
     private val qrCodeService: QRCodeService,
     private val seatingApi: SeatingApi,
-    private val ticketMapper: TicketMapper
+    private val ticketMapper: TicketMapper,
+    private val auditActionRecorder: AuditActionRecorder
 ) : TicketApi {
 
     @Transactional
@@ -74,6 +76,14 @@ class TicketGenerationService(
         val tickets = ticketRepository.findByBookingId(bookingId)
         tickets.forEach { it.invalidate(staffId, reason) }
         ticketRepository.saveAll(tickets)
+        auditActionRecorder.success(
+            action = "TICKET_INVALIDATE_ALL",
+            staffId = staffId,
+            venueId = null,
+            subjectType = "booking",
+            subjectId = bookingId.toString(),
+            metadata = mapOf("reason" to reason)
+        )
     }
 
     @Transactional
@@ -83,6 +93,17 @@ class TicketGenerationService(
         tickets.filter { it.bookingId == bookingId }
             .forEach { it.invalidate(staffId, reason) }
         ticketRepository.saveAll(tickets)
+        auditActionRecorder.success(
+            action = "TICKET_INVALIDATE_ITEM",
+            staffId = staffId,
+            venueId = null,
+            subjectType = "booking_item",
+            subjectId = bookingItemId.toString(),
+            metadata = mapOf(
+                "bookingId" to bookingId.toString(),
+                "reason" to reason
+            )
+        )
     }
 
     @Transactional(readOnly = true)

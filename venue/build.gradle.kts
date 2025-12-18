@@ -39,6 +39,9 @@ dependencies {
     // Location module for city/region reference data
     implementation(project(":location"))
 
+    // Audit logging
+    implementation(project(":audit"))
+
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")

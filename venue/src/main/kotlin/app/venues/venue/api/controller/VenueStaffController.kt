@@ -1,5 +1,7 @@
 package app.venues.venue.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.shared.i18n.LocaleHelper
 import app.venues.shared.persistence.util.PageableMapper
@@ -69,8 +71,10 @@ class VenueStaffController(
         summary = "Create venue",
         description = "Create a new venue. Status starts as PENDING_APPROVAL. Super admin only."
     )
+    @Auditable(action = "VENUE_CREATE", subjectType = "venue", includeVenueId = false)
     fun createVenue(
-        @Valid @RequestBody request: CreateVenueRequest
+        @RequestAttribute staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: CreateVenueRequest
     ): ApiResponse<VenueAdminResponse> {
         val venue = venueService.createVenue(request)
         return ApiResponse.success(venue, "Venue created successfully")
@@ -96,10 +100,11 @@ class VenueStaffController(
         summary = "Update venue",
         description = "Update venue information. Requires venue management permission."
     )
+    @Auditable(action = "VENUE_UPDATE", subjectType = "venue")
     fun updateVenue(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: UpdateVenueRequest
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateVenueRequest
     ): ApiResponse<VenueAdminResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val updated = venueService.updateVenue(venueId, request)
@@ -113,7 +118,11 @@ class VenueStaffController(
         summary = "Delete venue",
         description = "Soft delete venue (sets status to DELETED). Super admin only."
     )
-    fun deleteVenue(@PathVariable venueId: UUID): ApiResponse<Unit> {
+    @Auditable(action = "VENUE_DELETE", subjectType = "venue")
+    fun deleteVenue(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<Unit> {
         venueService.deleteVenue(venueId)
         return ApiResponse.success(Unit, "Venue deleted successfully")
     }
@@ -128,7 +137,11 @@ class VenueStaffController(
         summary = "Activate venue",
         description = "Sets venue status to ACTIVE. Super admin only."
     )
-    fun activateVenue(@PathVariable venueId: UUID): ApiResponse<VenueDetailResponse> {
+    @Auditable(action = "VENUE_ACTIVATE", subjectType = "venue")
+    fun activateVenue(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<VenueDetailResponse> {
         val venue = venueService.activateVenue(venueId)
         val detail = venueService.getVenue(venue.id, LocaleHelper.currentLanguage())
         return ApiResponse.success(detail, "Venue activated successfully")
@@ -140,7 +153,11 @@ class VenueStaffController(
         summary = "Suspend venue",
         description = "Sets venue status to SUSPENDED. Super admin only."
     )
-    fun suspendVenue(@PathVariable venueId: UUID): ApiResponse<VenueDetailResponse> {
+    @Auditable(action = "VENUE_SUSPEND", subjectType = "venue")
+    fun suspendVenue(
+        @PathVariable venueId: UUID,
+        @RequestAttribute staffId: UUID
+    ): ApiResponse<VenueDetailResponse> {
         val venue = venueService.suspendVenue(venueId)
         val detail = venueService.getVenue(venue.id, LocaleHelper.currentLanguage())
         return ApiResponse.success(detail, "Venue suspended successfully")
@@ -172,10 +189,11 @@ class VenueStaffController(
         summary = "Set SMTP configuration",
         description = "Configure SMTP settings for venue email notifications. Credentials encrypted at rest."
     )
+    @Auditable(action = "VENUE_SMTP_UPDATED", subjectType = "venue_smtp")
     fun setSmtpConfig(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody config: SmtpConfig
+        @AuditMetadata("config") @Valid @RequestBody config: SmtpConfig
     ): ApiResponse<SmtpConfigResponse?> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         venueSettingsService.updateSmtpConfig(venueId, config)
@@ -189,6 +207,7 @@ class VenueStaffController(
         summary = "Delete SMTP configuration",
         description = "Remove SMTP settings. Venue will use global SMTP for emails."
     )
+    @Auditable(action = "VENUE_SMTP_DELETED", subjectType = "venue_smtp")
     fun deleteSmtpConfig(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID
@@ -221,10 +240,11 @@ class VenueStaffController(
         summary = "Update venue branding",
         description = "Update white-label branding configuration (colors, hero, about blocks, contact config)."
     )
+    @Auditable(action = "VENUE_BRANDING_UPDATED", subjectType = "venue_branding")
     fun updateVenueBranding(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: UpdateVenueBrandingRequest
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateVenueBrandingRequest
     ): ApiResponse<VenueBrandingDto> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val branding = venueWebsiteService.updateVenueBranding(venueId, request)

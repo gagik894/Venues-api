@@ -1,5 +1,7 @@
 package app.venues.ticket.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.ticket.api.ScannerSessionApi
 import app.venues.ticket.api.dto.CreateSessionRequest
@@ -45,11 +47,12 @@ class StaffTicketController(
 
     @PostMapping("/invalidate")
     @Operation(summary = "Invalidate all tickets for booking")
+    @Auditable(action = "TICKET_INVALIDATE_BOOKING", subjectType = "booking")
     fun invalidateTickets(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @RequestParam bookingId: UUID,
-        @RequestParam reason: String
+        @AuditMetadata("bookingId") @RequestParam bookingId: UUID,
+        @AuditMetadata("reason") @RequestParam reason: String
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.info { "Staff $staffId invalidating tickets for booking $bookingId in venue $venueId" }
@@ -60,12 +63,13 @@ class StaffTicketController(
 
     @PostMapping("/invalidate-item")
     @Operation(summary = "Invalidate tickets for specific booking item")
+    @Auditable(action = "TICKET_INVALIDATE_ITEM", subjectType = "booking_item")
     fun invalidateTicketsForItem(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @RequestParam bookingId: UUID,
-        @RequestParam bookingItemId: Long,
-        @RequestParam reason: String
+        @AuditMetadata("bookingId") @RequestParam bookingId: UUID,
+        @AuditMetadata("bookingItemId") @RequestParam bookingItemId: Long,
+        @AuditMetadata("reason") @RequestParam reason: String
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.info { "Staff $staffId invalidating tickets for item $bookingItemId in booking $bookingId" }
@@ -89,10 +93,11 @@ class StaffTicketController(
 
     @PostMapping("/sessions")
     @Operation(summary = "Create scanner session")
+    @Auditable(action = "SCANNER_SESSION_CREATE", subjectType = "scanner_session")
     fun createScannerSession(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @RequestBody request: CreateSessionRequest
+        @AuditMetadata("request") @RequestBody request: CreateSessionRequest
     ): ApiResponse<ScannerSessionDto> {
         venueSecurityService.requireVenueScanPermission(staffId, venueId)
         logger.info { "Staff $staffId creating scanner session for venue $venueId" }

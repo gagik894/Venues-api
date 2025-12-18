@@ -1,5 +1,6 @@
 package app.venues.ticket.service
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.seating.api.SeatingApi
 import app.venues.seating.api.dto.TableInfoDto
 import app.venues.ticket.api.dto.TicketDto
@@ -23,12 +24,14 @@ class TicketGenerationServiceTest {
     private val qrCodeService = mockk<QRCodeService>()
     private val seatingApi = mockk<SeatingApi>()
     private val ticketMapper = mockk<TicketMapper>()
+    private val auditActionRecorder = mockk<AuditActionRecorder>(relaxed = true)
 
     private val service = TicketGenerationService(
         ticketRepository = ticketRepository,
         qrCodeService = qrCodeService,
         seatingApi = seatingApi,
-        ticketMapper = ticketMapper
+        ticketMapper = ticketMapper,
+        auditActionRecorder = auditActionRecorder
     )
 
     @Test

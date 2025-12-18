@@ -1,0 +1,30 @@
+.git
+.gradle
+.idea
+**/build
+**/out
+**/target
+**/*.jar
+
+# --- THE FIX ---
+# We must explicitly allow the Gradle Wrapper JAR
+!gradle/wrapper/gradle-wrapper.jar
+ 
+# Exclude local secrets, CI artifacts and IDE files
+.env
+.env.*
+*.env
+.github
+node_modules
+target
+buildSrc
+.DS_Store
+*.log
+*.pid
+*.seed
+*.pid.lock
+test_output.txt
+trivy-results.sarif
+docker-compose*.yml
+README.md
+docs/

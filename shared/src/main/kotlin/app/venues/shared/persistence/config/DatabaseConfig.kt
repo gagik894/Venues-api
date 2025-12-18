@@ -2,10 +2,12 @@ package app.venues.shared.persistence.config
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.boot.autoconfigure.domain.EntityScan
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.transaction.annotation.EnableTransactionManagement
+import java.util.*
 
 /**
  * JPA and database configuration for the Venues API.
@@ -55,21 +57,7 @@ class DatabaseConfig {
         logger.info { "Transaction Management enabled" }
     }
 
-    /**
-     * TODO: Implement AuditorAware bean for tracking created/modified users
-     *
-     * Example implementation:
-     * @Bean
-     * fun auditorAware(): AuditorAware<String> {
-     *     return AuditorAware {
-     *         Optional.of(
-     *             SecurityContextHolder.getContext()
-     *                 .authentication
-     *                 ?.name
-     *                 ?: "system"
-     *         )
-     *     }
-     * }
-     */
+    @Bean
+    fun auditorAware(): org.springframework.data.domain.AuditorAware<UUID> = RequestAuditorAware()
 }
 

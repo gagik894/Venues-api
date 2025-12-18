@@ -31,6 +31,9 @@ dependencies {
     api(project(":media-api"))
     api(project(":shared"))
 
+    // Audit logging
+    implementation(project(":audit"))
+
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")

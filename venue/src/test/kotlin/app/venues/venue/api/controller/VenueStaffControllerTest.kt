@@ -1,5 +1,6 @@
 package app.venues.venue.api.controller
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.venue.api.dto.*
 import app.venues.venue.api.service.VenueSecurityService
 import app.venues.venue.service.VenueService
@@ -40,6 +41,9 @@ class VenueStaffControllerTest(
     lateinit var venueSecurityService: VenueSecurityService
     @MockBean
     lateinit var venueWebsiteService: VenueWebsiteService
+
+    @MockBean
+    lateinit var auditActionRecorder: AuditActionRecorder
 
     private fun sampleAdmin(): app.venues.venue.api.dto.VenueAdminResponse =
         app.venues.venue.api.dto.VenueAdminResponse(
@@ -116,6 +120,7 @@ class VenueStaffControllerTest(
     @Test
     @WithMockUser(roles = ["SUPER_ADMIN"])
     fun `create venue accepts translations and returns them`() {
+        val staffId = UUID.randomUUID()
         val request = CreateVenueRequest(
             organizationId = UUID.randomUUID(),
             name = "Opera",
@@ -152,6 +157,7 @@ class VenueStaffControllerTest(
         mockMvc.perform(
             post("/api/v1/staff/venues")
                 .with(csrf())
+                .requestAttr("staffId", staffId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
         )

@@ -1,5 +1,6 @@
 package app.venues.booking.service
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.DirectSaleItemRequest
 import app.venues.booking.api.dto.DirectSaleRequest
@@ -32,8 +33,8 @@ class DirectSalesServiceEasyReserveTest {
     private lateinit var venueApi: VenueApi
     private lateinit var bookingResponseService: BookingResponseService
     private lateinit var bookingFulfillmentService: BookingFulfillmentService
-    private lateinit var inventoryChangePublisher: InventoryChangePublisher
     private lateinit var eventPublisher: ApplicationEventPublisher
+    private lateinit var auditActionRecorder: AuditActionRecorder
 
     private lateinit var service: DirectSalesService
 
@@ -47,8 +48,8 @@ class DirectSalesServiceEasyReserveTest {
         venueApi = mockk(relaxed = true)
         bookingResponseService = mockk(relaxed = true)
         bookingFulfillmentService = mockk(relaxed = true)
-        inventoryChangePublisher = mockk(relaxed = true)
         eventPublisher = mockk(relaxed = true)
+        auditActionRecorder = mockk(relaxed = true)
 
         service = DirectSalesService(
             bookingRepository,
@@ -58,8 +59,8 @@ class DirectSalesServiceEasyReserveTest {
             venueApi,
             bookingResponseService,
             bookingFulfillmentService,
-            inventoryChangePublisher,
             eventPublisher,
+            auditActionRecorder,
             BigDecimal.ZERO
         )
     }

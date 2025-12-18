@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlinSpring)
     alias(libs.plugins.springBoot)
     alias(libs.plugins.springDependencyManagement)
+    application
 }
 
 group = "app.venues"
@@ -13,6 +14,14 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+application {
+    mainClass = "app.venues.app.AppApplicationKt"
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    mainClass = "app.venues.app.AppApplicationKt"
 }
 
 repositories {
@@ -33,6 +42,7 @@ dependencies {
     implementation(project(":staff"))
     implementation(project(":ticket"))
     implementation(project(":media"))
+    implementation(project(":audit"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))
@@ -52,6 +62,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

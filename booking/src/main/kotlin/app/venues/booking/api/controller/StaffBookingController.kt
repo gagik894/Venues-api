@@ -1,5 +1,7 @@
 package app.venues.booking.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.*
@@ -50,6 +52,7 @@ class StaffBookingController(
      * Create a direct sale (confirmed booking without cart flow).
      * Used when staff sells tickets directly with immediate payment.
      */
+    @Auditable(action = "BOOKING_DIRECT_SALE", subjectType = "booking")
     @PostMapping("/direct-sales")
     @Operation(
         summary = "Create direct sale",
@@ -59,7 +62,7 @@ class StaffBookingController(
     fun createDirectSale(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: DirectSaleRequest
+        @AuditMetadata("request") @Valid @RequestBody request: DirectSaleRequest
     ): ApiResponse<BookingResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
 
@@ -189,6 +192,7 @@ class StaffBookingController(
     /**
      * Invalidate a booking by ID.
      */
+    @Auditable(action = "BOOKING_INVALIDATED", subjectType = "booking")
     @DeleteMapping("/{bookingId}")
     @Operation(
         summary = "Invalidate booking",

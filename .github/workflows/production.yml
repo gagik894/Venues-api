@@ -61,7 +61,7 @@ jobs:
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           source: "docker-compose.production.yml"
-          target: "/opt/gov-app"
+          target: "/opt/armtick-api"
 
       # 3. SSH in and Deploy
       - name: Deploy via SSH
@@ -80,8 +80,8 @@ jobs:
             echo "==> Deploying Version: $IMAGE_TAG"
             
             # Ensure folder exists
-            mkdir -p /opt/gov-app
-            cd /opt/gov-app
+            mkdir -p /opt/armtick-api
+            cd /opt/armtick-api
             
             # --- SECRET INJECTION START ---
             # Create .env.production from the GitHub Secret

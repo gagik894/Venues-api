@@ -12,6 +12,9 @@ jobs:
   # --- JOB 1: TEST & BUILD ---
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -56,7 +59,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'

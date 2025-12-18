@@ -28,7 +28,9 @@ RUN mkdir -p /build-out && \
 # ==========================================
 # STAGE 2: Secure Production Runtime
 # ==========================================
-FROM gcr.io/distroless/java21-debian12:nonroot
+# Use Debian 13 base to ensure known CVEs (zlib, etc.) are patched.
+# Updated from debian12 to debian13 to address zlib CVE-2023-45853 reported by Trivy.
+FROM gcr.io/distroless/java21-debian13:nonroot
 
 WORKDIR /app
 

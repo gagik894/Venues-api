@@ -1,14 +1,33 @@
+# Development Docker Compose Configuration
+# For production use: docker-compose.production.yml
+
 services:
   backend:
-    # Build from the current directory using the Multi-Stage Dockerfile
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: gov-backend
+    image: gov-backend:local
+    container_name: gov-backend-dev
     ports:
-      # Expose 8080 so you can test via Postman/Browser on Windows
       - "8080:8080"
+    
+    # Load local development environment variables
+    env_file:
+      - .env
+    
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    
     volumes:
-      # Mount your local .env (Dev Credentials)
-      - ./.env:/.env
-    # We remove 'restart: always' because locally you want it to stop if it crashes, so you can see the error.
+      # Mount uploads directory for local development
+      - ./uploads:/app/uploads
+    
+    # Allow restart on failure for local development
+    restart: unless-stopped
+    
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

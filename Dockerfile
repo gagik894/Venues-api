@@ -1,44 +1,57 @@
 # ==========================================
-# STAGE 1: The Builder (Multi-Module Capable)
+# STAGE 1: Dependencies Cache Layer
 # ==========================================
-FROM eclipse-temurin:22-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk-jammy AS deps
 WORKDIR /workspace/app
 
-# 1. Copy the ENTIRE project
-# We stop guessing where 'src' or 'build.gradle' is. We just copy it all.
+# Copy only build configuration files first (for layer caching)
+COPY gradle ./gradle
+COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./
+COPY */build.gradle.kts ./modules/
+
+# Download dependencies (this layer is cached unless build files change)
+RUN ./gradlew dependencies --no-daemon || true
+
+# ==========================================
+# STAGE 2: Build the Application
+# ==========================================
+FROM deps AS builder
+WORKDIR /workspace/app
+
+# Now copy the entire source code
 COPY . .
 
-# 2. Grant permission to gradlew
-# We install 'bash' just in case the gradlew script needs it on Alpine
-RUN apk add --no-cache bash
-RUN chmod +x gradlew
-
-# 3. Build the JAR
-# We run 'bootJar' which only builds the executable JAR for the main application.
-# We skip tests (-x test) to make the build faster and reliable.
+# Build the JAR (tests run separately in CI)
 RUN ./gradlew bootJar -x test --no-daemon
 
-# 4. Search and Rescue the JAR
-# In a multi-module setup, the JAR is buried in "module-name/build/libs".
-# We find the one that ends in .jar but NOT "-plain.jar" (which is the non-executable one).
-RUN mkdir -p build/libs && \
-    find . -name "*.jar" -type f ! -name "*-plain.jar" -exec cp {} build/libs/app.jar \;
+# Find and extract the executable JAR (not the -plain.jar)
+# Create the target directory
+RUN mkdir -p /app
+
+# Explicitly copy ONLY from your main module's build folder
+# REPLACE 'app' WITH YOUR ACTUAL MAIN MODULE NAME (e.g., 'server', 'api', 'core')
+RUN cp app/build/libs/*.jar /app/app.jar
+
+# Failsafe: Check if we accidentally copied the "plain" jar and remove it if so
+# (Rare, but good safety)
+RUN rm -f /app/*-plain.jar
 
 # ==========================================
-# STAGE 2: The Runtime (Secure)
+# STAGE 3: Secure Runtime (Distroless)
 # ==========================================
-FROM eclipse-temurin:22-jre-alpine
+FROM gcr.io/distroless/java21-debian12:nonroot
 
-# 1. Create secure user
-RUN addgroup -S spring && adduser -S spring -G spring
+# Use non-root user (distroless default: nonroot uid 65532)
 WORKDIR /app
-
-# 2. Copy the found JAR from Stage 1
-COPY --from=builder /workspace/app/build/libs/app.jar app.jar
-
-# 3. Secure permissions
-RUN chown spring:spring /app/app.jar
-USER spring
+COPY --from=builder --chown=nonroot:nonroot /app/app.jar /app/app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Health check (curl not available in distroless, so use java-based check in app or external monitoring)
+# Note: Docker HEALTHCHECK with distroless requires external tooling or Spring Boot Actuator + sidecar
+
+ENTRYPOINT ["java", \
+    "-XX:+UseContainerSupport", \
+    "-XX:MaxRAMPercentage=75.0", \
+    "-Djava.security.egd=file:/dev/./urandom", \
+    "-jar", "/app/app.jar"]

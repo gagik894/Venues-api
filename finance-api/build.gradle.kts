@@ -18,3 +18,7 @@ dependencyManagement {
         mavenBom(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
     }
 }
+
+kotlin {
+    jvmToolchain(21)
+}

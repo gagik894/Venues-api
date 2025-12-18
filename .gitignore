@@ -50,4 +50,15 @@ bin/
 ### Uploads ###
 /uploads
 
+### Environment & Secrets ###
 .env
+.env.*
+*.env
+.env.production
+.env.production.backup
+.env.production.tmp
+
+### CI/CD Artifacts ###
+trivy-results.sarif
+test_output.txt
+artifacts/

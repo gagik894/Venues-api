@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlinSpring)
     alias(libs.plugins.springBoot)
     alias(libs.plugins.springDependencyManagement)
+    application
 }
 
 group = "app.venues"
@@ -13,6 +14,14 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+application {
+    mainClass = "app.venues.app.AppApplicationKt"
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    mainClass = "app.venues.app.AppApplicationKt"
 }
 
 repositories {

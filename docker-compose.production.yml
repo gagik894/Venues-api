@@ -1,0 +1,58 @@
+# Production Docker Compose Configuration
+# Usage: docker compose -f docker-compose.production.yml up -d
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: gov-backend-prod
+    restart: unless-stopped
+    
+    ports:
+      # SECURITY: Bind to localhost so only Nginx can reach it.
+      # Public internet cannot hit port 8080 directly.
+      - "127.0.0.1:8080:8080"
+    
+    env_file:
+      - .env.production
+    
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SERVER_PORT: 8080
+      
+      # MAGIC FIX: JVM automatically reads JAVA_TOOL_OPTIONS
+      JAVA_TOOL_OPTIONS: >-
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+        -Djava.security.egd=file:/dev/./urandom
+    
+    # Check if your app is alive (requires 'actuator' dependency in Gradle)
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - backend-network
+    
+    # Excellent log rotation config (Keeps disk usage low)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Resource limits (Docker Compose V2 handles this natively now)
+    deploy:
+      resources:
+        limits:
+          cpus: '3.5'   # Let it use almost all cores (leave 0.5 for OS)
+          memory: 6G
+        reservations:
+          cpus: '1'
+          memory: 2G    # Guaranteed RAM start
+
+networks:
+  backend-network:
+    driver: bridge

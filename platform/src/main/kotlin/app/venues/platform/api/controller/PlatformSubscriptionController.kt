@@ -1,5 +1,7 @@
 package app.venues.platform.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.BulkSubscribeRequest
 import app.venues.platform.api.dto.CreateSubscriptionRequest
@@ -36,9 +38,11 @@ class PlatformSubscriptionController(
 
     @PostMapping
     @Operation(summary = "Subscribe to event", description = "Subscribe a platform to a specific event")
+    @Auditable(action = "PLATFORM_SUBSCRIBE_EVENT", subjectType = "platform_subscription", includeVenueId = false)
     fun subscribe(
         @PathVariable platformId: UUID,
-        @Valid @RequestBody request: CreateSubscriptionRequest
+        @AuditMetadata("request") @Valid @RequestBody request: CreateSubscriptionRequest,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<PlatformSubscriptionResponse> {
         val result = subscriptionService.subscribe(platformId, request.eventId)
         return ApiResponse.success(result, "Subscribed successfully")
@@ -46,9 +50,11 @@ class PlatformSubscriptionController(
 
     @PostMapping("/bulk")
     @Operation(summary = "Bulk subscribe", description = "Subscribe a platform to multiple events")
+    @Auditable(action = "PLATFORM_BULK_SUBSCRIBE", subjectType = "platform_subscription", includeVenueId = false)
     fun bulkSubscribe(
         @PathVariable platformId: UUID,
-        @Valid @RequestBody request: BulkSubscribeRequest
+        @AuditMetadata("request") @Valid @RequestBody request: BulkSubscribeRequest,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<Map<String, Int>> {
         val count = subscriptionService.bulkSubscribe(platformId, request.eventIds)
         return ApiResponse.success(mapOf("subscribedCount" to count), "Bulk subscription successful")
@@ -56,9 +62,11 @@ class PlatformSubscriptionController(
 
     @DeleteMapping("/{eventId}")
     @Operation(summary = "Unsubscribe from event", description = "Unsubscribe a platform from an event")
+    @Auditable(action = "PLATFORM_UNSUBSCRIBE_EVENT", subjectType = "platform_subscription", includeVenueId = false)
     fun unsubscribe(
         @PathVariable platformId: UUID,
-        @PathVariable eventId: UUID
+        @PathVariable eventId: UUID,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<Unit> {
         subscriptionService.unsubscribe(platformId, eventId)
         return ApiResponse.success(Unit, "Unsubscribed successfully")

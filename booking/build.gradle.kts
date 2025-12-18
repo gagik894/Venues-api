@@ -40,6 +40,7 @@ dependencies {
     // Event module - we use the API interface
     api(project(":event-api"))
     api(project(":ticket-api"))    // Ticket module - for ticket generation
+    implementation(project(":audit"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

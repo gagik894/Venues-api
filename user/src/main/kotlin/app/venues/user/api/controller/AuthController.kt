@@ -1,5 +1,7 @@
 package app.venues.user.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.user.api.dto.LoginRequest
 import app.venues.user.api.dto.LoginResponse
@@ -50,8 +52,9 @@ class AuthController(
         summary = "Register new user",
         description = "Create a new user account. Email verification required before login."
     )
+    @Auditable(action = "USER_REGISTER", subjectType = "user", includeVenueId = false)
     fun register(
-        @Valid @RequestBody request: UserRegistrationRequest
+        @AuditMetadata("request") @Valid @RequestBody request: UserRegistrationRequest
     ): ApiResponse<UserResponse> {
         logger.info { "Registration request received for email: ${request.email}" }
 
@@ -78,8 +81,9 @@ class AuthController(
         summary = "User login",
         description = "Authenticate with email and password. Returns JWT token for API access."
     )
+    @Auditable(action = "USER_LOGIN", subjectType = "user", includeVenueId = false)
     fun login(
-        @Valid @RequestBody request: LoginRequest
+        @AuditMetadata("request") @Valid @RequestBody request: LoginRequest
     ): ApiResponse<LoginResponse> {
         logger.info { "Login request received for email: ${request.email}" }
 

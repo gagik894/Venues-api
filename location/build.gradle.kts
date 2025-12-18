@@ -34,6 +34,9 @@ dependencies {
     // Expose shared module as part of public API
     api(project(":shared"))
 
+    // Audit logging
+    implementation(project(":audit"))
+
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")

@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+**/build
+**/out
+**/target
+**/*.jar
+
+# --- THE FIX ---
+# We must explicitly allow the Gradle Wrapper JAR
+!gradle/wrapper/gradle-wrapper.jar

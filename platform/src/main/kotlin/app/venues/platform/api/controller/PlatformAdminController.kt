@@ -1,5 +1,7 @@
 package app.venues.platform.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.*
 import app.venues.platform.security.NonceService
@@ -39,13 +41,15 @@ class PlatformAdminController(
     /**
      * Create a new platform
      */
+    @Auditable(action = "PLATFORM_CREATE", subjectType = "platform", includeVenueId = false)
     @PostMapping
     @Operation(
         summary = "Create platform",
         description = "Register a new external platform. Returns the shared secret (only shown once)."
     )
     fun createPlatform(
-        @Valid @RequestBody request: CreatePlatformRequest
+        @AuditMetadata("request") @Valid @RequestBody request: CreatePlatformRequest,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<PlatformWithSecretResponse> {
         logger.debug { "Creating platform: ${request.name}" }
 
@@ -102,6 +106,7 @@ class PlatformAdminController(
     /**
      * Update platform
      */
+    @Auditable(action = "PLATFORM_UPDATE", subjectType = "platform", includeVenueId = false)
     @PutMapping("/{id}")
     @Operation(
         summary = "Update platform",
@@ -109,7 +114,8 @@ class PlatformAdminController(
     )
     fun updatePlatform(
         @PathVariable id: UUID,
-        @Valid @RequestBody request: UpdatePlatformRequest
+        @AuditMetadata("request") @Valid @RequestBody request: UpdatePlatformRequest,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<PlatformResponse> {
         logger.debug { "Updating platform: $id" }
 
@@ -124,6 +130,7 @@ class PlatformAdminController(
     /**
      * Regenerate shared secret
      */
+    @Auditable(action = "PLATFORM_REGENERATE_SECRET", subjectType = "platform", includeVenueId = false)
     @PostMapping("/{id}/regenerate-secret")
     @Operation(
         summary = "Regenerate shared secret",
@@ -131,7 +138,8 @@ class PlatformAdminController(
     )
     fun regenerateSharedSecret(
         @PathVariable id: UUID,
-        @Valid @RequestBody request: RegenerateSecretRequest
+        @AuditMetadata("request") @Valid @RequestBody request: RegenerateSecretRequest,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<PlatformWithSecretResponse> {
         logger.debug { "Regenerating secret for platform: $id" }
 
@@ -146,12 +154,16 @@ class PlatformAdminController(
     /**
      * Delete platform
      */
+    @Auditable(action = "PLATFORM_DELETE", subjectType = "platform", includeVenueId = false)
     @DeleteMapping("/{id}")
     @Operation(
         summary = "Delete platform",
         description = "Delete a platform (cannot be undone)"
     )
-    fun deletePlatform(@PathVariable id: UUID): ApiResponse<Unit> {
+    fun deletePlatform(
+        @PathVariable id: UUID,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
+    ): ApiResponse<Unit> {
         logger.debug { "Deleting platform: $id" }
 
         platformService.deletePlatform(id)
@@ -184,12 +196,16 @@ class PlatformAdminController(
     /**
      * Clear nonces for specific platform (emergency use only)
      */
+    @Auditable(action = "PLATFORM_CLEAR_NONCES", subjectType = "platform", includeVenueId = false)
     @DeleteMapping("/{id}/nonces")
     @Operation(
         summary = "Clear nonces for platform",
         description = "Clear all active nonces for a specific platform. Use with caution - only for emergency situations!"
     )
-    fun clearPlatformNonces(@PathVariable id: UUID): ApiResponse<Map<String, Any>> {
+    fun clearPlatformNonces(
+        @PathVariable id: UUID,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
+    ): ApiResponse<Map<String, Any>> {
         logger.warn { "Clearing nonces for platform: $id" }
 
         val count = nonceService.clearNoncesForPlatform(id)
@@ -259,9 +275,11 @@ class PlatformAdminController(
         summary = "Replay webhook",
         description = "Re-deliver a webhook event for troubleshooting"
     )
+    @Auditable(action = "PLATFORM_WEBHOOK_REPLAY", subjectType = "platform_webhook", includeVenueId = false)
     fun replayWebhook(
-        @PathVariable id: UUID,
-        @PathVariable eventId: UUID
+        @AuditMetadata("platformId") @PathVariable id: UUID,
+        @AuditMetadata("eventId") @PathVariable eventId: UUID,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<Unit> {
         webhookService.replayWebhook(eventId)
         return ApiResponse.success(data = Unit, message = "Webhook replay triggered")

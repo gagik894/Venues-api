@@ -1,5 +1,7 @@
 package app.venues.booking.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
@@ -49,6 +51,7 @@ class StaffCartController(
      * Creates cart with 20-minute expiration if first item.
      * Extends by 10 minutes on each action (max 30 minutes from creation).
      */
+    @Auditable(action = "STAFF_CART_ADD_SEAT", subjectType = "cart")
     @PostMapping("/seats")
     @Operation(
         summary = "Add seat to staff cart",
@@ -58,7 +61,7 @@ class StaffCartController(
     fun addSeatToCart(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: AddSeatToCartRequest,
+        @AuditMetadata("request") @Valid @RequestBody request: AddSeatToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
@@ -80,6 +83,7 @@ class StaffCartController(
     /**
      * Add GA tickets to staff cart.
      */
+    @Auditable(action = "STAFF_CART_ADD_GA", subjectType = "cart")
     @PostMapping("/ga")
     @Operation(
         summary = "Add GA tickets to staff cart",
@@ -88,7 +92,7 @@ class StaffCartController(
     fun addGAToCart(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: AddGAToCartRequest,
+        @AuditMetadata("request") @Valid @RequestBody request: AddGAToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
@@ -110,6 +114,7 @@ class StaffCartController(
     /**
      * Add table to staff cart.
      */
+    @Auditable(action = "STAFF_CART_ADD_TABLE", subjectType = "cart")
     @PostMapping("/table")
     @Operation(
         summary = "Add table to staff cart",
@@ -118,7 +123,7 @@ class StaffCartController(
     fun addTableToCart(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: AddTableToCartRequest,
+        @AuditMetadata("request") @Valid @RequestBody request: AddTableToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
@@ -171,6 +176,7 @@ class StaffCartController(
     /**
      * Remove seat from staff cart.
      */
+    @Auditable(action = "STAFF_CART_REMOVE_SEAT", subjectType = "cart")
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
         summary = "Remove seat from staff cart",
@@ -181,7 +187,7 @@ class StaffCartController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable seatIdentifier: String
+        @AuditMetadata("seatIdentifier") @PathVariable seatIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing seat from cart" }
@@ -200,6 +206,7 @@ class StaffCartController(
     /**
      * Update GA quantity in staff cart.
      */
+    @Auditable(action = "STAFF_CART_UPDATE_GA", subjectType = "cart")
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Update GA quantity in staff cart",
@@ -210,8 +217,8 @@ class StaffCartController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable levelIdentifier: String,
-        @Valid @RequestBody request: UpdateGAQuantityRequest
+        @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String,
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateGAQuantityRequest
     ): ApiResponse<CartSummaryResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId updating GA quantity in cart" }
@@ -230,6 +237,7 @@ class StaffCartController(
     /**
      * Remove GA item from staff cart.
      */
+    @Auditable(action = "STAFF_CART_REMOVE_GA", subjectType = "cart")
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Remove GA item from staff cart",
@@ -240,7 +248,7 @@ class StaffCartController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable levelIdentifier: String
+        @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing GA from cart" }
@@ -259,6 +267,7 @@ class StaffCartController(
     /**
      * Remove table from staff cart.
      */
+    @Auditable(action = "STAFF_CART_REMOVE_TABLE", subjectType = "cart")
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
         summary = "Remove table from staff cart",
@@ -269,7 +278,7 @@ class StaffCartController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable tableIdentifier: String
+        @AuditMetadata("tableIdentifier") @PathVariable tableIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
         logger.debug { "Staff $staffId removing table from cart" }
@@ -288,6 +297,7 @@ class StaffCartController(
     /**
      * Clear entire staff cart.
      */
+    @Auditable(action = "STAFF_CART_CLEARED", subjectType = "cart")
     @DeleteMapping("/clear")
     @Operation(
         summary = "Clear staff cart",
@@ -324,6 +334,7 @@ class StaffCartController(
      * Checkout staff cart and create confirmed booking.
      * Converts cart to direct sale with immediate confirmation.
      */
+    @Auditable(action = "STAFF_CART_CHECKOUT", subjectType = "cart")
     @PostMapping("/checkout")
     @Operation(
         summary = "Checkout staff cart",
@@ -335,7 +346,7 @@ class StaffCartController(
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @Valid @RequestBody request: StaffCartCheckoutRequest,
+        @AuditMetadata("request") @Valid @RequestBody request: StaffCartCheckoutRequest,
         response: HttpServletResponse
     ): ApiResponse<StaffCartCheckoutResponse> {
         venueSecurityService.requireVenueSellPermission(staffId, venueId)
@@ -368,6 +379,7 @@ class StaffCartController(
      *
      * Releases inventory reservations and deletes the cart.
      */
+    @Auditable(action = "STAFF_CART_CLOSE_ITEMS", subjectType = "cart")
     @PostMapping("/close")
     @Operation(
         summary = "Close items from staff cart",

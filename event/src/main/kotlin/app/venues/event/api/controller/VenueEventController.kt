@@ -1,5 +1,7 @@
 package app.venues.event.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
 import app.venues.event.api.EventApi
@@ -77,8 +79,8 @@ class VenueEventController(
         description = "Returns all events for the venue, including drafts and suspended events. Use Accept-Language header for translations."
     )
     fun listVenueEvents(
-        @PathVariable venueId: UUID,
-        @RequestAttribute staffId: UUID,
+        @PathVariable("venueId") venueId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
         @RequestParam(required = false) limit: Int?,
         @RequestParam(required = false) offset: Int?,
         @RequestParam(required = false, name = "status") statuses: List<EventStatus>?,
@@ -116,9 +118,9 @@ class VenueEventController(
         description = "Returns event details for staff, including hidden events. Use Accept-Language header for translations."
     )
     fun getVenueEvent(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueBrowsePermission(staffId, venueId)
         val language = LocaleHelper.currentLanguage()
@@ -146,20 +148,21 @@ class VenueEventController(
     /**
      * Create event for authenticated venue.
      */
+    @Auditable(action = "EVENT_CREATE", subjectType = "event")
     @PostMapping(consumes = ["multipart/form-data"])
     @Operation(
         summary = "Create event",
         description = "Create a new event for your venue (Venue owners only). Supports image upload."
     )
     fun createEvent(
-        @PathVariable venueId: UUID,
-        @Valid @RequestPart("data") request: EventRequest,
+        @PathVariable("venueId") venueId: UUID,
+        @AuditMetadata("request") @Valid @RequestPart("data") request: EventRequest,
         @RequestPart("image", required = false) image: org.springframework.web.multipart.MultipartFile?,
         @RequestPart(
             "secondaryImages",
             required = false
         ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
-        @RequestAttribute staffId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         logger.debug { "Creating event for venue: $venueId by staff: $staffId" }
@@ -184,21 +187,22 @@ class VenueEventController(
     /**
      * Update event.
      */
+    @Auditable(action = "EVENT_UPDATE", subjectType = "event")
     @PutMapping(value = ["/{eventId}"], consumes = ["multipart/form-data"])
     @Operation(
         summary = "Update event",
         description = "Update event details (Venue owners only). Supports image upload."
     )
     fun updateEvent(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @Valid @RequestPart("data") request: EventRequest,
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @AuditMetadata("request") @Valid @RequestPart("data") request: EventRequest,
         @RequestPart("image", required = false) image: org.springframework.web.multipart.MultipartFile?,
         @RequestPart(
             "secondaryImages",
             required = false
         ) secondaryImages: List<org.springframework.web.multipart.MultipartFile>?,
-        @RequestAttribute staffId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
     ): ApiResponse<EventResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -224,15 +228,16 @@ class VenueEventController(
     /**
      * Delete event.
      */
+    @Auditable(action = "EVENT_DELETE", subjectType = "event")
     @DeleteMapping("/{eventId}")
     @Operation(
         summary = "Delete event",
         description = "Delete an event (Venue owners only)"
     )
     fun deleteEvent(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID,
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -253,9 +258,9 @@ class VenueEventController(
     @GetMapping("/{eventId}/price-templates")
     @Operation(summary = "List price templates")
     fun listPriceTemplates(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<List<PriceTemplateResponse>> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val templates = eventService.getPriceTemplates(eventId)
@@ -266,11 +271,12 @@ class VenueEventController(
 
     @PostMapping("/{eventId}/price-templates")
     @Operation(summary = "Create price template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_CREATE", subjectType = "price_template")
     fun createPriceTemplate(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @Valid @RequestBody request: PriceTemplateRequest,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: PriceTemplateRequest,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<PriceTemplateResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val template = eventService.createPriceTemplate(eventId, venueId, request)
@@ -279,12 +285,13 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/price-templates/{templateId}")
     @Operation(summary = "Update price template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_UPDATE", subjectType = "price_template")
     fun updatePriceTemplate(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable templateId: UUID,
-        @Valid @RequestBody request: PriceTemplateRequest,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("templateId") templateId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: PriceTemplateRequest,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<PriceTemplateResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val template = eventService.updatePriceTemplate(eventId, venueId, templateId, request)
@@ -293,11 +300,12 @@ class VenueEventController(
 
     @DeleteMapping("/{eventId}/price-templates/{templateId}")
     @Operation(summary = "Delete price template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_DELETE", subjectType = "price_template")
     fun deletePriceTemplate(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable templateId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("templateId") templateId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         eventService.deletePriceTemplate(eventId, venueId, templateId)
@@ -316,25 +324,30 @@ class VenueEventController(
         summary = "Assign price template",
         description = "Batch assign a price template to seats, tables, or GA areas (Venue owners only)"
     )
+    @Auditable(action = "EVENT_SESSION_PRICING_ASSIGN", subjectType = "session_pricing")
     fun assignPriceTemplate(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @Valid @RequestBody request: AssignPriceTemplateRequest,
-        @RequestAttribute staffId: UUID,
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: AssignPriceTemplateRequest,
+        @RequestAttribute("staffId") staffId: UUID,
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
         logger.debug { "Assigning price template for session: $sessionId, event: $eventId by staff: $staffId" }
+
+        val seatIds = request.seatIds ?: emptyList()
+        val tableIds = request.tableIds ?: emptyList()
+        val gaIds = request.gaIds ?: emptyList()
 
         eventService.assignPriceTemplate(
             eventId = eventId,
             sessionId = sessionId,
             venueId = venueId,
             templateId = request.templateId,
-            seatIds = request.seatIds ?: emptyList(),
-            tableIds = request.tableIds ?: emptyList(),
-            gaIds = request.gaIds ?: emptyList()
+            seatIds = seatIds,
+            tableIds = tableIds,
+            gaIds = gaIds
         )
 
         return ApiResponse.success(
@@ -370,9 +383,9 @@ class VenueEventController(
         """
     )
     fun getPricingConfiguration(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<EventPricingConfigurationResponse> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
@@ -399,11 +412,12 @@ class VenueEventController(
             Use this when setting up consistent pricing across all sessions.
         """
     )
+    @Auditable(action = "EVENT_PRICING_ASSIGN", subjectType = "event_pricing")
     fun assignEventPricing(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventPricingAssignRequest,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: EventPricingAssignRequest,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<Unit> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -444,11 +458,12 @@ class VenueEventController(
             Validation errors will be returned if transition is not allowed.
         """
     )
+    @Auditable(action = "EVENT_STATUS_CHANGE", subjectType = "event")
     fun changeEventStatus(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @Valid @RequestBody request: EventStatusChangeRequest,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: EventStatusChangeRequest,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<StatusChangeResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -484,9 +499,9 @@ class VenueEventController(
         description = "Returns list of statuses that the event can transition to from its current state."
     )
     fun getAllowedEventTransitions(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<List<EventStatus>> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
@@ -500,12 +515,13 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/sessions/{sessionId}/seats/close")
     @Operation(summary = "Close seats", description = "Set seats to CLOSED (admin action). Notifies platforms.")
+    @Auditable(action = "EVENT_SEATS_CLOSE", subjectType = "session")
     fun closeSeats(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @RequestAttribute staffId: UUID,
-        @RequestBody request: SeatIdsRequest
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @RequestBody request: SeatIdsRequest
     ): ApiResponse<Int> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
@@ -519,12 +535,13 @@ class VenueEventController(
         summary = "Reopen closed seats",
         description = "Set CLOSED seats back to AVAILABLE and notify platforms."
     )
+    @Auditable(action = "EVENT_SEATS_OPEN", subjectType = "session")
     fun openSeats(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @RequestAttribute staffId: UUID,
-        @RequestBody request: SeatIdsRequest
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @RequestBody request: SeatIdsRequest
     ): ApiResponse<Int> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
@@ -535,12 +552,13 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/sessions/{sessionId}/tables/close")
     @Operation(summary = "Close tables", description = "Set tables to CLOSED (admin action). Notifies platforms.")
+    @Auditable(action = "EVENT_TABLES_CLOSE", subjectType = "session")
     fun closeTables(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @RequestAttribute staffId: UUID,
-        @RequestBody request: TableIdsRequest
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @RequestBody request: TableIdsRequest
     ): ApiResponse<Int> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
@@ -554,12 +572,13 @@ class VenueEventController(
         summary = "Reopen closed tables",
         description = "Set CLOSED tables back to AVAILABLE and notify platforms."
     )
+    @Auditable(action = "EVENT_TABLES_OPEN", subjectType = "session")
     fun openTables(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @RequestAttribute staffId: UUID,
-        @RequestBody request: TableIdsRequest
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @RequestBody request: TableIdsRequest
     ): ApiResponse<Int> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         validateSessionOwnership(eventId, venueId, sessionId)
@@ -599,11 +618,12 @@ class VenueEventController(
             Cancelling a session will trigger refund workflows.
         """
     )
+    @Auditable(action = "EVENT_SESSION_STATUS_CHANGE", subjectType = "session")
     fun changeSessionStatus(
         @PathVariable venueId: UUID,
         @PathVariable eventId: UUID,
         @PathVariable sessionId: UUID,
-        @Valid @RequestBody request: SessionStatusChangeRequest,
+        @AuditMetadata("request") @Valid @RequestBody request: SessionStatusChangeRequest,
         @RequestAttribute staffId: UUID
     ): ApiResponse<StatusChangeResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
@@ -640,10 +660,10 @@ class VenueEventController(
         description = "Returns list of statuses that the session can transition to from its current state."
     )
     fun getAllowedSessionTransitions(
-        @PathVariable venueId: UUID,
-        @PathVariable eventId: UUID,
-        @PathVariable sessionId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @PathVariable("eventId") eventId: UUID,
+        @PathVariable("sessionId") sessionId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<List<SessionStatus>> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
 
@@ -664,8 +684,8 @@ class VenueEventController(
         description = "Returns active platforms that can be subscribed to events."
     )
     fun listAvailablePlatforms(
-        @PathVariable venueId: UUID,
-        @RequestAttribute staffId: UUID
+        @PathVariable("venueId") venueId: UUID,
+        @RequestAttribute("staffId") staffId: UUID
     ): ApiResponse<List<AvailablePlatformDto>> {
         venueSecurityService.requireVenueViewPermission(staffId, venueId)
         val platforms = platformSubscriptionApi.getAvailablePlatforms()

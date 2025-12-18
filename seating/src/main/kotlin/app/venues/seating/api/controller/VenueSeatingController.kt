@@ -1,5 +1,7 @@
 package app.venues.seating.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.seating.model.*
 import app.venues.seating.service.SeatingService
@@ -44,10 +46,11 @@ class VenueSeatingController(
 
     @PostMapping("/layout")
     @Operation(summary = "Create seating chart with layout")
+    @Auditable(action = "SEATING_CHART_CREATE", subjectType = "seating_chart")
     fun createSeatingChartWithLayout(
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartLayoutRequest
+        @AuditMetadata("request") @Valid @RequestBody request: SeatingChartLayoutRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -111,11 +114,12 @@ class VenueSeatingController(
             For layout changes, clone the chart and update the clone.
         """
     )
+    @Auditable(action = "SEATING_CHART_UPDATE", subjectType = "seating_chart")
     fun updateSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartRequest
+        @AuditMetadata("request") @Valid @RequestBody request: SeatingChartRequest
     ): ApiResponse<SeatingChartResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -133,11 +137,12 @@ class VenueSeatingController(
             Use POST /{chartId}/clone for major changes, then update visuals on the clone.
         """
     )
+    @Auditable(action = "SEATING_CHART_REPLACE_LAYOUT", subjectType = "seating_chart")
     fun replaceSeatingChartLayout(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartLayoutRequest
+        @AuditMetadata("request") @Valid @RequestBody request: SeatingChartLayoutRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
 
@@ -147,11 +152,12 @@ class VenueSeatingController(
 
     @PostMapping("/{chartId}/clone")
     @Operation(summary = "Clone seating chart for major changes")
+    @Auditable(action = "SEATING_CHART_CLONE", subjectType = "seating_chart")
     fun cloneSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: CloneSeatingChartRequest
+        @AuditMetadata("request") @Valid @RequestBody request: CloneSeatingChartRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val cloned = seatingService.cloneSeatingChart(venueId, chartId, request)
@@ -163,11 +169,12 @@ class VenueSeatingController(
         summary = "Set default category for chart",
         description = "Bulk updates categoryKey for seats, tables, and GA areas when the chart is not in use."
     )
+    @Auditable(action = "SEATING_DEFAULT_CATEGORY_UPDATE", subjectType = "seating_chart")
     fun updateDefaultCategory(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: DefaultCategoryUpdateRequest
+        @AuditMetadata("request") @Valid @RequestBody request: DefaultCategoryUpdateRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val chart = seatingService.updateDefaultCategory(chartId, venueId, request)
@@ -179,11 +186,12 @@ class VenueSeatingController(
         summary = "Set category for selected seats/tables/GA areas",
         description = "Bulk updates categoryKey for the provided component IDs when the chart is not in use."
     )
+    @Auditable(action = "SEATING_SELECTED_CATEGORY_UPDATE", subjectType = "seating_chart")
     fun updateSelectedCategories(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SelectiveCategoryUpdateRequest
+        @AuditMetadata("request") @Valid @RequestBody request: SelectiveCategoryUpdateRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val chart = seatingService.updateSelectedCategories(chartId, venueId, request)
@@ -211,11 +219,12 @@ class VenueSeatingController(
             For those changes, clone the chart and update the clone.
         """
     )
+    @Auditable(action = "SEATING_VISUALS_UPDATE", subjectType = "seating_chart")
     fun updateVisuals(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,
         @RequestAttribute staffId: UUID,
-        @Valid @RequestBody request: SeatingChartVisualUpdateRequest
+        @AuditMetadata("request") @Valid @RequestBody request: SeatingChartVisualUpdateRequest
     ): ApiResponse<SeatingChartDetailedResponse> {
         venueSecurityService.requireVenueEditPermission(staffId, venueId)
         val chart = seatingService.updateVisuals(chartId, venueId, request)
@@ -224,6 +233,7 @@ class VenueSeatingController(
 
     @DeleteMapping("/{chartId}")
     @Operation(summary = "Delete chart")
+    @Auditable(action = "SEATING_CHART_DELETE", subjectType = "seating_chart")
     fun deleteSeatingChart(
         @PathVariable venueId: UUID,
         @PathVariable chartId: UUID,

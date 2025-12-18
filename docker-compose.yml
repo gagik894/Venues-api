@@ -1,23 +1,14 @@
-version: '3.8'
-
 services:
-  postgres-db:
-    image: postgres:14-alpine
-    container_name: gov-postgres
+  backend:
+    # Build from the current directory using the Multi-Stage Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gov-backend
     ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=venues
+      # Expose 8080 so you can test via Postman/Browser on Windows
+      - "8080:8080"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    container_name: gov-redis
-    ports:
-      - "6379:6379"
-
-volumes:
-  postgres_data:
+      # Mount your local .env (Dev Credentials)
+      - ./.env:/.env
+    # We remove 'restart: always' because locally you want it to stop if it crashes, so you can see the error.

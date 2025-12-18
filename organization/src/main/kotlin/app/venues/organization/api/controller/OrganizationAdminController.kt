@@ -1,5 +1,7 @@
 package app.venues.organization.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.organization.api.dto.CreateOrganizationRequest
 import app.venues.organization.api.dto.OrganizationDetailResponse
@@ -52,20 +54,26 @@ class OrganizationAdminController(
 
     @PostMapping
     @Operation(summary = "Create organization", description = "SUPER_ADMIN only")
+    @Auditable(action = "ORGANIZATION_CREATE", subjectType = "organization", includeVenueId = false)
     fun createOrganization(
-        @Valid @RequestBody request: CreateOrganizationRequest
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: CreateOrganizationRequest
     ): ApiResponse<OrganizationDetailResponse> {
         val org = organizationService.createOrganization(request)
+
         return ApiResponse.success(org, "Organization created")
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update organization", description = "SUPER_ADMIN only")
+    @Auditable(action = "ORGANIZATION_UPDATE", subjectType = "organization", includeVenueId = false)
     fun updateOrganization(
         @PathVariable id: UUID,
-        @Valid @RequestBody request: UpdateOrganizationRequest
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateOrganizationRequest
     ): ApiResponse<OrganizationDetailResponse> {
         val org = organizationService.updateOrganization(id, request)
+
         return ApiResponse.success(org, "Organization updated")
     }
 }

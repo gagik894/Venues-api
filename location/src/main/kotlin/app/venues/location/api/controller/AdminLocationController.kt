@@ -1,5 +1,7 @@
 package app.venues.location.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.location.api.dto.*
 import app.venues.location.service.LocationService
@@ -11,6 +13,7 @@ import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 /**
  * Admin-only endpoints for managing reference location data.
@@ -46,7 +49,11 @@ class AdminLocationController(
         summary = "Create region (admin)",
         description = "Create a new administrative region (admin only)"
     )
-    fun createRegion(@Valid @RequestBody request: CreateRegionRequest): ApiResponse<RegionResponse> {
+    @Auditable(action = "LOCATION_REGION_CREATE", subjectType = "region", includeVenueId = false)
+    fun createRegion(
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: CreateRegionRequest
+    ): ApiResponse<RegionResponse> {
         logger.info { "POST /api/v1/locations/admin/regions" }
         val region = locationService.createRegion(request)
         return ApiResponse.success(region, "Region created successfully")
@@ -57,9 +64,11 @@ class AdminLocationController(
         summary = "Update region (admin)",
         description = "Update an existing region (admin only)"
     )
+    @Auditable(action = "LOCATION_REGION_UPDATE", subjectType = "region", includeVenueId = false)
     fun updateRegion(
         @PathVariable code: String,
-        @Valid @RequestBody request: UpdateRegionRequest
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateRegionRequest
     ): ApiResponse<RegionResponse> {
         logger.info { "PUT /api/v1/locations/admin/regions/$code" }
         val region = locationService.updateRegion(code, request)
@@ -76,7 +85,11 @@ class AdminLocationController(
         summary = "Create city (admin)",
         description = "Create a new city (admin only)"
     )
-    fun createCity(@Valid @RequestBody request: CreateCityRequest): ApiResponse<CityResponse> {
+    @Auditable(action = "LOCATION_CITY_CREATE", subjectType = "city", includeVenueId = false)
+    fun createCity(
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: CreateCityRequest
+    ): ApiResponse<CityResponse> {
         logger.info { "POST /api/v1/locations/admin/cities" }
         val city = locationService.createCity(request)
         return ApiResponse.success(city, "City created successfully")
@@ -87,9 +100,11 @@ class AdminLocationController(
         summary = "Update city (admin)",
         description = "Update an existing city (admin only)"
     )
+    @Auditable(action = "LOCATION_CITY_UPDATE", subjectType = "city", includeVenueId = false)
     fun updateCity(
         @PathVariable slug: String,
-        @Valid @RequestBody request: UpdateCityRequest
+        @RequestAttribute("staffId") staffId: UUID,
+        @AuditMetadata("request") @Valid @RequestBody request: UpdateCityRequest
     ): ApiResponse<CityResponse> {
         logger.info { "PUT /api/v1/locations/admin/cities/$slug" }
         val city = locationService.updateCity(slug, request)

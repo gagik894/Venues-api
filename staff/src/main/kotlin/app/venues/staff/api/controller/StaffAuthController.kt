@@ -1,5 +1,7 @@
 package app.venues.staff.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.staff.api.dto.*
 import app.venues.staff.service.StaffAuthService
@@ -28,22 +30,16 @@ class StaffAuthController(
 
     @PostMapping("/register")
     @Operation(summary = "Register new staff", description = "Creates a new Staff Identity (Global Account)")
+    @Auditable(action = "STAFF_REGISTER", subjectType = "staff", includeVenueId = false)
     fun register(
-        @Valid @RequestBody req: StaffRegisterRequest,
+        @AuditMetadata("request") @Valid @RequestBody req: StaffRegisterRequest,
         response: HttpServletResponse
     ): ApiResponse<StaffAuthResponse> {
         logger.info { "Registering new staff email: ${req.email}" }
 
         val authResponse = authService.register(req)
 
-        // Set HttpOnly Cookie
-        val cookie = Cookie("staff_auth_token", authResponse.token)
-        cookie.isHttpOnly = true
-        cookie.secure = cookieSecure
-        cookie.path = "/"
-        cookie.maxAge = (authResponse.expiresIn).toInt()
-        cookie.setAttribute("SameSite", "Strict")
-        response.addCookie(cookie)
+        setAuthCookie(response, authResponse)
 
         return ApiResponse.success(
             data = authResponse,
@@ -53,22 +49,16 @@ class StaffAuthController(
 
     @PostMapping("/login")
     @Operation(summary = "Staff Login", description = "Returns JWT (in HttpOnly cookie) and full Context (Orgs/Venues)")
+    @Auditable(action = "STAFF_LOGIN", subjectType = "staff", includeVenueId = false)
     fun login(
-        @Valid @RequestBody req: StaffLoginRequest,
+        @AuditMetadata("request") @Valid @RequestBody req: StaffLoginRequest,
         response: HttpServletResponse
     ): ApiResponse<StaffAuthResponse> {
         logger.debug { "Login attempt for: ${req.email}" }
 
         val authResponse = authService.login(req)
 
-        // Set HttpOnly Cookie
-        val cookie = Cookie("staff_auth_token", authResponse.token)
-        cookie.isHttpOnly = true
-        cookie.secure = cookieSecure
-        cookie.path = "/"
-        cookie.maxAge = (authResponse.expiresIn).toInt()
-        cookie.setAttribute("SameSite", "Strict")
-        response.addCookie(cookie)
+        setAuthCookie(response, authResponse)
 
         return ApiResponse.success(
             data = authResponse,
@@ -78,6 +68,7 @@ class StaffAuthController(
 
     @PostMapping("/verify-email")
     @Operation(summary = "Verify Email", description = "Activates account using token from email")
+    @Auditable(action = "STAFF_VERIFY_EMAIL", subjectType = "staff_verification", includeVenueId = false)
     fun verifyEmail(@Valid @RequestBody req: VerifyEmailRequest): ApiResponse<Unit> {
         logger.info { "Verifying email with token" }
 
@@ -90,23 +81,28 @@ class StaffAuthController(
 
     @PostMapping("/accept-invite")
     @Operation(summary = "Accept staff invite", description = "Sets password and activates invited staff account")
+    @Auditable(action = "STAFF_ACCEPT_INVITE", subjectType = "staff", includeVenueId = false)
     fun acceptInvite(
-        @Valid @RequestBody req: AcceptInviteRequest,
+        @AuditMetadata("request") @Valid @RequestBody req: AcceptInviteRequest,
         response: HttpServletResponse
     ): ApiResponse<StaffAuthResponse> {
         val authResponse = authService.acceptInvite(req)
 
-        val cookie = Cookie("staff_auth_token", authResponse.token)
-        cookie.isHttpOnly = true
-        cookie.secure = cookieSecure
-        cookie.path = "/"
-        cookie.maxAge = (authResponse.expiresIn).toInt()
-        cookie.setAttribute("SameSite", "Strict")
-        response.addCookie(cookie)
+        setAuthCookie(response, authResponse)
 
         return ApiResponse.success(
             data = authResponse,
             message = "Invite accepted successfully"
         )
+    }
+
+    private fun setAuthCookie(response: HttpServletResponse, authResponse: StaffAuthResponse) {
+        val cookie = Cookie("staff_auth_token", authResponse.token)
+        cookie.isHttpOnly = true
+        cookie.secure = cookieSecure
+        cookie.path = "/"
+        cookie.maxAge = authResponse.expiresIn.toInt()
+        cookie.setAttribute("SameSite", "Strict")
+        response.addCookie(cookie)
     }
 }

@@ -1,5 +1,6 @@
 package app.venues.event.service
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.common.exception.VenuesException
 import app.venues.event.domain.Event
 import app.venues.event.domain.EventSession
@@ -51,7 +52,8 @@ import java.util.*
 class EventStatusService(
     private val eventRepository: EventRepository,
     private val eventSessionRepository: EventSessionRepository,
-    private val eventRevalidationService: EventRevalidationService
+    private val eventRevalidationService: EventRevalidationService,
+    private val auditActionRecorder: AuditActionRecorder
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -106,6 +108,19 @@ class EventStatusService(
         }
 
         val savedEvent = eventRepository.save(event)
+
+        auditActionRecorder.success(
+            action = "EVENT_STATUS_CHANGE",
+            staffId = null, // populated by filter via request attribute; domain service lacks request context
+            venueId = venueId,
+            subjectType = "event",
+            subjectId = eventId.toString(),
+            metadata = mapOf(
+                "previousStatus" to previousStatus.name,
+                "targetStatus" to targetStatus.name,
+                "reason" to reason
+            )
+        )
 
         when {
             previousStatus == EventStatus.DRAFT && targetStatus == EventStatus.PUBLISHED ->
@@ -182,6 +197,8 @@ class EventStatusService(
             throw VenuesException.AuthorizationFailure("Session does not belong to this venue")
         }
 
+        val previousSessionStatus = session.status
+
         // Check if transition is allowed
         if (!session.canTransitionTo(targetStatus)) {
             throw VenuesException.ValidationFailure(
@@ -199,6 +216,19 @@ class EventStatusService(
         }
 
         val savedSession = eventSessionRepository.save(session)
+
+        auditActionRecorder.success(
+            action = "SESSION_STATUS_CHANGE",
+            staffId = null,
+            venueId = venueId,
+            subjectType = "session",
+            subjectId = sessionId.toString(),
+            metadata = mapOf(
+                "previousStatus" to previousSessionStatus.name,
+                "targetStatus" to targetStatus.name,
+                "reason" to reason
+            )
+        )
 
         logger.info {
             "Session status changed successfully: sessionId=$sessionId, " +

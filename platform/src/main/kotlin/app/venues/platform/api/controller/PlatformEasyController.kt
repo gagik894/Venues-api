@@ -1,5 +1,7 @@
 package app.venues.platform.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.PlatformEasyReserveRequest
@@ -31,10 +33,11 @@ class PlatformEasyController(
     @PostMapping("/reserve")
     @Operation(summary = "Reserve items (Create Pending Booking)")
     @SecurityRequirement(name = "platformAuth")
+    @Auditable(action = "PLATFORM_EASY_RESERVE", subjectType = "booking", includeVenueId = false)
     fun reserve(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
-        @Valid @RequestBody request: PlatformEasyReserveRequest
+        @AuditMetadata("request") @Valid @RequestBody request: PlatformEasyReserveRequest
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId easy-reserve for session ${request.sessionId}" }
         val result = platformBookingService.reserveSimple(platformId, request, idempotencyKey)
@@ -44,6 +47,7 @@ class PlatformEasyController(
     @PostMapping("/confirm/{bookingId}")
     @Operation(summary = "Confirm booking (Mark as Sold)")
     @SecurityRequirement(name = "platformAuth")
+    @Auditable(action = "PLATFORM_EASY_CONFIRM", subjectType = "booking", includeVenueId = false)
     fun confirm(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -57,6 +61,7 @@ class PlatformEasyController(
     @PostMapping("/release/{bookingId}")
     @Operation(summary = "Release booking (Cancel)")
     @SecurityRequirement(name = "platformAuth")
+    @Auditable(action = "PLATFORM_EASY_RELEASE", subjectType = "booking", includeVenueId = false)
     fun release(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,

@@ -16,6 +16,11 @@ Principles (must follow)
 - No unsafe Kotlin non-null assertions: avoid `!!`. Use safe handling or explicit validation with clear error messages.
 - Use professional, concise comments only (Google-style). Explain why, not what.
 - Do not leak secrets, credentials, or tokens into code or logs.
+- Audit logging (government-quality): **EVERY** POST/PUT/PATCH/DELETE endpoint on controllers MUST have `@Auditable`
+  annotation.
+  The annotation will automatically capture staffId, venueId, outcome, and exceptions. See
+  `audit/AUDIT_QUALITY_MIGRATION.md`
+  for patterns. Manual audit calls are deprecated—use the aspect instead.
 
 Coding conventions
 

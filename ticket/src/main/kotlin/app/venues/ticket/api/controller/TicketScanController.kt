@@ -1,5 +1,7 @@
 package app.venues.ticket.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.ticket.api.TicketScanApi
 import app.venues.ticket.api.dto.ScanRequest
@@ -18,9 +20,10 @@ class TicketScanController(
 ) {
 
     @PostMapping
+    @Auditable(action = "TICKET_SCAN", subjectType = "ticket", includeVenueId = false)
     fun scanTicket(
         @AuthenticationPrincipal session: ScannerSessionDto,
-        @RequestBody request: ScanRequest
+        @AuditMetadata("request") @RequestBody request: ScanRequest
     ): ApiResponse<ScanResult> {
         val result = scanApi.scanTicket(
             qrCode = request.qrCode,

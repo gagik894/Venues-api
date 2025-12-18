@@ -1,5 +1,7 @@
 package app.venues.media.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.media.api.MediaApi
 import app.venues.media.api.MediaCategory
@@ -67,18 +69,20 @@ class MediaUploadController(
             )
         ]
     )
+    @Auditable(action = "MEDIA_UPLOAD_SINGLE", subjectType = "media", includeVenueId = false)
     fun uploadFile(
         @Parameter(description = "The file to upload", required = true)
-        @RequestPart("file") file: MultipartFile,
+        @AuditMetadata("file") @RequestPart("file") file: MultipartFile,
 
         @Parameter(
             description = "Category for organizing the upload",
             schema = Schema(allowableValues = ["events", "venues", "branding", "profiles", "tickets", "general"])
         )
-        @RequestParam(defaultValue = "general") category: String,
+        @AuditMetadata("category") @RequestParam(defaultValue = "general") category: String,
 
         @Parameter(description = "Optional owner ID for access control")
-        @RequestParam(required = false) ownerId: UUID?
+        @RequestParam(required = false) ownerId: UUID?,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<MediaUploadResponse> {
         val mediaCategory = parseCategory(category)
         val response = mediaApi.upload(file, mediaCategory, ownerId)
@@ -96,15 +100,17 @@ class MediaUploadController(
         summary = "Upload multiple files",
         description = "Upload multiple files at once. Returns list of public URLs and metadata."
     )
+    @Auditable(action = "MEDIA_UPLOAD_BATCH", subjectType = "media_batch", includeVenueId = false)
     fun uploadMultipleFiles(
         @Parameter(description = "The files to upload", required = true)
-        @RequestPart("files") files: List<MultipartFile>,
+        @AuditMetadata("files") @RequestPart("files") files: List<MultipartFile>,
 
         @Parameter(description = "Category for organizing the uploads")
-        @RequestParam(defaultValue = "general") category: String,
+        @AuditMetadata("category") @RequestParam(defaultValue = "general") category: String,
 
         @Parameter(description = "Optional owner ID for access control")
-        @RequestParam(required = false) ownerId: UUID?
+        @RequestParam(required = false) ownerId: UUID?,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<List<MediaUploadResponse>> {
         val mediaCategory = parseCategory(category)
         val responses = mediaApi.uploadMultiple(files, mediaCategory, ownerId)
@@ -121,9 +127,11 @@ class MediaUploadController(
         summary = "Delete a file",
         description = "Delete a previously uploaded file by its ID."
     )
+    @Auditable(action = "MEDIA_DELETE", subjectType = "media", includeVenueId = false)
     fun deleteFile(
         @Parameter(description = "The media ID to delete")
-        @PathVariable mediaId: UUID
+        @PathVariable mediaId: UUID,
+        @RequestAttribute(name = "staffId", required = false) staffId: UUID?
     ): ApiResponse<Unit> {
         val deleted = mediaApi.delete(mediaId)
         return if (deleted) {

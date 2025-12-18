@@ -1,5 +1,6 @@
 package app.venues.booking.service
 
+import app.venues.audit.service.AuditActionRecorder
 import app.venues.booking.api.dto.BookingResponse
 import app.venues.booking.api.dto.DirectSaleItemRequest
 import app.venues.booking.api.dto.DirectSaleRequest
@@ -37,6 +38,7 @@ class DirectSalesService(
     private val bookingResponseService: BookingResponseService,
     private val bookingFulfillmentService: BookingFulfillmentService,
     private val eventPublisher: ApplicationEventPublisher,
+    private val auditActionRecorder: AuditActionRecorder,
     @Value("\${app.booking.service-fee-percent:0}")
     private val serviceFeePercent: BigDecimal
 ) {
@@ -167,6 +169,21 @@ class DirectSalesService(
             "Direct sale completed: bookingId=${finalBooking.id}, " +
                     "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId, platform=$platformId, confirmed=$confirmBooking"
         }
+
+        auditActionRecorder.success(
+            action = "DIRECT_SALE_CREATED",
+            staffId = staffId,
+            venueId = venueId,
+            subjectType = "booking",
+            subjectId = finalBooking.id?.toString(),
+            metadata = mapOf(
+                "sessionId" to request.sessionId.toString(),
+                "itemCount" to reservedItems.size,
+                "total" to pricing.total.toString(),
+                "confirmed" to confirmBooking,
+                "platformId" to platformId?.toString()
+            )
+        )
 
         return bookingResponseService.prepareBookingResponse(finalBooking)
     }

@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":staff"))
     implementation(project(":ticket"))
     implementation(project(":media"))
+    implementation(project(":audit"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))
@@ -52,6 +53,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

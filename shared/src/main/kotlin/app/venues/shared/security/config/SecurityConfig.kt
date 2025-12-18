@@ -5,6 +5,8 @@ import app.venues.shared.security.jwt.JwtAuthenticationEntryPoint
 import app.venues.shared.security.jwt.JwtAuthenticationFilter
 import app.venues.shared.web.filter.DomainContextFilter
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.servlet.Filter
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -80,7 +82,8 @@ class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
     private val jwtAccessDeniedHandler: JwtAccessDeniedHandler,
-    private val domainContextFilter: DomainContextFilter
+    private val domainContextFilter: DomainContextFilter,
+    private val auditLoggingFilter: ObjectProvider<Filter>
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -220,6 +223,10 @@ class SecurityConfig(
         http.addFilterBefore(domainContextFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add JWT authentication filter before username/password authentication
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+        // Add audit logging after JWT so staffId is available
+        auditLoggingFilter.ifAvailable { filter ->
+            http.addFilterAfter(filter, JwtAuthenticationFilter::class.java)
+        }
 
         val filterChain = http.build()
         logger.info { "Spring Security filter chain configured successfully" }

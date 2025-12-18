@@ -36,6 +36,9 @@ dependencies {
     api(project(":booking-api"))
     api(project(":event-api"))
 
+    // Audit logging
+    implementation(project(":audit"))
+
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")

@@ -1,5 +1,7 @@
 package app.venues.staff.api.controller
 
+import app.venues.audit.annotation.AuditMetadata
+import app.venues.audit.annotation.Auditable
 import app.venues.common.model.ApiResponse
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.staff.api.dto.*
@@ -47,9 +49,15 @@ class StaffAdminController(
 
     @PostMapping("/invite")
     @Operation(summary = "Invite Member", description = "Invite a user (new or existing) to an Organization")
+    @Auditable(
+        action = "STAFF_INVITE_SENT",
+        subjectType = "staff",
+        includeVenueId = false,
+        includeOrganizationId = true
+    )
     fun inviteStaff(
         @RequestAttribute("staffId") actorId: UUID,
-        @Valid @RequestBody req: InviteStaffRequest
+        @AuditMetadata("request") @Valid @RequestBody req: InviteStaffRequest
     ): ApiResponse<StaffProfileDto> {
         logger.info { "Inviting ${req.email} to Org ${req.organizationId} as ${req.role}" }
 
@@ -66,9 +74,10 @@ class StaffAdminController(
         summary = "Create staff (direct)",
         description = "Admin creates a staff account with password and assigns org/venue roles"
     )
+    @Auditable(action = "STAFF_DIRECT_CREATE", subjectType = "staff", includeVenueId = false)
     fun createStaffDirect(
         @RequestAttribute("staffId") actorId: UUID,
-        @Valid @RequestBody req: CreateStaffRequest
+        @AuditMetadata("request") @Valid @RequestBody req: CreateStaffRequest
     ): ApiResponse<StaffProfileDto> {
         val profile = managementService.createStaffDirect(actorId, req)
         return ApiResponse.success(
@@ -82,9 +91,15 @@ class StaffAdminController(
         summary = "Resend staff invite",
         description = "Rotates invite token and resends email for a pending staff account"
     )
+    @Auditable(
+        action = "STAFF_INVITE_RESENT",
+        subjectType = "staff",
+        includeVenueId = false,
+        includeOrganizationId = true
+    )
     fun resendInvite(
         @RequestAttribute("staffId") actorId: UUID,
-        @Valid @RequestBody req: ResendInviteRequest
+        @AuditMetadata("request") @Valid @RequestBody req: ResendInviteRequest
     ): ApiResponse<StaffProfileDto> {
         val profile = managementService.resendInvite(actorId, req)
         return ApiResponse.success(
@@ -98,9 +113,15 @@ class StaffAdminController(
         summary = "Revoke staff invite",
         description = "Invalidates outstanding invite token for a pending staff account"
     )
+    @Auditable(
+        action = "STAFF_INVITE_REVOKED",
+        subjectType = "staff",
+        includeVenueId = false,
+        includeOrganizationId = true
+    )
     fun revokeInvite(
         @RequestAttribute("staffId") actorId: UUID,
-        @Valid @RequestBody req: RevokeInviteRequest
+        @AuditMetadata("request") @Valid @RequestBody req: RevokeInviteRequest
     ): ApiResponse<StaffProfileDto> {
         val profile = managementService.revokeInvite(actorId, req)
         return ApiResponse.success(
@@ -112,9 +133,11 @@ class StaffAdminController(
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     @Operation(summary = "Update Status", description = "Suspend or Reactivate a staff member (System Admin only)")
+    @Auditable(action = "STAFF_STATUS_UPDATED", subjectType = "staff", includeVenueId = false)
     fun updateStatus(
+        @RequestAttribute("staffId") actorId: UUID,
         @PathVariable id: UUID,
-        @Valid @RequestBody req: UpdateStaffStatusRequest
+        @AuditMetadata("request") @Valid @RequestBody req: UpdateStaffStatusRequest
     ): ApiResponse<Unit> {
         if (id != req.staffId) throw IllegalArgumentException("ID mismatch in path and body")
 
@@ -132,9 +155,10 @@ class StaffAdminController(
         summary = "Grant venue permission",
         description = "Grant a venue-level role (MANAGER/EDITOR/SCANNER/VIEWER) to a staff member"
     )
+    @Auditable(action = "STAFF_GRANT_VENUE_PERMISSION", subjectType = "staff", includeVenueId = false)
     fun grantVenuePermission(
         @RequestAttribute("staffId") actorId: UUID,
-        @Valid @RequestBody req: GrantVenuePermissionRequest
+        @AuditMetadata("request") @Valid @RequestBody req: GrantVenuePermissionRequest
     ): ApiResponse<StaffProfileDto> {
         val profile = managementService.grantVenuePermission(actorId, req)
         return ApiResponse.success(profile, "Venue permission granted")
@@ -159,11 +183,17 @@ class StaffAdminController(
         summary = "Update org membership",
         description = "Set org role/active flag for a staff member. Requires SUPER_ADMIN or org OWNER/ADMIN."
     )
+    @Auditable(
+        action = "STAFF_MEMBERSHIP_UPDATED",
+        subjectType = "staff",
+        includeVenueId = false,
+        includeOrganizationId = true
+    )
     fun updateMembership(
         @RequestAttribute("staffId") actorId: UUID,
         @PathVariable staffId: UUID,
         @PathVariable organizationId: UUID,
-        @Valid @RequestBody req: UpdateMembershipRequest
+        @AuditMetadata("request") @Valid @RequestBody req: UpdateMembershipRequest
     ): ApiResponse<StaffDetailDto> {
         val detail = managementService.updateMembership(actorId, staffId, organizationId, req)
         return ApiResponse.success(detail, "Membership updated")
@@ -173,6 +203,12 @@ class StaffAdminController(
     @Operation(
         summary = "Remove org membership",
         description = "Removes a staff member from an organization. Requires SUPER_ADMIN or org OWNER/ADMIN."
+    )
+    @Auditable(
+        action = "STAFF_MEMBERSHIP_REMOVED",
+        subjectType = "staff",
+        includeVenueId = false,
+        includeOrganizationId = true
     )
     fun deleteMembership(
         @RequestAttribute("staffId") actorId: UUID,
@@ -188,11 +224,12 @@ class StaffAdminController(
         summary = "Update venue role",
         description = "Sets a venue role for a staff member. Requires SUPER_ADMIN or org OWNER/ADMIN of the venue's org."
     )
+    @Auditable(action = "STAFF_VENUE_ROLE_UPDATED", subjectType = "staff")
     fun updateVenueRole(
         @RequestAttribute("staffId") actorId: UUID,
         @PathVariable staffId: UUID,
         @PathVariable venueId: UUID,
-        @Valid @RequestBody req: UpdateVenueRoleRequest
+        @AuditMetadata("request") @Valid @RequestBody req: UpdateVenueRoleRequest
     ): ApiResponse<StaffDetailDto> {
         val detail = managementService.updateVenueRole(actorId, staffId, venueId, req)
         return ApiResponse.success(detail, "Venue role updated")
@@ -249,10 +286,11 @@ class StaffAdminController(
         summary = "Set super admin flag",
         description = "Enable/disable super admin for a staff member (SUPER_ADMIN only)"
     )
+    @Auditable(action = "STAFF_SET_SUPER_ADMIN", subjectType = "staff", includeVenueId = false)
     fun setSuperAdmin(
         @RequestAttribute("staffId") actorId: UUID,
         @PathVariable id: UUID,
-        @Valid @RequestBody req: SetSuperAdminRequest
+        @AuditMetadata("request") @Valid @RequestBody req: SetSuperAdminRequest
     ): ApiResponse<Unit> {
         require(req.staffId == id) { "ID mismatch between path and body" }
         managementService.setSuperAdmin(actorId, req)

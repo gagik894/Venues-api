@@ -39,6 +39,7 @@ dependencies {
     api(project(":seating-api"))  // SeatingApi for seating chart information
     api(project(":staff-api"))    // StaffApi for staff information
     api(project(":media-api"))    // MediaApi for file uploads
+    implementation(project(":audit"))
     implementation(project(":booking-api")) // For inventory events (SeatClosed/Opened)
 
     // Spring Boot starters - internal implementation details
@@ -58,6 +59,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.13.13")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

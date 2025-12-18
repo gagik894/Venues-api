@@ -27,6 +27,10 @@ include(":app")
 include(":common")
 include(":shared")
 
+// Audit modules
+include(":audit-api")
+include(":audit")
+
 // API Contract Modules (Hexagonal Architecture Ports)
 include(":user-api")
 include(":venue-api")

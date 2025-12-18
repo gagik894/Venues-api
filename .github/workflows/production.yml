@@ -4,18 +4,27 @@ on:
   push:
     branches: [ "master" ]
 
+# Prevent concurrent deployments - queue subsequent runs
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 env:
-  # 1. Define image name once to avoid typos
+  # Define image name once to avoid typos
   IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/armtick-api
 
 jobs:
-  # --- JOB 1: TEST & BUILD ---
+  # --- JOB 1: BUILD, SCAN & PUSH ---
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
       actions: read
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -40,6 +49,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and Push Docker Image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -50,59 +60,76 @@ jobs:
           cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:cache
           cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:cache,mode=max
 
-      # --- SECURITY SCANNING ---
+      # --- SECURITY SCANNING (Single scan with both SARIF upload and fail-on-vuln) ---
       - name: Run Trivy Security Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
+          exit-code: '1'
 
       - name: Upload Trivy Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
 
-      - name: Fail on Critical Vulnerabilities
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          exit-code: '1'
-          severity: 'CRITICAL,HIGH'
-
   # --- JOB 2: DEPLOY TO SERVER ---
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # Uncomment after creating 'production' environment in GitHub Settings > Environments:
+    # environment:
+    #   name: production
+    #   url: https://api.armticket.am/actuator/health
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      # 2. Copy the docker-compose file to the server automatically
+
+      # Copy the docker-compose file to the server
       - name: Copy Compose File to Server
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
+          fingerprint: ${{ secrets.HETZNER_SSH_FINGERPRINT }}
           source: "docker-compose.production.yml"
           target: "/opt/armtick-api"
 
-      # 3. SSH in and Deploy
+      # SSH in and Deploy with rollback support
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           # Use the exact same name and tag we built in Job 1
           IMAGE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          PROD_ENV_CONTENT: ${{ secrets.PROD_ENV_FILE }}
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
-          envs: IMAGE_TAG
+          fingerprint: ${{ secrets.HETZNER_SSH_FINGERPRINT }}
+          envs: IMAGE_TAG,PROD_ENV_CONTENT
+          command_timeout: 10m
           script: |
             set -e # Stop script on any error
+            
+            # --- INPUT VALIDATION ---
+            if [ -z "$IMAGE_TAG" ]; then
+              echo "ERROR: IMAGE_TAG is not set!"
+              exit 1
+            fi
+            
+            if [ -z "$PROD_ENV_CONTENT" ]; then
+              echo "ERROR: PROD_ENV_CONTENT is not set!"
+              exit 1
+            fi
             
             echo "==> Deploying Version: $IMAGE_TAG"
             
@@ -110,37 +137,69 @@ jobs:
             mkdir -p /opt/armtick-api
             cd /opt/armtick-api
             
-            # --- SECRET INJECTION START ---
-            # Create .env.production from the GitHub Secret
-            printf "%s" "${{ secrets.PROD_ENV_FILE }}" > .env.production
+            # --- BACKUP CURRENT STATE FOR ROLLBACK ---
+            PREVIOUS_IMAGE=""
+            if [ -f .env.production ]; then
+              PREVIOUS_IMAGE=$(grep "^BACKEND_IMAGE=" .env.production | cut -d'=' -f2 || true)
+              cp .env.production .env.production.backup
+              echo "==> Backed up previous config (Previous image: ${PREVIOUS_IMAGE:-none})"
+            fi
             
-            # Add a newline just in case
+            # --- SECRET INJECTION (via env var, not inline) ---
+            printf "%s" "$PROD_ENV_CONTENT" > .env.production
             echo "" >> .env.production
-            
-            # Append the dynamic Image Tag (Overrides whatever is in the secret)
             echo "BACKEND_IMAGE=$IMAGE_TAG" >> .env.production
-            # --- SECRET INJECTION END ---
             
-            # Pull the new image
-            docker compose -f docker-compose.production.yml pull backend
+            # Secure the env file
+            chmod 600 .env.production
             
-            # Restart the container (Minimal Downtime)
-            docker compose -f docker-compose.production.yml up -d --no-deps backend
+            # --- DEPLOYMENT ---
+            echo "==> Pulling new image..."
+            docker compose --env-file .env.production -f docker-compose.production.yml pull backend
+            
+            echo "==> Starting new container..."
+            docker compose --env-file .env.production -f docker-compose.production.yml up -d --no-deps backend
             
             # Clean up old images to save disk space
             docker image prune -f
             
-            # Health Check (Wait up to 60s)
+            # --- HEALTH CHECK (Wait up to 60s) ---
             echo "==> Verifying Health..."
+            HEALTH_OK=false
             for i in {1..12}; do
               if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
-                echo "✓ Deployment Successful!"
-                exit 0
+                echo "✓ Health check passed!"
+                HEALTH_OK=true
+                break
               fi
               echo "Waiting for app to start... ($i/12)"
               sleep 5
             done
             
-            echo "✗ Health check failed!"
-            # Optional: Add rollback logic here if needed
+            if [ "$HEALTH_OK" = true ]; then
+              echo "✓ Deployment Successful!"
+              # Clean up backup on success
+              rm -f .env.production.backup
+              exit 0
+            fi
+            
+            # --- ROLLBACK ON FAILURE ---
+            echo "✗ Health check failed! Initiating rollback..."
+            
+            if [ -n "$PREVIOUS_IMAGE" ] && [ -f .env.production.backup ]; then
+              echo "==> Rolling back to: $PREVIOUS_IMAGE"
+              cp .env.production.backup .env.production
+              docker compose --env-file .env.production -f docker-compose.production.yml up -d --no-deps backend
+            
+              # Verify rollback health
+              sleep 10
+              if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
+                echo "✓ Rollback successful - service restored"
+              else
+                echo "✗ Rollback also failed - MANUAL INTERVENTION REQUIRED"
+              fi
+            else
+              echo "✗ No previous version to rollback to - MANUAL INTERVENTION REQUIRED"
+            fi
+            
             exit 1

@@ -46,8 +46,13 @@ class AuditableAspect(
 
             val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method
             val args = joinPoint.args
-            val eventIdVar = extractPathVariable(method!!, args, "eventId", UUID::class.java)
-            val sessionIdVar = extractPathVariable(method, args, "sessionId", UUID::class.java)
+            val (eventIdVar, sessionIdVar) = if (method != null) {
+                val eventId = extractPathVariable(method, args, "eventId", UUID::class.java)
+                val sessionId = extractPathVariable(method, args, "sessionId", UUID::class.java)
+                eventId to sessionId
+            } else {
+                null to null
+            }
             // Choose subjectId based on subjectType semantics
             val subjectId = when (auditable.subjectType.lowercase()) {
                 "session", "event_session" -> sessionIdVar?.toString() ?: subjectIdFromResult ?: eventIdVar?.toString()

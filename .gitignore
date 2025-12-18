@@ -44,8 +44,6 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-### GitHub ###
-.github
 
 ### Uploads ###
 /uploads

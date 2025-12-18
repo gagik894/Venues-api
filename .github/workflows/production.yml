@@ -1,0 +1,117 @@
+name: Production Deployment
+
+on:
+  push:
+    branches: [ "master" ]
+
+env:
+  # 1. Define image name once to avoid typos
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/armtick-api
+
+jobs:
+  # --- JOB 1: TEST & BUILD ---
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract Metadata (Tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            # Use raw sha with full commit hash to ensure match with deploy job
+            type=raw,value=sha-${{ github.sha }}
+            type=raw,value=latest
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # Use caching to speed up builds
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:cache
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:cache,mode=max
+
+  # --- JOB 2: DEPLOY TO SERVER ---
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      # 2. Copy the docker-compose file to the server automatically
+      - name: Copy Compose File to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          source: "docker-compose.production.yml"
+          target: "/opt/gov-app"
+
+      # 3. SSH in and Deploy
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Use the exact same name and tag we built in Job 1
+          IMAGE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -e # Stop script on any error
+            
+            echo "==> Deploying Version: $IMAGE_TAG"
+            
+            # Ensure folder exists
+            mkdir -p /opt/gov-app
+            cd /opt/gov-app
+            
+            # --- SECRET INJECTION START ---
+            # Create .env.production from the GitHub Secret
+            printf "%s" "${{ secrets.PROD_ENV_FILE }}" > .env.production
+            
+            # Add a newline just in case
+            echo "" >> .env.production
+            
+            # Append the dynamic Image Tag (Overrides whatever is in the secret)
+            echo "BACKEND_IMAGE=$IMAGE_TAG" >> .env.production
+            # --- SECRET INJECTION END ---
+            
+            # Pull the new image
+            docker compose -f docker-compose.production.yml pull backend
+            
+            # Restart the container (Minimal Downtime)
+            docker compose -f docker-compose.production.yml up -d --no-deps backend
+            
+            # Clean up old images to save disk space
+            docker image prune -f
+            
+            # Health Check (Wait up to 60s)
+            echo "==> Verifying Health..."
+            for i in {1..12}; do
+              if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
+                echo "✓ Deployment Successful!"
+                exit 0
+              fi
+              echo "Waiting for app to start... ($i/12)"
+              sleep 5
+            done
+            
+            echo "✗ Health check failed!"
+            # Optional: Add rollback logic here if needed
+            exit 1

@@ -10,7 +10,7 @@ services:
     
     # Force production profile
     environment:
-      - SPRING_PROFILES_ACTIVE=production
+      - SPRING_PROFILES_ACTIVE=prod
     
     # Load standardized environment variables
     env_file:

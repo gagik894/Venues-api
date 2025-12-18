@@ -5,6 +5,8 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.*
 
@@ -68,6 +70,7 @@ class AuditEventEntity(
     @Column(name = "user_agent", updatable = false, length = 512)
     var userAgent: String?,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", updatable = false, columnDefinition = "jsonb")
     var metadataJson: String
 ) : AbstractUuidEntity()

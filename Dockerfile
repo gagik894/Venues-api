@@ -1,55 +1,43 @@
 # ==========================================
-# STAGE 1: Dependencies Cache Layer
+# STAGE 1: Build & Cache
 # ==========================================
-FROM eclipse-temurin:21-jdk-jammy AS deps
-WORKDIR /workspace/app
+FROM eclipse-temurin:21-jdk-jammy AS builder
+WORKDIR /workspace
 
-# Copy only build configuration files first (for layer caching)
-COPY gradle ./gradle
-COPY gradlew gradle.properties settings.gradle.kts build.gradle.kts ./
+# Copy Gradle configuration first to leverage Docker layer caching
+COPY gradle/ gradle/
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+
+# Copy module build files (Adjust this pattern if your modules are nested differently)
 COPY */build.gradle.kts ./modules/
 
-# Download dependencies (this layer is cached unless build files change)
+# Download dependencies (Cached layer)
 RUN ./gradlew dependencies --no-daemon || true
 
-# ==========================================
-# STAGE 2: Build the Application
-# ==========================================
-FROM deps AS builder
-WORKDIR /workspace/app
-
-# Now copy the entire source code
+# Copy source code and build
 COPY . .
-
-# Build the JAR (tests run separately in CI)
 RUN ./gradlew bootJar -x test --no-daemon
 
-# Find and extract the executable JAR (not the -plain.jar)
-# Create the target directory
-RUN mkdir -p /app
-
-# Explicitly copy ONLY from your main module's build folder
-# REPLACE 'app' WITH YOUR ACTUAL MAIN MODULE NAME (e.g., 'server', 'api', 'core')
-RUN cp app/build/libs/*.jar /app/app.jar
-
-# Failsafe: Check if we accidentally copied the "plain" jar and remove it if so
-# (Rare, but good safety)
-RUN rm -f /app/*-plain.jar
+# Extract the JAR to a clean location
+# CHANGE 'app' below to your actual main module name (e.g., 'backend' or 'server')
+RUN mkdir -p /build-out && \
+    cp app/build/libs/*.jar /build-out/app.jar && \
+    rm -f /build-out/*-plain.jar
 
 # ==========================================
-# STAGE 3: Secure Runtime (Distroless)
+# STAGE 2: Secure Production Runtime
 # ==========================================
 FROM gcr.io/distroless/java21-debian12:nonroot
 
-# Use non-root user (distroless default: nonroot uid 65532)
 WORKDIR /app
-COPY --from=builder --chown=nonroot:nonroot /app/app.jar /app/app.jar
 
+# Run as non-root user (ID 65532) for security
+COPY --from=builder --chown=nonroot:nonroot /build-out/app.jar /app/app.jar
+
+# Expose port 8080 (Internal to container network)
 EXPOSE 8080
 
-# Health check (curl not available in distroless, so use java-based check in app or external monitoring)
-# Note: Docker HEALTHCHECK with distroless requires external tooling or Spring Boot Actuator + sidecar
-
+# JVM Optimization Flags for Containers
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \

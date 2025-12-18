@@ -5,12 +5,20 @@ services:
     restart: always
     
     ports:
-      # SECURITY: Only listen on localhost. The internet cannot touch this port directly.
+      # SECURITY: Only listen on localhost
       - "127.0.0.1:8080:8080"
     
-    # Load environment variables from the file created by GitHub Actions
+    # Force production profile
+    environment:
+      - SPRING_PROFILES_ACTIVE=production
+    
+    # Load standardized environment variables
     env_file:
       - .env.production
+    
+    # Persistence for user uploads
+    volumes:
+      - ./uploads:/app/uploads
     
     # Resource Quotas (Prevent one app from crashing the whole server)
     deploy:

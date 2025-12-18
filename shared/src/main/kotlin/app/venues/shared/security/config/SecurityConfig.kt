@@ -222,14 +222,14 @@ class SecurityConfig(
             }
 
         // Add rate limiting filter at the very beginning
-        http.addFilterBefore(rateLimitingFilter, DomainContextFilter::class.java)
+        http.addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add domain context filter before JWT (to resolve domain before auth)
         http.addFilterBefore(domainContextFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add JWT authentication filter before username/password authentication
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add audit logging after JWT so staffId is available
         auditLoggingFilter.ifAvailable { filter ->
-            http.addFilterAfter(filter, JwtAuthenticationFilter::class.java)
+            http.addFilterAfter(filter, UsernamePasswordAuthenticationFilter::class.java)
         }
 
         val filterChain = http.build()

@@ -167,16 +167,17 @@ jobs:
             # Clean up old images to save disk space
             docker image prune -f
             
-            # --- HEALTH CHECK (Wait up to 60s) ---
+            # --- HEALTH CHECK (Wait up to 5 mins) ---
             echo "==> Verifying Health..."
             HEALTH_OK=false
-            for i in {1..12}; do
+            # Increased to 60 attempts (5 minutes) for very slow startups
+            for i in {1..60}; do
               if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
                 echo "✓ Health check passed!"
                 HEALTH_OK=true
                 break
               fi
-              echo "Waiting for app to start... ($i/12)"
+              echo "Waiting for app to start... ($i/60)"
               sleep 5
             done
             

@@ -39,6 +39,7 @@ COPY --from=builder --chown=nonroot:nonroot /build-out/app.jar /app/app.jar
 EXPOSE 8080
 
 # JVM Optimization Flags for Containers
+# Spring profile is set via SPRING_PROFILES_ACTIVE environment variable from .env.production
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \

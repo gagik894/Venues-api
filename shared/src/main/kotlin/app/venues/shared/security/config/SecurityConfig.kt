@@ -247,16 +247,21 @@ class SecurityConfig(
         logger.info { "Configuring CORS policy" }
 
         val configuration = CorsConfiguration().apply {
-            // Allowed origins - UPDATE IN PRODUCTION with specific domains
-            //TODO: Restrict origins before deploying to production
-            allowedOrigins = listOf(
-                "http://localhost:3000",  // React/Vue dev server
-                "http://localhost:5173",  // Vite dev server
-                "http://localhost:4200",  // Angular dev server
-                "http://localhost:8080"   // Same origin
-            )
-            // If a wildcard is required while `allowCredentials = true`, use:
-            allowedOriginPatterns = listOf("*")
+            // Allowed origins - configured via environment for production
+            val allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS")
+            allowedOrigins = if (allowedOriginsEnv != null) {
+                allowedOriginsEnv.split(",").map { it.trim() }
+            } else {
+                // Development defaults
+                listOf(
+                    "http://localhost:3000",  // React/Vue dev server
+                    "http://localhost:5173",  // Vite dev server
+                    "http://localhost:4200",  // Angular dev server
+                    "http://localhost:8080"   // Same origin
+                )
+            }
+            // SECURITY: Wildcard pattern removed for government-grade security
+            // allowedOriginPatterns = listOf("*")  // ← DANGEROUS! DO NOT USE!
 
             // Allowed HTTP methods
             allowedMethods = listOf(

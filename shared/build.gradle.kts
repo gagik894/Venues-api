@@ -73,6 +73,9 @@ dependencies {
     // Caffeine cache for domain resolution
     api("com.github.ben-manes.caffeine:caffeine:3.1.8")
 
+    // Rate Limiting (Government-Quality)
+    api("com.bucket4j:bucket4j-core:8.10.1")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

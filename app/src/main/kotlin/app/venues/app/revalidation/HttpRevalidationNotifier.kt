@@ -28,6 +28,12 @@ class HttpRevalidationNotifier(
             return
         }
 
+        val secret = properties.secret?.trim() ?: ""
+        if (secret.length < 32 || secret.contains("placeholder") || secret.contains("change-me")) {
+            logger.error { "CRITICAL: Frontend revalidation secret is weak or placeholder. Revalidation aborted for security." }
+            return
+        }
+
         val host = canonicalizeDomain(domain)
         if (host == null) {
             logger.warn { "Skipping revalidation: invalid domain '$domain'" }
@@ -46,7 +52,7 @@ class HttpRevalidationNotifier(
 
         val url = "${properties.scheme}://$host/api/revalidate"
         val payload = mapOf(
-            "secret" to properties.secret!!.trim(),
+            "secret" to secret,
             "paths" to sanitizedPaths
         )
 

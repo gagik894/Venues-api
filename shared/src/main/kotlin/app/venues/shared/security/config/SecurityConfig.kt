@@ -1,5 +1,6 @@
 package app.venues.shared.security.config
 
+import app.venues.shared.security.filter.RateLimitingFilter
 import app.venues.shared.security.jwt.JwtAccessDeniedHandler
 import app.venues.shared.security.jwt.JwtAuthenticationEntryPoint
 import app.venues.shared.security.jwt.JwtAuthenticationFilter
@@ -83,6 +84,7 @@ class SecurityConfig(
     private val jwtAuthenticationEntryPoint: JwtAuthenticationEntryPoint,
     private val jwtAccessDeniedHandler: JwtAccessDeniedHandler,
     private val domainContextFilter: DomainContextFilter,
+    private val rateLimitingFilter: RateLimitingFilter,
     private val auditLoggingFilter: ObjectProvider<Filter>
 ) {
 
@@ -219,6 +221,8 @@ class SecurityConfig(
                     .accessDeniedHandler(jwtAccessDeniedHandler)
             }
 
+        // Add rate limiting filter at the very beginning
+        http.addFilterBefore(rateLimitingFilter, DomainContextFilter::class.java)
         // Add domain context filter before JWT (to resolve domain before auth)
         http.addFilterBefore(domainContextFilter, UsernamePasswordAuthenticationFilter::class.java)
         // Add JWT authentication filter before username/password authentication

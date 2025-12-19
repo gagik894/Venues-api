@@ -251,21 +251,28 @@ class SecurityConfig(
         logger.info { "Configuring CORS policy" }
 
         val configuration = CorsConfiguration().apply {
-            // Allowed origins - configured via environment for production
+            // Allowed origin PATTERNS - supports wildcards for subdomains
+            // Pattern format: https://*.armtick.am matches all subdomains
             val allowedOriginsEnv = System.getenv("ALLOWED_ORIGINS")
-            allowedOrigins = if (allowedOriginsEnv != null) {
-                allowedOriginsEnv.split(",").map { it.trim() }
-            } else {
-                // Development defaults
+
+            // Always allow all armtick.am subdomains
+            val defaultPatterns = listOf(
+                "https://*.armtick.am",    // All subdomains (admin, staff, etc.)
+                "https://armtick.am"       // Root domain
+            )
+
+            // Add any explicit 3rd party origins from environment
+            val additionalOrigins = allowedOriginsEnv?.split(",")?.map { it.trim() }
+                ?: // Development defaults
                 listOf(
                     "http://localhost:3000",  // React/Vue dev server
                     "http://localhost:5173",  // Vite dev server
                     "http://localhost:4200",  // Angular dev server
                     "http://localhost:8080"   // Same origin
                 )
-            }
-            // SECURITY: Wildcard pattern removed for government-grade security
-            // allowedOriginPatterns = listOf("*")  // ← DANGEROUS! DO NOT USE!
+
+            // Use allowedOriginPatterns for wildcard support (works with credentials)
+            allowedOriginPatterns = defaultPatterns + additionalOrigins
 
             // Allowed HTTP methods
             allowedMethods = listOf(

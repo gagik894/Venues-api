@@ -113,13 +113,17 @@ jobs:
         env:
           # Use the exact same name and tag we built in Job 1
           IMAGE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          PROD_ENV_CONTENT: ${{ secrets.PROD_ENV_FILE }}
+          # SECRETS: All credentials AND connection strings (in PROD_ENV_FILE)
+          PROD_SECRETS: ${{ secrets.PROD_ENV_FILE }}
+          # VARIABLES: Only truly non-sensitive config
+          FRONTEND_URL: ${{ vars.FRONTEND_URL || 'https://armtick.am' }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS || '' }}
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           fingerprint: ${{ secrets.HETZNER_SSH_FINGERPRINT }}
-          envs: IMAGE_TAG,PROD_ENV_CONTENT
+          envs: IMAGE_TAG,PROD_SECRETS,FRONTEND_URL,ALLOWED_ORIGINS
           command_timeout: 10m
           script: |
             set -e # Stop script on any error
@@ -130,8 +134,8 @@ jobs:
               exit 1
             fi
             
-            if [ -z "$PROD_ENV_CONTENT" ]; then
-              echo "ERROR: PROD_ENV_CONTENT is not set!"
+            if [ -z "$PROD_SECRETS" ]; then
+              echo "ERROR: PROD_SECRETS is not set!"
               exit 1
             fi
             
@@ -149,9 +153,17 @@ jobs:
               echo "==> Backed up previous config (Previous image: ${PREVIOUS_IMAGE:-none})"
             fi
             
-            # --- SECRET INJECTION (via env var, not inline) ---
-            printf "%s" "$PROD_ENV_CONTENT" > .env.production
+            # --- BUILD .env.production ---
+            # 1. Start with secrets (passwords, API keys, DB/Redis config)
+            printf "%s" "$PROD_SECRETS" > .env.production
             echo "" >> .env.production
+            
+            # 2. Add non-sensitive variables (auditable, visible in logs)
+            echo "# --- Non-Sensitive Config (from Repository Variables) ---" >> .env.production
+            echo "FRONTEND_URL=$FRONTEND_URL" >> .env.production
+            [ -n "$ALLOWED_ORIGINS" ] && echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> .env.production
+            
+            # 3. Add deployment metadata
             echo "BACKEND_IMAGE=$IMAGE_TAG" >> .env.production
             
             # Secure the env file

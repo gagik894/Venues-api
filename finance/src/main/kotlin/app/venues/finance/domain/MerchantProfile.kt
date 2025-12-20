@@ -51,6 +51,9 @@ class MerchantProfile(
     /**
      * Encrypted payment configuration.
      * Stores credentials for payment gateways (Stripe, Idram, etc.).
+     *
+     * @see PaymentConfig
+     * @see PaymentConfigConverter
      */
     @Column(name = "config_json", columnDefinition = "TEXT")
     @Convert(converter = PaymentConfigConverter::class)

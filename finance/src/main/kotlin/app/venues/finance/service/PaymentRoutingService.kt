@@ -6,6 +6,7 @@ import app.venues.finance.domain.MerchantProfile
 import app.venues.finance.repository.MerchantProfileRepository
 import app.venues.organization.api.OrganizationApi
 import app.venues.venue.api.VenueApi
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -22,7 +23,7 @@ class PaymentRoutingService(
     private val merchantProfileRepository: MerchantProfileRepository
 ) : PaymentRoutingApi {
 
-
+    private val logger = KotlinLogging.logger {}
 
     /**
      * Resolve the MerchantProfile to be used for a specific transaction context.
@@ -39,6 +40,8 @@ class PaymentRoutingService(
      */
     @Transactional(readOnly = true)
     override fun resolveMerchant(venueId: UUID, eventId: UUID?): MerchantProfileDto {
+        logger.debug { "Resolving merchant for Venue: $venueId (Event: $eventId)" }
+
         // 1. [Future] Check Event specific profile
         // if (eventId != null) { ... }
 
@@ -49,6 +52,7 @@ class PaymentRoutingService(
         venueInfo.merchantProfileId?.let { profileId ->
             val profile = merchantProfileRepository.findById(profileId).orElse(null)
                 ?: throw IllegalStateException("Venue $venueId references missing MerchantProfile $profileId")
+            logger.info { "Resolved Venue specific merchant profile: ${profile.name} ($profileId)" }
             return toDto(profile)
         }
 
@@ -61,11 +65,14 @@ class PaymentRoutingService(
         organizationDto.defaultMerchantProfileId?.let { profileId ->
             val profile = merchantProfileRepository.findById(profileId).orElse(null)
                 ?: throw IllegalStateException("Organization $organizationId references missing default MerchantProfile $profileId")
+            logger.info { "Resolved Organization default merchant profile: ${profile.name} ($profileId)" }
             return toDto(profile)
         }
 
         // 4. No profile found
-        throw IllegalStateException("No MerchantProfile found for Venue $venueId (Org $organizationId). Configuration missing.")
+        val errorMsg = "No MerchantProfile found for Venue $venueId (Org $organizationId). Configuration missing."
+        logger.error { errorMsg }
+        throw IllegalStateException(errorMsg)
     }
 
     @Transactional(readOnly = true)

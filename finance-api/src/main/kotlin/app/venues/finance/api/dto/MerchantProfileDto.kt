@@ -15,8 +15,12 @@ data class MerchantProfileDto(
 
     /**
      * The payment configuration containing credentials.
-     * WARNING: This contains sensitive secrets. Do not expose to frontend.
-     * Only for internal use by Payment Module.
+     *
+     * > [!WARNING]
+     * > This contains sensitive secrets (API keys, passwords).
+     * > - Do not expose this field to the frontend or public API responses.
+     * > - This should only be used internally by the Payment Module to initialize transactions.
+     * > - Ensure any logging of this object uses the overridden [toString] methods which mask secrets.
      */
     val config: PaymentConfig?
 ) {

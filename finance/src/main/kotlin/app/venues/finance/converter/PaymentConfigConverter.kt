@@ -53,6 +53,9 @@ class PaymentConfigConverter(
     /**
      * Convert encrypted database column to PaymentConfig object.
      * Called automatically when loading entity.
+     *
+     * @throws IllegalStateException (Data Integrity Violation) if decryption or deserialization fails.
+     * In a financial system, we must not proceed with corrupted credentials.
      */
     override fun convertToEntityAttribute(dbData: String?): PaymentConfig? {
         if (dbData.isNullOrBlank()) return null
@@ -69,9 +72,10 @@ class PaymentConfigConverter(
 
         } catch (e: Exception) {
             logger.error(e) { "Failed to decrypt payment config (wrong key or corrupted data)" }
-            // Return null instead of throwing to prevent app crash
-            // Log the error for investigation
-            null
+            // CRITICAL: In a financial system, we fail hard rather than swallowing the error.
+            // Returning null would lead to "missing configuration" errors later, which is misleading.
+            // This indicates a data integrity issue.
+            throw IllegalStateException("Fatal: Failed to decrypt/deserialize merchant payment configuration. Possible data corruption or key mismatch.", e)
         }
     }
 }

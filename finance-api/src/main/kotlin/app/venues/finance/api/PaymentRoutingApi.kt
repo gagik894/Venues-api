@@ -6,8 +6,12 @@ import java.util.*
 /**
  * Public API for Payment Routing.
  *
- * This is the Port in Hexagonal Architecture.
- * Defines the stable interface for resolving payment destinations.
+ * This is the Input Port in Hexagonal Architecture for the Finance module.
+ * It defines the contract for resolving the correct financial destination (Merchant)
+ * for any given transaction context (Venue, Event, etc.).
+ *
+ * Usage:
+ * Call [resolveMerchant] before initiating any payment to determine which credentials to use.
  */
 interface PaymentRoutingApi {
 

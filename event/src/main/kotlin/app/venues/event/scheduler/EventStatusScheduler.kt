@@ -21,20 +21,39 @@ class EventStatusScheduler(
 ) {
     private val logger = KotlinLogging.logger {}
 
+    private lateinit var adaptiveTask: app.venues.shared.scheduling.AdaptiveScheduledTask
+
+    @jakarta.annotation.PostConstruct
+    fun init() {
+        adaptiveTask = app.venues.shared.scheduling.AdaptiveScheduledTask(
+            taskName = "EventSessionClose",
+            maxConsecutiveSkips = 5, // Skip 5 runs = 5 minutes of inactivity
+            checkIntervalAfterMaxSkips = 360000 // Check every 6 minutes after max skips
+        )
+    }
+
     /**
      * Runs every minute to close sessions that have started.
+     * Uses adaptive scheduling: skips execution if no work found for 5+ consecutive runs.
+     * This allows Neon DB to scale to 0 during idle periods.
      */
     @Scheduled(fixedRate = 60000)
     @Transactional
     fun closeExpiredSessions() {
-        val now = Instant.now()
-        val count = eventSessionRepository.updateStatusForExpiredSessions(
-            oldStatus = SessionStatus.ON_SALE,
-            newStatus = SessionStatus.SALES_CLOSED,
-            now = now
-        )
-        if (count > 0) {
-            logger.info { "Closed $count expired sessions at $now" }
+        val result = adaptiveTask.executeIfNeeded {
+            val now = Instant.now()
+            eventSessionRepository.updateStatusForExpiredSessions(
+                oldStatus = SessionStatus.ON_SALE,
+                newStatus = SessionStatus.SALES_CLOSED,
+                now = now
+            )
+        }
+
+        if (result.executed && result.workFound) {
+            logger.info { "Closed ${result.workCount} expired sessions" }
+        } else if (!result.executed) {
+            // Skipped - no DB connection made, allowing Neon to scale to 0
+            logger.trace { "Session close skipped (no work found in last ${result.skipCount} runs)" }
         }
     }
 

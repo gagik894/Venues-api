@@ -98,9 +98,6 @@ class EventServiceTest {
 
         verify { eventRepository.save(any()) }
         verify { eventSessionService.generateConfigsForNewSessions(any()) }
-        // Fix: passing 7 arguments to match success signature (including defaulted ones potentially captured by verify)
-        // action, staffId, venueId, subjectType, subjectId, organizationId, metadata
-        verify { auditActionRecorder.success("EVENT_CREATED", any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -201,7 +198,5 @@ class EventServiceTest {
 
         // Then
         verify { eventRepository.delete(event) }
-        // Fix: passing 7 arguments to match success signature
-        verify { auditActionRecorder.success("EVENT_DELETED", any(), any(), any(), any(), any(), any()) }
     }
 }

@@ -170,21 +170,6 @@ class DirectSalesService(
                     "total=${pricing.total}, items=${reservedItems.size}, staff=$staffId, platform=$platformId, confirmed=$confirmBooking"
         }
 
-        auditActionRecorder.success(
-            action = "DIRECT_SALE_CREATED",
-            staffId = staffId,
-            venueId = venueId,
-            subjectType = "booking",
-            subjectId = finalBooking.id?.toString(),
-            metadata = mapOf(
-                "sessionId" to request.sessionId.toString(),
-                "itemCount" to reservedItems.size,
-                "total" to pricing.total.toString(),
-                "confirmed" to confirmBooking,
-                "platformId" to platformId?.toString()
-            )
-        )
-
         return bookingResponseService.prepareBookingResponse(finalBooking)
     }
 

@@ -11,6 +11,7 @@ import org.aspectj.lang.annotation.AfterThrowing
 import org.aspectj.lang.annotation.Aspect
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestAttribute
 import java.lang.reflect.Method
 import java.util.*
@@ -62,6 +63,16 @@ class AuditableAspect(
 
             val enrichedMetadata = enrichMetadata(joinPoint, baseMetadata, result)
 
+            // Ensure staff operations are clearly marked in metadata
+            val finalMetadata = if (staffId != null) {
+                enrichedMetadata.toMutableMap().apply {
+                    // Explicitly mark staff-driven operations
+                    put("isStaffOperation", true)
+                }
+            } else {
+                enrichedMetadata
+            }
+
             auditActionRecorder.success(
                 action = auditable.action,
                 staffId = staffId,
@@ -69,7 +80,7 @@ class AuditableAspect(
                 subjectType = auditable.subjectType,
                 subjectId = subjectId,
                 organizationId = organizationId,
-                metadata = enrichedMetadata
+                metadata = finalMetadata
             )
 
             logger.debug {
@@ -118,46 +129,77 @@ class AuditableAspect(
         val args = joinPoint.args
         val enriched = metadata.toMutableMap()
 
+        // Auto-capture path variables into metadata (compact, but avoids per-endpoint @AuditMetadata spam)
+        if (method != null) {
+            extractAllPathVariables(method, args).forEach { (k, v) ->
+                // Don't overwrite existing keys populated via @AuditMetadata("...") or other enrichment
+                enriched.putIfAbsent(k, v)
+            }
+            // Capture select request headers when present (keep small; avoid sensitive headers)
+            extractSelectedRequestHeaders(method, args).forEach { (k, v) ->
+                enriched.putIfAbsent(k, v)
+            }
+        }
+
         // Include common path variables when present
         val eventId = extractPathVariable(method!!, args, "eventId", UUID::class.java)
         val sessionId = extractPathVariable(method, args, "sessionId", UUID::class.java)
         if (eventId != null) enriched["eventId"] = eventId.toString()
         if (sessionId != null) enriched["sessionId"] = sessionId.toString()
 
-        // Expand request object metadata into expected audit keys
+        // Expand request object metadata into expected audit keys (compact but comprehensive)
         val requestObj = enriched["request"]
         if (requestObj != null) {
             try {
                 val kClass = requestObj::class
                 val props = kClass.memberProperties.associateBy { it.name }
+                
+                // Core identifiers (always include if present)
                 props["templateId"]?.getter?.call(requestObj)?.let { enriched["templateId"] = it.toString() }
+                props["sessionId"]?.getter?.call(requestObj)?.let { enriched["sessionId"] = it.toString() }
+                props["eventId"]?.getter?.call(requestObj)?.let { enriched["eventId"] = it.toString() }
+                props["bookingId"]?.getter?.call(requestObj)?.let { enriched["bookingId"] = it.toString() }
+                props["platformId"]?.getter?.call(requestObj)?.let { enriched["platformId"] = it.toString() }
+                
+                // Collections - store counts only (not full lists) to keep metadata compact
                 props["seatIds"]?.getter?.call(requestObj)?.let { list ->
-                    enriched["seatIds"] = list
                     val count = (list as? Collection<*>)?.size ?: 0
-                    enriched["seatIdCount"] = count
+                    if (count > 0) enriched["seatIdCount"] = count
                 }
                 props["tableIds"]?.getter?.call(requestObj)?.let { list ->
-                    enriched["tableIds"] = list
                     val count = (list as? Collection<*>)?.size ?: 0
-                    enriched["tableIdCount"] = count
+                    if (count > 0) enriched["tableIdCount"] = count
                 }
                 // GA areas may be named gaIds or gaAreaIds depending on DTOs
                 (props["gaIds"] ?: props["gaAreaIds"])?.getter?.call(requestObj)?.let { list ->
                     val count = (list as? Collection<*>)?.size ?: 0
-                    enriched["gaAreaIdCount"] = count
+                    if (count > 0) enriched["gaAreaIdCount"] = count
                 }
+                
+                // Status changes
                 props["status"]?.getter?.call(requestObj)?.let { status ->
                     enriched["targetStatus"] = status.toString()
                 }
+                
+                // Important business fields (compact)
                 props["reason"]?.getter?.call(requestObj)?.let { reason ->
-                    enriched["reason"] = reason
+                    enriched["reason"] = reason.toString().take(100) // Limit length
+                }
+                props["code"]?.getter?.call(requestObj)?.let { code ->
+                    enriched["code"] = code.toString()
+                }
+                props["email"]?.getter?.call(requestObj)?.let { email ->
+                    enriched["email"] = email.toString()
+                }
+                props["quantity"]?.getter?.call(requestObj)?.let { qty ->
+                    enriched["quantity"] = qty
                 }
             } catch (_: Exception) {
                 // best-effort enrichment
             }
         }
 
-        // Enrich from result: affectedCount and current status
+        // Enrich from result: extract key identifiers and status (compact)
         if (result is ApiResponse<*>) {
             val data = result.data
             when (data) {
@@ -165,8 +207,23 @@ class AuditableAspect(
                 else -> {
                     try {
                         val kClass = data?.let { it::class }
-                        val statusProp = kClass?.memberProperties?.find { it.name == "status" }
-                        statusProp?.getter?.call(data)?.let { enriched["status"] = it.toString() }
+                        val props = kClass?.memberProperties?.associateBy { it.name }
+                        
+                        // Core identifiers from result
+                        props?.get("id")?.getter?.call(data)?.let { enriched["resultId"] = it.toString() }
+                        props?.get("status")?.getter?.call(data)?.let { enriched["status"] = it.toString() }
+                        props?.get("sessionId")?.getter?.call(data)?.let { enriched["sessionId"] = it.toString() }
+                        props?.get("eventId")?.getter?.call(data)?.let { enriched["eventId"] = it.toString() }
+                        props?.get("bookingId")?.getter?.call(data)?.let { enriched["bookingId"] = it.toString() }
+                        
+                        // Status change information (for EVENT_STATUS_CHANGE, SESSION_STATUS_CHANGE)
+                        props?.get("currentStatus")?.getter?.call(data)?.let { enriched["currentStatus"] = it.toString() }
+                        props?.get("previousStatus")?.getter?.call(data)?.let { enriched["previousStatus"] = it.toString() }
+                        
+                        // Cart token for traceability (cart gets deleted, but token is in audit metadata)
+                        props?.get("token")?.getter?.call(data)?.let { enriched["cartToken"] = it.toString() }
+                        props?.get("holdToken")?.getter?.call(data)?.let { enriched["holdToken"] = it.toString() }
+                        props?.get("reservationToken")?.getter?.call(data)?.let { enriched["reservationToken"] = it.toString() }
                     } catch (_: Exception) {
                     }
                 }
@@ -174,6 +231,45 @@ class AuditableAspect(
         }
 
         return enriched
+    }
+
+    private fun extractAllPathVariables(method: Method, args: Array<Any>): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        val kParams = method.kotlinFunction?.parameters
+        method.parameters.indices.forEach { index ->
+            val param = method.parameters[index]
+            val ann = param.getAnnotation(PathVariable::class.java) ?: return@forEach
+            val name = ann.name.takeIf { it.isNotBlank() }
+                ?: ann.value.takeIf { it.isNotBlank() }
+                ?: kParams?.getOrNull(index + 1)?.name // +1 skips implicit 'this'
+                ?: param.name
+            val raw = args.getOrNull(index)
+            if (!name.isNullOrBlank() && raw != null) {
+                out[name] = raw.toString().take(128)
+            }
+        }
+        return out
+    }
+
+    private fun extractSelectedRequestHeaders(method: Method, args: Array<Any>): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        val kParams = method.kotlinFunction?.parameters
+        method.parameters.indices.forEach { index ->
+            val param = method.parameters[index]
+            val ann = param.getAnnotation(RequestHeader::class.java) ?: return@forEach
+            val headerName = ann.name.takeIf { it.isNotBlank() }
+                ?: ann.value.takeIf { it.isNotBlank() }
+                ?: kParams?.getOrNull(index + 1)?.name
+                ?: param.name
+            // Only include explicitly useful headers
+            if (headerName.equals("X-Platform-ID", ignoreCase = true)) {
+                args.getOrNull(index)?.let { out["platformId"] = it.toString() }
+            }
+            if (headerName.equals("Idempotency-Key", ignoreCase = true)) {
+                args.getOrNull(index)?.let { out["idempotencyKey"] = it.toString().take(128) }
+            }
+        }
+        return out
     }
 
     private data class AuditContext(

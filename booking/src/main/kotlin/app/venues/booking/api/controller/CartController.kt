@@ -50,7 +50,7 @@ class CartController(
     /**
      * Add seat to cart.
      */
-    @Auditable(action = "CART_ADD_SEAT", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_ADD_SEAT", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/seats")
     @Operation(
         summary = "Add seat to cart",
@@ -78,7 +78,7 @@ class CartController(
     /**
      * Add GA tickets to cart.
      */
-    @Auditable(action = "CART_ADD_GA", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_ADD_GA", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/ga")
     @Operation(
         summary = "Add GA tickets to cart",
@@ -106,7 +106,7 @@ class CartController(
     /**
      * Add Tables tickets to cart.
      */
-    @Auditable(action = "CART_ADD_TABLE", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_ADD_TABLE", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/table")
     @Operation(
         summary = "Add Table to cart",
@@ -163,7 +163,7 @@ class CartController(
     /**
      * Remove seat from cart.
      */
-    @Auditable(action = "CART_REMOVE_SEAT", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_REMOVE_SEAT", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
         summary = "Remove seat from cart",
@@ -172,7 +172,7 @@ class CartController(
     fun removeSeatFromCart(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable seatIdentifier: String
+        @AuditMetadata("seatIdentifier") @PathVariable seatIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw VenuesException.ResourceNotFound("Cart not found")
@@ -190,7 +190,7 @@ class CartController(
     /**
      * Update GA ticket quantity in cart.
      */
-    @Auditable(action = "CART_UPDATE_GA", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_UPDATE_GA", subjectType = "event_session", includeVenueId = false)
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Update GA quantity",
@@ -199,7 +199,7 @@ class CartController(
     fun updateGAQuantity(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable levelIdentifier: String,
+        @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String,
         @AuditMetadata("request") @Valid @RequestBody request: UpdateGAQuantityRequest
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
@@ -218,7 +218,7 @@ class CartController(
     /**
      * Remove GA item from cart.
      */
-    @Auditable(action = "CART_REMOVE_GA", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_REMOVE_GA", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Remove GA item from cart",
@@ -227,7 +227,7 @@ class CartController(
     fun removeGAFromCart(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable levelIdentifier: String
+        @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw VenuesException.ResourceNotFound("Cart not found")
@@ -245,7 +245,7 @@ class CartController(
     /**
      * Remove table from cart.
      */
-    @Auditable(action = "CART_REMOVE_TABLE", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_REMOVE_TABLE", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
         summary = "Remove table from cart",
@@ -254,7 +254,7 @@ class CartController(
     fun removeTableFromCart(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
-        @PathVariable tableIdentifier: String
+        @AuditMetadata("tableIdentifier") @PathVariable tableIdentifier: String
     ): ApiResponse<CartSummaryResponse> {
         val effectiveToken = token ?: cookieToken
         ?: throw VenuesException.ResourceNotFound("Cart not found")
@@ -272,7 +272,7 @@ class CartController(
     /**
      * Clear cart.
      */
-    @Auditable(action = "CART_CLEAR", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_CLEAR", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/clear")
     @Operation(
         summary = "Clear cart",
@@ -306,7 +306,7 @@ class CartController(
     /**
      * Apply promo code to cart.
      */
-    @Auditable(action = "CART_APPLY_PROMO", subjectType = "cart", includeVenueId = false)
+    @Auditable(action = "CART_APPLY_PROMO", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/promo-code")
     @Operation(
         summary = "Apply promo code",

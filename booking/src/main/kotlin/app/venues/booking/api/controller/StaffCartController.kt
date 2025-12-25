@@ -51,7 +51,7 @@ class StaffCartController(
      * Creates cart with 20-minute expiration if first item.
      * Extends by 10 minutes on each action (max 30 minutes from creation).
      */
-    @Auditable(action = "STAFF_CART_ADD_SEAT", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_ADD_SEAT", subjectType = "event_session")
     @PostMapping("/seats")
     @Operation(
         summary = "Add seat to staff cart",
@@ -83,7 +83,7 @@ class StaffCartController(
     /**
      * Add GA tickets to staff cart.
      */
-    @Auditable(action = "STAFF_CART_ADD_GA", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_ADD_GA", subjectType = "event_session")
     @PostMapping("/ga")
     @Operation(
         summary = "Add GA tickets to staff cart",
@@ -114,7 +114,7 @@ class StaffCartController(
     /**
      * Add table to staff cart.
      */
-    @Auditable(action = "STAFF_CART_ADD_TABLE", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_ADD_TABLE", subjectType = "event_session")
     @PostMapping("/table")
     @Operation(
         summary = "Add table to staff cart",
@@ -176,7 +176,7 @@ class StaffCartController(
     /**
      * Remove seat from staff cart.
      */
-    @Auditable(action = "STAFF_CART_REMOVE_SEAT", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_REMOVE_SEAT", subjectType = "event_session")
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
         summary = "Remove seat from staff cart",
@@ -206,7 +206,7 @@ class StaffCartController(
     /**
      * Update GA quantity in staff cart.
      */
-    @Auditable(action = "STAFF_CART_UPDATE_GA", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_UPDATE_GA", subjectType = "event_session")
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Update GA quantity in staff cart",
@@ -237,7 +237,7 @@ class StaffCartController(
     /**
      * Remove GA item from staff cart.
      */
-    @Auditable(action = "STAFF_CART_REMOVE_GA", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_REMOVE_GA", subjectType = "event_session")
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
         summary = "Remove GA item from staff cart",
@@ -267,7 +267,7 @@ class StaffCartController(
     /**
      * Remove table from staff cart.
      */
-    @Auditable(action = "STAFF_CART_REMOVE_TABLE", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_REMOVE_TABLE", subjectType = "event_session")
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
         summary = "Remove table from staff cart",
@@ -297,7 +297,7 @@ class StaffCartController(
     /**
      * Clear entire staff cart.
      */
-    @Auditable(action = "STAFF_CART_CLEARED", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_CLEARED", subjectType = "event_session")
     @DeleteMapping("/clear")
     @Operation(
         summary = "Clear staff cart",
@@ -334,7 +334,7 @@ class StaffCartController(
      * Checkout staff cart and create confirmed booking.
      * Converts cart to direct sale with immediate confirmation.
      */
-    @Auditable(action = "STAFF_CART_CHECKOUT", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_CHECKOUT", subjectType = "booking")
     @PostMapping("/checkout")
     @Operation(
         summary = "Checkout staff cart",
@@ -379,7 +379,7 @@ class StaffCartController(
      *
      * Releases inventory reservations and deletes the cart.
      */
-    @Auditable(action = "STAFF_CART_CLOSE_ITEMS", subjectType = "cart")
+    @Auditable(action = "STAFF_CART_CLOSE_ITEMS", subjectType = "event_session")
     @PostMapping("/close")
     @Operation(
         summary = "Close items from staff cart",

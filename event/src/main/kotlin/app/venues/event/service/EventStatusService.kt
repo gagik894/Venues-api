@@ -109,19 +109,6 @@ class EventStatusService(
 
         val savedEvent = eventRepository.save(event)
 
-        auditActionRecorder.success(
-            action = "EVENT_STATUS_CHANGE",
-            staffId = null, // populated by filter via request attribute; domain service lacks request context
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "previousStatus" to previousStatus.name,
-                "targetStatus" to targetStatus.name,
-                "reason" to reason
-            )
-        )
-
         when {
             previousStatus == EventStatus.DRAFT && targetStatus == EventStatus.PUBLISHED ->
                 eventRevalidationService.onPublishFromDraft(savedEvent)
@@ -216,19 +203,6 @@ class EventStatusService(
         }
 
         val savedSession = eventSessionRepository.save(session)
-
-        auditActionRecorder.success(
-            action = "SESSION_STATUS_CHANGE",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "session",
-            subjectId = sessionId.toString(),
-            metadata = mapOf(
-                "previousStatus" to previousSessionStatus.name,
-                "targetStatus" to targetStatus.name,
-                "reason" to reason
-            )
-        )
 
         logger.info {
             "Session status changed successfully: sessionId=$sessionId, " +

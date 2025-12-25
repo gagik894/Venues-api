@@ -41,7 +41,7 @@ class PlatformAdvancedController(
         description = "Create cart and reserve seats/GA/tables with optional TTL override. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
-    @Auditable(action = "PLATFORM_ADV_HOLD_SIMPLE", subjectType = "platform_cart", includeVenueId = false)
+    @Auditable(action = "PLATFORM_ADV_HOLD_SIMPLE", subjectType = "event_session", includeVenueId = false)
     fun holdSimple(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -66,7 +66,7 @@ class PlatformAdvancedController(
         description = "Create cart and reserve seats, GA tickets, or tables. Cart expires in 7 minutes. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
-    @Auditable(action = "PLATFORM_ADV_HOLD", subjectType = "platform_cart", includeVenueId = false)
+    @Auditable(action = "PLATFORM_ADV_HOLD", subjectType = "event_session", includeVenueId = false)
     fun hold(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -91,7 +91,7 @@ class PlatformAdvancedController(
         description = "Validate cart and prepare for payment. Returns final pricing and guest details. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
-    @Auditable(action = "PLATFORM_ADV_CHECKOUT", subjectType = "platform_cart", includeVenueId = false)
+    @Auditable(action = "PLATFORM_ADV_CHECKOUT", subjectType = "booking", includeVenueId = false)
     fun checkout(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -141,7 +141,7 @@ class PlatformAdvancedController(
         description = "Release held inventory and delete cart. Use when customer cancels or payment fails. Requires platform authentication."
     )
     @SecurityRequirement(name = "platformAuth")
-    @Auditable(action = "PLATFORM_ADV_RELEASE", subjectType = "platform_cart", includeVenueId = false)
+    @Auditable(action = "PLATFORM_ADV_RELEASE", subjectType = "event_session", includeVenueId = false)
     fun release(
         @RequestHeader("X-Platform-ID") platformId: UUID,
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,

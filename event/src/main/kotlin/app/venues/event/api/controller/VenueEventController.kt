@@ -271,7 +271,7 @@ class VenueEventController(
 
     @PostMapping("/{eventId}/price-templates")
     @Operation(summary = "Create price template")
-    @Auditable(action = "EVENT_PRICE_TEMPLATE_CREATE", subjectType = "price_template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_CREATE", subjectType = "event")
     fun createPriceTemplate(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -285,7 +285,7 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/price-templates/{templateId}")
     @Operation(summary = "Update price template")
-    @Auditable(action = "EVENT_PRICE_TEMPLATE_UPDATE", subjectType = "price_template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_UPDATE", subjectType = "event")
     fun updatePriceTemplate(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -300,7 +300,7 @@ class VenueEventController(
 
     @DeleteMapping("/{eventId}/price-templates/{templateId}")
     @Operation(summary = "Delete price template")
-    @Auditable(action = "EVENT_PRICE_TEMPLATE_DELETE", subjectType = "price_template")
+    @Auditable(action = "EVENT_PRICE_TEMPLATE_DELETE", subjectType = "event")
     fun deletePriceTemplate(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -324,7 +324,7 @@ class VenueEventController(
         summary = "Assign price template",
         description = "Batch assign a price template to seats, tables, or GA areas (Venue owners only)"
     )
-    @Auditable(action = "EVENT_SESSION_PRICING_ASSIGN", subjectType = "session_pricing")
+    @Auditable(action = "EVENT_SESSION_PRICING_ASSIGN", subjectType = "event_session")
     fun assignPriceTemplate(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -412,7 +412,7 @@ class VenueEventController(
             Use this when setting up consistent pricing across all sessions.
         """
     )
-    @Auditable(action = "EVENT_PRICING_ASSIGN", subjectType = "event_pricing")
+    @Auditable(action = "EVENT_PRICING_ASSIGN", subjectType = "event")
     fun assignEventPricing(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -515,7 +515,7 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/sessions/{sessionId}/seats/close")
     @Operation(summary = "Close seats", description = "Set seats to CLOSED (admin action). Notifies platforms.")
-    @Auditable(action = "EVENT_SEATS_CLOSE", subjectType = "session")
+    @Auditable(action = "EVENT_SEATS_CLOSE", subjectType = "event_session")
     fun closeSeats(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -535,7 +535,7 @@ class VenueEventController(
         summary = "Reopen closed seats",
         description = "Set CLOSED seats back to AVAILABLE and notify platforms."
     )
-    @Auditable(action = "EVENT_SEATS_OPEN", subjectType = "session")
+    @Auditable(action = "EVENT_SEATS_OPEN", subjectType = "event_session")
     fun openSeats(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -552,7 +552,7 @@ class VenueEventController(
 
     @PutMapping("/{eventId}/sessions/{sessionId}/tables/close")
     @Operation(summary = "Close tables", description = "Set tables to CLOSED (admin action). Notifies platforms.")
-    @Auditable(action = "EVENT_TABLES_CLOSE", subjectType = "session")
+    @Auditable(action = "EVENT_TABLES_CLOSE", subjectType = "event_session")
     fun closeTables(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -572,7 +572,7 @@ class VenueEventController(
         summary = "Reopen closed tables",
         description = "Set CLOSED tables back to AVAILABLE and notify platforms."
     )
-    @Auditable(action = "EVENT_TABLES_OPEN", subjectType = "session")
+    @Auditable(action = "EVENT_TABLES_OPEN", subjectType = "event_session")
     fun openTables(
         @PathVariable("venueId") venueId: UUID,
         @PathVariable("eventId") eventId: UUID,
@@ -618,7 +618,7 @@ class VenueEventController(
             Cancelling a session will trigger refund workflows.
         """
     )
-    @Auditable(action = "EVENT_SESSION_STATUS_CHANGE", subjectType = "session")
+    @Auditable(action = "EVENT_SESSION_STATUS_CHANGE", subjectType = "event_session")
     fun changeSessionStatus(
         @PathVariable venueId: UUID,
         @PathVariable eventId: UUID,

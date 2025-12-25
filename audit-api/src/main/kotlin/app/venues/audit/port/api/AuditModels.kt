@@ -5,6 +5,8 @@ import java.util.*
 
 enum class AuditActorType {
     STAFF,
+    USER,
+    PLATFORM,
     SYSTEM
 }
 

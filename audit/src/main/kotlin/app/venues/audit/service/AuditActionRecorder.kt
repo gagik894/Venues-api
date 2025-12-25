@@ -47,11 +47,13 @@ class AuditActionRecorder(
         metadata: Map<String, Any?>,
         outcome: AuditOutcome
     ) {
+        val resolvedActorId = resolveActorId(staffId)
+        val resolvedActorType = resolveActorType(explicitStaffId = staffId)
         auditLogPort.write(
             AuditEventWriteRequest(
                 occurredAt = Instant.now(),
-                actorType = if (resolveActorId(staffId) != null) AuditActorType.STAFF else AuditActorType.SYSTEM,
-                actorId = resolveActorId(staffId),
+                actorType = resolvedActorType,
+                actorId = resolvedActorId,
                 action = action,
                 outcome = outcome,
                 subjectType = subjectType,
@@ -61,6 +63,22 @@ class AuditActionRecorder(
                 metadata = metadata
             )
         )
+    }
+
+    private fun resolveActorType(explicitStaffId: UUID?): AuditActorType {
+        // Explicit staffId always implies STAFF
+        if (explicitStaffId != null) return AuditActorType.STAFF
+
+        val auth = SecurityContextHolder.getContext().authentication
+        val principal = auth?.principal
+
+        val roleFromPrincipal = (principal as? Map<*, *>)?.get("role")?.toString()?.uppercase()
+        return when (roleFromPrincipal) {
+            "USER" -> AuditActorType.USER
+            "STAFF", "SUPER_ADMIN" -> AuditActorType.STAFF
+            "PLATFORM" -> AuditActorType.PLATFORM
+            else -> if (resolveActorId(null) != null) AuditActorType.STAFF else AuditActorType.SYSTEM
+        }
     }
 
     private fun resolveActorId(explicitId: UUID?): UUID? {

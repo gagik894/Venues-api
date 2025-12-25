@@ -154,19 +154,6 @@ class EventService(
 
         logger.info { "Event created successfully: ID=${savedEvent.id}" }
 
-        auditActionRecorder.success(
-            action = "EVENT_CREATED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = savedEvent.id.toString(),
-            metadata = mapOf(
-                "title" to request.title,
-                "status" to savedEvent.status.name,
-                "seatingChartId" to request.seatingChartId?.toString()
-            )
-        )
-
         return savedEvent
     }
 
@@ -319,18 +306,6 @@ class EventService(
         
         logger.info { "Event updated successfully: $eventId" }
 
-        auditActionRecorder.success(
-            action = "EVENT_UPDATED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "status" to savedEvent.status.name,
-                "seatingChartId" to savedEvent.seatingChartId?.toString()
-            )
-        )
-
         return savedEvent
     }
 
@@ -370,18 +345,6 @@ class EventService(
         platformSubscriptionApi.updateEventSubscriptions(eventId, emptyList())
         eventRepository.delete(event)
         logger.info { "Event hard deleted successfully: $eventId" }
-
-        auditActionRecorder.success(
-            action = "EVENT_DELETED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "previousStatus" to previousStatus.name,
-                "hadSales" to hasSales
-            )
-        )
 
         if (previousStatus in setOf(EventStatus.PUBLISHED, EventStatus.SUSPENDED, EventStatus.ARCHIVED)) {
             eventRevalidationService.onUnpublish(event, "event-deleted")
@@ -607,18 +570,6 @@ class EventService(
 
         eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-created")
 
-        auditActionRecorder.success(
-            action = "EVENT_PRICE_TEMPLATE_CREATED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "templateId" to template.id.toString(),
-                "name" to template.templateName
-            )
-        )
-
         return template
     }
 
@@ -649,18 +600,6 @@ class EventService(
 
         eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-updated")
 
-        auditActionRecorder.success(
-            action = "EVENT_PRICE_TEMPLATE_UPDATED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "templateId" to template.id.toString(),
-                "name" to template.templateName
-            )
-        )
-
         return template
     }
 
@@ -683,17 +622,6 @@ class EventService(
         eventRepository.save(event)
 
         eventRevalidationService.onEventUpdated(event, includeDetail = true, reason = "event-pricing-deleted")
-
-        auditActionRecorder.success(
-            action = "EVENT_PRICE_TEMPLATE_DELETED",
-            staffId = null,
-            venueId = venueId,
-            subjectType = "event",
-            subjectId = eventId.toString(),
-            metadata = mapOf(
-                "templateId" to templateId.toString()
-            )
-        )
     }
 
     private fun updateTranslationsCollection(event: Event, translationRequests: List<EventTranslationRequest>) {

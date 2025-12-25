@@ -212,12 +212,13 @@ class VenueEventControllerAuditTest(
             eq("EVENT_PRICE_TEMPLATE_CREATE"),
             eq(staffId),
             eq(venueId),
-            eq("price_template"),
-            eq(template.id.toString()),
+            eq("event"),
+            eq(eventId.toString()),
             isNull(),
             metadataCaptor.capture()
         )
         assertEquals(eventId.toString(), metadataCaptor.firstValue["eventId"])
+        assertEquals(template.id.toString(), metadataCaptor.firstValue["resultId"])
     }
 
     @Test
@@ -243,7 +244,7 @@ class VenueEventControllerAuditTest(
             eq("EVENT_SESSION_PRICING_ASSIGN"),
             eq(staffId),
             eq(venueId),
-            eq("session_pricing"),
+            eq("event_session"),
             eq(sessionId.toString()),
             isNull(),
             metadataCaptor.capture()
@@ -277,14 +278,15 @@ class VenueEventControllerAuditTest(
             eq("EVENT_PRICING_ASSIGN"),
             eq(staffId),
             eq(venueId),
-            eq("event_pricing"),
+            eq("event"),
             eq(eventId.toString()),
             isNull(),
             metadataCaptor.capture()
         )
         assertEquals(templateId.toString(), metadataCaptor.firstValue["templateId"])
         assertEquals(1, metadataCaptor.firstValue["seatIdCount"])
-        assertEquals(0, metadataCaptor.firstValue["tableIdCount"])
+        // We omit zero-count fields to keep metadata compact
+        assertEquals(null, metadataCaptor.firstValue["tableIdCount"])
         assertEquals(2, metadataCaptor.firstValue["gaAreaIdCount"])
     }
 
@@ -345,12 +347,12 @@ class VenueEventControllerAuditTest(
             eq("EVENT_SEATS_CLOSE"),
             eq(staffId),
             eq(venueId),
-            eq("session"),
+            eq("event_session"),
             eq(sessionId.toString()),
             isNull(),
             metadataCaptor.capture()
         )
-        assertEquals(request.seatIds, metadataCaptor.firstValue["seatIds"])
+        assertEquals(2, metadataCaptor.firstValue["seatIdCount"])
         assertEquals(2, metadataCaptor.firstValue["affectedCount"])
     }
 
@@ -374,12 +376,12 @@ class VenueEventControllerAuditTest(
             eq("EVENT_TABLES_OPEN"),
             eq(staffId),
             eq(venueId),
-            eq("session"),
+            eq("event_session"),
             eq(sessionId.toString()),
             isNull(),
             metadataCaptor.capture()
         )
-        assertEquals(request.tableIds, metadataCaptor.firstValue["tableIds"])
+        assertEquals(1, metadataCaptor.firstValue["tableIdCount"])
         assertEquals(1, metadataCaptor.firstValue["affectedCount"])
     }
 
@@ -411,7 +413,7 @@ class VenueEventControllerAuditTest(
             eq("EVENT_SESSION_STATUS_CHANGE"),
             eq(staffId),
             eq(venueId),
-            eq("session"),
+            eq("event_session"),
             eq(sessionId.toString()),
             isNull(),
             metadataCaptor.capture()

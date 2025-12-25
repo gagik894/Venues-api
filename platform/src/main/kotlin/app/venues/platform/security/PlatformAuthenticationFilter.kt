@@ -105,6 +105,8 @@ class PlatformAuthenticationFilter(
             // Store body and hash in request for controller access
             wrappedRequest.setAttribute(BODY_ATTRIBUTE, bodyBytes)
             wrappedRequest.setAttribute(BODY_HASH_ATTRIBUTE, bodyHash)
+            // Store platformId so auditing / downstream code can attribute actions
+            wrappedRequest.setAttribute("platformId", platformId)
 
             // Verify signature (includes body hash)
             verifySignature(signature, timestamp, nonce, platformId, bodyHash, platform.sharedSecret)

@@ -351,9 +351,8 @@ class WebhookService(
 
     /**
      * Retry failed webhooks (called by scheduled job)
-     * @return Number of webhooks processed
      */
-    fun retryFailedWebhooks(): Int {
+    fun retryFailedWebhooks() {
         logger.debug { "Checking for webhooks to retry..." }
 
         val now = Instant.now()
@@ -364,10 +363,8 @@ class WebhookService(
             pageable = pageable
         )
 
-        val totalCount = pendingWebhooks.totalElements.toInt()
-        logger.info { "Found $totalCount webhooks to retry" }
+        logger.info { "Found ${pendingWebhooks.totalElements} webhooks to retry" }
 
-        var processedCount = 0
         pendingWebhooks.forEach { webhookEvent ->
             if (webhookEvent.shouldRetry()) {
                 try {
@@ -376,14 +373,11 @@ class WebhookService(
                         .orElseThrow { IllegalStateException("Platform not found: ${webhookEvent.platformId}") }
 
                     deliverWebhook(webhookEvent, platform, webhookEvent.payload)
-                    processedCount++
                 } catch (e: Exception) {
                     logger.error(e) { "Failed to retry webhook ${webhookEvent.id}" }
                 }
             }
         }
-
-        return processedCount
     }
 
     /**

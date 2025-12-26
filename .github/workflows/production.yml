@@ -1,4 +1,4 @@
-name: Production Deployment
+﻿name: Production Deployment
 
 on:
   push:
@@ -158,12 +158,18 @@ jobs:
           # VARIABLES: Only truly non-sensitive config
           FRONTEND_URL: ${{ vars.FRONTEND_URL || 'https://armtick.am' }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS || '' }}
+          # MEDIA STORAGE (non-sensitive). Credentials stay in PROD_ENV_FILE.
+          VENUES_MEDIA_STORAGE_TYPE: ${{ vars.VENUES_MEDIA_STORAGE_TYPE || 's3' }}
+          VENUES_MEDIA_S3_ENDPOINT: ${{ vars.VENUES_MEDIA_S3_ENDPOINT || '' }}
+          VENUES_MEDIA_S3_REGION: ${{ vars.VENUES_MEDIA_S3_REGION || 'eu-central-1' }}
+          VENUES_MEDIA_S3_BUCKET: ${{ vars.VENUES_MEDIA_S3_BUCKET || '' }}
+          VENUES_MEDIA_S3_PUBLIC_URL: ${{ vars.VENUES_MEDIA_S3_PUBLIC_URL || '' }}
         with:
           host: ${{ secrets.HETZNER_HOST }}
           username: ${{ secrets.HETZNER_USER }}
           key: ${{ secrets.HETZNER_SSH_KEY }}
           fingerprint: ${{ secrets.HETZNER_SSH_FINGERPRINT }}
-          envs: IMAGE_TAG,PROD_SECRETS,FRONTEND_URL,ALLOWED_ORIGINS
+          envs: IMAGE_TAG,PROD_SECRETS,FRONTEND_URL,ALLOWED_ORIGINS,VENUES_MEDIA_STORAGE_TYPE,VENUES_MEDIA_S3_ENDPOINT,VENUES_MEDIA_S3_REGION,VENUES_MEDIA_S3_BUCKET,VENUES_MEDIA_S3_PUBLIC_URL
           command_timeout: 10m
           script: |
             set -e # Stop script on any error
@@ -203,6 +209,13 @@ jobs:
             echo "FRONTEND_URL=$FRONTEND_URL" >> .env.production
             [ -n "$ALLOWED_ORIGINS" ] && echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> .env.production
             
+            # Media storage config (non-sensitive)
+            [ -n "$VENUES_MEDIA_STORAGE_TYPE" ] && echo "VENUES_MEDIA_STORAGE_TYPE=$VENUES_MEDIA_STORAGE_TYPE" >> .env.production
+            [ -n "$VENUES_MEDIA_S3_ENDPOINT" ] && echo "VENUES_MEDIA_S3_ENDPOINT=$VENUES_MEDIA_S3_ENDPOINT" >> .env.production
+            [ -n "$VENUES_MEDIA_S3_REGION" ] && echo "VENUES_MEDIA_S3_REGION=$VENUES_MEDIA_S3_REGION" >> .env.production
+            [ -n "$VENUES_MEDIA_S3_BUCKET" ] && echo "VENUES_MEDIA_S3_BUCKET=$VENUES_MEDIA_S3_BUCKET" >> .env.production
+            [ -n "$VENUES_MEDIA_S3_PUBLIC_URL" ] && echo "VENUES_MEDIA_S3_PUBLIC_URL=$VENUES_MEDIA_S3_PUBLIC_URL" >> .env.production
+            
             # 3. Add deployment metadata
             echo "BACKEND_IMAGE=$IMAGE_TAG" >> .env.production
             
@@ -225,7 +238,7 @@ jobs:
             # Increased to 60 attempts (5 minutes) for very slow startups
             for i in {1..60}; do
               if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
-                echo "✓ Health check passed!"
+                echo "Health check passed!"
                 HEALTH_OK=true
                 break
               fi
@@ -234,14 +247,14 @@ jobs:
             done
             
             if [ "$HEALTH_OK" = true ]; then
-              echo "✓ Deployment Successful!"
+              echo "Deployment Successful!"
               # Clean up backup on success
               rm -f .env.production.backup
               exit 0
             fi
             
             # --- ROLLBACK ON FAILURE ---
-            echo "✗ Health check failed! Initiating rollback..."
+            echo "Health check failed! Initiating rollback..."
             
             if [ -n "$PREVIOUS_IMAGE" ] && [ -f .env.production.backup ]; then
               echo "==> Rolling back to: $PREVIOUS_IMAGE"
@@ -251,12 +264,14 @@ jobs:
               # Verify rollback health
               sleep 10
               if curl -fsS http://localhost:8080/actuator/health > /dev/null 2>&1; then
-                echo "✓ Rollback successful - service restored"
+                echo "Rollback successful - service restored"
               else
-                echo "✗ Rollback also failed - MANUAL INTERVENTION REQUIRED"
+                echo "Rollback also failed - MANUAL INTERVENTION REQUIRED"
               fi
             else
-              echo "✗ No previous version to rollback to - MANUAL INTERVENTION REQUIRED"
+              echo "No previous version to rollback to - MANUAL INTERVENTION REQUIRED"
             fi
             
             exit 1
+
+

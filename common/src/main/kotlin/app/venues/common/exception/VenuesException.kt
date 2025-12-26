@@ -128,4 +128,15 @@ sealed class VenuesException(
         cause: Throwable? = null,
         httpStatus: Int = AppConstants.ErrorCode.RATE_LIMIT_EXCEEDED.httpStatus
     ) : VenuesException(message, errorCode, httpStatus, cause)
+
+    /**
+     * Exception for configuration errors.
+     * HTTP Status: 500 Internal Server Error
+     */
+    class ConfigurationError(
+        message: String,
+        errorCode: String = "CONFIGURATION_ERROR",
+        cause: Throwable? = null,
+        httpStatus: Int = 500
+    ) : VenuesException(message, errorCode, httpStatus, cause)
 }

@@ -41,6 +41,11 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
+    // S3 Storage (Supabase/AWS)
+    implementation(libs.aws.s3)
+    implementation(libs.aws.auth)
+    implementation(libs.aws.regions)
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

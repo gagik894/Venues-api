@@ -5,7 +5,6 @@ import app.venues.media.api.MediaCategory
 import app.venues.media.api.dto.MediaUploadResponse
 import app.venues.media.config.MediaProperties
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
 import java.nio.file.Path
@@ -20,7 +19,6 @@ import java.util.*
  * Stores files in the local filesystem organized by category.
  * In production, this should be replaced with S3 or cloud storage.
  */
-@Service
 class LocalMediaStorageService(
     private val mediaProperties: MediaProperties
 ) : MediaStorageService {

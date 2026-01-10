@@ -45,8 +45,13 @@ class TableReservationService(
     fun reserveTable(cart: Cart, sessionId: UUID, tableIdentifier: String): TableReservationResult {
         logger.debug { "Reserving table $tableIdentifier for session $sessionId" }
 
+        val sessionInfo = eventApi.getEventSessionInfo(sessionId)
+            ?: throw VenuesException.ResourceNotFound("Event session not found")
+        val seatingChartId = sessionInfo.seatingChartId
+            ?: throw VenuesException.ValidationFailure("Session has no seating chart")
+
         // Get table info by code
-        val tableInfo = seatingApi.getTableInfoByCode(tableIdentifier)
+        val tableInfo = seatingApi.getTableInfoByCode(seatingChartId, tableIdentifier)
             ?: throw VenuesException.ResourceNotFound("Table not found: $tableIdentifier")
 
         val tableId = tableInfo.id
@@ -205,5 +210,3 @@ class TableReservationService(
         logger.info { "Batch released tables with ${allSeatIds.size} seats for session $sessionId" }
     }
 }
-
-

@@ -13,9 +13,10 @@ import java.util.*
 interface GeneralAdmissionAreaRepository : JpaRepository<GeneralAdmissionArea, Long> {
 
     /**
-     * Find GA area by business code.
+     * Find GA area by business code within a chart.
      */
-    fun findByCode(code: String): GeneralAdmissionArea?
+    @Query("SELECT g FROM GeneralAdmissionArea g WHERE g.code = :code AND g.zone.chart.id = :chartId")
+    fun findByChartIdAndCode(chartId: UUID, code: String): GeneralAdmissionArea?
 
     /**
      * Find GA areas by zone.

@@ -68,6 +68,7 @@ class DirectSalesServiceEasyReserveTest {
     @Test
     fun `does not redeem or finalize when confirmBooking is false (easy reserve)`() {
         val sessionId = UUID.randomUUID()
+        val seatingChartId = UUID.randomUUID()
         val venueId = UUID.randomUUID()
         val platformId = UUID.randomUUID()
 
@@ -90,13 +91,14 @@ class DirectSalesServiceEasyReserveTest {
             sessionId = sessionId,
             eventId = UUID.randomUUID(),
             venueId = venueId,
+            seatingChartId = seatingChartId,
             eventTitle = "Show",
             eventDescription = null,
             currency = "USD",
             startTime = Instant.now(),
             endTime = Instant.now().plusSeconds(3600)
         )
-        every { seatingApi.getSeatInfoByCode("S1") } returns seatInfo
+        every { seatingApi.getSeatInfoByCode(seatingChartId, "S1") } returns seatInfo
         every { eventApi.reserveSeat(sessionId, seatInfo.id) } returns BigDecimal("50.00")
         every { eventApi.getSeatPriceTemplateNames(sessionId, listOf(seatInfo.id)) } returns mapOf(seatInfo.id to "STD")
         every { guestService.findOrCreateGuest(any(), any(), any(), any()) } returns guest
@@ -129,5 +131,69 @@ class DirectSalesServiceEasyReserveTest {
         verify(exactly = 0) { eventPublisher.publishEvent(any()) }
         verify(exactly = 1) { bookingResponseService.prepareBookingResponse(any()) }
     }
-}
 
+    @Test
+    fun `Direct sale reserves items and confirms booking atomically`() {
+        val sessionId = UUID.randomUUID()
+        val seatingChartId = UUID.randomUUID()
+        val venueId = UUID.randomUUID()
+        val seatInfo = SeatInfoDto(
+            id = 100L,
+            code = "S1",
+            seatNumber = "1",
+            rowLabel = "A",
+            zoneId = 10L,
+            zoneName = "Zone A",
+            categoryKey = "CAT"
+        )
+        val guest = Guest(
+            email = "customer@example.com",
+            name = "Jane Customer",
+            phone = "123456789"
+        )
+
+        every { eventApi.getEventSessionInfo(sessionId) } returns EventSessionDto(
+            sessionId = sessionId,
+            eventId = UUID.randomUUID(),
+            venueId = venueId,
+            seatingChartId = seatingChartId,
+            eventTitle = "Show",
+            eventDescription = null,
+            currency = "USD",
+            startTime = Instant.now(),
+            endTime = Instant.now().plusSeconds(3600)
+        )
+        every { seatingApi.getSeatInfoByCode(seatingChartId, "S1") } returns seatInfo
+        every { eventApi.reserveSeat(sessionId, seatInfo.id) } returns BigDecimal("50.00")
+        every { eventApi.getSeatPriceTemplateNames(sessionId, listOf(seatInfo.id)) } returns mapOf(seatInfo.id to "STD")
+        every { guestService.findOrCreateGuest(any(), any(), any(), any()) } returns guest
+        every { bookingRepository.save(any()) } answers { firstArg() }
+        every { bookingResponseService.prepareBookingResponse(any()) } returns mockk<BookingResponse>(relaxed = true)
+        every { venueApi.validatePromoCode(any(), any()) } returns mockk<PromoCodeDto>(relaxed = true)
+
+        val request = DirectSaleRequest(
+            sessionId = sessionId,
+            customerEmail = guest.email,
+            customerName = guest.name,
+            customerPhone = guest.phone,
+            items = listOf(DirectSaleItemRequest(seatCode = "S1")),
+            paymentReference = null,
+            promoCode = null
+        )
+
+        service.createDirectSale(
+            request = request,
+            venueId = venueId,
+            staffId = null,
+            platformId = null,
+            salesChannel = SalesChannel.PLATFORM,
+            confirmBooking = true
+        )
+
+        verify(exactly = 1) { bookingFulfillmentService.redeemPromoIfNeeded(any()) }
+        verify(exactly = 1) { bookingFulfillmentService.finalizeBookingInventory(any()) }
+        verify(exactly = 1) { bookingFulfillmentService.generateTickets(any()) }
+        verify(exactly = 1) { eventPublisher.publishEvent(any()) }
+        verify(exactly = 1) { bookingResponseService.prepareBookingResponse(any()) }
+    }
+}

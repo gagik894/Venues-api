@@ -31,6 +31,7 @@ class EventApiService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
+    private val codeReservationRepository: CodeReservationRepository,
     private val seatingApi: SeatingApi,
     private val seatConfigSparseService: SeatConfigSparseService,
     private val sessionSeatingService: SessionSeatingService,
@@ -49,6 +50,7 @@ class EventApiService(
             sessionId = session.id,
             eventId = event.id,
             venueId = event.venueId,
+            seatingChartId = event.seatingChartId,
             eventTitle = event.title,
             eventDescription = event.description,
             currency = event.currency,
@@ -61,7 +63,7 @@ class EventApiService(
     override fun getSessionInventory(sessionId: UUID): SessionInventoryResponse? {
         return try {
             sessionSeatingService.getSessionInventory(sessionId)
-        } catch (ex: VenuesException.ResourceNotFound) {
+        } catch (_: VenuesException.ResourceNotFound) {
             null
         }
     }
@@ -142,7 +144,7 @@ class EventApiService(
                 )
                 sessionSeatConfigRepository.saveAndFlush(newConfig)
                 return price
-            } catch (e: DataIntegrityViolationException) {
+            } catch (_: DataIntegrityViolationException) {
                 // Race condition: someone else created the row
                 return null
             }
@@ -433,10 +435,10 @@ class EventApiService(
         if (updated == 0) {
             // Check if it was already sold or not reserved
             val config = sessionSeatConfigRepository.findBySessionIdAndSeatId(sessionId, seatId)
-                ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Seat config not found")
+                ?: throw VenuesException.ResourceNotFound("Seat config not found")
 
             if (config.status != ConfigStatus.RESERVED) {
-                throw app.venues.common.exception.VenuesException.ResourceConflict("Seat $seatId is not RESERVED (status: ${config.status})")
+                throw VenuesException.ResourceConflict("Seat $seatId is not RESERVED (status: ${config.status})")
             }
         }
     }
@@ -468,10 +470,10 @@ class EventApiService(
         val updated = sessionTableConfigRepository.sellTables(sessionId, listOf(tableId))
         if (updated == 0) {
             val config = sessionTableConfigRepository.findBySessionIdAndTableId(sessionId, tableId)
-                ?: throw app.venues.common.exception.VenuesException.ResourceNotFound("Table config not found")
+                ?: throw VenuesException.ResourceNotFound("Table config not found")
 
             if (config.status != ConfigStatus.RESERVED) {
-                throw app.venues.common.exception.VenuesException.ResourceConflict("Table $tableId is not RESERVED (status: ${config.status})")
+                throw VenuesException.ResourceConflict("Table $tableId is not RESERVED (status: ${config.status})")
             }
         }
     }
@@ -628,5 +630,32 @@ class EventApiService(
         }
         return updated > 0
     }
-}
 
+    @Transactional
+    override fun reserveSeatByCode(sessionId: UUID, seatCode: String): SeatCodeReservationDto? {
+        val rows = codeReservationRepository.reserveSeatByCodeAndGetPrice(sessionId, seatCode)
+        val row = rows.firstOrNull() ?: return null
+        val seatId = (row[0] as Number).toLong()
+        val unitPrice = row[1] as BigDecimal
+        return SeatCodeReservationDto(seatId = seatId, seatCode = seatCode, unitPrice = unitPrice)
+    }
+
+    @Transactional
+    override fun reserveGaByCode(sessionId: UUID, gaCode: String, quantity: Int): GaCodeReservationDto? {
+        if (quantity <= 0) return null
+        val rows = codeReservationRepository.reserveGaByCodeAndGetPrice(sessionId, gaCode, quantity)
+        val row = rows.firstOrNull() ?: return null
+        val gaAreaId = (row[0] as Number).toLong()
+        val unitPrice = row[1] as BigDecimal
+        return GaCodeReservationDto(gaAreaId = gaAreaId, gaCode = gaCode, quantity = quantity, unitPrice = unitPrice)
+    }
+
+    @Transactional
+    override fun reserveTableByCode(sessionId: UUID, tableCode: String): TableCodeReservationDto? {
+        val rows = codeReservationRepository.reserveTableByCodeAndGetPrice(sessionId, tableCode)
+        val row = rows.firstOrNull() ?: return null
+        val tableId = (row[0] as Number).toLong()
+        val unitPrice = row[1] as BigDecimal
+        return TableCodeReservationDto(tableId = tableId, tableCode = tableCode, unitPrice = unitPrice)
+    }
+}

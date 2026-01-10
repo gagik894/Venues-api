@@ -3,11 +3,7 @@ package app.venues.seating.api.controller
 import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
 import app.venues.seating.api.SeatingApi
-import app.venues.seating.api.dto.GaInfoDto
-import app.venues.seating.api.dto.SeatInfoDto
-import app.venues.seating.api.dto.SectionInfoDto
-import app.venues.seating.api.dto.StaticChartStructureResponse
-import app.venues.seating.api.dto.TableInfoDto
+import app.venues.seating.api.dto.*
 import app.venues.seating.model.SeatingChartDetailedResponse
 import app.venues.seating.service.ChartStructureService
 import app.venues.seating.service.SeatingService
@@ -115,10 +111,13 @@ class SeatingChartController(
         return ApiResponse.success(seat, "Retrieved successfully")
     }
 
-    @GetMapping("/by-code/{code}")
+    @GetMapping("/{chartId}/seats/by-code/{code}")
     @Operation(summary = "Get seat by code")
-    fun getSeatByCode(@PathVariable code: String): ApiResponse<SeatInfoDto> {
-        val seat = seatingApi.getSeatInfoByCode(code)
+    fun getSeatByCode(
+        @PathVariable chartId: UUID,
+        @PathVariable code: String
+    ): ApiResponse<SeatInfoDto> {
+        val seat = seatingApi.getSeatInfoByCode(chartId, code)
             ?: throw VenuesException.ResourceNotFound("Seat not found")
         return ApiResponse.success(seat, "Retrieved successfully")
     }

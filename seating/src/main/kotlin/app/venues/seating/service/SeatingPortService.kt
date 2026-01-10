@@ -158,8 +158,8 @@ class SeatingPortService(
         )
     }
 
-    override fun getSeatInfoByCode(code: String): SeatInfoDto? {
-        val seat = chartSeatRepository.findByCode(code) ?: return null
+    override fun getSeatInfoByCode(chartId: UUID, code: String): SeatInfoDto? {
+        val seat = chartSeatRepository.findByChartIdAndCode(chartId, code) ?: return null
         return SeatInfoDto(
             id = seat.id ?: error("Seat ID cannot be null"),
             code = seat.code,
@@ -225,8 +225,8 @@ class SeatingPortService(
         )
     }
 
-    override fun getGaInfoByCode(code: String): GaInfoDto? {
-        val ga = gaAreaRepository.findByCode(code) ?: return null
+    override fun getGaInfoByCode(chartId: UUID, code: String): GaInfoDto? {
+        val ga = gaAreaRepository.findByChartIdAndCode(chartId, code) ?: return null
         return GaInfoDto(
             id = ga.id ?: error("GA Area ID cannot be null"),
             code = ga.code,
@@ -252,8 +252,8 @@ class SeatingPortService(
         )
     }
 
-    override fun getTableInfoByCode(code: String): TableInfoDto? {
-        val table = chartTableRepository.findByCode(code) ?: return null
+    override fun getTableInfoByCode(chartId: UUID, code: String): TableInfoDto? {
+        val table = chartTableRepository.findByChartIdAndCode(chartId, code) ?: return null
         return TableInfoDto(
             id = table.id ?: error("Table ID cannot be null"),
             code = table.code,

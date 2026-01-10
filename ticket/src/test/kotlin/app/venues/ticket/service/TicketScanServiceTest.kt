@@ -68,6 +68,7 @@ class TicketScanServiceTest {
             sessionId = UUID.randomUUID(),
             eventId = ticket.eventSessionId, // Match scanner session
             venueId = UUID.randomUUID(),
+            seatingChartId = UUID.randomUUID(),
             eventTitle = "Concert",
             eventDescription = "Desc",
             currency = "USD",
@@ -143,7 +144,8 @@ class TicketScanServiceTest {
             currency = "USD",
             startTime = Instant.now(),
             endTime = Instant.now().plusSeconds(7200),
-            venueId = UUID.randomUUID()
+            venueId = UUID.randomUUID(),
+            seatingChartId = UUID.randomUUID()
         )
 
         // When
@@ -191,7 +193,8 @@ class TicketScanServiceTest {
             currency = "USD",
             startTime = Instant.now(),
             endTime = Instant.now().plusSeconds(7200),
-            venueId = UUID.randomUUID()
+            venueId = UUID.randomUUID(),
+            seatingChartId = UUID.randomUUID()
         )
 
         // When
@@ -237,6 +240,7 @@ class TicketScanServiceTest {
             sessionId = UUID.randomUUID(),
             eventId = ticket.eventSessionId, // Match scanner session
             venueId = UUID.randomUUID(),
+            seatingChartId = UUID.randomUUID(),
             eventTitle = "Concert",
             eventDescription = "Desc",
             currency = "USD",
@@ -304,7 +308,8 @@ class TicketScanServiceTest {
             currency = "USD",
             startTime = Instant.now(),
             endTime = Instant.now().plusSeconds(7200),
-            venueId = UUID.randomUUID()
+            venueId = UUID.randomUUID(),
+            seatingChartId = UUID.randomUUID()
         )
 
         // When

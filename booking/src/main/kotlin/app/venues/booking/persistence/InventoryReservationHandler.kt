@@ -5,7 +5,6 @@ import app.venues.common.exception.VenuesException
 import app.venues.event.api.EventApi
 import app.venues.seating.api.SeatingApi
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
@@ -19,7 +18,6 @@ import java.util.*
 class InventoryReservationHandler(
     private val eventApi: EventApi,
     private val seatingApi: SeatingApi,
-    private val eventPublisher: ApplicationEventPublisher,
     private val inventoryChangePublisher: InventoryChangePublisher
 ) {
     private val logger = KotlinLogging.logger {}
@@ -44,21 +42,18 @@ class InventoryReservationHandler(
      * @throws VenuesException.ResourceConflict if seat unavailable
      * @throws VenuesException.ValidationFailure if seat not priced
      */
-    fun reserveSeat(sessionId: UUID, seatId: Long): SeatReservationResult {
-        // Atomic operation: reserve + get price in single UPDATE
-        val price = eventApi.reserveSeat(sessionId, seatId)
+    fun reserveSeat(sessionId: UUID, seatCode: String): SeatReservationResult {
+        val reservation = eventApi.reserveSeatByCode(sessionId, seatCode)
             ?: throw VenuesException.ResourceConflict(
                 "Seat is not available for reservation or not priced"
             )
 
         // Block any tables containing this seat (same transaction for consistency)
-        // This prevents tables from being booked when individual seats are reserved
-        blockTablesContainingSeat(sessionId, seatId)
+        blockTablesContainingSeat(sessionId, reservation.seatId)
 
-        // Publish seat-closed once per reservation
-        inventoryChangePublisher.seatsClosed(sessionId, listOf(seatId))
+        inventoryChangePublisher.seatsClosed(sessionId, listOf(reservation.seatId))
 
-        return SeatReservationResult(seatId = seatId, price = price)
+        return SeatReservationResult(seatId = reservation.seatId, price = reservation.unitPrice)
     }
 
     /**
@@ -68,17 +63,16 @@ class InventoryReservationHandler(
      * @throws VenuesException.ResourceConflict if insufficient capacity
      * @throws VenuesException.ValidationFailure if level not priced
      */
-    fun reserveGATickets(sessionId: UUID, gaAreaId: Long, quantity: Int): GaReservationResult {
-        // Atomic operation: reserve + get price in single UPDATE
-        val price = eventApi.reserveGa(sessionId, gaAreaId, quantity)
+    fun reserveGATickets(sessionId: UUID, gaCode: String, quantity: Int): GaReservationResult {
+        val reservation = eventApi.reserveGaByCode(sessionId, gaCode, quantity)
             ?: throw VenuesException.ResourceConflict(
                 "Not enough tickets available or level not priced. Requested: $quantity"
             )
 
         return GaReservationResult(
-            gaAreaId = gaAreaId,
-            quantity = quantity,
-            unitPrice = price
+            gaAreaId = reservation.gaAreaId,
+            quantity = reservation.quantity,
+            unitPrice = reservation.unitPrice
         )
     }
 
@@ -234,5 +228,3 @@ class InventoryReservationHandler(
         }
     }
 }
-
-

@@ -13,9 +13,10 @@ import java.util.*
 interface ChartTableRepository : JpaRepository<ChartTable, Long> {
 
     /**
-     * Find table by business code.
+     * Find table by business code within a chart.
      */
-    fun findByCode(code: String): ChartTable?
+    @Query("SELECT t FROM ChartTable t WHERE t.code = :code AND t.zone.chart.id = :chartId")
+    fun findByChartIdAndCode(chartId: UUID, code: String): ChartTable?
 
     /**
      * Find tables by zone.

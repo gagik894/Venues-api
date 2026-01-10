@@ -57,6 +57,7 @@ class EventStatsServiceTest {
             sessionId = sessionId,
             eventId = eventId,
             venueId = venueId,
+            seatingChartId = UUID.randomUUID(),
             eventTitle = "Jazz Night",
             eventDescription = null,
             currency = "USD",
@@ -217,7 +218,8 @@ class EventStatsServiceTest {
             eventDescription = null,
             currency = "USD",
             startTime = Instant.now(),
-            endTime = Instant.now()
+            endTime = Instant.now(),
+            seatingChartId = UUID.randomUUID()
         )
         every { eventApi.getEventSessionInfo(sessionIds[1]) } returns EventSessionDto(
             sessionId = sessionIds[1],
@@ -227,7 +229,8 @@ class EventStatsServiceTest {
             eventDescription = null,
             currency = "EUR",
             startTime = Instant.now(),
-            endTime = Instant.now()
+            endTime = Instant.now(),
+            seatingChartId = UUID.randomUUID()
         )
 
         assertThrows(VenuesException.ValidationFailure::class.java) {

@@ -6,6 +6,8 @@ import app.venues.booking.api.dto.BookingResponse
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.PlatformEasyReserveRequest
 import app.venues.platform.service.PlatformBookingService
+import app.venues.shared.idempotency.IdempotencyScopeType
+import app.venues.shared.idempotency.annotation.Idempotent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -30,6 +32,11 @@ class PlatformEasyController(
 ) {
     private val logger = KotlinLogging.logger {}
 
+    @Idempotent(
+        endpoint = "platform-easy:reserve",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/reserve")
     @Operation(summary = "Reserve items (Create Pending Booking)")
     @SecurityRequirement(name = "platformAuth")
@@ -40,10 +47,15 @@ class PlatformEasyController(
         @AuditMetadata("request") @Valid @RequestBody request: PlatformEasyReserveRequest
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId easy-reserve for session ${request.sessionId}" }
-        val result = platformBookingService.reserveSimple(platformId, request, idempotencyKey)
+        val result = platformBookingService.reserveSimple(platformId, request)
         return ApiResponse.success(result, "Booking reserved successfully")
     }
 
+    @Idempotent(
+        endpoint = "platform-easy:confirm",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/confirm/{bookingId}")
     @Operation(summary = "Confirm booking (Mark as Sold)")
     @SecurityRequirement(name = "platformAuth")
@@ -54,10 +66,15 @@ class PlatformEasyController(
         @PathVariable bookingId: UUID
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId easy-confirm booking $bookingId" }
-        val result = platformBookingService.confirmSimple(platformId, bookingId, idempotencyKey)
+        val result = platformBookingService.confirmSimple(platformId, bookingId)
         return ApiResponse.success(result, "Booking confirmed successfully")
     }
 
+    @Idempotent(
+        endpoint = "platform-easy:release",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/release/{bookingId}")
     @Operation(summary = "Release booking (Cancel)")
     @SecurityRequirement(name = "platformAuth")
@@ -68,7 +85,7 @@ class PlatformEasyController(
         @PathVariable bookingId: UUID
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId easy-release booking $bookingId" }
-        val result = platformBookingService.releaseSimple(platformId, bookingId, idempotencyKey)
+        val result = platformBookingService.releaseSimple(platformId, bookingId)
         return ApiResponse.success(result, "Booking released successfully")
     }
 }

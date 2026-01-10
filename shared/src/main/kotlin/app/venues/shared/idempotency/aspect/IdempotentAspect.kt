@@ -1,236 +1,193 @@
 package app.venues.shared.idempotency.aspect
 
+import app.venues.shared.idempotency.IdempotencyContext
+import app.venues.shared.idempotency.IdempotencyKeyExtractor
+import app.venues.shared.idempotency.IdempotencyScopeType
 import app.venues.shared.idempotency.IdempotencyService
 import app.venues.shared.idempotency.annotation.Idempotent
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
 import org.aspectj.lang.annotation.Aspect
+import org.aspectj.lang.reflect.MethodSignature
 import org.springframework.core.annotation.Order
+import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
-import org.springframework.web.bind.annotation.CookieValue
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestHeader
-import org.springframework.web.bind.annotation.RequestParam
 import java.lang.reflect.Method
-import java.util.*
-import kotlin.reflect.jvm.kotlinFunction
 
 /**
- * Aspect that automatically applies idempotency protection to methods annotated with @Idempotent.
+ * Enterprise-grade aspect for automatic idempotency protection.
  *
- * Responsibilities:
+ * **Responsibilities:**
  * 1. Intercept controller methods annotated with @Idempotent
- * 2. Extract Idempotency-Key from @RequestHeader("Idempotency-Key")
- * 3. Extract namespace value from method parameters (cartToken, platformId, etc.)
- * 4. Apply idempotency protection using IdempotencyService
- * 5. Return cached result if available, otherwise execute and cache
+ * 2. Extract Idempotency-Key from request headers
+ * 3. Extract scope identifier based on annotation configuration
+ * 4. Delegate to IdempotencyService for cache/execution logic
+ * 5. Handle errors gracefully (fail-open for availability)
  *
- * Execution Order:
- * - Runs BEFORE @Auditable aspect to ensure idempotency is checked first
- * - If idempotency key is missing, proceeds normally without protection
+ * **Execution Order:**
+ * - @Order(1): Runs BEFORE @Auditable aspect (@Order(2))
+ * - Ensures duplicate requests don't create duplicate audit entries
+ * - Ensures idempotency is the outermost concern
+ *
+ * **Behavior:**
+ * - If Idempotency-Key missing: proceeds without protection
+ * - If Redis unavailable: proceeds without protection (fail-open)
+ * - If operation fails: releases lock, doesn't cache error
+ * - If operation succeeds: caches result for 24 hours
+ *
+ * **Type Safety:**
+ * - Automatically extracts generic types from ResponseEntity<T>
+ * - Falls back to method return type for non-ResponseEntity responses
+ * - Uses strongly-typed IdempotencyContext for compile-time safety
+ *
+ * @see Idempotent
+ * @see IdempotencyService
+ * @see IdempotencyKeyExtractor
  */
 @Aspect
 @Component
-@Order(1) // Execute before @Auditable aspect (which is typically @Order(2))
+@Order(1)
 class IdempotentAspect(
-    private val idempotencyService: IdempotencyService,
-    private val objectMapper: ObjectMapper
+    private val idempotencyService: IdempotencyService
 ) {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * Intercept methods annotated with @Idempotent.
+     *
+     * @param joinPoint Method invocation join point
+     * @param idempotent Annotation configuration
+     * @return Result of method execution (cached or freshly computed)
+     */
     @Around("@annotation(idempotent)")
     fun applyIdempotency(joinPoint: ProceedingJoinPoint, idempotent: Idempotent): Any? {
-        val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method
-            ?: return joinPoint.proceed()
-
+        val method = extractMethod(joinPoint) ?: return joinPoint.proceed()
         val args = joinPoint.args
 
         // Extract idempotency key from request header
-        val idempotencyKey = extractIdempotencyKey(method, args)
+        val idempotencyKey = IdempotencyKeyExtractor.extractIdempotencyKey(method, args)
 
-        // If no idempotency key provided, proceed normally
+        // If no idempotency key provided, proceed without protection
         if (idempotencyKey.isNullOrBlank()) {
+            logger.trace { "No idempotency key provided for ${method.name}, proceeding without protection" }
             return joinPoint.proceed()
         }
 
-        // Extract namespace value (cart token, platform ID, etc.)
-        val namespaceValue = extractNamespaceValue(method, args, idempotent.namespaceKey)
+        // Extract scope identifier based on annotation configuration
+        val scopeId = extractScopeId(method, args, idempotent)
 
-        // Build namespace: endpoint + namespace value if available
-        val namespace = if (namespaceValue != null) {
-            "${idempotent.endpoint}:$namespaceValue"
-        } else {
-            idempotent.endpoint
-        }
+        // Determine response type from method signature
+        val responseType = extractResponseType(method)
 
-        // Determine response type from method return type
-        val returnType = method.returnType
-        val responseType = if (returnType.isAssignableFrom(org.springframework.http.ResponseEntity::class.java)) {
-            // For ResponseEntity, extract the generic type
-            extractGenericType(method) ?: returnType
-        } else {
-            returnType
-        }
-
-        logger.debug {
-            "Applying idempotency: endpoint=${idempotent.endpoint} " +
-                    "namespace=$namespace key=$idempotencyKey"
-        }
-
-        // Apply idempotency protection
-        return idempotencyService.withIdempotency(
-            idempotencyKey = idempotencyKey,
+        // Build idempotency context
+        val context = IdempotencyContext(
             keyPrefix = idempotent.keyPrefix,
-            namespace = namespace,
-            responseType = responseType,
-            supplier = {
-                joinPoint.proceed()
-            }
+            operation = idempotent.endpoint,
+            scopeId = scopeId,
+            idempotencyKey = idempotencyKey,
+            responseType = responseType
         )
-    }
 
-    private fun extractIdempotencyKey(method: Method, args: Array<Any>): String? {
-        val kParams = method.kotlinFunction?.parameters
-        return method.parameters.indices.firstNotNullOfOrNull { index ->
-            val param = method.parameters[index]
-            val header = param.getAnnotation(RequestHeader::class.java)
-            if (header != null) {
-                val headerName = header.name.takeIf { it.isNotBlank() }
-                    ?: header.value.takeIf { it.isNotBlank() }
-                    ?: kParams?.getOrNull(index + 1)?.name
-                    ?: param.name
+        logger.debug { "Applying idempotency: ${context.getDescription()}" }
 
-                if (headerName.equals("Idempotency-Key", ignoreCase = true)) {
-                    args.getOrNull(index) as? String
-                } else null
-            } else null
+        // Delegate to idempotency service
+        return idempotencyService.executeWithIdempotency(context) {
+            joinPoint.proceed()
         }
     }
 
-    private fun extractNamespaceValue(method: Method, args: Array<Any>, namespaceKey: String?): String? {
-        if (namespaceKey == null) return null
-
-        val kParams = method.kotlinFunction?.parameters
-        
-        // Special handling for cartToken: check both token param and cookie
-        if (namespaceKey == "cartToken") {
-            // First try @RequestParam("token")
-            val tokenParam = method.parameters.indices.firstNotNullOfOrNull { index ->
-                val param = method.parameters[index]
-                val requestParam = param.getAnnotation(RequestParam::class.java)
-                if (requestParam != null) {
-                    val paramName = requestParam.name.takeIf { it.isNotBlank() }
-                        ?: requestParam.value.takeIf { it.isNotBlank() }
-                        ?: kParams?.getOrNull(index + 1)?.name
-                        ?: param.name
-                    if (paramName == "token") {
-                        args.getOrNull(index) as? UUID
-                    } else null
-                } else null
-            }
-            if (tokenParam != null) return tokenParam.toString()
-            
-            // Then try @CookieValue("cart_token")
-            val cookieToken = method.parameters.indices.firstNotNullOfOrNull { index ->
-                val param = method.parameters[index]
-                val cookieValue = param.getAnnotation(CookieValue::class.java)
-                if (cookieValue != null) {
-                    val cookieName = cookieValue.name.takeIf { it.isNotBlank() }
-                        ?: cookieValue.value.takeIf { it.isNotBlank() }
-                    if (cookieName == "cart_token") {
-                        args.getOrNull(index) as? UUID
-                    } else null
-                } else null
-            }
-            if (cookieToken != null) return cookieToken.toString()
+    /**
+     * Extract Method from join point signature.
+     */
+    private fun extractMethod(joinPoint: ProceedingJoinPoint): Method? {
+        val signature = joinPoint.signature as? MethodSignature
+        if (signature == null) {
+            logger.warn { "Cannot extract method signature from join point: ${joinPoint.signature}" }
+            return null
         }
-        
-        // Special handling for bookingId: check @PathVariable
-        if (namespaceKey == "bookingId") {
-            val bookingId = method.parameters.indices.firstNotNullOfOrNull { index ->
-                val param = method.parameters[index]
-                val pathVar = param.getAnnotation(PathVariable::class.java)
-                if (pathVar != null) {
-                    val varName = pathVar.name.takeIf { it.isNotBlank() }
-                        ?: pathVar.value.takeIf { it.isNotBlank() }
-                        ?: kParams?.getOrNull(index + 1)?.name
-                        ?: param.name
-                    if (varName == "id" || varName == "bookingId") {
-                        args.getOrNull(index) as? UUID
-                    } else null
-                } else null
-            }
-            if (bookingId != null) return bookingId.toString()
-        }
-        
-        // Generic extraction for other namespace keys
-        return method.parameters.indices.firstNotNullOfOrNull { index ->
-            val param = method.parameters[index]
-            val arg = args.getOrNull(index)
+        return signature.method
+    }
 
-            // Check @RequestParam
-            val requestParam = param.getAnnotation(RequestParam::class.java)
-            if (requestParam != null) {
-                val paramName = requestParam.name.takeIf { it.isNotBlank() }
-                    ?: requestParam.value.takeIf { it.isNotBlank() }
-                    ?: kParams?.getOrNull(index + 1)?.name
-                    ?: param.name
-
-                if (paramName == namespaceKey) {
-                    return@firstNotNullOfOrNull arg?.toString()
+    /**
+     * Extract scope identifier based on annotation configuration.
+     *
+     * Uses IdempotencyKeyExtractor for consistent, tested extraction logic.
+     *
+     * @param method Controller method
+     * @param args Method arguments
+     * @param idempotent Annotation configuration
+     * @return Scope identifier if found, null otherwise
+     */
+    private fun extractScopeId(method: Method, args: Array<Any>, idempotent: Idempotent): String? {
+        return when (idempotent.scopeType) {
+            IdempotencyScopeType.CUSTOM -> {
+                val customName = idempotent.customScopeName.takeIf { it.isNotBlank() }
+                if (customName == null) {
+                    logger.warn { "CUSTOM scope type specified but customScopeName is blank for ${method.name}" }
+                    null
+                } else {
+                    IdempotencyKeyExtractor.extractScopeId(method, args, IdempotencyScopeType.CUSTOM, customName)
                 }
             }
 
-            // Check @PathVariable
-            val pathVar = param.getAnnotation(PathVariable::class.java)
-            if (pathVar != null) {
-                val varName = pathVar.name.takeIf { it.isNotBlank() }
-                    ?: pathVar.value.takeIf { it.isNotBlank() }
-                    ?: kParams?.getOrNull(index + 1)?.name
-                    ?: param.name
-                if (varName == namespaceKey) {
-                    return@firstNotNullOfOrNull arg?.toString()
-                }
+            else -> {
+                IdempotencyKeyExtractor.extractScopeId(method, args, idempotent.scopeType)
             }
-
-            // Check @RequestHeader (for platformId)
-            val requestHeader = param.getAnnotation(RequestHeader::class.java)
-            if (requestHeader != null) {
-                val headerName = requestHeader.name.takeIf { it.isNotBlank() }
-                    ?: requestHeader.value.takeIf { it.isNotBlank() }
-                    ?: kParams?.getOrNull(index + 1)?.name
-
-                if ((headerName == "X-Platform-ID" && namespaceKey == "platformId") ||
-                    (param.name == namespaceKey)
-                ) {
-                    return@firstNotNullOfOrNull arg?.toString()
-                }
-            }
-
-            // Check parameter name match
-            val paramName = kParams?.getOrNull(index + 1)?.name ?: param.name
-            if (paramName == namespaceKey) {
-                return@firstNotNullOfOrNull arg?.toString()
-            }
-
-            null
         }
     }
 
-    private fun extractGenericType(method: Method): Class<*>? {
+    /**
+     * Extract response type from method signature.
+     *
+     * For ResponseEntity<T>, extracts T.
+     * For other types, returns the return type directly.
+     *
+     * @param method Controller method
+     * @return Response type class
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun extractResponseType(method: Method): Class<Any> {
+        val returnType = method.returnType
+
+        // Handle ResponseEntity<T> - extract generic type
+        if (ResponseEntity::class.java.isAssignableFrom(returnType)) {
+            val genericType = extractGenericTypeFromResponseEntity(method)
+            if (genericType != null) {
+                return genericType as Class<Any>
+            }
+        }
+
+        // Return direct type
+        return returnType as Class<Any>
+    }
+
+    /**
+     * Extract generic type T from ResponseEntity<T>.
+     *
+     * @param method Controller method
+     * @return Generic type class if extractable, null otherwise
+     */
+    private fun extractGenericTypeFromResponseEntity(method: Method): Class<*>? {
         return try {
-            val returnType = method.genericReturnType
-            if (returnType is java.lang.reflect.ParameterizedType) {
-                val actualType = returnType.actualTypeArguments.firstOrNull()
+            val genericReturnType = method.genericReturnType
+            if (genericReturnType is java.lang.reflect.ParameterizedType) {
+                val actualType = genericReturnType.actualTypeArguments.firstOrNull()
                 if (actualType is Class<*>) {
                     actualType
-                } else null
-            } else null
+                } else {
+                    logger.warn { "Cannot extract generic type from ResponseEntity for ${method.name}" }
+                    null
+                }
+            } else {
+                logger.warn { "Method return type is not parameterized: ${method.name}" }
+                null
+            }
         } catch (e: Exception) {
             logger.warn(e) { "Failed to extract generic type from method ${method.name}" }
             null
         }
     }
 }
+
+

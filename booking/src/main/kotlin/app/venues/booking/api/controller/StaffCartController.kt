@@ -6,8 +6,8 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
 import app.venues.booking.service.StaffCartService
-import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.common.model.ApiResponse
+import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
@@ -52,7 +52,11 @@ class StaffCartController(
      * Creates cart with 20-minute expiration if first item.
      * Extends by 10 minutes on each action (max 30 minutes from creation).
      */
-    @Idempotent(endpoint = "staff-cart:add-seat", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:add-seat",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_ADD_SEAT", subjectType = "event_session")
     @PostMapping("/seats")
     @Operation(
@@ -86,7 +90,11 @@ class StaffCartController(
     /**
      * Add GA tickets to staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:add-ga", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:add-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_ADD_GA", subjectType = "event_session")
     @PostMapping("/ga")
     @Operation(
@@ -119,7 +127,11 @@ class StaffCartController(
     /**
      * Add table to staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:add-table", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:add-table",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_ADD_TABLE", subjectType = "event_session")
     @PostMapping("/table")
     @Operation(
@@ -183,7 +195,11 @@ class StaffCartController(
     /**
      * Remove seat from staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:remove-seat", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:remove-seat",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_REMOVE_SEAT", subjectType = "event_session")
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
@@ -215,7 +231,11 @@ class StaffCartController(
     /**
      * Update GA quantity in staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:update-ga", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:update-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_UPDATE_GA", subjectType = "event_session")
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -248,7 +268,11 @@ class StaffCartController(
     /**
      * Remove GA item from staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:remove-ga", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:remove-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_REMOVE_GA", subjectType = "event_session")
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -280,7 +304,11 @@ class StaffCartController(
     /**
      * Remove table from staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:remove-table", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:remove-table",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_REMOVE_TABLE", subjectType = "event_session")
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
@@ -312,7 +340,11 @@ class StaffCartController(
     /**
      * Clear entire staff cart.
      */
-    @Idempotent(endpoint = "staff-cart:clear", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:clear",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_CLEARED", subjectType = "event_session")
     @DeleteMapping("/clear")
     @Operation(
@@ -351,7 +383,11 @@ class StaffCartController(
      * Checkout staff cart and create confirmed booking.
      * Converts cart to direct sale with immediate confirmation.
      */
-    @Idempotent(endpoint = "staff-cart:checkout", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:checkout",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_CHECKOUT", subjectType = "booking")
     @PostMapping("/checkout")
     @Operation(
@@ -398,7 +434,11 @@ class StaffCartController(
      *
      * Releases inventory reservations and deletes the cart.
      */
-    @Idempotent(endpoint = "staff-cart:close", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "staff-cart:close",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "STAFF_CART_CLOSE_ITEMS", subjectType = "event_session")
     @PostMapping("/close")
     @Operation(
@@ -446,3 +486,4 @@ class StaffCartController(
         response.addCookie(cookie)
     }
 }
+

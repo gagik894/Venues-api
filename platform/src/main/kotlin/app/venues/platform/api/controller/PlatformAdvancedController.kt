@@ -7,6 +7,8 @@ import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.*
 import app.venues.platform.service.PlatformBookingService
+import app.venues.shared.idempotency.IdempotencyScopeType
+import app.venues.shared.idempotency.annotation.Idempotent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -35,6 +37,11 @@ class PlatformAdvancedController(
     /**
      * /hold-simple - Create cart and reserve inventory with optional TTL override.
      */
+    @Idempotent(
+        endpoint = "platform-adv:hold-simple",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/cart/hold-simple")
     @Operation(
         summary = "Hold inventory (Batch)",
@@ -49,7 +56,7 @@ class PlatformAdvancedController(
     ): ApiResponse<PlatformHoldResponse> {
         logger.debug { "Platform $platformId hold-simple for session ${request.sessionId}" }
 
-        val result = platformBookingService.holdSimple(platformId, request, idempotencyKey)
+        val result = platformBookingService.holdSimple(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -60,6 +67,11 @@ class PlatformAdvancedController(
     /**
      * /hold - Create cart and reserve inventory.
      */
+    @Idempotent(
+        endpoint = "platform-adv:hold",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/cart/hold")
     @Operation(
         summary = "Hold inventory (Granular)",
@@ -74,7 +86,7 @@ class PlatformAdvancedController(
     ): ApiResponse<PlatformHoldResponse> {
         logger.debug { "Platform $platformId holding inventory for session ${request.sessionId}" }
 
-        val result = platformBookingService.hold(platformId, request, idempotencyKey)
+        val result = platformBookingService.hold(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -85,6 +97,11 @@ class PlatformAdvancedController(
     /**
      * /checkout - Validate cart and prepare for payment.
      */
+    @Idempotent(
+        endpoint = "platform-adv:checkout",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/cart/checkout")
     @Operation(
         summary = "Checkout cart",
@@ -99,7 +116,7 @@ class PlatformAdvancedController(
     ): ApiResponse<PlatformCheckoutResponse> {
         logger.debug { "Platform $platformId checking out cart ${request.holdToken}" }
 
-        val result = platformBookingService.checkout(platformId, request, idempotencyKey)
+        val result = platformBookingService.checkout(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -110,6 +127,11 @@ class PlatformAdvancedController(
     /**
      * /confirm - Confirm booking with payment proof.
      */
+    @Idempotent(
+        endpoint = "platform-adv:confirm",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/cart/confirm")
     @Operation(
         summary = "Confirm cart to booking",
@@ -124,7 +146,7 @@ class PlatformAdvancedController(
     ): ApiResponse<PlatformConfirmResponse> {
         logger.debug { "Platform $platformId confirming booking for cart ${request.holdToken}" }
 
-        val result = platformBookingService.confirm(platformId, request, idempotencyKey)
+        val result = platformBookingService.confirm(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -135,6 +157,11 @@ class PlatformAdvancedController(
     /**
      * /release - Release held inventory.
      */
+    @Idempotent(
+        endpoint = "platform-adv:release",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/cart/release")
     @Operation(
         summary = "Release cart",
@@ -149,7 +176,7 @@ class PlatformAdvancedController(
     ): ApiResponse<PlatformReleaseResponse> {
         logger.debug { "Platform $platformId releasing cart ${request.reservationToken}" }
 
-        val result = platformBookingService.release(platformId, request, idempotencyKey)
+        val result = platformBookingService.release(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -161,6 +188,11 @@ class PlatformAdvancedController(
      * /direct - Create confirmed booking directly (skip cart).
      * Kept for backward compatibility or advanced "one-shot" use cases.
      */
+    @Idempotent(
+        endpoint = "platform-adv:direct-booking",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/direct")
     @Operation(
         summary = "Direct confirmed booking",
@@ -175,7 +207,7 @@ class PlatformAdvancedController(
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId direct booking for session ${request.sessionId}" }
 
-        val result = platformBookingService.directBooking(platformId, request, idempotencyKey)
+        val result = platformBookingService.directBooking(platformId, request)
 
         return ApiResponse.success(
             data = result,

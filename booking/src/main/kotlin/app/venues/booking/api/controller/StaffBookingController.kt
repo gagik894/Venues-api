@@ -53,7 +53,11 @@ class StaffBookingController(
      * Create a direct sale (confirmed booking without cart flow).
      * Used when staff sells tickets directly with immediate payment.
      */
-    @Idempotent(endpoint = "booking:direct-sale", namespaceKey = null)
+    @Idempotent(
+        endpoint = "booking:direct-sale",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.NONE
+    )
     @Auditable(action = "BOOKING_DIRECT_SALE", subjectType = "booking")
     @PostMapping("/direct-sales")
     @Operation(
@@ -195,7 +199,11 @@ class StaffBookingController(
     /**
      * Invalidate a booking by ID.
      */
-    @Idempotent(endpoint = "booking:invalidate", namespaceKey = "bookingId")
+    @Idempotent(
+        endpoint = "booking:invalidate",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.BOOKING_ID
+    )
     @Auditable(action = "BOOKING_INVALIDATED", subjectType = "booking")
     @DeleteMapping("/{bookingId}")
     @Operation(
@@ -333,3 +341,5 @@ class StaffBookingController(
         )
     }
 }
+
+

@@ -31,8 +31,6 @@ class PlatformDirectBookingTest {
     private lateinit var bookingApi: BookingApi
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
-    @MockK
-    private lateinit var idempotencyService: PlatformIdempotencyService
 
     private lateinit var service: PlatformBookingService
 
@@ -45,8 +43,7 @@ class PlatformDirectBookingTest {
             cartValidationApi,
             cartQueryApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
 
         service = PlatformBookingService(
@@ -55,19 +52,8 @@ class PlatformDirectBookingTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
-
-        every {
-            idempotencyService.withIdempotency<BookingResponse>(
-                any(),
-                any(),
-                any(),
-                BookingResponse::class.java,
-                any()
-            )
-        } answers { lastArg<() -> BookingResponse>().invoke() }
     }
 
     @Test
@@ -126,7 +112,6 @@ class PlatformDirectBookingTest {
                 customerName = "Cust",
                 items = listOf(app.venues.booking.api.dto.DirectSaleItemRequest(seatCode = "A1"))
             ),
-            idempotencyKey = null
         )
 
         assertEquals("event", result.eventTitle)
@@ -189,7 +174,6 @@ class PlatformDirectBookingTest {
                 customerName = "",
                 items = listOf(app.venues.booking.api.dto.DirectSaleItemRequest(seatCode = "A1"))
             ),
-            idempotencyKey = null
         )
 
         assertEquals("event-null-guest", result.eventTitle)

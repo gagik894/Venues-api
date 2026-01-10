@@ -4,6 +4,7 @@ import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.BookingService
 import app.venues.common.model.ApiResponse
+import app.venues.shared.idempotency.IdempotencyScopeType
 import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
@@ -43,7 +44,11 @@ class BookingController(
     /**
      * Checkout - convert cart to booking.
      */
-    @Idempotent(endpoint = "booking:checkout", namespaceKey = "cartToken")
+    @Idempotent(
+        endpoint = "booking:checkout",
+        keyPrefix = "booking",
+        scopeType = IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "BOOKING_CHECKOUT", subjectType = "booking", includeVenueId = false)
     @PostMapping("/checkout")
     @Operation(
@@ -164,7 +169,11 @@ class BookingController(
     /**
      * Confirm booking payment.
      */
-    @Idempotent(endpoint = "booking:confirm", namespaceKey = "bookingId")
+    @Idempotent(
+        endpoint = "booking:confirm",
+        keyPrefix = "booking",
+        scopeType = IdempotencyScopeType.BOOKING_ID
+    )
     @Auditable(action = "BOOKING_CONFIRM", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/confirm")
     @Operation(
@@ -195,7 +204,11 @@ class BookingController(
     /**
      * Cancel booking.
      */
-    @Idempotent(endpoint = "booking:cancel", namespaceKey = "bookingId")
+    @Idempotent(
+        endpoint = "booking:cancel",
+        keyPrefix = "booking",
+        scopeType = IdempotencyScopeType.BOOKING_ID
+    )
     @Auditable(action = "BOOKING_CANCEL", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/cancel")
     @Operation(

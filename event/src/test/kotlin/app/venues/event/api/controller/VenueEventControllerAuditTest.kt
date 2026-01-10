@@ -475,6 +475,7 @@ class VenueEventControllerAuditTest(
         sessionId = sessionId,
         eventId = eventId,
         venueId = venueId,
+        seatingChartId = UUID.randomUUID(),
         eventTitle = "Sample",
         eventDescription = null,
         currency = "AMD",

@@ -142,6 +142,7 @@ class BookingServiceTicketCounterTest {
             sessionId = sessionId,
             eventId = UUID.randomUUID(),
             venueId = venueId,
+            seatingChartId = UUID.randomUUID(),
             eventTitle = "Concert",
             eventDescription = "Test",
             currency = "AMD",
@@ -223,7 +224,8 @@ class BookingServiceTicketCounterTest {
             eventDescription = "Test",
             currency = "AMD",
             startTime = Instant.now(),
-            endTime = Instant.now().plusSeconds(3600)
+            endTime = Instant.now().plusSeconds(3600),
+            seatingChartId = UUID.randomUUID()
         )
 
         every { bookingRepository.findById(bookingId) } returns Optional.of(booking)

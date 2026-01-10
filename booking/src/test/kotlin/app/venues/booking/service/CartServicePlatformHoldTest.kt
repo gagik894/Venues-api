@@ -92,6 +92,7 @@ class CartServicePlatformHoldTest {
     @Test
     fun `holdBatch enforces platform binding and returns summary`() {
         val sessionId = UUID.randomUUID()
+        val seatingChartId = UUID.randomUUID()
         val platformId = UUID.randomUUID()
         val cart = Cart(sessionId = sessionId, expiresAt = java.time.Instant.now().plusSeconds(300))
         cart.platformId = platformId
@@ -101,15 +102,16 @@ class CartServicePlatformHoldTest {
             every { currency } returns "USD"
             every { eventTitle } returns "event"
             every { venueId } returns UUID.randomUUID()
+            every { this@mockk.seatingChartId } returns seatingChartId
         }
-        every { seatingApi.getSeatInfoByCode("A1") } returns mockk {
+        every { seatingApi.getSeatInfoByCode(seatingChartId, "A1") } returns mockk {
             every { id } returns 1L
             every { code } returns "A1"
         }
         every {
             inventoryReservation.reserveSeat(
                 sessionId,
-                1L
+                "A1"
             )
         } returns InventoryReservationHandler.SeatReservationResult(1L, java.math.BigDecimal.ONE)
         every { cartItemPersistence.saveSeatToCart(any(), any(), any(), any(), any()) } returns mockk(relaxed = true)

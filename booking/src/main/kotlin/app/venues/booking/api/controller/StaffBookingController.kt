@@ -6,6 +6,7 @@ import app.venues.booking.api.domain.BookingStatus
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.*
 import app.venues.common.model.ApiResponse
+import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -52,6 +53,11 @@ class StaffBookingController(
      * Create a direct sale (confirmed booking without cart flow).
      * Used when staff sells tickets directly with immediate payment.
      */
+    @Idempotent(
+        endpoint = "booking:direct-sale",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.NONE
+    )
     @Auditable(action = "BOOKING_DIRECT_SALE", subjectType = "booking")
     @PostMapping("/direct-sales")
     @Operation(
@@ -60,6 +66,7 @@ class StaffBookingController(
                 "Used for in-person sales where payment is received immediately."
     )
     fun createDirectSale(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @AuditMetadata("request") @Valid @RequestBody request: DirectSaleRequest
@@ -192,6 +199,11 @@ class StaffBookingController(
     /**
      * Invalidate a booking by ID.
      */
+    @Idempotent(
+        endpoint = "booking:invalidate",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.BOOKING_ID
+    )
     @Auditable(action = "BOOKING_INVALIDATED", subjectType = "booking")
     @DeleteMapping("/{bookingId}")
     @Operation(
@@ -199,6 +211,7 @@ class StaffBookingController(
         description = "Invalidate (cancel) a specific booking within the venue"
     )
     fun invalidateBooking(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @PathVariable bookingId: UUID,
         @RequestAttribute staffId: UUID
@@ -328,3 +341,5 @@ class StaffBookingController(
         )
     }
 }
+
+

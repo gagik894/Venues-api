@@ -7,6 +7,7 @@ import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
 import app.venues.common.exception.VenuesException
 import app.venues.common.model.ApiResponse
+import app.venues.shared.idempotency.annotation.Idempotent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -50,6 +51,11 @@ class CartController(
     /**
      * Add seat to cart.
      */
+    @Idempotent(
+        endpoint = "cart:add-seat",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_ADD_SEAT", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/seats")
     @Operation(
@@ -57,6 +63,7 @@ class CartController(
         description = "Add a specific seat to cart. Returns token to use for subsequent operations."
     )
     fun addSeatToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @AuditMetadata("request") @Valid @RequestBody request: AddSeatToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
@@ -78,6 +85,11 @@ class CartController(
     /**
      * Add GA tickets to cart.
      */
+    @Idempotent(
+        endpoint = "cart:add-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_ADD_GA", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/ga")
     @Operation(
@@ -85,6 +97,7 @@ class CartController(
         description = "Add general admission tickets to cart"
     )
     fun addGAToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @AuditMetadata("request") @Valid @RequestBody request: AddGAToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
@@ -106,6 +119,11 @@ class CartController(
     /**
      * Add Tables tickets to cart.
      */
+    @Idempotent(
+        endpoint = "cart:add-table",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_ADD_TABLE", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/table")
     @Operation(
@@ -113,6 +131,7 @@ class CartController(
         description = "Add Table tickets to cart"
     )
     fun addTableToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @AuditMetadata("request") @Valid @RequestBody request: AddTableToCartRequest,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
@@ -163,6 +182,11 @@ class CartController(
     /**
      * Remove seat from cart.
      */
+    @Idempotent(
+        endpoint = "cart:remove-seat",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_REMOVE_SEAT", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
@@ -170,6 +194,7 @@ class CartController(
         description = "Remove a specific seat from cart"
     )
     fun removeSeatFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @AuditMetadata("seatIdentifier") @PathVariable seatIdentifier: String
@@ -190,6 +215,11 @@ class CartController(
     /**
      * Update GA ticket quantity in cart.
      */
+    @Idempotent(
+        endpoint = "cart:update-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_UPDATE_GA", subjectType = "event_session", includeVenueId = false)
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -197,6 +227,7 @@ class CartController(
         description = "Update quantity of GA tickets for a level. Setting quantity to 0 removes the item."
     )
     fun updateGAQuantity(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String,
@@ -218,6 +249,11 @@ class CartController(
     /**
      * Remove GA item from cart.
      */
+    @Idempotent(
+        endpoint = "cart:remove-ga",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_REMOVE_GA", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -225,6 +261,7 @@ class CartController(
         description = "Remove all GA tickets for a specific level from cart."
     )
     fun removeGAFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @AuditMetadata("levelIdentifier") @PathVariable levelIdentifier: String
@@ -245,6 +282,11 @@ class CartController(
     /**
      * Remove table from cart.
      */
+    @Idempotent(
+        endpoint = "cart:remove-table",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_REMOVE_TABLE", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
@@ -252,6 +294,7 @@ class CartController(
         description = "Remove a specific table from cart."
     )
     fun removeTableFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @AuditMetadata("tableIdentifier") @PathVariable tableIdentifier: String
@@ -272,6 +315,11 @@ class CartController(
     /**
      * Clear cart.
      */
+    @Idempotent(
+        endpoint = "cart:clear",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_CLEAR", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/clear")
     @Operation(
@@ -279,6 +327,7 @@ class CartController(
         description = "Remove all items from cart"
     )
     fun clearCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
@@ -306,6 +355,11 @@ class CartController(
     /**
      * Apply promo code to cart.
      */
+    @Idempotent(
+        endpoint = "cart:apply-promo",
+        keyPrefix = "booking",
+        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
+    )
     @Auditable(action = "CART_APPLY_PROMO", subjectType = "event_session", includeVenueId = false)
     @PostMapping("/promo-code")
     @Operation(
@@ -313,6 +367,7 @@ class CartController(
         description = "Apply a promo code to the cart and recalculate totals."
     )
     fun applyPromoCode(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         @AuditMetadata("request") @Valid @RequestBody request: ApplyPromoCodeRequest
@@ -330,3 +385,4 @@ class CartController(
         )
     }
 }
+

@@ -35,8 +35,6 @@ class PlatformEasyFlowTest {
     private lateinit var bookingApi: BookingApi
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
-    @MockK
-    private lateinit var idempotencyService: PlatformIdempotencyService
 
     private lateinit var service: PlatformBookingService
     private val platformId = UUID.randomUUID()
@@ -55,21 +53,11 @@ class PlatformEasyFlowTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
 
-        every { platformRepository.findById(platformId) } returns java.util.Optional.of(activePlatform)
+        every { platformRepository.findById(platformId) } returns Optional.of(activePlatform)
         every { rateLimitService.enforce(any(), any()) } just Runs
-        every {
-            idempotencyService.withIdempotency(
-                idempotencyKey = any(),
-                platformId = any(),
-                endpoint = any(),
-                responseType = BookingResponse::class.java,
-                supplier = any()
-            )
-        } answers { (arg<() -> BookingResponse>(4))() }
     }
 
     @Test
@@ -118,7 +106,7 @@ class PlatformEasyFlowTest {
             promoCode = "PROMO"
         )
 
-        val result = service.reserveSimple(platformId, request, idempotencyKey = "idemp-1")
+        val result = service.reserveSimple(platformId, request)
 
         assertEquals(bookingResponse.id, result.id)
         verify {
@@ -168,7 +156,7 @@ class PlatformEasyFlowTest {
         )
 
         assertThrows(VenuesException.AuthorizationFailure::class.java) {
-            service.confirmSimple(platformId, bookingId, idempotencyKey = "idemp-2")
+            service.confirmSimple(platformId, bookingId)
         }
         verify(exactly = 0) { bookingApi.confirmPlatformBooking(any()) }
     }
@@ -200,7 +188,7 @@ class PlatformEasyFlowTest {
         )
 
         assertThrows(VenuesException.AuthorizationFailure::class.java) {
-            service.releaseSimple(platformId, bookingId, idempotencyKey = "idemp-3")
+            service.releaseSimple(platformId, bookingId)
         }
         verify(exactly = 0) { bookingApi.cancelBooking(any()) }
     }

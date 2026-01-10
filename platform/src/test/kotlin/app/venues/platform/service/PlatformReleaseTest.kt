@@ -31,8 +31,6 @@ class PlatformReleaseTest {
     private lateinit var bookingApi: app.venues.booking.api.BookingApi
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
-    @MockK
-    private lateinit var idempotencyService: PlatformIdempotencyService
 
     private lateinit var service: PlatformBookingService
 
@@ -45,8 +43,7 @@ class PlatformReleaseTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
 
         service = PlatformBookingService(
@@ -55,16 +52,8 @@ class PlatformReleaseTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
-
-        every {
-            idempotencyService.withIdempotency<app.venues.platform.api.dto.PlatformReleaseResponse>(
-                any(), any(), any(),
-                app.venues.platform.api.dto.PlatformReleaseResponse::class.java, any()
-            )
-        } answers { lastArg<() -> app.venues.platform.api.dto.PlatformReleaseResponse>().invoke() }
     }
 
     @Test
@@ -96,7 +85,6 @@ class PlatformReleaseTest {
         val resp = service.release(
             platformId = platformId,
             request = PlatformReleaseRequest(reservationToken = cartToken),
-            idempotencyKey = null
         )
 
         assertEquals(0, resp.releasedSeats)

@@ -56,10 +56,12 @@ interface SeatingApi {
     fun getSeatInfo(seatId: Long): SeatInfoDto?
 
     /**
-     * Get seat information by business key (code).
+     * Get seat information by business key (code) within a specific chart.
+     * @param chartId seating chart UUID
+     * @param code seat code (e.g., "SEC_A-ROW-1-SEAT-10")
      * @return seat info or null if not found
      */
-    fun getSeatInfoByCode(code: String): SeatInfoDto?
+    fun getSeatInfoByCode(chartId: UUID, code: String): SeatInfoDto?
 
     /**
      * Batch fetch seat information for multiple seats.
@@ -95,11 +97,12 @@ interface SeatingApi {
     fun getGaInfo(gaId: Long): GaInfoDto?
 
     /**
-     * Get general admission area by business key (code).
+     * Get general admission area by business key (code) within a specific chart.
+     * @param chartId seating chart UUID
      * @param code GA area code (e.g., "PIT_A")
      * @return GA info or null if not found
      */
-    fun getGaInfoByCode(code: String): GaInfoDto?
+    fun getGaInfoByCode(chartId: UUID, code: String): GaInfoDto?
 
     /**
      * Get table that contains a specific seat.
@@ -109,11 +112,12 @@ interface SeatingApi {
     fun getTableForSeat(seatId: Long): TableInfoDto?
 
     /**
-     * Get table information by business key (code).
+     * Get table information by business key (code) within a specific chart.
+     * @param chartId seating chart UUID
      * @param code Table code (e.g., "VIP_T12")
      * @return table info or null if not found
      */
-    fun getTableInfoByCode(code: String): TableInfoDto?
+    fun getTableInfoByCode(chartId: UUID, code: String): TableInfoDto?
 
     /**
      * Get all seats for a specific table.

@@ -10,7 +10,6 @@ import app.venues.booking.api.dto.CartSeatResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.platform.api.dto.PlatformConfirmRequest
 import app.venues.platform.api.dto.PlatformHoldRequest
-import app.venues.platform.api.dto.PlatformHoldResponse
 import app.venues.platform.domain.Platform
 import app.venues.platform.repository.PlatformRepository
 import io.mockk.MockKAnnotations
@@ -49,9 +48,6 @@ class PlatformBookingServiceTest {
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
 
-    @MockK
-    private lateinit var idempotencyService: PlatformIdempotencyService
-
     private lateinit var service: PlatformBookingService
 
     @BeforeEach
@@ -63,8 +59,7 @@ class PlatformBookingServiceTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
         service = PlatformBookingService(
             platformRepository = platformRepository,
@@ -72,22 +67,8 @@ class PlatformBookingServiceTest {
             cartQueryApi = cartQueryApi,
             cartValidationApi = cartValidationApi,
             bookingApi = bookingApi,
-            rateLimitService = rateLimitService,
-            idempotencyService = idempotencyService
+            rateLimitService = rateLimitService
         )
-
-        every {
-            idempotencyService.withIdempotency<PlatformHoldResponse>(
-                any(),
-                any(),
-                any(),
-                PlatformHoldResponse::class.java,
-                any()
-            )
-        } answers { lastArg<() -> PlatformHoldResponse>().invoke() }
-        every {
-            idempotencyService.withIdempotency<Any>(any(), any(), any(), any<Class<Any>>(), any())
-        } answers { lastArg<() -> Any>().invoke() }
     }
 
     @Test
@@ -163,7 +144,6 @@ class PlatformBookingServiceTest {
                 gaReservations = null,
                 tableIdentifiers = null
             ),
-            idempotencyKey = null
         )
 
         assertEquals(holdToken, response.holdToken)
@@ -253,7 +233,6 @@ class PlatformBookingServiceTest {
                 guestName = null,
                 guestPhone = null
             ),
-            idempotencyKey = null
         )
 
         assertNotNull(response.bookingId)

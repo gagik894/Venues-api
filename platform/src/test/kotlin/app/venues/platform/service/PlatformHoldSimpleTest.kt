@@ -7,7 +7,6 @@ import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.api.dto.PlatformGAReservation
 import app.venues.booking.api.dto.PlatformHoldBatchRequest
 import app.venues.platform.api.dto.PlatformHoldRequest
-import app.venues.platform.api.dto.PlatformHoldResponse
 import app.venues.platform.domain.Platform
 import app.venues.platform.repository.PlatformRepository
 import app.venues.shared.money.MoneyAmount
@@ -35,8 +34,6 @@ class PlatformHoldSimpleTest {
     private lateinit var bookingApi: app.venues.booking.api.BookingApi
     @MockK
     private lateinit var rateLimitService: PlatformRateLimitService
-    @MockK
-    private lateinit var idempotencyService: PlatformIdempotencyService
 
     private lateinit var service: PlatformBookingService
 
@@ -49,8 +46,7 @@ class PlatformHoldSimpleTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
         service = PlatformBookingService(
             platformRepository,
@@ -58,19 +54,8 @@ class PlatformHoldSimpleTest {
             cartQueryApi,
             cartValidationApi,
             bookingApi,
-            rateLimitService,
-            idempotencyService
+            rateLimitService
         )
-
-        every {
-            idempotencyService.withIdempotency<PlatformHoldResponse>(
-                any(),
-                any(),
-                any(),
-                PlatformHoldResponse::class.java,
-                any()
-            )
-        } answers { lastArg<() -> PlatformHoldResponse>().invoke() }
     }
 
     @Test
@@ -113,7 +98,6 @@ class PlatformHoldSimpleTest {
                 gaReservations = listOf(PlatformGAReservation("GA1", 2)),
                 ttlSeconds = 60L
             ),
-            idempotencyKey = null
         )
 
         assertEquals("USD", response.currency)

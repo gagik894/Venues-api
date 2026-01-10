@@ -218,6 +218,12 @@ class DirectSalesService(
     ): List<ReservedItem> {
         val reserved = mutableListOf<ReservedItem>()
 
+        // Scoped code-based lookups to chartId in DirectSalesService by first fetching session info.
+        val sessionInfo = eventApi.getEventSessionInfo(sessionId)
+            ?: throw VenuesException.ResourceNotFound("Event session not found: $sessionId")
+        val seatingChartId = sessionInfo.seatingChartId
+            ?: throw VenuesException.ValidationFailure("Session has no seating chart")
+
         try {
             for (item in items) {
                 val seatCode = item.seatCode
@@ -233,7 +239,7 @@ class DirectSalesService(
 
                 when {
                     seatCode != null -> {
-                        val seatInfo = seatingApi.getSeatInfoByCode(seatCode)
+                        val seatInfo = seatingApi.getSeatInfoByCode(seatingChartId, seatCode)
                             ?: throw VenuesException.ResourceNotFound("Seat not found: $seatCode")
 
                         val price = eventApi.reserveSeat(sessionId, seatInfo.id)
@@ -253,7 +259,7 @@ class DirectSalesService(
                     }
 
                     gaAreaCode != null -> {
-                        val gaInfo = seatingApi.getGaInfoByCode(gaAreaCode)
+                        val gaInfo = seatingApi.getGaInfoByCode(seatingChartId, gaAreaCode)
                             ?: throw VenuesException.ResourceNotFound("GA area not found: $gaAreaCode")
 
                         val price = eventApi.reserveGa(sessionId, gaInfo.id, item.quantity)
@@ -274,7 +280,7 @@ class DirectSalesService(
                     }
 
                     tableCode != null -> {
-                        val tableInfo = seatingApi.getTableInfoByCode(tableCode)
+                        val tableInfo = seatingApi.getTableInfoByCode(seatingChartId, tableCode)
                             ?: throw VenuesException.ResourceNotFound("Table not found: $tableCode")
 
                         val price = eventApi.reserveTable(sessionId, tableInfo.id)

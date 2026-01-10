@@ -7,6 +7,7 @@ data class EventSessionDto(
     val sessionId: UUID,
     val eventId: UUID,
     val venueId: UUID,
+    val seatingChartId: UUID?,
     val eventTitle: String,
     val eventDescription: String?,
     val currency: String,

@@ -7,6 +7,8 @@ import app.venues.booking.api.dto.DirectSaleRequest
 import app.venues.common.model.ApiResponse
 import app.venues.platform.api.dto.*
 import app.venues.platform.service.PlatformBookingService
+import app.venues.shared.idempotency.IdempotencyScopeType
+import app.venues.shared.idempotency.annotation.Idempotent
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -55,7 +57,7 @@ class PlatformBookingController(
     ): ApiResponse<PlatformHoldResponse> {
         logger.debug { "Platform $platformId hold-simple for session ${request.sessionId}" }
 
-        val result = platformBookingService.holdSimple(platformId, request, idempotencyKey)
+        val result = platformBookingService.holdSimple(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -71,6 +73,11 @@ class PlatformBookingController(
      *
      * Idempotent: Use same Idempotency-Key to safely retry on network failures.
      */
+    @Idempotent(
+        endpoint = "platform:hold",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/hold")
     @Operation(
         summary = "Hold inventory (Platform API)",
@@ -85,7 +92,7 @@ class PlatformBookingController(
     ): ApiResponse<PlatformHoldResponse> {
         logger.debug { "Platform $platformId holding inventory for session ${request.sessionId}" }
 
-        val result = platformBookingService.hold(platformId, request, idempotencyKey)
+        val result = platformBookingService.hold(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -101,6 +108,11 @@ class PlatformBookingController(
      *
      * Idempotent: Use same Idempotency-Key to safely retry.
      */
+    @Idempotent(
+        endpoint = "platform:checkout",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/checkout")
     @Operation(
         summary = "Checkout cart (Platform API)",
@@ -115,7 +127,7 @@ class PlatformBookingController(
     ): ApiResponse<PlatformCheckoutResponse> {
         logger.debug { "Platform $platformId checking out cart ${request.holdToken}" }
 
-        val result = platformBookingService.checkout(platformId, request, idempotencyKey)
+        val result = platformBookingService.checkout(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -131,6 +143,11 @@ class PlatformBookingController(
      *
      * Idempotent: Use same Idempotency-Key to prevent duplicate bookings.
      */
+    @Idempotent(
+        endpoint = "platform:confirm",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/confirm")
     @Operation(
         summary = "Confirm booking (Platform API)",
@@ -145,7 +162,7 @@ class PlatformBookingController(
     ): ApiResponse<PlatformConfirmResponse> {
         logger.debug { "Platform $platformId confirming booking for cart ${request.holdToken}" }
 
-        val result = platformBookingService.confirm(platformId, request, idempotencyKey)
+        val result = platformBookingService.confirm(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -159,6 +176,11 @@ class PlatformBookingController(
      * Releases cart and returns inventory to available pool.
      * Use this when customer cancels or payment fails.
      */
+    @Idempotent(
+        endpoint = "platform:release",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/release")
     @Operation(
         summary = "Release hold (Platform API)",
@@ -173,7 +195,7 @@ class PlatformBookingController(
     ): ApiResponse<PlatformReleaseResponse> {
         logger.debug { "Platform $platformId releasing cart ${request.reservationToken}" }
 
-        val result = platformBookingService.release(platformId, request, idempotencyKey)
+        val result = platformBookingService.release(platformId, request)
 
         return ApiResponse.success(
             data = result,
@@ -184,6 +206,11 @@ class PlatformBookingController(
     /**
      * /direct - Create confirmed booking directly (skip cart).
      */
+    @Idempotent(
+        endpoint = "platform:direct-booking",
+        keyPrefix = "platform",
+        scopeType = IdempotencyScopeType.PLATFORM_ID
+    )
     @PostMapping("/direct")
     @Operation(
         summary = "Direct platform booking",
@@ -198,7 +225,7 @@ class PlatformBookingController(
     ): ApiResponse<BookingResponse> {
         logger.debug { "Platform $platformId direct booking for session ${request.sessionId}" }
 
-        val result = platformBookingService.directBooking(platformId, request, idempotencyKey)
+        val result = platformBookingService.directBooking(platformId, request)
 
         return ApiResponse.success(
             data = result,

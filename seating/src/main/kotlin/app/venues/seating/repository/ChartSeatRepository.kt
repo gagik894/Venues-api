@@ -31,12 +31,11 @@ interface ChartSeatRepository : JpaRepository<ChartSeat, Long> {
     fun findByZoneIdIn(zoneIds: List<Long>): List<ChartSeat>
 
     /**
-     * Lookup by full business key.
+     * Lookup by full business key within a chart.
      */
     @Query("SELECT s FROM ChartSeat s WHERE s.code = :code AND s.zone.chart.id = :chartId")
     fun findByChartIdAndCode(chartId: UUID, code: String): ChartSeat?
 
-    fun findByCode(code: String): ChartSeat?
 
     /**
      * Find all seats belonging to a specific chart.

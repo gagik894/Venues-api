@@ -106,6 +106,16 @@ interface EventApi {
      */
     fun releaseSeatsBatch(sessionId: UUID, seatIds: List<Long>)
 
+    /**
+     * Atomically reserves a seat identified by business code within the given session.
+     *
+     * This is the preferred reservation method for cross-module callers (booking, platform) because
+     * it avoids a separate seating lookup to resolve seatId.
+     *
+     * @return reservation DTO or null if unavailable/not priced.
+     */
+    fun reserveSeatByCode(sessionId: UUID, seatCode: String): SeatCodeReservationDto?
+
     // GA Reservation
 
     /**
@@ -156,6 +166,13 @@ interface EventApi {
      */
     fun getGaAvailability(sessionId: UUID, gaAreaId: Long): GaAvailabilityDto?
 
+    /**
+     * Atomically reserves GA tickets identified by business code within the given session.
+     *
+     * @return reservation DTO or null if insufficient capacity/not priced.
+     */
+    fun reserveGaByCode(sessionId: UUID, gaCode: String, quantity: Int): GaCodeReservationDto?
+
     // Table Reservation
 
     /**
@@ -183,6 +200,13 @@ interface EventApi {
      * @param tableIds List of table IDs to release.
      */
     fun releaseTablesBatch(sessionId: UUID, tableIds: List<Long>)
+
+    /**
+     * Atomically reserves a table identified by business code within the given session.
+     *
+     * @return reservation DTO or null if unavailable/not priced.
+     */
+    fun reserveTableByCode(sessionId: UUID, tableCode: String): TableCodeReservationDto?
 
     /**
      * Returns the booking mode for the specified table (e.g., "FULL", "PARTIAL").

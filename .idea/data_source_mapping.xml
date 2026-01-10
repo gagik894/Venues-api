@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourcePerFileMappings">
-    <file url="file://$PROJECT_DIR$/.idea/queries/Query.sql" value="03c770f3-ac42-48a3-bcec-af60ed82f813" />
-    <file url="file://$PROJECT_DIR$/.idea/queries/Query_1.sql" value="2753eca3-da62-4771-baa8-0c7c8a8db764" />
-    <file url="file://$PROJECT_DIR$/.idea/queries/Query_2.sql" value="b79f1494-53de-4816-b1c1-ad8fd8e2c3a5" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/dev-seed.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V1__Initial_schema.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />
     <file url="file://$PROJECT_DIR$/app/src/main/resources/db/migration/V2__Seed_static_data.sql" value="ce512273-a0f0-46bb-8b9e-533a2818ef70" />

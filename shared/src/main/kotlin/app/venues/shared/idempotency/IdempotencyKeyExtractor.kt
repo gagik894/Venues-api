@@ -49,7 +49,7 @@ object IdempotencyKeyExtractor {
             val param = method.parameters[index]
             val header = param.getAnnotation(RequestHeader::class.java) ?: return@firstNotNullOfOrNull null
 
-            val extractedHeaderName = getAnnotationValue(header.name, header.value, param, kParams, index)
+            val extractedHeaderName = getAnnotationValue(header.name, header.value, param, kParams)
 
             if (extractedHeaderName.equals(headerName, ignoreCase = true)) {
                 args.getOrNull(index) as? String
@@ -74,7 +74,7 @@ object IdempotencyKeyExtractor {
             val param = method.parameters[index]
             val requestParam = param.getAnnotation(RequestParam::class.java) ?: return@firstNotNullOfOrNull null
 
-            val extractedParamName = getAnnotationValue(requestParam.name, requestParam.value, param, kParams, index)
+            val extractedParamName = getAnnotationValue(requestParam.name, requestParam.value, param, kParams)
 
             if (extractedParamName == paramName) {
                 args.getOrNull(index)?.toString()
@@ -99,7 +99,7 @@ object IdempotencyKeyExtractor {
             val param = method.parameters[index]
             val pathVar = param.getAnnotation(PathVariable::class.java) ?: return@firstNotNullOfOrNull null
 
-            val extractedVarName = getAnnotationValue(pathVar.name, pathVar.value, param, kParams, index)
+            val extractedVarName = getAnnotationValue(pathVar.name, pathVar.value, param, kParams)
 
             if (extractedVarName == variableName) {
                 args.getOrNull(index)?.toString()
@@ -124,7 +124,7 @@ object IdempotencyKeyExtractor {
             val param = method.parameters[index]
             val cookie = param.getAnnotation(CookieValue::class.java) ?: return@firstNotNullOfOrNull null
 
-            val extractedCookieName = getAnnotationValue(cookie.name, cookie.value, param, kParams, index)
+            val extractedCookieName = getAnnotationValue(cookie.name, cookie.value, param, kParams)
 
             if (extractedCookieName == cookieName) {
                 args.getOrNull(index)?.toString()
@@ -184,18 +184,26 @@ object IdempotencyKeyExtractor {
 
     /**
      * Get annotation value from name or value attribute, falling back to parameter name.
+     *
+     * Uses robust parameter matching by Java parameter name, avoiding fragile index calculations.
      */
     private fun getAnnotationValue(
         annotationName: String,
         annotationValue: String,
         param: Parameter,
-        kParams: List<kotlin.reflect.KParameter>?,
-        index: Int
+        kParams: List<kotlin.reflect.KParameter>?
     ): String {
-        return annotationName.takeIf { it.isNotBlank() }
-            ?: annotationValue.takeIf { it.isNotBlank() }
-            ?: kParams?.getOrNull(index + 1)?.name
-            ?: param.name
+        // First, check explicit annotation attributes
+        if (annotationName.isNotBlank()) return annotationName
+        if (annotationValue.isNotBlank()) return annotationValue
+
+        // Fall back to Kotlin parameter name by matching Java parameter name
+        // This is more robust than index-based lookup since Kotlin reflection may include
+        // instance parameter for methods, while Java reflection does not
+        val javaParamName = param.name
+        val kotlinParamName = kParams?.firstOrNull { it.name == javaParamName }?.name
+
+        return kotlinParamName ?: javaParamName
     }
 }
 

@@ -633,29 +633,36 @@ class EventApiService(
 
     @Transactional
     override fun reserveSeatByCode(sessionId: UUID, seatCode: String): SeatCodeReservationDto? {
-        val rows = codeReservationRepository.reserveSeatByCodeAndGetPrice(sessionId, seatCode)
-        val row = rows.firstOrNull() ?: return null
-        val seatId = (row[0] as Number).toLong()
-        val unitPrice = row[1] as BigDecimal
-        return SeatCodeReservationDto(seatId = seatId, seatCode = seatCode, unitPrice = unitPrice)
+        val results = codeReservationRepository.reserveSeatByCodeAndGetPrice(sessionId, seatCode)
+        val result = results.firstOrNull() ?: return null
+        return SeatCodeReservationDto(
+            seatId = result.getSeatId(),
+            seatCode = seatCode,
+            unitPrice = result.getPrice()
+        )
     }
 
     @Transactional
     override fun reserveGaByCode(sessionId: UUID, gaCode: String, quantity: Int): GaCodeReservationDto? {
         if (quantity <= 0) return null
-        val rows = codeReservationRepository.reserveGaByCodeAndGetPrice(sessionId, gaCode, quantity)
-        val row = rows.firstOrNull() ?: return null
-        val gaAreaId = (row[0] as Number).toLong()
-        val unitPrice = row[1] as BigDecimal
-        return GaCodeReservationDto(gaAreaId = gaAreaId, gaCode = gaCode, quantity = quantity, unitPrice = unitPrice)
+        val results = codeReservationRepository.reserveGaByCodeAndGetPrice(sessionId, gaCode, quantity)
+        val result = results.firstOrNull() ?: return null
+        return GaCodeReservationDto(
+            gaAreaId = result.getGaAreaId(),
+            gaCode = gaCode,
+            quantity = quantity,
+            unitPrice = result.getPrice()
+        )
     }
 
     @Transactional
     override fun reserveTableByCode(sessionId: UUID, tableCode: String): TableCodeReservationDto? {
-        val rows = codeReservationRepository.reserveTableByCodeAndGetPrice(sessionId, tableCode)
-        val row = rows.firstOrNull() ?: return null
-        val tableId = (row[0] as Number).toLong()
-        val unitPrice = row[1] as BigDecimal
-        return TableCodeReservationDto(tableId = tableId, tableCode = tableCode, unitPrice = unitPrice)
+        val results = codeReservationRepository.reserveTableByCodeAndGetPrice(sessionId, tableCode)
+        val result = results.firstOrNull() ?: return null
+        return TableCodeReservationDto(
+            tableId = result.getTableId(),
+            tableCode = tableCode,
+            unitPrice = result.getPrice()
+        )
     }
 }

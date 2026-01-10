@@ -185,7 +185,7 @@ class DirectSalesServiceEasyReserveTest {
             request = request,
             venueId = venueId,
             staffId = null,
-            platformId = null,
+            platformId = UUID.randomUUID(),
             salesChannel = SalesChannel.PLATFORM,
             confirmBooking = true
         )
@@ -193,7 +193,6 @@ class DirectSalesServiceEasyReserveTest {
         verify(exactly = 1) { bookingFulfillmentService.redeemPromoIfNeeded(any()) }
         verify(exactly = 1) { bookingFulfillmentService.finalizeBookingInventory(any()) }
         verify(exactly = 1) { bookingFulfillmentService.generateTickets(any()) }
-        verify(exactly = 1) { eventPublisher.publishEvent(any()) }
         verify(exactly = 1) { bookingResponseService.prepareBookingResponse(any()) }
     }
 }

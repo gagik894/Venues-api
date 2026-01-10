@@ -6,6 +6,7 @@ import app.venues.booking.api.dto.*
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
 import app.venues.booking.service.StaffCartService
+import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.common.model.ApiResponse
 import app.venues.venue.api.service.VenueSecurityService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -51,6 +52,7 @@ class StaffCartController(
      * Creates cart with 20-minute expiration if first item.
      * Extends by 10 minutes on each action (max 30 minutes from creation).
      */
+    @Idempotent(endpoint = "staff-cart:add-seat", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_ADD_SEAT", subjectType = "event_session")
     @PostMapping("/seats")
     @Operation(
@@ -59,6 +61,7 @@ class StaffCartController(
                 "Extends expiration by 10 minutes on each add (max 30 minutes from creation)."
     )
     fun addSeatToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @AuditMetadata("request") @Valid @RequestBody request: AddSeatToCartRequest,
@@ -83,6 +86,7 @@ class StaffCartController(
     /**
      * Add GA tickets to staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:add-ga", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_ADD_GA", subjectType = "event_session")
     @PostMapping("/ga")
     @Operation(
@@ -90,6 +94,7 @@ class StaffCartController(
         description = "Add general admission tickets to staff cart"
     )
     fun addGAToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @AuditMetadata("request") @Valid @RequestBody request: AddGAToCartRequest,
@@ -114,6 +119,7 @@ class StaffCartController(
     /**
      * Add table to staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:add-table", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_ADD_TABLE", subjectType = "event_session")
     @PostMapping("/table")
     @Operation(
@@ -121,6 +127,7 @@ class StaffCartController(
         description = "Add a complete table booking to staff cart"
     )
     fun addTableToCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @AuditMetadata("request") @Valid @RequestBody request: AddTableToCartRequest,
@@ -176,6 +183,7 @@ class StaffCartController(
     /**
      * Remove seat from staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:remove-seat", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_REMOVE_SEAT", subjectType = "event_session")
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
@@ -183,6 +191,7 @@ class StaffCartController(
         description = "Remove a specific seat from cart and release inventory"
     )
     fun removeSeatFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -206,6 +215,7 @@ class StaffCartController(
     /**
      * Update GA quantity in staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:update-ga", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_UPDATE_GA", subjectType = "event_session")
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -213,6 +223,7 @@ class StaffCartController(
         description = "Update quantity of GA tickets for a level. Setting to 0 removes the item."
     )
     fun updateGAQuantity(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -237,6 +248,7 @@ class StaffCartController(
     /**
      * Remove GA item from staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:remove-ga", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_REMOVE_GA", subjectType = "event_session")
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -244,6 +256,7 @@ class StaffCartController(
         description = "Remove all GA tickets for a specific level from cart"
     )
     fun removeGAFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -267,6 +280,7 @@ class StaffCartController(
     /**
      * Remove table from staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:remove-table", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_REMOVE_TABLE", subjectType = "event_session")
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
@@ -274,6 +288,7 @@ class StaffCartController(
         description = "Remove a specific table from cart and release inventory"
     )
     fun removeTableFromCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -297,13 +312,15 @@ class StaffCartController(
     /**
      * Clear entire staff cart.
      */
+    @Idempotent(endpoint = "staff-cart:clear", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_CLEARED", subjectType = "event_session")
     @DeleteMapping("/clear")
     @Operation(
         summary = "Clear staff cart",
         description = "Remove all items from cart and release all inventory"
-    )
-    fun clearCart(
+      )
+      fun clearCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -334,6 +351,7 @@ class StaffCartController(
      * Checkout staff cart and create confirmed booking.
      * Converts cart to direct sale with immediate confirmation.
      */
+    @Idempotent(endpoint = "staff-cart:checkout", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_CHECKOUT", subjectType = "booking")
     @PostMapping("/checkout")
     @Operation(
@@ -342,6 +360,7 @@ class StaffCartController(
                 "Payment is assumed to have been collected by staff."
     )
     fun checkoutCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,
@@ -379,6 +398,7 @@ class StaffCartController(
      *
      * Releases inventory reservations and deletes the cart.
      */
+    @Idempotent(endpoint = "staff-cart:close", namespaceKey = "cartToken")
     @Auditable(action = "STAFF_CART_CLOSE_ITEMS", subjectType = "event_session")
     @PostMapping("/close")
     @Operation(
@@ -387,6 +407,7 @@ class StaffCartController(
                 "Items are closed (not sold), inventory is released, and cart is deleted."
     )
     fun closeCart(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @PathVariable venueId: UUID,
         @RequestAttribute staffId: UUID,
         @RequestParam(required = false) token: UUID?,

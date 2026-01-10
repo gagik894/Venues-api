@@ -4,6 +4,7 @@ import app.venues.audit.annotation.Auditable
 import app.venues.booking.api.dto.*
 import app.venues.booking.service.BookingService
 import app.venues.common.model.ApiResponse
+import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.shared.persistence.util.PageableMapper
 import app.venues.shared.security.util.SecurityUtil
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -42,6 +43,7 @@ class BookingController(
     /**
      * Checkout - convert cart to booking.
      */
+    @Idempotent(endpoint = "booking:checkout", namespaceKey = "cartToken")
     @Auditable(action = "BOOKING_CHECKOUT", subjectType = "booking", includeVenueId = false)
     @PostMapping("/checkout")
     @Operation(
@@ -49,6 +51,7 @@ class BookingController(
         description = "Convert cart to booking. No authentication required - provide email. Token can be in body or cookie."
     )
     fun checkout(
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
         @Valid @RequestBody request: CheckoutRequest,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
@@ -161,6 +164,7 @@ class BookingController(
     /**
      * Confirm booking payment.
      */
+    @Idempotent(endpoint = "booking:confirm", namespaceKey = "bookingId")
     @Auditable(action = "BOOKING_CONFIRM", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/confirm")
     @Operation(
@@ -168,10 +172,11 @@ class BookingController(
         description = "Confirm booking after payment"
     )
     fun confirmBooking(
-        @PathVariable id: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
+        @PathVariable("id") bookingId: UUID,
         @Valid @RequestBody request: ConfirmBookingRequest
     ): ApiResponse<BookingResponse> {
-        logger.debug { "Confirming booking: $id" }
+        logger.debug { "Confirming booking: $bookingId" }
 
         val userId = try {
             securityUtil.getCurrentUserId()
@@ -179,7 +184,7 @@ class BookingController(
             null
         }
 
-        val booking = bookingService.confirmBooking(id, request, userId)
+        val booking = bookingService.confirmBooking(bookingId, request, userId)
 
         return ApiResponse.success(
             data = booking,
@@ -190,6 +195,7 @@ class BookingController(
     /**
      * Cancel booking.
      */
+    @Idempotent(endpoint = "booking:cancel", namespaceKey = "bookingId")
     @Auditable(action = "BOOKING_CANCEL", subjectType = "booking", includeVenueId = false)
     @PostMapping("/bookings/{id}/cancel")
     @Operation(
@@ -197,10 +203,11 @@ class BookingController(
         description = "Cancel a booking"
     )
     fun cancelBooking(
-        @PathVariable id: UUID,
+        @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
+        @PathVariable("id") bookingId: UUID,
         @Valid @RequestBody request: CancelBookingRequest
     ): ApiResponse<BookingResponse> {
-        logger.debug { "Cancelling booking: $id" }
+        logger.debug { "Cancelling booking: $bookingId" }
 
         val userId = try {
             securityUtil.getCurrentUserId()
@@ -208,7 +215,7 @@ class BookingController(
             null
         }
 
-        val booking = bookingService.cancelBooking(id, request, userId)
+        val booking = bookingService.cancelBooking(bookingId, request, userId)
 
         return ApiResponse.success(
             data = booking,

@@ -76,6 +76,9 @@ dependencies {
     // Rate Limiting (Government-Quality)
     api("com.bucket4j:bucket4j-core:8.10.1")
 
+    // Redis for idempotency and caching
+    api("org.springframework.boot:spring-boot-starter-data-redis")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

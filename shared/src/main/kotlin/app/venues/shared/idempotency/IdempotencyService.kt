@@ -183,9 +183,6 @@ class IdempotencyService(
         } catch (e: RedisConnectionFailureException) {
             logger.warn(e) { "Redis connection failed during cache read" }
             null
-        } catch (e: Exception) {
-            logger.error(e) { "Unexpected error reading from cache: $cacheKey" }
-            null
         }
     }
 

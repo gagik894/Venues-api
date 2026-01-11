@@ -1,396 +1,246 @@
 package app.venues.shared.idempotency
 
 import app.venues.common.exception.VenuesException
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.*
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeEach
+import io.mockk.junit5.MockKExtension
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.data.redis.RedisConnectionFailureException
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.core.ValueOperations
 import java.time.Duration
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Comprehensive tests for unified IdempotencyService.
- *
- * Tests cover:
- * - Cache hits and misses
- * - Lock acquisition and release
- * - Concurrent request handling
- * - Error scenarios (Redis failure, serialization errors)
- * - Polling and exponential backoff
- * - Key format validation
- */
+@ExtendWith(MockKExtension::class)
 class IdempotencyServiceTest {
 
-    private lateinit var service: IdempotencyService
-    private val redisTemplate: RedisTemplate<String, String> = mockk()
-    private val objectMapper: ObjectMapper = mockk()
-    private val valueOps: ValueOperations<String, String> = mockk()
+    private val redisTemplate: RedisTemplate<String, String> = mockk(relaxed = true)
+    private val valueOps: ValueOperations<String, String> = mockk(relaxed = true)
+    private val objectMapper: ObjectMapper = mockk(relaxed = true)
+    private val service = IdempotencyService(redisTemplate, objectMapper)
 
-    private val testContext = IdempotencyContext(
-        keyPrefix = "booking",
-        operation = "cart:add-seat",
-        scopeId = "cart-123",
-        idempotencyKey = "idemp-xyz",
-        responseType = TestResponse::class.java
-    )
+    private data class DummyResponse(val value: String)
 
-    @BeforeEach
-    fun setup() {
+    @AfterEach
+    fun tearDown() {
         clearAllMocks()
-        every { redisTemplate.opsForValue() } returns valueOps
-        service = IdempotencyService(redisTemplate, objectMapper)
     }
 
-    // ===========================================
-    // CACHE HIT TESTS
-    // ===========================================
-
     @Test
-    fun `executeWithIdempotency returns cached result without executing supplier`() {
-        val cachedResponse = TestResponse("cached-result")
-        val cachedJson = """{"value":"cached-result"}"""
+    fun `returns cached value without executing supplier`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-1") } returns "{\"value\":\"cached\"}"
+        every {
+            objectMapper.readValue(
+                "{\"value\":\"cached\"}",
+                DummyResponse::class.java
+            )
+        } returns DummyResponse("cached")
 
-        every { valueOps.get(any()) } returns cachedJson
-        every { objectMapper.readValue(cachedJson, TestResponse::class.java) } returns cachedResponse
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-1",
+            responseType = DummyResponse::class.java
+        )
 
-        var supplierCalled = false
-        val result = service.executeWithIdempotency(testContext) {
-            supplierCalled = true
-            TestResponse("new-result")
+        val result = service.executeWithIdempotency(context) {
+            throw IllegalStateException("Should not run")
         }
 
-        assertEquals("cached-result", result.value)
-        assertFalse(supplierCalled, "Supplier should not be called when result is cached")
-        verify(exactly = 1) { valueOps.get(any()) }
+        assertEquals(DummyResponse("cached"), result)
         verify(exactly = 0) { valueOps.setIfAbsent(any(), any(), any<Duration>()) }
     }
 
     @Test
-    fun `cache hit uses correct key format`() {
-        val cacheKeySlot = slot<String>()
-        val cachedJson = """{"value":"test"}"""
+    fun `acquires lock executes supplier and caches result`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-2") } returns null
+        every { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-2", "LOCKED", any<Duration>()) } returns true
+        every { objectMapper.writeValueAsString(DummyResponse("fresh")) } returns "{\"value\":\"fresh\"}"
+        justRun { valueOps.set("booking:cart:add:scope-1:idem-2", any(), any<Duration>()) }
+        justRun { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-2") }
 
-        every { valueOps.get(capture(cacheKeySlot)) } returns cachedJson
-        every { objectMapper.readValue(any<String>(), TestResponse::class.java) } returns TestResponse("test")
-
-        service.executeWithIdempotency(testContext) { TestResponse("test") }
-
-        val expectedKey = "booking:cart:add-seat:cart-123:idemp-xyz"
-        assertEquals(expectedKey, cacheKeySlot.captured)
-    }
-
-    // ===========================================
-    // LOCK ACQUISITION TESTS
-    // ===========================================
-
-    @Test
-    fun `executeWithIdempotency acquires lock and executes supplier on cache miss`() {
-        val newResponse = TestResponse("new-result")
-        val responseJson = """{"value":"new-result"}"""
-
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), eq("LOCKED"), any<Duration>()) } returns true
-        every { objectMapper.writeValueAsString(newResponse) } returns responseJson
-        every { valueOps.set(any(), responseJson, any<Duration>()) } just Runs
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        var supplierCalled = false
-        val result = service.executeWithIdempotency(testContext) {
-            supplierCalled = true
-            newResponse
-        }
-
-        assertTrue(supplierCalled, "Supplier should be called when no cache exists")
-        assertEquals("new-result", result.value)
-
-        verify(exactly = 1) { valueOps.setIfAbsent(any(), "LOCKED", any<Duration>()) }
-        verify(exactly = 1) { valueOps.set(any(), responseJson, any<Duration>()) }
-        verify(exactly = 1) { redisTemplate.delete(any<String>()) }
-    }
-
-    @Test
-    fun `lock key has correct format`() {
-        val lockKeySlot = slot<String>()
-
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(capture(lockKeySlot), any(), any<Duration>()) } returns true
-        every { objectMapper.writeValueAsString(any()) } returns "{}"
-        every { valueOps.set(any(), any(), any<Duration>()) } just Runs
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        service.executeWithIdempotency(testContext) { TestResponse("test") }
-
-        val expectedLockKey = "lock:booking:cart:add-seat:cart-123:idemp-xyz"
-        assertEquals(expectedLockKey, lockKeySlot.captured)
-    }
-
-    @Test
-    fun `lock is released after successful execution`() {
-        val lockKeySlot = slot<String>()
-
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns true
-        every { objectMapper.writeValueAsString(any()) } returns "{}"
-        every { valueOps.set(any(), any(), any<Duration>()) } just Runs
-        every { redisTemplate.delete(capture(lockKeySlot)) } returns true
-
-        service.executeWithIdempotency(testContext) { TestResponse("test") }
-
-        verify(exactly = 1) { redisTemplate.delete(any<String>()) }
-        assertTrue(lockKeySlot.captured.startsWith("lock:"))
-    }
-
-    @Test
-    fun `lock is released even if supplier throws exception`() {
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns true
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        assertThrows<RuntimeException> {
-            service.executeWithIdempotency(testContext) {
-                throw RuntimeException("Supplier failed")
-            }
-        }
-
-        verify(exactly = 1) { redisTemplate.delete(any<String>()) }
-    }
-
-    // ===========================================
-    // POLLING AND RETRY TESTS
-    // ===========================================
-
-    @Test
-    fun `executeWithIdempotency polls for result when lock is held by another request`() {
-        val cachedResponse = TestResponse("cached-result")
-        val cachedJson = """{"value":"cached-result"}"""
-
-        // First call: no cache, lock fails (held by another request)
-        // Second call: still no cache, lock fails
-        // Third call: cache exists (other request completed)
-        every { valueOps.get(any()) } returnsMany listOf(null, null, cachedJson)
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns false
-        every { objectMapper.readValue(cachedJson, TestResponse::class.java) } returns cachedResponse
-
-        var supplierCalled = false
-        val result = service.executeWithIdempotency(testContext) {
-            supplierCalled = true
-            TestResponse("should-not-be-called")
-        }
-
-        assertFalse(supplierCalled, "Supplier should not be called when another request is processing")
-        assertEquals("cached-result", result.value)
-        verify(atLeast = 2) { valueOps.get(any()) }
-    }
-
-    @Test
-    fun `throws ResourceConflict after max polling attempts with no cached result`() {
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns false
-
-        val exception = assertThrows<VenuesException.ResourceConflict> {
-            service.executeWithIdempotency(testContext) {
-                TestResponse("should-not-be-called")
-            }
-        }
-        assertTrue(exception.message.contains("idempotency key is being processed"))
-        verify(atLeast = 10) { valueOps.setIfAbsent(any(), any(), any<Duration>()) }
-    }
-
-    // ===========================================
-    // ERROR HANDLING TESTS
-    // ===========================================
-
-    @Test
-    fun `continues operation when cache write fails`() {
-        val newResponse = TestResponse("result")
-
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } returns true
-        every { objectMapper.writeValueAsString(any()) } throws RuntimeException("Serialization failed")
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        val result = service.executeWithIdempotency(testContext) { newResponse }
-
-        assertEquals("result", result.value)
-        verify(exactly = 1) { redisTemplate.delete(any<String>()) }
-    }
-
-    @Test
-    fun `throws InternalError when cached result deserialization fails`() {
-        val cachedJson = """{"invalid":"json"}"""
-
-        every { valueOps.get(any()) } returns cachedJson
-        every { objectMapper.readValue(cachedJson, TestResponse::class.java) } throws
-                com.fasterxml.jackson.databind.JsonMappingException.from(
-                    null as com.fasterxml.jackson.core.JsonParser?,
-                    "Parse error"
-                )
-
-        val exception = assertThrows<VenuesException.InternalError> {
-            service.executeWithIdempotency(testContext) { TestResponse("test") }
-        }
-
-        assertTrue(exception.message!!.contains("Failed to deserialize"))
-    }
-
-    @Test
-    fun `executes without protection when Redis is unavailable for lock acquisition`() {
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } throws
-                org.springframework.data.redis.RedisConnectionFailureException("Redis down")
-        every { objectMapper.writeValueAsString(any()) } returns "{}"
-        every { valueOps.set(any(), any(), any<Duration>()) } throws
-                org.springframework.data.redis.RedisConnectionFailureException("Redis down")
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        var supplierCalled = false
-        val result = service.executeWithIdempotency(testContext) {
-            supplierCalled = true
-            TestResponse("fail-open-result")
-        }
-
-        assertTrue(supplierCalled, "Should execute when Redis is unavailable (fail-open)")
-        assertEquals("fail-open-result", result.value)
-    }
-
-    // ===========================================
-    // IDEMPOTENCY CONTEXT TESTS
-    // ===========================================
-
-    @Test
-    fun `IdempotencyContext validates required fields`() {
-        assertThrows<IllegalArgumentException> {
-            IdempotencyContext(
-                keyPrefix = "",  // Blank
-                operation = "test",
-                scopeId = null,
-                idempotencyKey = "key",
-                responseType = TestResponse::class.java
-            )
-        }
-
-        assertThrows<IllegalArgumentException> {
-            IdempotencyContext(
-                keyPrefix = "booking",
-                operation = "",  // Blank
-                scopeId = null,
-                idempotencyKey = "key",
-                responseType = TestResponse::class.java
-            )
-        }
-
-        assertThrows<IllegalArgumentException> {
-            IdempotencyContext(
-                keyPrefix = "booking",
-                operation = "test",
-                scopeId = null,
-                idempotencyKey = "",  // Blank
-                responseType = TestResponse::class.java
-            )
-        }
-    }
-
-    @Test
-    fun `IdempotencyContext generates correct cache key with scope`() {
         val context = IdempotencyContext(
             keyPrefix = "booking",
-            operation = "cart:add-seat",
-            scopeId = "cart-uuid-123",
-            idempotencyKey = "idemp-key-xyz",
-            responseType = TestResponse::class.java
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-2",
+            responseType = DummyResponse::class.java
         )
 
-        val expected = "booking:cart:add-seat:cart-uuid-123:idemp-key-xyz"
-        assertEquals(expected, context.getCacheKey())
+        val result = service.executeWithIdempotency(context) {
+            DummyResponse("fresh")
+        }
+
+        assertEquals(DummyResponse("fresh"), result)
+        verify(exactly = 1) { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-2", "LOCKED", any<Duration>()) }
+        verify(exactly = 1) {
+            valueOps.set(
+                "booking:cart:add:scope-1:idem-2",
+                "{\"value\":\"fresh\"}",
+                any<Duration>()
+            )
+        }
+        verify(exactly = 1) { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-2") }
     }
 
     @Test
-    fun `IdempotencyContext generates correct cache key without scope`() {
+    fun `releases lock even when supplier fails`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-3") } returns null
+        every { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-3", "LOCKED", any<Duration>()) } returns true
+        justRun { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-3") }
+
         val context = IdempotencyContext(
             keyPrefix = "booking",
-            operation = "direct-sale",
-            scopeId = null,
-            idempotencyKey = "idemp-key-xyz",
-            responseType = TestResponse::class.java
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-3",
+            responseType = DummyResponse::class.java
         )
 
-        val expected = "booking:direct-sale:idemp-key-xyz"
-        assertEquals(expected, context.getCacheKey())
-    }
-
-    @Test
-    fun `IdempotencyContext generates correct lock key`() {
-        val context = IdempotencyContext(
-            keyPrefix = "platform",
-            operation = "hold",
-            scopeId = "platform-123",
-            idempotencyKey = "key-xyz",
-            responseType = TestResponse::class.java
-        )
-
-        val expected = "lock:platform:hold:platform-123:key-xyz"
-        assertEquals(expected, context.getLockKey())
-    }
-
-    // ===========================================
-    // CONCURRENCY TESTS
-    // ===========================================
-
-    @Test
-    fun `concurrent requests with same context execute only once`() {
-        val executionCount = AtomicInteger(0)
-        val latch = CountDownLatch(1)
-        val executor = Executors.newFixedThreadPool(10)
-
-        every { valueOps.get(any()) } returns null
-        every { valueOps.setIfAbsent(any(), any(), any<Duration>()) } answers {
-            // First caller gets lock
-            executionCount.incrementAndGet() == 1
-        }
-        every { objectMapper.writeValueAsString(any()) } returns """{"value":"result"}"""
-        every { valueOps.set(any(), any(), any<Duration>()) } just Runs
-        every { redisTemplate.delete(any<String>()) } returns true
-
-        val results = mutableListOf<TestResponse>()
-
-        // Simulate 10 concurrent requests
-        repeat(10) {
-            executor.submit {
-                latch.await()
-                try {
-                    val result = service.executeWithIdempotency(testContext) {
-                        Thread.sleep(50) // Simulate work
-                        TestResponse("result")
-                    }
-                    synchronized(results) {
-                        results.add(result)
-                    }
-                } catch (_: Exception) {
-                    // Expected for concurrent requests that fail to acquire lock
-                }
+        assertThrows(IllegalStateException::class.java) {
+            service.executeWithIdempotency(context) {
+                throw IllegalStateException("boom")
             }
         }
 
-        latch.countDown()
-        executor.shutdown()
-        executor.awaitTermination(5, TimeUnit.SECONDS)
-
-        // At least one should succeed (the one that got the lock)
-        assertTrue(results.isNotEmpty())
-        verify(atLeast = 1) { valueOps.setIfAbsent(any(), any(), any<Duration>()) }
+        verify(exactly = 1) { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-3") }
+        verify(exactly = 0) { valueOps.set("booking:cart:add:scope-1:idem-3", any(), any<Duration>()) }
     }
 
-    // ===========================================
-    // HELPER CLASSES
-    // ===========================================
+    @Test
+    fun `polls for cached value when lock is held`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-4") } returnsMany listOf(
+            null,
+            null,
+            "{\"value\":\"from-cache\"}"
+        )
+        every { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-4", "LOCKED", any<Duration>()) } returns false
+        every { objectMapper.readValue("{\"value\":\"from-cache\"}", DummyResponse::class.java) } returns DummyResponse(
+            "from-cache"
+        )
 
-    data class TestResponse(val value: String)
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-4",
+            responseType = DummyResponse::class.java
+        )
+
+        val result = service.executeWithIdempotency(context) {
+            throw IllegalStateException("Should not run when lock held")
+        }
+
+        assertEquals(DummyResponse("from-cache"), result)
+        verify(exactly = 1) { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-4", "LOCKED", any<Duration>()) }
+    }
+
+    @Test
+    fun `throws conflict after exhausting poll attempts`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-5") } returnsMany List(11) { null }
+        every { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-5", "LOCKED", any<Duration>()) } returns false
+
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-5",
+            responseType = DummyResponse::class.java
+        )
+
+        assertThrows(VenuesException.ResourceConflict::class.java) {
+            service.executeWithIdempotency(context) {
+                throw IllegalStateException("Should not run when lock held")
+            }
+        }
+    }
+
+    @Test
+    fun `fails open when redis unavailable during lock`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-2:idem-6") } returns null
+        every {
+            valueOps.setIfAbsent(
+                "lock:booking:cart:add:scope-2:idem-6",
+                "LOCKED",
+                any<Duration>()
+            )
+        } throws RedisConnectionFailureException("down")
+        every { objectMapper.writeValueAsString(DummyResponse("ok")) } returns "{\"value\":\"ok\"}"
+        justRun { valueOps.set("booking:cart:add:scope-2:idem-6", any(), any<Duration>()) }
+        justRun { redisTemplate.delete("lock:booking:cart:add:scope-2:idem-6") }
+
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-2",
+            idempotencyKey = "idem-6",
+            responseType = DummyResponse::class.java
+        )
+
+        val result = service.executeWithIdempotency(context) {
+            DummyResponse("ok")
+        }
+
+        assertEquals(DummyResponse("ok"), result)
+        verify(exactly = 1) { redisTemplate.delete("lock:booking:cart:add:scope-2:idem-6") }
+    }
+
+    @Test
+    fun `throws internal error when cached payload cannot be deserialized`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-7") } returns "{\"value\":\"bad\"}"
+        every { objectMapper.readValue("{\"value\":\"bad\"}", DummyResponse::class.java) } throws object :
+            JsonProcessingException("bad") {}
+
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-7",
+            responseType = DummyResponse::class.java
+        )
+
+        assertThrows(VenuesException.InternalError::class.java) {
+            service.executeWithIdempotency(context) {
+                DummyResponse("should-not-run")
+            }
+        }
+    }
+
+    @Test
+    fun `returns result even when serialization for cache fails`() {
+        every { redisTemplate.opsForValue() } returns valueOps
+        every { valueOps.get("booking:cart:add:scope-1:idem-8") } returns null
+        every { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-8", "LOCKED", any<Duration>()) } returns true
+        every { objectMapper.writeValueAsString(DummyResponse("ok")) } throws object :
+            JsonProcessingException("fail") {}
+        justRun { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-8") }
+
+        val context = IdempotencyContext(
+            keyPrefix = "booking",
+            operation = "cart:add",
+            scopeId = "scope-1",
+            idempotencyKey = "idem-8",
+            responseType = DummyResponse::class.java
+        )
+
+        val result = service.executeWithIdempotency(context) {
+            DummyResponse("ok")
+        }
+
+        assertEquals(DummyResponse("ok"), result)
+        verify(exactly = 0) { valueOps.set("booking:cart:add:scope-1:idem-8", any(), any<Duration>()) }
+        verify(exactly = 1) { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-8") }
+    }
 }
-

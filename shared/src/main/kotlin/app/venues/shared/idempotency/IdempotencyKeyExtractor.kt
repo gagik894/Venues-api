@@ -52,7 +52,7 @@ object IdempotencyKeyExtractor {
             val extractedHeaderName = getAnnotationValue(header.name, header.value, param, kParams)
 
             if (extractedHeaderName.equals(headerName, ignoreCase = true)) {
-                args.getOrNull(index) as? String
+                args.getOrNull(index)?.toString()
             } else {
                 null
             }

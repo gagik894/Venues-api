@@ -3,367 +3,201 @@ package app.venues.shared.idempotency
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import org.springframework.web.bind.annotation.*
-import java.util.*
+import org.springframework.web.bind.annotation.CookieValue
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestParam
+import java.lang.reflect.Method
 
-/**
- * Tests for IdempotencyKeyExtractor utility.
- *
- * Ensures correct extraction of idempotency keys and scope identifiers
- * from controller method parameters using Spring annotations.
- */
 class IdempotencyKeyExtractorTest {
 
-    // ===========================================
-    // IDEMPOTENCY KEY EXTRACTION TESTS
-    // ===========================================
+    private class SampleController {
+        fun headerExplicit(@RequestHeader("Idempotency-Key") key: String) {}
+
+        fun headerValueAttribute(@RequestHeader(value = "X-Platform-ID") platformId: String) {}
+
+        fun headerFallback(@RequestHeader key: String) {}
+
+        fun requestParamExplicit(@RequestParam("token") token: String) {}
+
+        fun requestParamFallback(@RequestParam token: String) {}
+
+        fun pathVariableExplicit(@PathVariable("bookingId") bookingId: String) {}
+
+        fun pathVariableFallback(@PathVariable bookingId: String) {}
+
+        fun cookieExplicit(@CookieValue("cart_token") token: String) {}
+
+        fun scopeSources(
+            @RequestParam("token") token: String?,
+            @CookieValue("cart_token") cookieToken: String?,
+            @RequestHeader("X-Platform-ID") platformId: String?,
+            @PathVariable("id") id: String?
+        ) {
+        }
+
+        fun customScope(@RequestParam("customScope") custom: String) {}
+    }
+
+    private fun method(name: String, vararg params: Class<*>): Method {
+        return SampleController::class.java.getMethod(name, *params)
+    }
 
     @Test
-    fun `extractIdempotencyKey finds key from RequestHeader`() {
-        val method = TestController::class.java.getMethod(
-            "withIdempotencyKey",
+    fun `extracts idempotency key header`() {
+        val method = method("headerExplicit", String::class.java)
+        val result = IdempotencyKeyExtractor.extractIdempotencyKey(method, arrayOf("idem-1"))
+
+        assertEquals("idem-1", result)
+    }
+
+    @Test
+    fun `extracts header via value attribute`() {
+        val method = method("headerValueAttribute", String::class.java)
+        val result = IdempotencyKeyExtractor.extractHeaderValue(method, arrayOf("platform-1"), "X-Platform-ID")
+
+        assertEquals("platform-1", result)
+    }
+
+    @Test
+    fun `falls back to parameter name when header name missing`() {
+        val method = method("headerFallback", String::class.java)
+        val parameterName = method.parameters.first().name
+        val result = IdempotencyKeyExtractor.extractHeaderValue(method, arrayOf("abc"), parameterName)
+
+        assertEquals("abc", result)
+    }
+
+    @Test
+    fun `extracts request params`() {
+        val method = method("requestParamExplicit", String::class.java)
+        val result = IdempotencyKeyExtractor.extractRequestParam(method, arrayOf("cart-token"), "token")
+
+        assertEquals("cart-token", result)
+    }
+
+    @Test
+    fun `falls back to kotlin param name for request param`() {
+        val method = method("requestParamFallback", String::class.java)
+        val parameterName = method.parameters.first().name
+        val result = IdempotencyKeyExtractor.extractRequestParam(method, arrayOf("cart-token"), parameterName)
+
+        assertEquals("cart-token", result)
+    }
+
+    @Test
+    fun `extracts path variables`() {
+        val method = method("pathVariableExplicit", String::class.java)
+        val result = IdempotencyKeyExtractor.extractPathVariable(method, arrayOf("booking-1"), "bookingId")
+
+        assertEquals("booking-1", result)
+    }
+
+    @Test
+    fun `falls back to kotlin param name for path variable`() {
+        val method = method("pathVariableFallback", String::class.java)
+        val parameterName = method.parameters.first().name
+        val result = IdempotencyKeyExtractor.extractPathVariable(method, arrayOf("booking-2"), parameterName)
+
+        assertEquals("booking-2", result)
+    }
+
+    @Test
+    fun `extracts cookie values`() {
+        val method = method("cookieExplicit", String::class.java)
+        val result = IdempotencyKeyExtractor.extractCookieValue(method, arrayOf("cookie-token"), "cart_token")
+
+        assertEquals("cookie-token", result)
+    }
+
+    @Test
+    fun `scopes prefer request param over cookie`() {
+        val method = method(
+            "scopeSources",
+            String::class.java,
+            String::class.java,
             String::class.java,
             String::class.java
         )
-        val args = arrayOf<Any>("my-idempotency-key", "request-data")
+        val args = arrayOf<Any?>("req-token", "cookie-token", null, null) as Array<Any>
 
-        val result = IdempotencyKeyExtractor.extractIdempotencyKey(method, args)
+        val scope = IdempotencyKeyExtractor.extractScopeId(method, args, IdempotencyScopeType.CART_TOKEN)
 
-        assertEquals("my-idempotency-key", result)
+        assertEquals("req-token", scope)
     }
 
     @Test
-    fun `extractIdempotencyKey returns null when header not present`() {
-        val method = TestController::class.java.getMethod(
-            "withoutIdempotencyKey",
-            String::class.java
-        )
-        val args = arrayOf<Any>("request-data")
-
-        val result = IdempotencyKeyExtractor.extractIdempotencyKey(method, args)
-
-        assertNull(result)
-    }
-
-    @Test
-    fun `extractIdempotencyKey handles null header value`() {
-        val method = TestController::class.java.getMethod(
-            "withIdempotencyKey",
+    fun `scopes fall back to cookie when request param missing`() {
+        val method = method(
+            "scopeSources",
+            String::class.java,
+            String::class.java,
             String::class.java,
             String::class.java
         )
-        val args = arrayOf<Any?>(null, "request-data")
+        val args = arrayOf<Any?>(null, "cookie-token", null, null) as Array<Any>
 
-        val result = IdempotencyKeyExtractor.extractIdempotencyKey(method, args as Array<Any>)
+        val scope = IdempotencyKeyExtractor.extractScopeId(method, args, IdempotencyScopeType.CART_TOKEN)
 
-        assertNull(result)
-    }
-
-    // ===========================================
-    // HEADER EXTRACTION TESTS
-    // ===========================================
-
-    @Test
-    fun `extractHeaderValue finds custom header`() {
-        val method = TestController::class.java.getMethod(
-            "withCustomHeader",
-            UUID::class.java,
-            String::class.java
-        )
-        val platformId = UUID.randomUUID()
-        val args = arrayOf<Any>(platformId, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractHeaderValue(method, args, "X-Platform-ID")
-
-        assertEquals(platformId.toString(), result)
+        assertEquals("cookie-token", scope)
     }
 
     @Test
-    fun `extractHeaderValue is case-insensitive`() {
-        val method = TestController::class.java.getMethod(
-            "withCustomHeader",
-            UUID::class.java,
-            String::class.java
-        )
-        val platformId = UUID.randomUUID()
-        val args = arrayOf<Any>(platformId, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractHeaderValue(method, args, "x-platform-id")
-
-        assertEquals(platformId.toString(), result)
-    }
-
-    // ===========================================
-    // REQUEST PARAM EXTRACTION TESTS
-    // ===========================================
-
-    @Test
-    fun `extractRequestParam finds param by name`() {
-        val method = TestController::class.java.getMethod(
-            "withRequestParam",
-            UUID::class.java,
-            String::class.java
-        )
-        val token = UUID.randomUUID()
-        val args = arrayOf<Any>(token, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractRequestParam(method, args, "token")
-
-        assertEquals(token.toString(), result)
-    }
-
-    @Test
-    fun `extractRequestParam returns null when param not found`() {
-        val method = TestController::class.java.getMethod(
-            "withRequestParam",
-            UUID::class.java,
-            String::class.java
-        )
-        val args = arrayOf<Any>(UUID.randomUUID(), "request-data")
-
-        val result = IdempotencyKeyExtractor.extractRequestParam(method, args, "nonexistent")
-
-        assertNull(result)
-    }
-
-    @Test
-    fun `extractRequestParam handles null param value`() {
-        val method = TestController::class.java.getMethod(
-            "withRequestParam",
-            UUID::class.java,
-            String::class.java
-        )
-        val args = arrayOf<Any?>(null, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractRequestParam(method, args as Array<Any>, "token")
-
-        assertNull(result)
-    }
-
-    // ===========================================
-    // PATH VARIABLE EXTRACTION TESTS
-    // ===========================================
-
-    @Test
-    fun `extractPathVariable finds variable by name`() {
-        val method = TestController::class.java.getMethod(
-            "withPathVariable",
-            UUID::class.java,
-            String::class.java
-        )
-        val bookingId = UUID.randomUUID()
-        val args = arrayOf<Any>(bookingId, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractPathVariable(method, args, "id")
-
-        assertEquals(bookingId.toString(), result)
-    }
-
-    @Test
-    fun `extractPathVariable returns null when variable not found`() {
-        val method = TestController::class.java.getMethod(
-            "withPathVariable",
-            UUID::class.java,
-            String::class.java
-        )
-        val args = arrayOf<Any>(UUID.randomUUID(), "request-data")
-
-        val result = IdempotencyKeyExtractor.extractPathVariable(method, args, "nonexistent")
-
-        assertNull(result)
-    }
-
-    // ===========================================
-    // COOKIE EXTRACTION TESTS
-    // ===========================================
-
-    @Test
-    fun `extractCookieValue finds cookie by name`() {
-        val method = TestController::class.java.getMethod(
-            "withCookie",
-            UUID::class.java,
-            String::class.java
-        )
-        val cartToken = UUID.randomUUID()
-        val args = arrayOf<Any>(cartToken, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractCookieValue(method, args, "cart_token")
-
-        assertEquals(cartToken.toString(), result)
-    }
-
-    @Test
-    fun `extractCookieValue returns null when cookie not found`() {
-        val method = TestController::class.java.getMethod(
-            "withCookie",
-            UUID::class.java,
-            String::class.java
-        )
-        val args = arrayOf<Any>(UUID.randomUUID(), "request-data")
-
-        val result = IdempotencyKeyExtractor.extractCookieValue(method, args, "nonexistent")
-
-        assertNull(result)
-    }
-
-    // ===========================================
-    // SCOPE ID EXTRACTION TESTS
-    // ===========================================
-
-    @Test
-    fun `extractScopeId with CART_TOKEN extracts from RequestParam`() {
-        val method = TestController::class.java.getMethod(
-            "withRequestParam",
-            UUID::class.java,
-            String::class.java
-        )
-        val token = UUID.randomUUID()
-        val args = arrayOf<Any>(token, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractScopeId(
-            method,
-            args,
-            IdempotencyScopeType.CART_TOKEN
-        )
-
-        assertEquals(token.toString(), result)
-    }
-
-    @Test
-    fun `extractScopeId with CART_TOKEN falls back to cookie when param not found`() {
-        val method = TestController::class.java.getMethod(
-            "withCookie",
-            UUID::class.java,
-            String::class.java
-        )
-        val cartToken = UUID.randomUUID()
-        val args = arrayOf<Any>(cartToken, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractScopeId(
-            method,
-            args,
-            IdempotencyScopeType.CART_TOKEN
-        )
-
-        assertEquals(cartToken.toString(), result)
-    }
-
-    @Test
-    fun `extractScopeId with PLATFORM_ID extracts from header`() {
-        val method = TestController::class.java.getMethod(
-            "withCustomHeader",
-            UUID::class.java,
-            String::class.java
-        )
-        val platformId = UUID.randomUUID()
-        val args = arrayOf<Any>(platformId, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractScopeId(
-            method,
-            args,
-            IdempotencyScopeType.PLATFORM_ID
-        )
-
-        assertEquals(platformId.toString(), result)
-    }
-
-    @Test
-    fun `extractScopeId with BOOKING_ID extracts from path variable`() {
-        val method = TestController::class.java.getMethod(
-            "withPathVariable",
-            UUID::class.java,
-            String::class.java
-        )
-        val bookingId = UUID.randomUUID()
-        val args = arrayOf<Any>(bookingId, "request-data")
-
-        val result = IdempotencyKeyExtractor.extractScopeId(
-            method,
-            args,
-            IdempotencyScopeType.BOOKING_ID
-        )
-
-        assertEquals(bookingId.toString(), result)
-    }
-
-    @Test
-    fun `extractScopeId with CUSTOM uses custom parameter name`() {
-        val method = TestController::class.java.getMethod(
-            "withCustomParam",
+    fun `extracts platform scope from header`() {
+        val method = method(
+            "scopeSources",
+            String::class.java,
+            String::class.java,
             String::class.java,
             String::class.java
         )
-        val customValue = "custom-scope-123"
-        val args = arrayOf<Any>(customValue, "request-data")
+        val args = arrayOf<Any?>(null, null, "platform-1", null) as Array<Any>
 
-        val result = IdempotencyKeyExtractor.extractScopeId(
+        val scope = IdempotencyKeyExtractor.extractScopeId(method, args, IdempotencyScopeType.PLATFORM_ID)
+
+        assertEquals("platform-1", scope)
+    }
+
+    @Test
+    fun `extracts booking scope from path variable`() {
+        val method = method(
+            "scopeSources",
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            String::class.java
+        )
+        val args = arrayOf<Any?>(null, null, null, "booking-3") as Array<Any>
+
+        val scope = IdempotencyKeyExtractor.extractScopeId(method, args, IdempotencyScopeType.BOOKING_ID)
+
+        assertEquals("booking-3", scope)
+    }
+
+    @Test
+    fun `extracts custom scope from request param`() {
+        val method = method("customScope", String::class.java)
+        val args = arrayOf<Any>("custom-1")
+
+        val scope = IdempotencyKeyExtractor.extractScopeId(
             method,
             args,
             IdempotencyScopeType.CUSTOM,
             "customScope"
         )
 
-        assertEquals(customValue, result)
+        assertEquals("custom-1", scope)
     }
 
     @Test
-    fun `extractScopeId with NONE returns null`() {
-        val method = TestController::class.java.getMethod(
-            "withRequestParam",
-            UUID::class.java,
-            String::class.java
-        )
-        val args = arrayOf<Any>(UUID.randomUUID(), "request-data")
-
-        val result = IdempotencyKeyExtractor.extractScopeId(
+    fun `returns null when scope type is none`() {
+        val method = method("headerExplicit", String::class.java)
+        val scope = IdempotencyKeyExtractor.extractScopeId(
             method,
-            args,
+            arrayOf<Any>("value"),
             IdempotencyScopeType.NONE
         )
 
-        assertNull(result)
-    }
-
-    // ===========================================
-    // TEST CONTROLLER (for reflection testing)
-    // ===========================================
-
-    @Suppress("unused")
-    class TestController {
-
-        fun withIdempotencyKey(
-            @RequestHeader("Idempotency-Key") idempotencyKey: String?,
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withoutIdempotencyKey(
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withCustomHeader(
-            @RequestHeader("X-Platform-ID") platformId: UUID,
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withRequestParam(
-            @RequestParam("token") token: UUID?,
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withPathVariable(
-            @PathVariable("id") id: UUID,
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withCookie(
-            @CookieValue("cart_token") cartToken: UUID?,
-            @RequestBody request: String
-        ): String = "response"
-
-        fun withCustomParam(
-            @RequestParam("customScope") customScope: String,
-            @RequestBody request: String
-        ): String = "response"
+        assertNull(scope)
     }
 }
-

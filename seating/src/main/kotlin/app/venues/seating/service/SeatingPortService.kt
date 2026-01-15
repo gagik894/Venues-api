@@ -187,6 +187,37 @@ class SeatingPortService(
         }
     }
 
+    override fun getGaInfoBatch(gaIds: List<Long>): List<GaInfoDto> {
+        if (gaIds.isEmpty()) return emptyList()
+
+        return gaAreaRepository.findAllById(gaIds).map { ga ->
+            GaInfoDto(
+                id = ga.id ?: error("GA Area ID cannot be null"),
+                code = ga.code,
+                name = ga.name,
+                capacity = ga.capacity,
+                zoneId = ga.zone.id ?: error("Zone ID cannot be null"),
+                categoryKey = ga.categoryKey
+            )
+        }
+    }
+
+    override fun getTableInfoBatch(tableIds: List<Long>): List<TableInfoDto> {
+        if (tableIds.isEmpty()) return emptyList()
+
+        return chartTableRepository.findAllById(tableIds).map { table ->
+            TableInfoDto(
+                id = table.id ?: error("Table ID cannot be null"),
+                code = table.code,
+                tableNumber = table.tableNumber,
+                seatCapacity = table.seatCapacity,
+                zoneId = table.zone.id ?: error("Zone ID cannot be null"),
+                zoneName = table.zone.name,
+                categoryKey = table.categoryKey
+            )
+        }
+    }
+
     override fun seatExists(seatId: Long): Boolean {
         return chartSeatRepository.existsById(seatId)
     }

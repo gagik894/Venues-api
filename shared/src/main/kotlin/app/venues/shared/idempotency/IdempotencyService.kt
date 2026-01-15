@@ -4,7 +4,9 @@ import app.venues.common.exception.VenuesException
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.lettuce.core.RedisCommandTimeoutException
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.dao.QueryTimeoutException
 import org.springframework.data.redis.RedisConnectionFailureException
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
@@ -150,6 +152,12 @@ class IdempotencyService(
     private fun tryAcquireLock(lockKey: String): Boolean {
         return try {
             redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", LOCK_TTL) ?: false
+        } catch (e: RedisCommandTimeoutException) {
+            logger.warn(e) { "Redis timeout during lock acquisition, proceeding without lock" }
+            true // Fail-open
+        } catch (e: QueryTimeoutException) {
+            logger.warn(e) { "Redis query timeout during lock acquisition, proceeding without lock" }
+            true // Fail-open
         } catch (e: RedisConnectionFailureException) {
             logger.warn(e) { "Redis connection failed during lock acquisition, proceeding without lock" }
             true // Fail-open: allow operation to proceed
@@ -165,6 +173,10 @@ class IdempotencyService(
     private fun releaseLock(lockKey: String) {
         try {
             redisTemplate.delete(lockKey)
+        } catch (e: RedisCommandTimeoutException) {
+            logger.warn(e) { "Redis timeout releasing lock: $lockKey (will expire automatically)" }
+        } catch (e: QueryTimeoutException) {
+            logger.warn(e) { "Redis query timeout releasing lock: $lockKey (will expire automatically)" }
         } catch (e: Exception) {
             logger.warn(e) { "Failed to release lock: $lockKey (will expire automatically)" }
             // Non-critical: lock will expire automatically due to TTL
@@ -182,6 +194,12 @@ class IdempotencyService(
             redisTemplate.opsForValue().get(cacheKey)?.let { json ->
                 deserializeResult(json, context)
             }
+        } catch (e: RedisCommandTimeoutException) {
+            logger.warn(e) { "Redis timeout during cache read (idempotency)" }
+            null
+        } catch (e: QueryTimeoutException) {
+            logger.warn(e) { "Redis query timeout during cache read (idempotency)" }
+            null
         } catch (e: RedisConnectionFailureException) {
             logger.warn(e) { "Redis connection failed during cache read" }
             null
@@ -203,6 +221,10 @@ class IdempotencyService(
         } catch (e: JsonProcessingException) {
             logger.warn(e) { "Failed to serialize result for caching: ${context.getDescription()}" }
             // Non-critical: operation succeeded, just not cached
+        } catch (e: RedisCommandTimeoutException) {
+            logger.warn(e) { "Redis timeout during cache write: ${context.getDescription()}" }
+        } catch (e: QueryTimeoutException) {
+            logger.warn(e) { "Redis query timeout during cache write: ${context.getDescription()}" }
         } catch (e: RedisConnectionFailureException) {
             logger.warn(e) { "Redis connection failed during cache write" }
             // Non-critical: operation succeeded, just not cached

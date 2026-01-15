@@ -41,7 +41,7 @@ class CartServicePlatformHoldTest {
     @BeforeEach
     fun setup() {
         cartRepository = mockk(relaxed = true)
-        cartSessionManager = CartSessionManager(cartRepository)
+        cartSessionManager = CartSessionManager(cartRepository, mockk(relaxed = true))
         cartLimitValidator = mockk(relaxed = true)
         inventoryReservation = mockk(relaxed = true)
         cartItemPersistence = mockk(relaxed = true)

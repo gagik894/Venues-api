@@ -26,7 +26,7 @@ class CartSessionManagerTtlTest {
         MockKAnnotations.init(this)
         cartRepository = io.mockk.mockk(relaxed = true)
         clearMocks(cartRepository)
-        manager = CartSessionManager(cartRepository)
+        manager = CartSessionManager(cartRepository, io.mockk.mockk())
     }
 
     @Test

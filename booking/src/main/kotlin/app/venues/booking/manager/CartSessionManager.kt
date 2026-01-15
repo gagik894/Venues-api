@@ -3,6 +3,8 @@ package app.venues.booking.manager
 import app.venues.booking.domain.Cart
 import app.venues.booking.repository.CartRepository
 import app.venues.common.exception.VenuesException
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.*
@@ -13,7 +15,8 @@ import java.util.*
  */
 @Component
 class CartSessionManager(
-    private val cartRepository: CartRepository
+    private val cartRepository: CartRepository,
+    @PersistenceContext private val entityManager: EntityManager
 ) {
     companion object {
         // Customer cart expiration
@@ -97,8 +100,11 @@ class CartSessionManager(
     }
 
     /**
-     * Extends cart expiration time.
+     * Extends cart expiration time using atomic UPDATE.
      * Uses staff or customer timing based on isStaffCart flag.
+     *
+     * This method uses a direct UPDATE query to avoid loading the Cart entity,
+     * preventing optimistic lock conflicts during concurrent add-to-cart operations.
      */
     private fun extendCartExpiration(cart: Cart, isStaffCart: Boolean): Cart {
         val (extensionMinutes, initialExpirationMinutes, maxTtlMinutes) = if (isStaffCart) {
@@ -115,8 +121,18 @@ class CartSessionManager(
             )
         }
 
+        // Calculate new expiration using Cart domain logic (DRY principle)
         cart.extendExpiration(extensionMinutes, initialExpirationMinutes, maxTtlMinutes)
-        return cartRepository.save(cart)
+        val newExpiration = cart.expiresAt
+
+        // Apply the calculated expiration atomically without triggering entity save
+        cartRepository.extendExpiration(cart.token, newExpiration)
+
+        // Detach to avoid JPA auto-flush updating the Cart version again
+        entityManager.detach(cart)
+        cart.expiresAt = newExpiration
+
+        return cart
     }
 
     /**

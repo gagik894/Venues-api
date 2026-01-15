@@ -21,7 +21,8 @@ import java.util.*
 class CartSessionManagerTest {
 
     private val cartRepository: CartRepository = mockk(relaxed = true)
-    private val cartSessionManager = CartSessionManager(cartRepository)
+    private val entityManager = mockk<jakarta.persistence.EntityManager>(relaxed = true)
+    private val cartSessionManager = CartSessionManager(cartRepository, entityManager)
 
     @Test
     fun `findOrCreateCart creates customer cart with 7 minute expiration by default`() {
@@ -96,22 +97,22 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.save(any()) } answers { firstArg() }
+        every { cartRepository.extendExpiration(any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
         // Act - extend with customer parameters (default)
-        cartSessionManager.findOrCreateCart(
+        val result = cartSessionManager.findOrCreateCart(
             token = existingCart.token,
             sessionId = sessionId,
             isStaffCart = false
         )
 
         // Assert
-        verify { cartRepository.save(existingCart) }
+        verify { cartRepository.extendExpiration(existingCart.token, any()) }
 
         // Should extend by CART_EXTENSION_MINUTES (5 min) from NOW, not from expiration
-        val expirationDuration = existingCart.expiresAt.epochSecond - beforeExtension.epochSecond
+        val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
         assertTrue(expirationDuration >= 4 * 60, "Should extend by at least 4 minutes from now")
         assertTrue(expirationDuration <= 6 * 60, "Should extend by at most 6 minutes from now")
     }
@@ -127,22 +128,22 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.save(any()) } answers { firstArg() }
+        every { cartRepository.extendExpiration(any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
         // Act - extend with staff parameters
-        cartSessionManager.findOrCreateCart(
+        val result = cartSessionManager.findOrCreateCart(
             token = existingCart.token,
             sessionId = sessionId,
             isStaffCart = true
         )
 
         // Assert
-        verify { cartRepository.save(existingCart) }
+        verify { cartRepository.extendExpiration(existingCart.token, any()) }
 
         // Should extend by STAFF_CART_EXTENSION_MINUTES (10 min) from NOW
-        val expirationDuration = existingCart.expiresAt.epochSecond - beforeExtension.epochSecond
+        val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
         assertTrue(expirationDuration >= 9 * 60, "Should extend by at least 9 minutes from now")
         assertTrue(expirationDuration <= 11 * 60, "Should extend by at most 11 minutes from now")
     }
@@ -221,19 +222,21 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.save(any()) } answers { firstArg() }
+        every { cartRepository.extendExpiration(any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
         // Act - Staff calls with isStaffCart=true
-        cartSessionManager.findOrCreateCart(
+        val result = cartSessionManager.findOrCreateCart(
             token = existingCart.token,
             sessionId = sessionId,
             isStaffCart = true // CRITICAL: This ensures staff extension
         )
 
         // Assert
-        val expirationDuration = existingCart.expiresAt.epochSecond - beforeExtension.epochSecond
+        verify { cartRepository.extendExpiration(existingCart.token, any()) }
+
+        val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
 
         // Verify it got STAFF extension (10 min), not customer (5 min)
         assertTrue(

@@ -4,6 +4,7 @@ import app.venues.common.exception.VenuesException
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.RedisConnectionFailureException
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Service
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit
  */
 @Service
 class IdempotencyService(
+    @param:Qualifier("stringRedisTemplate")
     private val redisTemplate: RedisTemplate<String, String>,
     private val objectMapper: ObjectMapper
 ) {

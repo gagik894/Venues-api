@@ -101,9 +101,10 @@ class CartService(
      * Adds a seat to cart with atomic reservation and price snapshotting.
      * Creates cart session if first item, extends expiration if cart exists.
      *
-     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
+     * Uses READ_COMMITTED isolation with optimistic locking for concurrent seat additions.
+     * The Cart entity is not modified during seat addition to avoid serialization conflicts.
      */
-    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun addSeatToCart(
         request: AddSeatToCartRequest,
         token: UUID?,
@@ -155,9 +156,9 @@ class CartService(
      * If new level: Creates new cart item
      * Validates quantity limits and capacity.
      *
-     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
+     * Uses READ_COMMITTED isolation with optimistic locking for concurrent GA additions.
      */
-    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun addGAToCart(
         request: AddGAToCartRequest,
         token: UUID?,
@@ -208,14 +209,14 @@ class CartService(
 
         return buildSuccessResponse(cart)
     }
-
     /**
-     * Add a complete table to cart.
+     * Adds an entire table to cart.
+     *
      * Validates table booking mode, atomically reserves table, blocks individual seats.
      *
-     * Uses REPEATABLE_READ isolation to prevent lost updates under high concurrency.
+     * Uses READ_COMMITTED isolation with optimistic locking for concurrent table additions.
      */
-    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun addTableToCart(
         request: AddTableToCartRequest,
         token: UUID?,

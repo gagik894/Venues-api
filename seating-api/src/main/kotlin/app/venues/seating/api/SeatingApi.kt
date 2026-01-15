@@ -71,6 +71,20 @@ interface SeatingApi {
     fun getSeatInfoBatch(seatIds: List<Long>): List<SeatInfoDto>
 
     /**
+     * Batch fetch GA area information for multiple areas.
+     * @param gaIds list of GA area IDs
+     * @return list of found GA areas (missing IDs are omitted)
+     */
+    fun getGaInfoBatch(gaIds: List<Long>): List<GaInfoDto>
+
+    /**
+     * Batch fetch table information for multiple tables.
+     * @param tableIds list of table IDs
+     * @return list of found tables (missing IDs are omitted)
+     */
+    fun getTableInfoBatch(tableIds: List<Long>): List<TableInfoDto>
+
+    /**
      * Check if seat exists.
      * @return true if seat exists
      */

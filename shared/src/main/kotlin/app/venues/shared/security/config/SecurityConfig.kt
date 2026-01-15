@@ -292,7 +292,12 @@ class SecurityConfig(
                 "X-Requested-With",
                 "X-Correlation-ID",
                 "X-Request-ID",
-                "X-Venue-Domain"  // White-label domain header
+                "X-Venue-Domain",  // White-label domain header
+                "Origin",
+                "Referer",
+                "User-Agent",
+                "Cache-Control",
+                "Idempotency-Key"
             )
 
             // Headers exposed to the client

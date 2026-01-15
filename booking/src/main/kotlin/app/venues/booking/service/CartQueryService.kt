@@ -38,7 +38,8 @@ class CartQueryService(
      * then performs batch API calls for external data (seating info, templates).
      * Returns snapshotted prices, not current live prices.
      *
-     * Performance: O(1) database queries instead of O(n+1).
+     * Performance: O(1) database queries, O(1) batch API calls per entity type.
+     * No N+1 problems - all external data fetched in batches.
      */
     override fun getCartSummary(token: UUID): CartSummaryResponse {
         // Load cart with ALL items in single query (via @EntityGraph)
@@ -80,15 +81,11 @@ class CartQueryService(
         // Batch fetch seat info from seating API
         val seatInfoMap = seatingApi.getSeatInfoBatch(seatIds).associateBy { it.id }
 
-        // Batch fetch GA info - we need to fetch each GA area individually since no batch method exists
-        val gaInfoMap = gaLevelIds.mapNotNull { gaId ->
-            seatingApi.getGaInfo(gaId)?.let { gaId to it }
-        }.toMap()
+        // Batch fetch GA info (optimized - single batch call)
+        val gaInfoMap = seatingApi.getGaInfoBatch(gaLevelIds).associateBy { it.id }
 
-        // Batch fetch table info
-        val tableInfoMap = tableIds.mapNotNull { tableId ->
-            seatingApi.getTableInfo(tableId)?.let { tableId to it }
-        }.toMap()
+        // Batch fetch table info (optimized - single batch call)
+        val tableInfoMap = seatingApi.getTableInfoBatch(tableIds).associateBy { it.id }
 
         // 4. Map results in memory (no more calls inside loops)
         val seatResponses = seats.mapNotNull { cartSeat ->

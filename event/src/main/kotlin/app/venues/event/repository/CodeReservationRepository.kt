@@ -1,12 +1,17 @@
 package app.venues.event.repository
 
+import app.venues.event.domain.SessionSeatConfig
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
-import org.springframework.data.repository.Repository
+import org.springframework.stereotype.Repository
 import java.util.*
-import org.springframework.stereotype.Repository as SpringRepository
 
-@SpringRepository
-interface CodeReservationRepository : Repository<Any, Long> {
+/**
+ * Repository for code-based reservation operations.
+ * Extends JpaRepository for Spring Data JPA proxy creation but only uses custom queries.
+ */
+@Repository
+interface CodeReservationRepository : JpaRepository<SessionSeatConfig, Long> {
 
     /**
      * Atomically reserve a seat (AVAILABLE -> RESERVED) by seat code scoped to the session.

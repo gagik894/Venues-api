@@ -31,7 +31,6 @@ class EventApiService(
     private val sessionSeatConfigRepository: SessionSeatConfigRepository,
     private val sessionGAConfigRepository: SessionGAConfigRepository,
     private val sessionTableConfigRepository: SessionTableConfigRepository,
-    private val codeReservationRepository: CodeReservationRepository,
     private val seatingApi: SeatingApi,
     private val seatConfigSparseService: SeatConfigSparseService,
     private val sessionSeatingService: SessionSeatingService,
@@ -633,36 +632,61 @@ class EventApiService(
 
     @Transactional
     override fun reserveSeatByCode(sessionId: UUID, seatCode: String): SeatCodeReservationDto? {
-        val results = codeReservationRepository.reserveSeatByCodeAndGetPrice(sessionId, seatCode)
-        val result = results.firstOrNull() ?: return null
+        // 1. Get session to resolve seating chart ID
+        val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+        val chartId = session.event.seatingChartId ?: return null
+
+        // 2. Resolve seat via SeatingApi port (respects module boundary)
+        val seatInfo = seatingApi.getSeatInfoByCode(chartId, seatCode) ?: return null
+
+        // 3. Delegate to existing reserveSeat which handles sparse matrix + Redis lock
+        val price = reserveSeat(sessionId, seatInfo.id) ?: return null
+
         return SeatCodeReservationDto(
-            seatId = result.getSeatId(),
+            seatId = seatInfo.id,
             seatCode = seatCode,
-            unitPrice = result.getPrice()
+            unitPrice = price
         )
     }
 
     @Transactional
     override fun reserveGaByCode(sessionId: UUID, gaCode: String, quantity: Int): GaCodeReservationDto? {
         if (quantity <= 0) return null
-        val results = codeReservationRepository.reserveGaByCodeAndGetPrice(sessionId, gaCode, quantity)
-        val result = results.firstOrNull() ?: return null
+
+        // 1. Get session to resolve seating chart ID
+        val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+        val chartId = session.event.seatingChartId ?: return null
+
+        // 2. Resolve GA area via SeatingApi port (respects module boundary)
+        val gaInfo = seatingApi.getGaInfoByCode(chartId, gaCode) ?: return null
+
+        // 3. Delegate to existing reserveGa method
+        val price = reserveGa(sessionId, gaInfo.id, quantity) ?: return null
+
         return GaCodeReservationDto(
-            gaAreaId = result.getGaAreaId(),
+            gaAreaId = gaInfo.id,
             gaCode = gaCode,
             quantity = quantity,
-            unitPrice = result.getPrice()
+            unitPrice = price
         )
     }
 
     @Transactional
     override fun reserveTableByCode(sessionId: UUID, tableCode: String): TableCodeReservationDto? {
-        val results = codeReservationRepository.reserveTableByCodeAndGetPrice(sessionId, tableCode)
-        val result = results.firstOrNull() ?: return null
+        // 1. Get session to resolve seating chart ID
+        val session = eventSessionRepository.findById(sessionId).getOrNull() ?: return null
+        val chartId = session.event.seatingChartId ?: return null
+
+        // 2. Resolve table via SeatingApi port (respects module boundary)
+        val tableInfo = seatingApi.getTableInfoByCode(chartId, tableCode) ?: return null
+
+        // 3. Delegate to existing reserveTable method
+        val price = reserveTable(sessionId, tableInfo.id) ?: return null
+
         return TableCodeReservationDto(
-            tableId = result.getTableId(),
+            tableId = tableInfo.id,
             tableCode = tableCode,
-            unitPrice = result.getPrice()
+            unitPrice = price
         )
     }
 }

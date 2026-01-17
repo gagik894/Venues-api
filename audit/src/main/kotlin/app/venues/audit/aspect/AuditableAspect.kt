@@ -54,8 +54,9 @@ class AuditableAspect(
             }
 
             val action = AuditAction.fromString(auditable.action)
-            val subjectId = extractSubjectIdFromResult(result, auditable.subjectType)
-                ?: context.pathVariableSubjectId
+            // Prefer path variable (for updates/deletes), fall back to result (for creates)
+            val subjectId = context.pathVariableSubjectId
+                ?: extractSubjectIdFromResult(result, auditable.subjectType)
 
             val metadata = enrichMetadata(joinPoint, context.metadata, result)
             val description = buildDescription(auditable, action, metadata, result)
@@ -254,8 +255,20 @@ class AuditableAspect(
         }
 
         // Extract key fields from result
-        if (result is ApiResponse<*> && result.data != null) {
-            extractResultFields(result.data!!, enriched)
+        if (result is ApiResponse<*>) {
+            val data = result.data
+            if (data != null) {
+                when (data) {
+                    is Int, is Long -> enriched["affectedCount"] = data
+                    else -> extractResultFields(data, enriched)
+                }
+            }
+        } else if (result != null) {
+            // Handle unwrapped primitives
+            when (result) {
+                is Int, is Long -> enriched["affectedCount"] = result
+                else -> extractResultFields(result, enriched)
+            }
         }
 
         // Remove the full request object from metadata (too verbose)
@@ -287,6 +300,8 @@ class AuditableAspect(
                 ?.let { (it as? Collection<*>)?.size?.let { c -> target["seatCount"] = c } }
             props["tableIds"]?.getter?.call(obj)
                 ?.let { (it as? Collection<*>)?.size?.let { c -> target["tableCount"] = c } }
+            props["gaIds"]?.getter?.call(obj)
+                ?.let { (it as? Collection<*>)?.size?.let { c -> target["gaCount"] = c } }
         } catch (_: Exception) {
         }
     }

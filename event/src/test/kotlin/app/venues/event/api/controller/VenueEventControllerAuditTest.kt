@@ -1,6 +1,6 @@
 package app.venues.event.api.controller
 
-import app.venues.audit.service.AuditActionRecorder
+import app.venues.audit.port.api.StaffAuditPort
 import app.venues.event.api.EventApi
 import app.venues.event.api.dto.*
 import app.venues.event.api.mapper.EventMapper
@@ -36,7 +36,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
-import kotlin.test.assertEquals
 
 @SpringBootApplication
 class VenueEventControllerAuditTestConfig
@@ -78,7 +77,7 @@ class VenueEventControllerAuditTest(
     lateinit var eventApi: EventApi
 
     @MockBean
-    lateinit var auditActionRecorder: AuditActionRecorder
+    lateinit var staffAuditPort: StaffAuditPort
 
     private val venueId = UUID.randomUUID()
     private val eventId = UUID.randomUUID()
@@ -89,7 +88,7 @@ class VenueEventControllerAuditTest(
     @BeforeEach
     fun resetMocks() {
         reset(
-            auditActionRecorder,
+            staffAuditPort,
             eventMapper,
             eventService,
             eventPricingService,
@@ -123,17 +122,14 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_CREATE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(event.id.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(EventStatus.DRAFT.name, metadataCaptor.firstValue["status"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_CREATE" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == event.id.toString() &&
+                    entry.outcome.name == "SUCCESS"
+        })
     }
 
     @Test
@@ -159,15 +155,14 @@ class VenueEventControllerAuditTest(
                 .with { it.method = "PUT"; it }
         ).andExpect(status().isOk)
 
-        verify(auditActionRecorder).success(
-            eq("EVENT_UPDATE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(eventId.toString()),
-            isNull(),
-            any()
-        )
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_UPDATE" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == eventId.toString() &&
+                    entry.outcome.name == "SUCCESS"
+        })
     }
 
     @Test
@@ -179,15 +174,14 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        verify(auditActionRecorder).success(
-            eq("EVENT_DELETE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(eventId.toString()),
-            isNull(),
-            any()
-        )
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_DELETE" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == eventId.toString() &&
+                    entry.outcome.name == "SUCCESS"
+        })
     }
 
     @Test
@@ -207,18 +201,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_PRICE_TEMPLATE_CREATE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(eventId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(eventId.toString(), metadataCaptor.firstValue["eventId"])
-        assertEquals(template.id.toString(), metadataCaptor.firstValue["resultId"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_PRICE_TEMPLATE_CREATE" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == eventId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["eventId"] == eventId.toString() &&
+                    entry.metadata["resultId"] == template.id.toString()
+        })
     }
 
     @Test
@@ -239,20 +231,17 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_SESSION_PRICING_ASSIGN"),
-            eq(staffId),
-            eq(venueId),
-            eq("event_session"),
-            eq(sessionId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(templateId.toString(), metadataCaptor.firstValue["templateId"])
-        assertEquals(2, metadataCaptor.firstValue["seatIdCount"])
-        assertEquals(1, metadataCaptor.firstValue["tableIdCount"])
-        assertEquals(1, metadataCaptor.firstValue["gaAreaIdCount"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_SESSION_PRICING_ASSIGN" &&
+                    entry.subjectType == "event_session" &&
+                    entry.subjectId == sessionId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["templateId"] == templateId.toString() &&
+                    entry.metadata["seatCount"] == 2 &&
+                    entry.metadata["tableCount"] == 1
+        })
     }
 
     @Test
@@ -273,21 +262,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_PRICING_ASSIGN"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(eventId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(templateId.toString(), metadataCaptor.firstValue["templateId"])
-        assertEquals(1, metadataCaptor.firstValue["seatIdCount"])
-        // We omit zero-count fields to keep metadata compact
-        assertEquals(null, metadataCaptor.firstValue["tableIdCount"])
-        assertEquals(2, metadataCaptor.firstValue["gaAreaIdCount"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_PRICING_ASSIGN" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == eventId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["templateId"] == templateId.toString() &&
+                    entry.metadata["seatCount"] == 1
+        })
     }
 
     @Test
@@ -313,18 +297,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_STATUS_CHANGE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event"),
-            eq(eventId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(request.status.name, metadataCaptor.firstValue["targetStatus"])
-        assertEquals(request.reason, metadataCaptor.firstValue["reason"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_STATUS_CHANGE" &&
+                    entry.subjectType == "event" &&
+                    entry.subjectId == eventId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["targetStatus"] == request.status.name &&
+                    entry.metadata["reason"] == request.reason
+        })
     }
 
     @Test
@@ -342,18 +324,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_SEATS_CLOSE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event_session"),
-            eq(sessionId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(2, metadataCaptor.firstValue["seatIdCount"])
-        assertEquals(2, metadataCaptor.firstValue["affectedCount"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_SEATS_CLOSE" &&
+                    entry.subjectType == "event_session" &&
+                    entry.subjectId == sessionId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["seatCount"] == 2 &&
+                    entry.metadata["affectedCount"] == 2
+        })
     }
 
     @Test
@@ -371,18 +351,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_TABLES_OPEN"),
-            eq(staffId),
-            eq(venueId),
-            eq("event_session"),
-            eq(sessionId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(1, metadataCaptor.firstValue["tableIdCount"])
-        assertEquals(1, metadataCaptor.firstValue["affectedCount"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_TABLES_OPEN" &&
+                    entry.subjectType == "event_session" &&
+                    entry.subjectId == sessionId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["tableCount"] == 1 &&
+                    entry.metadata["affectedCount"] == 1
+        })
     }
 
     @Test
@@ -408,18 +386,16 @@ class VenueEventControllerAuditTest(
                 .requestAttr("staffId", staffId)
         ).andExpect(status().isOk)
 
-        val metadataCaptor = argumentCaptor<Map<String, Any?>>()
-        verify(auditActionRecorder).success(
-            eq("EVENT_SESSION_STATUS_CHANGE"),
-            eq(staffId),
-            eq(venueId),
-            eq("event_session"),
-            eq(sessionId.toString()),
-            isNull(),
-            metadataCaptor.capture()
-        )
-        assertEquals(request.status.name, metadataCaptor.firstValue["targetStatus"])
-        assertEquals(request.reason, metadataCaptor.firstValue["reason"])
+        verify(staffAuditPort).log(argThat { entry ->
+            entry.staffId == staffId &&
+                    entry.venueId == venueId &&
+                    entry.action.name == "EVENT_SESSION_STATUS_CHANGE" &&
+                    entry.subjectType == "event_session" &&
+                    entry.subjectId == sessionId.toString() &&
+                    entry.outcome.name == "SUCCESS" &&
+                    entry.metadata["targetStatus"] == request.status.name &&
+                    entry.metadata["reason"] == request.reason
+        })
     }
 
     private fun event(status: EventStatus = EventStatus.DRAFT): Event = object : Event(

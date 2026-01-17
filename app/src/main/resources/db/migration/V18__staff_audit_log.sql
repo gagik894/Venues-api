@@ -9,16 +9,13 @@
 --   DELETE FROM staff_audit_log WHERE occurred_at < NOW() - INTERVAL '3 years';
 -- =============================================================================
 
--- Rename old table to preserve data (can be dropped after verification)
-ALTER TABLE IF EXISTS audit_events
-    RENAME TO audit_events_deprecated;
-
--- Drop indexes on deprecated table to free up names
+-- Drop old audit_events table and its indexes (contained low-value HTTP noise)
 DROP INDEX IF EXISTS idx_audit_events_occurred_at;
 DROP INDEX IF EXISTS idx_audit_events_actor;
 DROP INDEX IF EXISTS idx_audit_events_venue_id;
 DROP INDEX IF EXISTS idx_audit_events_action;
 DROP INDEX IF EXISTS idx_audit_events_subject;
+DROP TABLE IF EXISTS audit_events;
 
 -- =============================================================================
 -- New Staff Audit Log Table

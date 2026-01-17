@@ -10,7 +10,17 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * @deprecated Use [StaffAuditLogService] instead. This service writes to the deprecated
+ * audit_events table which has been renamed to audit_events_deprecated.
+ * Will be removed in a future release.
+ */
+@Deprecated(
+    message = "Use StaffAuditLogService instead",
+    replaceWith = ReplaceWith("StaffAuditLogService")
+)
 @Service
+@Suppress("DEPRECATION")
 class AuditLogService(
     private val auditEventRepository: AuditEventRepository,
     private val objectMapper: ObjectMapper

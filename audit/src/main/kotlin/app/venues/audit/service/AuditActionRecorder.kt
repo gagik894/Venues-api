@@ -1,18 +1,27 @@
 package app.venues.audit.service
 
-import app.venues.audit.port.api.AuditActorType
-import app.venues.audit.port.api.AuditEventWriteRequest
-import app.venues.audit.port.api.AuditLogPort
-import app.venues.audit.port.api.AuditOutcome
-import org.springframework.security.core.context.SecurityContextHolder
+import app.venues.audit.model.AuditAction
+import app.venues.audit.model.StaffAuditEntry
+import app.venues.audit.port.api.StaffAuditPort
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Component
-import java.time.Instant
 import java.util.*
 
+/**
+ * Convenience wrapper for programmatic audit logging.
+ * Use this for manual audit calls outside of @Auditable-annotated controllers.
+ *
+ * Prefer using @Auditable annotation on controller methods where possible.
+ */
 @Component
 class AuditActionRecorder(
-    private val auditLogPort: AuditLogPort
+    private val staffAuditPort: StaffAuditPort
 ) {
+    private val logger = KotlinLogging.logger {}
+
+    /**
+     * Record a successful action.
+     */
     fun success(
         action: String,
         staffId: UUID?,
@@ -22,9 +31,25 @@ class AuditActionRecorder(
         organizationId: UUID? = null,
         metadata: Map<String, Any?> = emptyMap()
     ) {
-        write(action, staffId, venueId, subjectType, subjectId, organizationId, metadata, AuditOutcome.SUCCESS)
+        if (staffId == null) {
+            logger.warn { "Cannot record audit without staffId: action=$action" }
+            return
+        }
+
+        val entry = StaffAuditEntry.builder(staffId, action)
+            .venueId(venueId)
+            .organizationId(organizationId)
+            .subject(subjectType, subjectId)
+            .success()
+            .metadata(metadata)
+            .build()
+
+        staffAuditPort.log(entry)
     }
 
+    /**
+     * Record a failed action.
+     */
     fun failure(
         action: String,
         staffId: UUID?,
@@ -32,66 +57,32 @@ class AuditActionRecorder(
         subjectType: String,
         subjectId: String?,
         organizationId: UUID? = null,
-        metadata: Map<String, Any?> = emptyMap()
+        metadata: Map<String, Any?> = emptyMap(),
+        reason: String? = null
     ) {
-        write(action, staffId, venueId, subjectType, subjectId, organizationId, metadata, AuditOutcome.FAILURE)
-    }
-
-    private fun write(
-        action: String,
-        staffId: UUID?,
-        venueId: UUID?,
-        subjectType: String,
-        subjectId: String?,
-        organizationId: UUID?,
-        metadata: Map<String, Any?>,
-        outcome: AuditOutcome
-    ) {
-        val resolvedActorId = resolveActorId(staffId)
-        val resolvedActorType = resolveActorType(explicitStaffId = staffId)
-        auditLogPort.write(
-            AuditEventWriteRequest(
-                occurredAt = Instant.now(),
-                actorType = resolvedActorType,
-                actorId = resolvedActorId,
-                action = action,
-                outcome = outcome,
-                subjectType = subjectType,
-                subjectId = subjectId,
-                venueId = venueId,
-                organizationId = organizationId,
-                metadata = metadata
-            )
-        )
-    }
-
-    private fun resolveActorType(explicitStaffId: UUID?): AuditActorType {
-        // Explicit staffId always implies STAFF
-        if (explicitStaffId != null) return AuditActorType.STAFF
-
-        val auth = SecurityContextHolder.getContext().authentication
-        val principal = auth?.principal
-
-        val roleFromPrincipal = (principal as? Map<*, *>)?.get("role")?.toString()?.uppercase()
-        return when (roleFromPrincipal) {
-            "USER" -> AuditActorType.USER
-            "STAFF", "SUPER_ADMIN" -> AuditActorType.STAFF
-            "PLATFORM" -> AuditActorType.PLATFORM
-            else -> if (resolveActorId(null) != null) AuditActorType.STAFF else AuditActorType.SYSTEM
+        if (staffId == null) {
+            logger.warn { "Cannot record audit without staffId: action=$action" }
+            return
         }
+
+        val entry = StaffAuditEntry.builder(staffId, action)
+            .venueId(venueId)
+            .organizationId(organizationId)
+            .subject(subjectType, subjectId)
+            .failure(reason)
+            .metadata(metadata)
+            .build()
+
+        staffAuditPort.log(entry)
     }
 
-    private fun resolveActorId(explicitId: UUID?): UUID? {
-        if (explicitId != null) return explicitId
-        val auth = SecurityContextHolder.getContext().authentication
-        val principal = auth?.principal
-        return when (principal) {
-            is Map<*, *> -> principal["id"] as? UUID
-                ?: (principal["id"] as? String)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+    /**
+     * Create a builder for more complex audit entries.
+     */
+    fun builder(staffId: UUID, action: AuditAction) = StaffAuditEntry.builder(staffId, action)
 
-            is UUID -> principal
-            is String -> runCatching { UUID.fromString(principal) }.getOrNull()
-            else -> null
-        }
-    }
+    /**
+     * Create a builder from action string.
+     */
+    fun builder(staffId: UUID, action: String) = StaffAuditEntry.builder(staffId, action)
 }

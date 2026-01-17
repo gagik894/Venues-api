@@ -10,9 +10,18 @@ import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.*
 
+/**
+ * @deprecated Use [StaffAuditLogEntity] instead. This entity maps to the deprecated
+ * audit_events table which has been renamed to audit_events_deprecated in V18 migration.
+ * Will be removed in a future release.
+ */
+@Deprecated(
+    message = "Use StaffAuditLogEntity instead",
+    replaceWith = ReplaceWith("StaffAuditLogEntity")
+)
 @Entity
 @Table(
-    name = "audit_events",
+    name = "audit_events_deprecated",
     indexes = [
         Index(name = "idx_audit_events_occurred_at", columnList = "occurred_at"),
         Index(name = "idx_audit_events_actor_id", columnList = "actor_id"),

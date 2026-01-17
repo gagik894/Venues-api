@@ -2,90 +2,90 @@ package app.venues.audit.aspect
 
 import app.venues.audit.annotation.AuditMetadata
 import app.venues.audit.annotation.Auditable
-import app.venues.audit.service.AuditActionRecorder
+import app.venues.audit.model.AuditAction
+import app.venues.audit.model.AuditSeverity
+import app.venues.audit.model.StaffAuditEntry
+import app.venues.audit.port.api.StaffAuditPort
 import app.venues.common.model.ApiResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
+import jakarta.servlet.http.HttpServletRequest
 import org.aspectj.lang.JoinPoint
 import org.aspectj.lang.annotation.AfterReturning
 import org.aspectj.lang.annotation.AfterThrowing
 import org.aspectj.lang.annotation.Aspect
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestAttribute
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import java.lang.reflect.Method
 import java.util.*
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.kotlinFunction
 
 /**
- * Aspect that automatically records audit events for methods annotated with @Auditable.
+ * Aspect that automatically records staff audit entries for methods annotated with @Auditable.
  *
- * Responsibilities:
- * 1. Intercept controller methods annotated with @Auditable
- * 2. Extract staffId from @RequestAttribute("staffId") or SecurityContext
- * 3. Extract venueId/organizationId from @PathVariable if specified
- * 4. Extract subject ID from method result (if ApiResponse)
- * 5. Call auditActionRecorder.success() or .failure() appropriately
+ * Records to staff_audit_log with:
+ * - Staff identity (from @RequestAttribute staffId)
+ * - Action (mapped to AuditAction enum)
+ * - Subject (type and ID)
+ * - Outcome (SUCCESS/FAILURE)
+ * - Human-readable description
+ * - Metadata (from request/response)
  */
 @Aspect
 @Component
 class AuditableAspect(
-    private val auditActionRecorder: AuditActionRecorder
+    private val staffAuditPort: StaffAuditPort
 ) {
     private val logger = KotlinLogging.logger {}
 
     @AfterReturning(pointcut = "@annotation(auditable)", returning = "result")
     fun auditSuccess(joinPoint: JoinPoint, auditable: Auditable, result: Any?) {
         try {
-            val (staffId, venueId, organizationId, baseMetadata) = extractAuditContext(
-                joinPoint,
-                auditable
-            )
+            val context = extractAuditContext(joinPoint, auditable)
 
-            val subjectIdFromResult = extractSubjectIdFromResult(result, auditable.subjectType)
-
-            val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method
-            val args = joinPoint.args
-            val (eventIdVar, sessionIdVar) = if (method != null) {
-                val eventId = extractPathVariable(method, args, "eventId", UUID::class.java)
-                val sessionId = extractPathVariable(method, args, "sessionId", UUID::class.java)
-                eventId to sessionId
-            } else {
-                null to null
-            }
-            // Choose subjectId based on subjectType semantics
-            val subjectId = when (auditable.subjectType.lowercase()) {
-                "session", "event_session" -> sessionIdVar?.toString() ?: subjectIdFromResult ?: eventIdVar?.toString()
-                "event" -> eventIdVar?.toString() ?: subjectIdFromResult
-                else -> subjectIdFromResult ?: sessionIdVar?.toString() ?: eventIdVar?.toString()
+            // Skip if no staff ID (can't audit anonymous actions in staff audit log)
+            val staffId = context.staffId
+            if (staffId == null) {
+                logger.debug { "Skipping audit for ${auditable.action}: no staffId available" }
+                return
             }
 
-            val enrichedMetadata = enrichMetadata(joinPoint, baseMetadata, result)
+            val action = AuditAction.fromString(auditable.action)
+            val subjectId = extractSubjectIdFromResult(result, auditable.subjectType)
+                ?: context.pathVariableSubjectId
 
-            // Ensure staff operations are clearly marked in metadata
-            val finalMetadata = if (staffId != null) {
-                enrichedMetadata.toMutableMap().apply {
-                    // Explicitly mark staff-driven operations
-                    put("isStaffOperation", true)
+            val metadata = enrichMetadata(joinPoint, context.metadata, result)
+            val description = buildDescription(auditable, action, metadata, result)
+
+            val entry = StaffAuditEntry.builder(staffId, action)
+                .venueId(context.venueId)
+                .organizationId(context.organizationId)
+                .subject(auditable.subjectType, subjectId)
+                .description(description)
+                .success()
+                .clientIp(getClientIp())
+                .userAgent(getUserAgent())
+                .metadata(metadata)
+                .apply {
+                    // Override severity if specified in annotation
+                    if (auditable.severity.isNotBlank()) {
+                        try {
+                            severity(AuditSeverity.valueOf(auditable.severity.uppercase()))
+                        } catch (_: IllegalArgumentException) {
+                            // Keep action default
+                        }
+                    }
                 }
-            } else {
-                enrichedMetadata
-            }
+                .build()
 
-            auditActionRecorder.success(
-                action = auditable.action,
-                staffId = staffId,
-                venueId = venueId,
-                subjectType = auditable.subjectType,
-                subjectId = subjectId,
-                organizationId = organizationId,
-                metadata = finalMetadata
-            )
+            staffAuditPort.log(entry)
 
             logger.debug {
-                "Audit recorded [SUCCESS] action=${auditable.action} " +
-                        "subjectType=${auditable.subjectType} subjectId=$subjectId"
+                "Audit [SUCCESS] staff=$staffId action=${action.name} " +
+                        "subject=${auditable.subjectType}/$subjectId"
             }
         } catch (e: Exception) {
             logger.warn(e) { "Failed to record audit for ${auditable.action}" }
@@ -95,200 +95,66 @@ class AuditableAspect(
     @AfterThrowing(pointcut = "@annotation(auditable)", throwing = "exception")
     fun auditFailure(joinPoint: JoinPoint, auditable: Auditable, exception: Exception) {
         try {
-            val (staffId, venueId, organizationId, metadata) = extractAuditContext(
-                joinPoint,
-                auditable
-            )
+            val context = extractAuditContext(joinPoint, auditable)
 
-            val failureMetadata = metadata.toMutableMap().apply {
-                put("errorType", exception.javaClass.simpleName)
-                put("errorMessage", exception.message ?: "Unknown error")
+            val staffId = context.staffId
+            if (staffId == null) {
+                logger.debug { "Skipping failure audit for ${auditable.action}: no staffId available" }
+                return
             }
 
-            auditActionRecorder.failure(
-                action = auditable.action,
-                staffId = staffId,
-                venueId = venueId,
-                subjectType = auditable.subjectType,
-                subjectId = null,
-                organizationId = organizationId,
-                metadata = failureMetadata
-            )
+            val action = AuditAction.fromString(auditable.action)
 
-            logger.debug {
-                "Audit recorded [FAILURE] action=${auditable.action} " +
-                        "error=${exception.javaClass.simpleName}"
-            }
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to record audit failure for ${auditable.action}" }
-        }
-    }
-
-    private fun enrichMetadata(joinPoint: JoinPoint, metadata: Map<String, Any?>, result: Any?): Map<String, Any?> {
-        val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method
-        val args = joinPoint.args
-        val enriched = metadata.toMutableMap()
-
-        // Auto-capture path variables into metadata (compact, but avoids per-endpoint @AuditMetadata spam)
-        if (method != null) {
-            extractAllPathVariables(method, args).forEach { (k, v) ->
-                // Don't overwrite existing keys populated via @AuditMetadata("...") or other enrichment
-                enriched.putIfAbsent(k, v)
-            }
-            // Capture select request headers when present (keep small; avoid sensitive headers)
-            extractSelectedRequestHeaders(method, args).forEach { (k, v) ->
-                enriched.putIfAbsent(k, v)
-            }
-        }
-
-        // Include common path variables when present
-        val eventId = extractPathVariable(method!!, args, "eventId", UUID::class.java)
-        val sessionId = extractPathVariable(method, args, "sessionId", UUID::class.java)
-        if (eventId != null) enriched["eventId"] = eventId.toString()
-        if (sessionId != null) enriched["sessionId"] = sessionId.toString()
-
-        // Expand request object metadata into expected audit keys (compact but comprehensive)
-        val requestObj = enriched["request"]
-        if (requestObj != null) {
-            try {
-                val kClass = requestObj::class
-                val props = kClass.memberProperties.associateBy { it.name }
-                
-                // Core identifiers (always include if present)
-                props["templateId"]?.getter?.call(requestObj)?.let { enriched["templateId"] = it.toString() }
-                props["sessionId"]?.getter?.call(requestObj)?.let { enriched["sessionId"] = it.toString() }
-                props["eventId"]?.getter?.call(requestObj)?.let { enriched["eventId"] = it.toString() }
-                props["bookingId"]?.getter?.call(requestObj)?.let { enriched["bookingId"] = it.toString() }
-                props["platformId"]?.getter?.call(requestObj)?.let { enriched["platformId"] = it.toString() }
-                
-                // Collections - store counts only (not full lists) to keep metadata compact
-                props["seatIds"]?.getter?.call(requestObj)?.let { list ->
-                    val count = (list as? Collection<*>)?.size ?: 0
-                    if (count > 0) enriched["seatIdCount"] = count
-                }
-                props["tableIds"]?.getter?.call(requestObj)?.let { list ->
-                    val count = (list as? Collection<*>)?.size ?: 0
-                    if (count > 0) enriched["tableIdCount"] = count
-                }
-                // GA areas may be named gaIds or gaAreaIds depending on DTOs
-                (props["gaIds"] ?: props["gaAreaIds"])?.getter?.call(requestObj)?.let { list ->
-                    val count = (list as? Collection<*>)?.size ?: 0
-                    if (count > 0) enriched["gaAreaIdCount"] = count
-                }
-                
-                // Status changes
-                props["status"]?.getter?.call(requestObj)?.let { status ->
-                    enriched["targetStatus"] = status.toString()
-                }
-                
-                // Important business fields (compact)
-                props["reason"]?.getter?.call(requestObj)?.let { reason ->
-                    enriched["reason"] = reason.toString().take(100) // Limit length
-                }
-                props["code"]?.getter?.call(requestObj)?.let { code ->
-                    enriched["code"] = code.toString()
-                }
-                props["email"]?.getter?.call(requestObj)?.let { email ->
-                    enriched["email"] = email.toString()
-                }
-                props["quantity"]?.getter?.call(requestObj)?.let { qty ->
-                    enriched["quantity"] = qty
-                }
-            } catch (_: Exception) {
-                // best-effort enrichment
-            }
-        }
-
-        // Enrich from result: extract key identifiers and status (compact)
-        if (result is ApiResponse<*>) {
-            val data = result.data
-            when (data) {
-                is Int -> enriched["affectedCount"] = data
-                else -> {
-                    try {
-                        val kClass = data?.let { it::class }
-                        val props = kClass?.memberProperties?.associateBy { it.name }
-                        
-                        // Core identifiers from result
-                        props?.get("id")?.getter?.call(data)?.let { enriched["resultId"] = it.toString() }
-                        props?.get("status")?.getter?.call(data)?.let { enriched["status"] = it.toString() }
-                        props?.get("sessionId")?.getter?.call(data)?.let { enriched["sessionId"] = it.toString() }
-                        props?.get("eventId")?.getter?.call(data)?.let { enriched["eventId"] = it.toString() }
-                        props?.get("bookingId")?.getter?.call(data)?.let { enriched["bookingId"] = it.toString() }
-                        
-                        // Status change information (for EVENT_STATUS_CHANGE, SESSION_STATUS_CHANGE)
-                        props?.get("currentStatus")?.getter?.call(data)?.let { enriched["currentStatus"] = it.toString() }
-                        props?.get("previousStatus")?.getter?.call(data)?.let { enriched["previousStatus"] = it.toString() }
-                        
-                        // Cart token for traceability (cart gets deleted, but token is in audit metadata)
-                        props?.get("token")?.getter?.call(data)?.let { enriched["cartToken"] = it.toString() }
-                        props?.get("holdToken")?.getter?.call(data)?.let { enriched["holdToken"] = it.toString() }
-                        props?.get("reservationToken")?.getter?.call(data)?.let { enriched["reservationToken"] = it.toString() }
-                    } catch (_: Exception) {
+            val entry = StaffAuditEntry.builder(staffId, action)
+                .venueId(context.venueId)
+                .organizationId(context.organizationId)
+                .subject(auditable.subjectType, context.pathVariableSubjectId)
+                .description("${action.descriptionTemplate ?: auditable.action} failed: ${exception.message}")
+                .failure(exception.message ?: exception.javaClass.simpleName)
+                .clientIp(getClientIp())
+                .userAgent(getUserAgent())
+                .metadata(context.metadata)
+                .metadata("errorType", exception.javaClass.simpleName)
+                .apply {
+                    if (auditable.severity.isNotBlank()) {
+                        try {
+                            severity(AuditSeverity.valueOf(auditable.severity.uppercase()))
+                        } catch (_: IllegalArgumentException) {
+                        }
                     }
                 }
-            }
-        }
+                .build()
 
-        return enriched
+            staffAuditPort.log(entry)
+
+            logger.debug {
+                "Audit [FAILURE] staff=$staffId action=${action.name} error=${exception.javaClass.simpleName}"
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to record failure audit for ${auditable.action}" }
+        }
     }
 
-    private fun extractAllPathVariables(method: Method, args: Array<Any>): Map<String, String> {
-        val out = mutableMapOf<String, String>()
-        val kParams = method.kotlinFunction?.parameters
-        method.parameters.indices.forEach { index ->
-            val param = method.parameters[index]
-            val ann = param.getAnnotation(PathVariable::class.java) ?: return@forEach
-            val name = ann.name.takeIf { it.isNotBlank() }
-                ?: ann.value.takeIf { it.isNotBlank() }
-                ?: kParams?.getOrNull(index + 1)?.name // +1 skips implicit 'this'
-                ?: param.name
-            val raw = args.getOrNull(index)
-            if (!name.isNullOrBlank() && raw != null) {
-                out[name] = raw.toString().take(128)
-            }
-        }
-        return out
-    }
-
-    private fun extractSelectedRequestHeaders(method: Method, args: Array<Any>): Map<String, String> {
-        val out = mutableMapOf<String, String>()
-        val kParams = method.kotlinFunction?.parameters
-        method.parameters.indices.forEach { index ->
-            val param = method.parameters[index]
-            val ann = param.getAnnotation(RequestHeader::class.java) ?: return@forEach
-            val headerName = ann.name.takeIf { it.isNotBlank() }
-                ?: ann.value.takeIf { it.isNotBlank() }
-                ?: kParams?.getOrNull(index + 1)?.name
-                ?: param.name
-            // Only include explicitly useful headers
-            if (headerName.equals("X-Platform-ID", ignoreCase = true)) {
-                args.getOrNull(index)?.let { out["platformId"] = it.toString() }
-            }
-            if (headerName.equals("Idempotency-Key", ignoreCase = true)) {
-                args.getOrNull(index)?.let { out["idempotencyKey"] = it.toString().take(128) }
-            }
-        }
-        return out
-    }
+    // =========================================================================
+    // Context Extraction
+    // =========================================================================
 
     private data class AuditContext(
         val staffId: UUID?,
         val venueId: UUID?,
         val organizationId: UUID?,
+        val pathVariableSubjectId: String?,
         val metadata: Map<String, Any?> = emptyMap()
     )
 
-    private fun extractAuditContext(
-        joinPoint: JoinPoint,
-        auditable: Auditable
-    ): AuditContext {
+    private fun extractAuditContext(joinPoint: JoinPoint, auditable: Auditable): AuditContext {
         val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method
-            ?: return AuditContext(null, null, null)
+            ?: return AuditContext(null, null, null, null)
 
         val args = joinPoint.args
 
         val staffId = extractRequestAttribute(method, args, "staffId", UUID::class.java)
+
         val venueId = if (auditable.includeVenueId) {
             extractPathVariable(method, args, "venueId", UUID::class.java)
         } else null
@@ -297,24 +163,34 @@ class AuditableAspect(
             extractPathVariable(method, args, "organizationId", UUID::class.java)
         } else null
 
+        // Try to extract a subject ID from path variables based on subjectType
+        val subjectIdFromPath = when (auditable.subjectType.lowercase()) {
+            "event" -> extractPathVariable(method, args, "eventId", UUID::class.java)?.toString()
+            "session", "event_session" -> extractPathVariable(method, args, "sessionId", UUID::class.java)?.toString()
+            "venue" -> extractPathVariable(method, args, "venueId", UUID::class.java)?.toString()
+            "booking" -> extractPathVariable(method, args, "bookingId", UUID::class.java)?.toString()
+            "ticket" -> extractPathVariable(method, args, "ticketId", UUID::class.java)?.toString()
+            "chart", "seating_chart" -> extractPathVariable(method, args, "chartId", UUID::class.java)?.toString()
+            "platform" -> extractPathVariable(method, args, "platformId", UUID::class.java)?.toString()
+            "promo", "promo_code" -> extractPathVariable(method, args, "promoId", UUID::class.java)?.toString()
+            "organization" -> extractPathVariable(method, args, "organizationId", UUID::class.java)?.toString()
+            "staff" -> extractPathVariable(method, args, "targetStaffId", UUID::class.java)?.toString()
+            else -> null
+        }
+
         val metadata = extractMetadata(method, args)
 
-        return AuditContext(staffId, venueId, organizationId, metadata)
+        return AuditContext(staffId, venueId, organizationId, subjectIdFromPath, metadata)
     }
 
-    private fun <T> extractRequestAttribute(
-        method: Method,
-        args: Array<Any>,
-        attrName: String,
-        clazz: Class<T>
-    ): T? {
+    private fun <T> extractRequestAttribute(method: Method, args: Array<Any>, attrName: String, clazz: Class<T>): T? {
         val kParams = method.kotlinFunction?.parameters
         return method.parameters.indices.firstNotNullOfOrNull { index ->
             val param = method.parameters[index]
             val requestAttr = param.getAnnotation(RequestAttribute::class.java)
             if (requestAttr != null) {
                 val nameMatches = (requestAttr.value == attrName || requestAttr.name == attrName)
-                val paramNameMatches = kParams?.getOrNull(index + 1)?.name == attrName // +1 skips the implicit 'this'
+                val paramNameMatches = kParams?.getOrNull(index + 1)?.name == attrName
                 val typeMatches = param.type == clazz
                 if (nameMatches || paramNameMatches || typeMatches) {
                     try {
@@ -327,19 +203,14 @@ class AuditableAspect(
         }
     }
 
-    private fun <T> extractPathVariable(
-        method: Method,
-        args: Array<Any>,
-        varName: String,
-        clazz: Class<T>
-    ): T? {
+    private fun <T> extractPathVariable(method: Method, args: Array<Any>, varName: String, clazz: Class<T>): T? {
         val kParams = method.kotlinFunction?.parameters
         return method.parameters.indices.firstNotNullOfOrNull { index ->
             val param = method.parameters[index]
             val pathVar = param.getAnnotation(PathVariable::class.java)
             if (pathVar != null) {
                 val nameMatches = (pathVar.value == varName || pathVar.name == varName)
-                val paramNameMatches = kParams?.getOrNull(index + 1)?.name == varName // +1 skips the implicit 'this'
+                val paramNameMatches = kParams?.getOrNull(index + 1)?.name == varName
                 if (nameMatches || paramNameMatches) {
                     try {
                         clazz.cast(args.getOrNull(index))
@@ -351,47 +222,177 @@ class AuditableAspect(
         }
     }
 
-    private fun extractMetadata(
-        method: Method,
-        args: Array<Any>
-    ): Map<String, Any?> {
+    private fun extractMetadata(method: Method, args: Array<Any>): Map<String, Any?> {
         val metadata = mutableMapOf<String, Any?>()
-
         method.parameters.indices.forEach { index ->
             val auditMeta = method.parameters[index].getAnnotation(AuditMetadata::class.java)
             if (auditMeta != null && index < args.size) {
                 metadata[auditMeta.value] = args[index]
             }
         }
-
         return metadata
     }
 
-    private fun extractSubjectIdFromResult(result: Any?, subjectType: String): String? {
-        return when {
-            result is ApiResponse<*> -> {
-                val data = result.data
-                when {
-                    data is UUID -> data.toString()
-                    data is String -> data
-                    data != null -> {
-                        try {
-                            val kClass = data::class
-                            val idProperty = kClass.memberProperties.find {
-                                it.name == "id" || it.name == "code" || it.name == "slug"
-                            }
-                            val idValue = idProperty?.getter?.call(data)
-                            idValue?.toString()
-                        } catch (e: Exception) {
-                            null
-                        }
-                    }
+    // =========================================================================
+    // Metadata Enrichment
+    // =========================================================================
 
-                    else -> null
+    private fun enrichMetadata(joinPoint: JoinPoint, baseMetadata: Map<String, Any?>, result: Any?): Map<String, Any?> {
+        val method = (joinPoint.signature as? org.aspectj.lang.reflect.MethodSignature)?.method ?: return baseMetadata
+        val args = joinPoint.args
+        val enriched = baseMetadata.toMutableMap()
+
+        // Extract common path variables
+        extractPathVariable(method, args, "eventId", UUID::class.java)?.let { enriched["eventId"] = it.toString() }
+        extractPathVariable(method, args, "sessionId", UUID::class.java)?.let { enriched["sessionId"] = it.toString() }
+        extractPathVariable(method, args, "bookingId", UUID::class.java)?.let { enriched["bookingId"] = it.toString() }
+
+        // Extract key fields from request body
+        val requestObj = enriched["request"]
+        if (requestObj != null) {
+            extractRequestFields(requestObj, enriched)
+        }
+
+        // Extract key fields from result
+        if (result is ApiResponse<*> && result.data != null) {
+            extractResultFields(result.data!!, enriched)
+        }
+
+        // Remove the full request object from metadata (too verbose)
+        enriched.remove("request")
+
+        return enriched
+    }
+
+    private fun extractRequestFields(obj: Any, target: MutableMap<String, Any?>) {
+        try {
+            val kClass = obj::class
+            val props = kClass.memberProperties.associateBy { it.name }
+
+            // Key identifiers
+            props["templateId"]?.getter?.call(obj)?.let { target["templateId"] = it.toString() }
+            props["eventId"]?.getter?.call(obj)?.let { target["eventId"] = it.toString() }
+            props["sessionId"]?.getter?.call(obj)?.let { target["sessionId"] = it.toString() }
+
+            // Business fields
+            props["status"]?.getter?.call(obj)?.let { target["targetStatus"] = it.toString() }
+            props["name"]?.getter?.call(obj)?.let { target["name"] = it.toString().take(100) }
+            props["code"]?.getter?.call(obj)?.let { target["code"] = it.toString() }
+            props["email"]?.getter?.call(obj)?.let { target["email"] = it.toString() }
+            props["quantity"]?.getter?.call(obj)?.let { target["quantity"] = it }
+            props["reason"]?.getter?.call(obj)?.let { target["reason"] = it.toString().take(100) }
+
+            // Collection counts (not full lists)
+            props["seatIds"]?.getter?.call(obj)
+                ?.let { (it as? Collection<*>)?.size?.let { c -> target["seatCount"] = c } }
+            props["tableIds"]?.getter?.call(obj)
+                ?.let { (it as? Collection<*>)?.size?.let { c -> target["tableCount"] = c } }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun extractResultFields(data: Any, target: MutableMap<String, Any?>) {
+        try {
+            val kClass = data::class
+            val props = kClass.memberProperties.associateBy { it.name }
+
+            props["id"]?.getter?.call(data)?.let { target["resultId"] = it.toString() }
+            props["status"]?.getter?.call(data)?.let { target["resultStatus"] = it.toString() }
+            props["bookingId"]?.getter?.call(data)?.let { target["bookingId"] = it.toString() }
+            props["token"]?.getter?.call(data)?.let { target["token"] = it.toString() }
+        } catch (_: Exception) {
+        }
+    }
+
+    // =========================================================================
+    // Description Building
+    // =========================================================================
+
+    private fun buildDescription(
+        auditable: Auditable,
+        action: AuditAction,
+        metadata: Map<String, Any?>,
+        result: Any?
+    ): String {
+        // Use custom template if provided
+        val template = auditable.descriptionTemplate.takeIf { it.isNotBlank() }
+            ?: action.descriptionTemplate
+            ?: return action.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
+
+        // Substitute placeholders
+        var description = template
+        metadata.forEach { (key, value) ->
+            description = description.replace("{$key}", value?.toString() ?: "")
+        }
+
+        // Try to get name from result for better descriptions
+        if (result is ApiResponse<*> && result.data != null) {
+            try {
+                val data = result.data!!
+                val props = data::class.memberProperties.associateBy { it.name }
+                props["name"]?.getter?.call(data)
+                    ?.let { description = description.replace("{eventName}", it.toString()) }
+                props["name"]?.getter?.call(data)
+                    ?.let { description = description.replace("{venueName}", it.toString()) }
+                props["code"]?.getter?.call(data)
+                    ?.let { description = description.replace("{promoCode}", it.toString()) }
+            } catch (_: Exception) {
+            }
+        }
+
+        // Clean up unreplaced placeholders
+        description = description.replace(Regex("\\{[^}]+}"), "").trim()
+
+        return description.ifEmpty { action.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() } }
+    }
+
+    private fun extractSubjectIdFromResult(result: Any?, subjectType: String): String? {
+        if (result !is ApiResponse<*>) return null
+        val data = result.data ?: return null
+
+        return when (data) {
+            is UUID -> data.toString()
+            is String -> data
+            else -> {
+                try {
+                    val kClass = data::class
+                    val idProperty =
+                        kClass.memberProperties.find { it.name == "id" || it.name == "code" || it.name == "slug" }
+                    idProperty?.getter?.call(data)?.toString()
+                } catch (e: Exception) {
+                    null
                 }
             }
+        }
+    }
 
-            else -> null
+    // =========================================================================
+    // HTTP Context
+    // =========================================================================
+
+    private fun getClientIp(): String? {
+        return try {
+            val request = getCurrentRequest()
+            request?.getHeader("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
+                ?: request?.remoteAddr
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun getUserAgent(): String? {
+        return try {
+            getCurrentRequest()?.getHeader("User-Agent")?.take(512)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun getCurrentRequest(): HttpServletRequest? {
+        return try {
+            (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.request
+        } catch (_: Exception) {
+            null
         }
     }
 }

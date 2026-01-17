@@ -9,7 +9,7 @@ group = "app.venues"
 version = "0.0.1-SNAPSHOT"
 
 dependencies {
-    api(project(":shared"))
+    // No dependencies - pure Kotlin DTOs and interfaces
 }
 
 dependencyManagement {

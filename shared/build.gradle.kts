@@ -31,6 +31,9 @@ dependencies {
     // Common module dependency
     api(project(":common"))
 
+    // Audit API for annotations
+    api(project(":audit-api"))
+
     // Spring Framework Core
     api("org.springframework.boot:spring-boot-starter-web")
     api("org.springframework.boot:spring-boot-starter-validation")

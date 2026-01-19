@@ -89,22 +89,29 @@ class CartMutationResponseEdgeCaseTest {
     }
 
     /**
-     * IMPORTANT: This test documents a potential bug in CartService.holdBatch().
+     * IMPORTANT: This test documents future-proofing for success flag handling.
      * 
-     * The holdBatch method does not check `result.success` before using `result.cartToken`.
-     * If a mutation operation fails (success=false), the code continues processing
-     * as if it succeeded, potentially leading to data inconsistencies.
+     * **Current Implementation:**
+     * The CartService methods (addSeatToCart, addGAToCart, addTableToCart) currently
+     * ALWAYS return success=true and throw exceptions on failure. They never return
+     * success=false in the current codebase.
      * 
-     * TODO: Add validation in CartService.holdBatch() to check success flag:
+     * **Why this test exists:**
+     * If the implementation changes to use success flags instead of exceptions
+     * (e.g., for soft failures or partial successes), CartService.holdBatch()
+     * would need validation like:
      * ```
      * if (!result.success) {
      *     throw VenuesException.BadRequest("Failed to add item: ${result.affectedItemId}")
      * }
      * ```
+     * 
+     * **Verdict:** This is NOT a current bug, but documentation for API evolution.
      */
     @Test
-    fun `documents potential bug - CartService should check success flag`() {
-        // This test documents expected behavior that is NOT currently implemented
+    fun `documents future-proofing - success flag validation not needed currently`() {
+        // This test documents potential future behavior if API changes from
+        // exception-based error handling to success flag error handling
         val failedResponse = CartMutationResponse(
             cartToken = UUID.randomUUID(),
             success = false,
@@ -112,16 +119,14 @@ class CartMutationResponseEdgeCaseTest {
             affectedItemType = CartItemType.SEAT
         )
 
-        // Currently, CartService.holdBatch() would use failedResponse.cartToken
-        // without checking failedResponse.success, which could lead to issues.
-        // 
-        // Expected behavior: Service should detect success=false and throw exception
-        // Actual behavior: Service blindly uses cartToken regardless of success flag
+        // Current implementation: All failures throw exceptions (success is always true)
+        // Future consideration: If implementation changes to return success=false,
+        // CartService.holdBatch() would need to validate the success flag
 
         assertFalse(failedResponse.success, "Failed operations should have success=false")
 
-        // This comment serves as documentation that this edge case needs handling
-        println("⚠️  WARNING: CartService.holdBatch() does not validate CartMutationResponse.success flag")
-        println("   This could lead to data inconsistencies if mutation operations fail silently")
+        // This is valid DTO construction for future API evolution
+        println("ℹ️  INFO: Current implementation always returns success=true")
+        println("   This test documents expected behavior if API switches to flag-based errors")
     }
 }

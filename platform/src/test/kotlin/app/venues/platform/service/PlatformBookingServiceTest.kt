@@ -89,20 +89,12 @@ class PlatformBookingServiceTest {
         // Cart API returns token/expires at; summary echoes it.
         every {
             cartApi.addSeatToCart(any(), any(), any(), any())
-        } answers {
-            val reqToken = secondArg<UUID?>()
-            CartSummaryResponse(
-                token = reqToken ?: holdToken,
-                seats = emptyList(),
-                gaItems = emptyList(),
-                tables = emptyList(),
-                totalPrice = app.venues.shared.money.MoneyAmount.zero("USD"),
-                currency = "USD",
-                expiresAt = "2025-01-01T00:00:00Z",
-                sessionId = sessionId,
-                eventTitle = "event"
-            )
-        }
+        } returns app.venues.booking.api.dto.CartMutationResponse(
+            cartToken = holdToken,
+            success = true,
+            affectedItemId = "A1",
+            affectedItemType = app.venues.booking.api.dto.CartItemType.SEAT
+        )
 
         every {
             cartQueryApi.getCartSummary(any())

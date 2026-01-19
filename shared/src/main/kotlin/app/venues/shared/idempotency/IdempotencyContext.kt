@@ -13,13 +13,15 @@ package app.venues.shared.idempotency
  * @property scopeId Optional scope identifier for isolation (cart token, platform ID, etc.)
  * @property idempotencyKey Client-provided unique idempotency key
  * @property responseType Expected response type for deserialization and validation
+ * @property requestHash SHA-256 hash of request body for collision detection
  */
 data class IdempotencyContext<T : Any>(
     val keyPrefix: String,
     val operation: String,
     val scopeId: String?,
     val idempotencyKey: String,
-    val responseType: Class<T>
+    val responseType: Class<T>,
+    val requestHash: String? = null
 ) {
     init {
         require(keyPrefix.isNotBlank()) { "Key prefix must not be blank" }
@@ -49,11 +51,12 @@ data class IdempotencyContext<T : Any>(
      * Human-readable description for logging and debugging.
      */
     fun getDescription(): String {
-        return if (scopeId != null) {
+        val base = if (scopeId != null) {
             "prefix=$keyPrefix operation=$operation scope=$scopeId key=$idempotencyKey"
         } else {
             "prefix=$keyPrefix operation=$operation key=$idempotencyKey"
         }
+        return if (requestHash != null) "$base hash=${requestHash.take(8)}..." else base
     }
 }
 

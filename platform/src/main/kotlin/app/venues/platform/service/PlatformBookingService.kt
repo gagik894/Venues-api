@@ -132,8 +132,7 @@ class PlatformBookingService(
                     token = holdToken,
                     platformId = platformId
                 )
-                expiresAt = result.expiresAt
-                holdToken = result.token
+                holdToken = result.cartToken
             } catch (e: DataIntegrityViolationException) {
                 // Seat already in cart - skip (idempotent)
                 logger.debug { "Seat $seatIdentifier already in cart $holdToken" }
@@ -152,8 +151,8 @@ class PlatformBookingService(
                     token = holdToken,
                     platformId = platformId
                 )
-                expiresAt = result.expiresAt
-                holdToken = result.token
+                // expiresAt = result.expiresAt
+                holdToken = result.cartToken
             } catch (e: Exception) {
                 logger.warn { "Failed to add GA ${ga.levelIdentifier} to cart: ${e.message}" }
                 throw e
@@ -171,8 +170,8 @@ class PlatformBookingService(
                     token = holdToken,
                     platformId = platformId
                 )
-                expiresAt = result.expiresAt
-                holdToken = result.token
+                // expiresAt = result.expiresAt
+                holdToken = result.cartToken
             } catch (e: DataIntegrityViolationException) {
                 // Table already in cart - skip (idempotent)
                 logger.debug { "Table $tableIdentifier already in cart $holdToken" }

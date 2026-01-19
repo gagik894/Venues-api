@@ -6,7 +6,9 @@ import app.venues.booking.api.dto.CartMutationResponse
 import app.venues.booking.api.dto.CartSummaryResponse
 import app.venues.booking.service.CartQueryService
 import app.venues.booking.service.CartService
+import app.venues.booking.service.StaffCartService
 import app.venues.shared.money.MoneyAmount
+import app.venues.venue.api.service.VenueSecurityService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -20,15 +22,19 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import java.util.*
 
-class CartControllerTest {
+class StaffCartControllerTest {
 
     private lateinit var mockMvc: MockMvc
     private lateinit var cartService: CartService
     private lateinit var cartQueryService: CartQueryService
+    private lateinit var staffCartService: StaffCartService
+    private lateinit var venueSecurityService: VenueSecurityService
     private val objectMapper = ObjectMapper()
 
     private val token = UUID.randomUUID()
     private val sessionId = UUID.randomUUID()
+    private val venueId = UUID.randomUUID()
+    private val staffId = UUID.randomUUID()
 
     private val emptySummary = CartSummaryResponse(
         token = token,
@@ -46,8 +52,10 @@ class CartControllerTest {
     fun setup() {
         cartService = mock(CartService::class.java)
         cartQueryService = mock(CartQueryService::class.java)
+        staffCartService = mock(StaffCartService::class.java)
+        venueSecurityService = mock(VenueSecurityService::class.java)
 
-        val controller = CartController(cartService, cartQueryService)
+        val controller = StaffCartController(cartService, cartQueryService, staffCartService, venueSecurityService)
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build()
     }
@@ -62,13 +70,14 @@ class CartControllerTest {
             affectedItemType = CartItemType.SEAT
         )
 
-        `when`(cartService.addSeatToCart(request, token)).thenReturn(mutationResponse)
+        `when`(cartService.addSeatToCart(request, token, true, null)).thenReturn(mutationResponse)
 
         mockMvc.perform(
-            post("/api/v1/cart/seats")
+            post("/api/v1/staff/venues/$venueId/cart/seats")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
                 .param("token", token.toString())
+                .requestAttr("staffId", staffId)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.cartToken").value(token.toString()))
@@ -76,74 +85,39 @@ class CartControllerTest {
             .andExpect(jsonPath("$.data.affectedItemId").value("A1"))
             .andExpect(jsonPath("$.data.affectedItemType").value("SEAT"))
 
-        verify(cartService).addSeatToCart(request, token)
+        verify(venueSecurityService).requireVenueSellPermission(staffId, venueId)
+        verify(cartService).addSeatToCart(request, token, true, null)
     }
 
     @Test
     fun `removeSeatFromCart returns CartSummaryResponse`() {
-        `when`(cartService.removeSeatFromCart(token, "A1")).thenReturn(emptySummary)
+        `when`(cartService.removeSeatFromCart(token, "A1", null)).thenReturn(emptySummary)
 
         mockMvc.perform(
-            delete("/api/v1/cart/seats/A1")
+            delete("/api/v1/staff/venues/$venueId/cart/seats/A1")
                 .param("token", token.toString())
+                .requestAttr("staffId", staffId)
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.data.token").value(token.toString()))
 
-        verify(cartService).removeSeatFromCart(token, "A1")
+        verify(venueSecurityService).requireVenueSellPermission(staffId, venueId)
+        verify(cartService).removeSeatFromCart(token, "A1", null)
     }
 
     @Test
-    fun `addGAToCart returns CartMutationResponse`() {
-        val request = app.venues.booking.api.dto.AddGAToCartRequest(sessionId, "GA1", 5)
-        val mutationResponse = CartMutationResponse(
-            cartToken = token,
-            success = true,
-            affectedItemId = "GA1",
-            affectedItemType = CartItemType.GA
-        )
-
-        `when`(cartService.addGAToCart(request, token)).thenReturn(mutationResponse)
+    fun `clearCart returns CartSummaryResponse`() {
+        `when`(cartService.clearCart(token, null)).thenReturn(emptySummary)
 
         mockMvc.perform(
-            post("/api/v1/cart/ga")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request))
+            delete("/api/v1/staff/venues/$venueId/cart/clear")
                 .param("token", token.toString())
+                .requestAttr("staffId", staffId)
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data.cartToken").value(token.toString()))
-            .andExpect(jsonPath("$.data.success").value(true))
-            .andExpect(jsonPath("$.data.affectedItemId").value("GA1"))
-            .andExpect(jsonPath("$.data.affectedItemType").value("GA"))
+            .andExpect(jsonPath("$.data.token").value(token.toString()))
 
-        verify(cartService).addGAToCart(request, token)
-    }
-
-    @Test
-    fun `addTableToCart returns CartMutationResponse`() {
-        val request = app.venues.booking.api.dto.AddTableToCartRequest(sessionId, "T1")
-        val mutationResponse = CartMutationResponse(
-            cartToken = token,
-            success = true,
-            affectedItemId = "T1",
-            affectedItemType = CartItemType.TABLE
-        )
-
-        `when`(cartService.addTableToCart(request, token)).thenReturn(mutationResponse)
-
-        mockMvc.perform(
-            post("/api/v1/cart/table")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request))
-                .param("token", token.toString())
-        )
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.data.cartToken").value(token.toString()))
-            .andExpect(jsonPath("$.data.success").value(true))
-            .andExpect(jsonPath("$.data.affectedItemId").value("T1"))
-            .andExpect(jsonPath("$.data.affectedItemType").value("TABLE"))
-
-        verify(cartService).addTableToCart(request, token)
+        verify(venueSecurityService).requireVenueSellPermission(staffId, venueId)
+        verify(cartService).clearCart(token, null)
     }
 }

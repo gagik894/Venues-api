@@ -51,7 +51,7 @@ class IdempotencyService(
     private val logger = KotlinLogging.logger {}
 
     companion object {
-        private val RESULT_TTL: Duration = Duration.ofHours(24)
+        private val RESULT_TTL: Duration = Duration.ofMinutes(30)
         private val LOCK_TTL: Duration = Duration.ofSeconds(30)
         private const val MAX_POLL_ATTEMPTS = 10
         private const val INITIAL_POLL_DELAY_MS = 50L
@@ -71,25 +71,44 @@ class IdempotencyService(
     fun <T : Any> executeWithIdempotency(
         context: IdempotencyContext<T>,
         supplier: () -> T
-    ): T {
+    ): IdempotencyExecutionResult<T> {
         val cacheKey = context.getCacheKey()
         val lockKey = context.getLockKey()
 
         // Fast-path: Check for cached result
         getCachedResult(cacheKey, context)?.let { cached ->
             logger.debug { "Idempotency cache hit: ${context.getDescription()}" }
-            return cached
+            return IdempotencyExecutionResult(cached, isFromCache = true)
         }
 
         // Attempt to acquire exclusive lock
         val lockAcquired = tryAcquireLock(lockKey)
 
         if (lockAcquired) {
-            return executeLocked(context, cacheKey, lockKey, supplier)
+            val result = executeLocked(context, cacheKey, lockKey, supplier)
+            return IdempotencyExecutionResult(result, isFromCache = false)
         } else {
-            return pollForResult(context, cacheKey)
+            val result = pollForResult(context, cacheKey)
+            return IdempotencyExecutionResult(result, isFromCache = true)
         }
     }
+
+    /**
+     * Result of an idempotent execution including hit/miss status.
+     */
+    data class IdempotencyExecutionResult<T>(
+        val data: T,
+        val isFromCache: Boolean
+    )
+
+    /**
+     * Wrapper for cached idempotency entries.
+     * Stores both the result and the request hash for collision detection.
+     */
+    private data class CachedIdempotencyEntry(
+        val result: String,      // JSON-serialized result
+        val requestHash: String? // SHA-256 hash of original request body
+    )
 
     /**
      * Execute operation with lock acquired.
@@ -185,6 +204,7 @@ class IdempotencyService(
 
     /**
      * Retrieve cached result from Redis.
+     * Validates request hash if present to detect key collisions.
      */
     private fun <T : Any> getCachedResult(
         cacheKey: String,
@@ -192,8 +212,29 @@ class IdempotencyService(
     ): T? {
         return try {
             redisTemplate.opsForValue().get(cacheKey)?.let { json ->
-                deserializeResult(json, context)
+                // Try to parse as CachedIdempotencyEntry first
+                val entry = try {
+                    objectMapper.readValue(json, CachedIdempotencyEntry::class.java)
+                } catch (e: Exception) {
+                    // Fallback for legacy entries without hash wrapper
+                    return deserializeResult(json, context)
+                }
+
+                // Validate hash if both are present
+                if (context.requestHash != null && entry.requestHash != null) {
+                    if (context.requestHash != entry.requestHash) {
+                        logger.warn { "Idempotency key collision detected: ${context.getDescription()}" }
+                        throw VenuesException.ResourceConflict(
+                            "Idempotency key has already been used with a different request body"
+                        )
+                    }
+                }
+
+                // Deserialize the actual result
+                objectMapper.readValue(entry.result, context.responseType)
             }
+        } catch (e: VenuesException.ResourceConflict) {
+            throw e // Re-throw collision exception
         } catch (e: RedisCommandTimeoutException) {
             logger.warn(e) { "Redis timeout during cache read (idempotency)" }
             null
@@ -207,7 +248,7 @@ class IdempotencyService(
     }
 
     /**
-     * Cache operation result in Redis.
+     * Cache operation result in Redis with request hash for collision detection.
      */
     private fun <T : Any> cacheResult(
         cacheKey: String,
@@ -215,7 +256,12 @@ class IdempotencyService(
         context: IdempotencyContext<T>
     ) {
         try {
-            val json = objectMapper.writeValueAsString(result)
+            val resultJson = objectMapper.writeValueAsString(result)
+            val entry = CachedIdempotencyEntry(
+                result = resultJson,
+                requestHash = context.requestHash
+            )
+            val json = objectMapper.writeValueAsString(entry)
             redisTemplate.opsForValue().set(cacheKey, json, RESULT_TTL)
             logger.debug { "Idempotency result cached: ${context.getDescription()}" }
         } catch (e: JsonProcessingException) {

@@ -60,7 +60,18 @@ class CartController(
     @PostMapping("/seats")
     @Operation(
         summary = "Add seat to cart",
-        description = "Add a specific seat to cart. Returns minimal confirmation. Call GET /summary for full cart."
+        description = """
+            Add a specific seat to cart. Returns minimal confirmation response.
+            
+            **Idempotent**: Safe to retry with same Idempotency-Key. Results cached for 30 minutes.
+            
+            **Response**: Returns CartMutationResponse (cartToken, success, affectedItemId).
+            Call GET /summary separately to retrieve full cart state if needed.
+            
+            **Headers**:
+            - Idempotency-Key: UUID (required for idempotency protection)
+            - X-Idempotency-Cache: HIT|MISS (response header indicating cache status)
+        """
     )
     fun addSeatToCart(
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,

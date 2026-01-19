@@ -122,15 +122,21 @@ class CartSessionManager(
         }
 
         // Calculate new expiration using Cart domain logic (DRY principle)
-        cart.extendExpiration(extensionMinutes, initialExpirationMinutes, maxTtlMinutes)
-        val newExpiration = cart.expiresAt
+        val now = Instant.now()
+        val newExpiration = cart.calculateExtendedExpiration(
+            extensionMinutes,
+            initialExpirationMinutes,
+            maxTtlMinutes,
+            now
+        )
 
-        // Apply the calculated expiration atomically without triggering entity save
-        cartRepository.extendExpiration(cart.token, newExpiration)
+        val updatedRows = cartRepository.extendExpiration(cart.token, cart.version, newExpiration, now)
+        if (updatedRows == 0) {
+            throw VenuesException.ResourceConflict("Cart was modified concurrently. Please retry.")
+        }
 
-        // Detach to avoid JPA auto-flush updating the Cart version again
-        entityManager.detach(cart)
-        cart.expiresAt = newExpiration
+        // Refresh to sync version/expiration without re-triggering optimistic lock flush
+        entityManager.refresh(cart)
 
         return cart
     }

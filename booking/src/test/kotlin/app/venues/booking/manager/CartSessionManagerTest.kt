@@ -97,7 +97,7 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
@@ -109,7 +109,7 @@ class CartSessionManagerTest {
         )
 
         // Assert
-        verify { cartRepository.extendExpiration(existingCart.token, any()) }
+        verify { cartRepository.extendExpiration(existingCart.token, existingCart.version, any(), any()) }
 
         // Should extend by CART_EXTENSION_MINUTES (5 min) from NOW, not from expiration
         val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
@@ -128,7 +128,7 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
@@ -140,7 +140,7 @@ class CartSessionManagerTest {
         )
 
         // Assert
-        verify { cartRepository.extendExpiration(existingCart.token, any()) }
+        verify { cartRepository.extendExpiration(existingCart.token, existingCart.version, any(), any()) }
 
         // Should extend by STAFF_CART_EXTENSION_MINUTES (10 min) from NOW
         val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
@@ -222,7 +222,7 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
 
         val beforeExtension = Instant.now()
 
@@ -234,7 +234,7 @@ class CartSessionManagerTest {
         )
 
         // Assert
-        verify { cartRepository.extendExpiration(existingCart.token, any()) }
+        verify { cartRepository.extendExpiration(existingCart.token, existingCart.version, any(), any()) }
 
         val expirationDuration = result.expiresAt.epochSecond - beforeExtension.epochSecond
 

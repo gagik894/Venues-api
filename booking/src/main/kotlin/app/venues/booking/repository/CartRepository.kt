@@ -59,10 +59,12 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     @Query(
         """
         UPDATE Cart c
-        SET c.expiresAt = :newExpiration
-        WHERE c.token = :token
+        SET c.expiresAt = :newExpiration,
+            c.lastModifiedAt = :lastModifiedAt,
+            c.version = c.version + 1
+        WHERE c.token = :token AND c.version = :currentVersion
     """
     )
-    fun extendExpiration(token: UUID, newExpiration: Instant): Int
+    fun extendExpiration(token: UUID, currentVersion: Long, newExpiration: Instant, lastModifiedAt: Instant): Int
 }
 

@@ -134,21 +134,29 @@ class Cart(
      * @param initialExpirationMinutes Cap: max minutes from NOW (7 or 20)
      * @param maxTtlMinutes Cap: max total lifetime from creation (20 or 30)
      */
-    fun extendExpiration(extensionMinutes: Long, initialExpirationMinutes: Long, maxTtlMinutes: Long) {
-        val now = Instant.now()
+    fun calculateExtendedExpiration(
+        extensionMinutes: Long,
+        initialExpirationMinutes: Long,
+        maxTtlMinutes: Long,
+        now: Instant = Instant.now()
+    ): Instant {
         val remainingSeconds = expiresAt.epochSecond - now.epochSecond
-        
+
         // Add extension to remaining time
         val newRemainingSeconds = remainingSeconds + (extensionMinutes * 60)
-        
+
         // Cap 1: Don't exceed initial expiration from NOW
         val cappedAtInitial = minOf(newRemainingSeconds, initialExpirationMinutes * 60)
-        
+
         // Cap 2: Don't exceed max TTL from creation
         val hardLimitSeconds = (createdAt.epochSecond + maxTtlMinutes * 60) - now.epochSecond
         val finalRemainingSeconds = minOf(cappedAtInitial, hardLimitSeconds)
-        
-        this.expiresAt = now.plusSeconds(finalRemainingSeconds)
+
+        return now.plusSeconds(finalRemainingSeconds)
+    }
+
+    fun extendExpiration(extensionMinutes: Long, initialExpirationMinutes: Long, maxTtlMinutes: Long) {
+        this.expiresAt = calculateExtendedExpiration(extensionMinutes, initialExpirationMinutes, maxTtlMinutes)
     }
 
 

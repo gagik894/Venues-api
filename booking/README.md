@@ -311,22 +311,22 @@ Cart operations use the shared idempotency framework:
 
 ```kotlin
 // First request
-POST / cart / seats
+POST /cart/seats
 Idempotency - Key: abc-123
 → Executes, caches result
 ← X - Idempotency - Cache: MISS
 
 // Retry (same key, same body)
-POST / cart / seats
+POST /cart/seats
 Idempotency - Key: abc-123
 → Returns cached result
 ← X - Idempotency - Cache: HIT
 
 // Replay attack (same key, different body)
-POST / cart / seats
+POST /cart/seats
 Idempotency - Key: abc-123
 → Detects hash mismatch
-← 409 Conflict : "Key already used with different body"
+← 409 Conflict: "Key already used with different body"
 ```
 
 ## Business Rules

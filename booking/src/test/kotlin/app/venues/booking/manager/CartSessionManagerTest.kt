@@ -97,7 +97,14 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), capture(slot<Instant>()), any()) } answers {
+            // Simulate DB update by capturing the new expiration and updating the cart
+            existingCart.expiresAt = thirdArg()
+            1
+        }
+        every { entityManager.refresh(existingCart) } answers {
+            // refresh is already simulated by the above mock
+        }
 
         val beforeExtension = Instant.now()
 
@@ -128,7 +135,14 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), capture(slot<Instant>()), any()) } answers {
+            // Simulate DB update by capturing the new expiration and updating the cart
+            existingCart.expiresAt = thirdArg()
+            1
+        }
+        every { entityManager.refresh(existingCart) } answers {
+            // refresh is already simulated by the above mock
+        }
 
         val beforeExtension = Instant.now()
 
@@ -222,7 +236,14 @@ class CartSessionManagerTest {
         )
 
         every { cartRepository.findByToken(existingCart.token) } returns existingCart
-        every { cartRepository.extendExpiration(any(), any(), any(), any()) } returns 1
+        every { cartRepository.extendExpiration(any(), any(), capture(slot<Instant>()), any()) } answers {
+            // Simulate DB update by capturing the new expiration and updating the cart
+            existingCart.expiresAt = thirdArg()
+            1
+        }
+        every { entityManager.refresh(existingCart) } answers {
+            // refresh is already simulated by the above mock
+        }
 
         val beforeExtension = Instant.now()
 

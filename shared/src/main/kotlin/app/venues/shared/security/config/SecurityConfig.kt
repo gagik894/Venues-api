@@ -260,6 +260,7 @@ class SecurityConfig(
                 listOf(
                     "http://localhost:3000",  // React/Vue dev server
                     "http://localhost:5173",  // Vite dev server
+                    "http://localhost:5174",
                     "http://localhost:4200",  // Angular dev server
                     "http://localhost:8080"   // Same origin
                 )

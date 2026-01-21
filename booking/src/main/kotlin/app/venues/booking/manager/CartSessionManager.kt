@@ -135,8 +135,11 @@ class CartSessionManager(
             throw VenuesException.ResourceConflict("Cart was modified concurrently. Please retry.")
         }
 
-        // Refresh to sync version/expiration without re-triggering optimistic lock flush
-        entityManager.refresh(cart)
+        // Update in-memory to reflect the DB change immediately.
+        // This avoids a redundant SELECT via entityManager.refresh() while keeping the entity state consistent.
+        cart.expiresAt = newExpiration
+        cart.lastModifiedAt = now
+        cart.version = cart.version + 1
 
         return cart
     }

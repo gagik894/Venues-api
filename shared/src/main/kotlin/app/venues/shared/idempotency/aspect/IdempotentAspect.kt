@@ -5,6 +5,7 @@ import app.venues.shared.idempotency.IdempotencyKeyExtractor
 import app.venues.shared.idempotency.IdempotencyScopeType
 import app.venues.shared.idempotency.IdempotencyService
 import app.venues.shared.idempotency.annotation.Idempotent
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
@@ -13,7 +14,11 @@ import org.aspectj.lang.reflect.MethodSignature
 import org.springframework.core.annotation.Order
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import java.lang.reflect.Method
+import java.security.MessageDigest
 
 /**
  * Enterprise-grade aspect for automatic idempotency protection.
@@ -49,7 +54,8 @@ import java.lang.reflect.Method
 @Component
 @Order(1)
 class IdempotentAspect(
-    private val idempotencyService: IdempotencyService
+    private val idempotencyService: IdempotencyService,
+    private val objectMapper: ObjectMapper
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -77,6 +83,9 @@ class IdempotentAspect(
         // Extract scope identifier based on annotation configuration
         val scopeId = extractScopeId(method, args, idempotent)
 
+        // Compute request body hash for collision detection
+        val requestHash = computeRequestBodyHash(method, args)
+
         // Determine response type from method signature
         val responseType = extractResponseType(method)
 
@@ -86,14 +95,36 @@ class IdempotentAspect(
             operation = idempotent.endpoint,
             scopeId = scopeId,
             idempotencyKey = idempotencyKey,
-            responseType = responseType
+            responseType = responseType,
+            requestHash = requestHash
         )
 
         logger.debug { "Applying idempotency: ${context.getDescription()}" }
 
         // Delegate to idempotency service
-        return idempotencyService.executeWithIdempotency(context) {
-            joinPoint.proceed()
+        val executionResult = idempotencyService.executeWithIdempotency(context) {
+            joinPoint.proceed() as Any
+        }
+
+        // Add header to response
+        addCacheHeader(executionResult.isFromCache)
+
+        return executionResult.data
+    }
+
+    /**
+     * Add X-Idempotency-Cache header to the current response.
+     */
+    private fun addCacheHeader(isFromCache: Boolean) {
+        try {
+            val attributes = RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes
+            val response = attributes?.response
+            if (response != null) {
+                val value = if (isFromCache) "HIT" else "MISS"
+                response.setHeader("X-Idempotency-Cache", value)
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to add idempotency cache header to response" }
         }
     }
 
@@ -185,6 +216,37 @@ class IdempotentAspect(
             }
         } catch (e: Exception) {
             logger.warn(e) { "Failed to extract generic type from method ${method.name}" }
+            null
+        }
+    }
+
+    /**
+     * Compute SHA-256 hash of the request body for collision detection.
+     *
+     * @param method Controller method
+     * @param args Method arguments
+     * @return SHA-256 hash as hex string, or null if no @RequestBody parameter
+     */
+    private fun computeRequestBodyHash(method: Method, args: Array<Any>): String? {
+        return try {
+            // Find parameter annotated with @RequestBody
+            val bodyIndex = method.parameters.indexOfFirst { param ->
+                param.getAnnotation(RequestBody::class.java) != null
+            }
+
+            if (bodyIndex < 0 || bodyIndex >= args.size) {
+                return null // No @RequestBody parameter
+            }
+
+            val body = args[bodyIndex]
+            val json = objectMapper.writeValueAsString(body)
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hashBytes = digest.digest(json.toByteArray(Charsets.UTF_8))
+
+            // Convert to hex string
+            hashBytes.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to compute request body hash for ${method.name}" }
             null
         }
     }

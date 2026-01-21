@@ -60,7 +60,18 @@ class CartController(
     @PostMapping("/seats")
     @Operation(
         summary = "Add seat to cart",
-        description = "Add a specific seat to cart. Returns token to use for subsequent operations."
+        description = """
+            Add a specific seat to cart. Returns minimal confirmation response.
+            
+            **Idempotent**: Safe to retry with same Idempotency-Key. Results cached for 30 minutes.
+            
+            **Response**: Returns CartMutationResponse (cartToken, success, affectedItemId).
+            Call GET /summary separately to retrieve full cart state if needed.
+            
+            **Headers**:
+            - Idempotency-Key: UUID (required for idempotency protection)
+            - X-Idempotency-Cache: HIT|MISS (response header indicating cache status)
+        """
     )
     fun addSeatToCart(
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -68,16 +79,20 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<CartSummaryResponse> {
+    ): ApiResponse<CartMutationResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding seat to cart: $request, token=$effectiveToken" }
 
         val result = cartService.addSeatToCart(request, effectiveToken)
 
-        setCartCookie(response, result.token)
+        setCartCookie(response, result.cartToken)
 
         return ApiResponse.success(
-            data = result,
+            data = CartMutationResponse(
+                cartToken = result.cartToken,
+                affectedItemId = request.code,
+                affectedItemType = CartItemType.SEAT
+            ),
             message = "Seat added to cart"
         )
     }
@@ -94,7 +109,7 @@ class CartController(
     @PostMapping("/ga")
     @Operation(
         summary = "Add GA tickets to cart",
-        description = "Add general admission tickets to cart"
+        description = "Add general admission tickets to cart. Returns minimal confirmation."
     )
     fun addGAToCart(
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -102,16 +117,20 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<CartSummaryResponse> {
+    ): ApiResponse<CartMutationResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding GA to cart: $request, token=$effectiveToken" }
 
         val result = cartService.addGAToCart(request, effectiveToken)
 
-        setCartCookie(response, result.token)
+        setCartCookie(response, result.cartToken)
 
         return ApiResponse.success(
-            data = result,
+            data = CartMutationResponse(
+                cartToken = result.cartToken,
+                affectedItemId = request.code,
+                affectedItemType = CartItemType.GA
+            ),
             message = "GA tickets added to cart"
         )
     }
@@ -128,7 +147,7 @@ class CartController(
     @PostMapping("/table")
     @Operation(
         summary = "Add Table to cart",
-        description = "Add Table tickets to cart"
+        description = "Add Table tickets to cart. Returns minimal confirmation."
     )
     fun addTableToCart(
         @RequestHeader(value = "Idempotency-Key", required = false) idempotencyKey: String?,
@@ -136,16 +155,20 @@ class CartController(
         @RequestParam(required = false) token: UUID?,
         @CookieValue(name = "cart_token", required = false) cookieToken: UUID?,
         response: HttpServletResponse
-    ): ApiResponse<CartSummaryResponse> {
+    ): ApiResponse<CartMutationResponse> {
         val effectiveToken = token ?: cookieToken
         logger.debug { "Adding Table to cart: $request, token=$effectiveToken" }
 
         val result = cartService.addTableToCart(request, effectiveToken)
 
-        setCartCookie(response, result.token)
+        setCartCookie(response, result.cartToken)
 
         return ApiResponse.success(
-            data = result,
+            data = CartMutationResponse(
+                cartToken = result.cartToken,
+                affectedItemId = request.code,
+                affectedItemType = CartItemType.TABLE
+            ),
             message = "Table added to cart"
         )
     }
@@ -182,11 +205,6 @@ class CartController(
     /**
      * Remove seat from cart.
      */
-    @Idempotent(
-        endpoint = "cart:remove-seat",
-        keyPrefix = "booking",
-        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
-    )
     @Auditable(action = "CART_REMOVE_SEAT", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/seats/{seatIdentifier}")
     @Operation(
@@ -215,11 +233,6 @@ class CartController(
     /**
      * Update GA ticket quantity in cart.
      */
-    @Idempotent(
-        endpoint = "cart:update-ga",
-        keyPrefix = "booking",
-        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
-    )
     @Auditable(action = "CART_UPDATE_GA", subjectType = "event_session", includeVenueId = false)
     @PutMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -249,11 +262,6 @@ class CartController(
     /**
      * Remove GA item from cart.
      */
-    @Idempotent(
-        endpoint = "cart:remove-ga",
-        keyPrefix = "booking",
-        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
-    )
     @Auditable(action = "CART_REMOVE_GA", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/ga/{levelIdentifier}")
     @Operation(
@@ -282,11 +290,6 @@ class CartController(
     /**
      * Remove table from cart.
      */
-    @Idempotent(
-        endpoint = "cart:remove-table",
-        keyPrefix = "booking",
-        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
-    )
     @Auditable(action = "CART_REMOVE_TABLE", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/tables/{tableIdentifier}")
     @Operation(
@@ -315,11 +318,6 @@ class CartController(
     /**
      * Clear cart.
      */
-    @Idempotent(
-        endpoint = "cart:clear",
-        keyPrefix = "booking",
-        scopeType = app.venues.shared.idempotency.IdempotencyScopeType.CART_TOKEN
-    )
     @Auditable(action = "CART_CLEAR", subjectType = "event_session", includeVenueId = false)
     @DeleteMapping("/clear")
     @Operation(

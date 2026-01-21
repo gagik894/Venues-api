@@ -110,7 +110,7 @@ class CartService(
         token: UUID?,
         isStaffCart: Boolean,
         platformId: UUID?
-    ): CartSummaryResponse {
+    ): CartMutationResponse {
         logger.debug { "Adding seat to cart: ${request.code}" }
 
         val violations = validator.validate(request)
@@ -146,7 +146,12 @@ class CartService(
 
         logger.info { "Seat ${request.code} added to cart ${cart.token}" }
 
-        return buildSuccessResponse(cart)
+        return CartMutationResponse(
+            cartToken = cart.token,
+            success = true,
+            affectedItemId = request.code,
+            affectedItemType = CartItemType.SEAT
+        )
     }
 
     /**
@@ -164,7 +169,7 @@ class CartService(
         token: UUID?,
         isStaffCart: Boolean,
         platformId: UUID?
-    ): CartSummaryResponse {
+    ): CartMutationResponse {
         logger.debug { "Adding GA to cart: ${request.code}, quantity=${request.quantity}" }
 
         val violations = validator.validate(request)
@@ -207,7 +212,12 @@ class CartService(
             existingItem = existingById
         )
 
-        return buildSuccessResponse(cart)
+        return CartMutationResponse(
+            cartToken = cart.token,
+            success = true,
+            affectedItemId = request.code,
+            affectedItemType = CartItemType.GA
+        )
     }
     /**
      * Adds an entire table to cart.
@@ -222,7 +232,7 @@ class CartService(
         token: UUID?,
         isStaffCart: Boolean,
         platformId: UUID?
-    ): CartSummaryResponse {
+    ): CartMutationResponse {
         logger.debug { "Adding table to cart: session=${request.sessionId}, table=${request.code}" }
 
         val violations = validator.validate(request)
@@ -254,7 +264,12 @@ class CartService(
 
         logger.info { "Table ${reservation.tableName} added to cart ${cart.token}" }
 
-        return buildSuccessResponse(cart)
+        return CartMutationResponse(
+            cartToken = cart.token,
+            success = true,
+            affectedItemId = request.code,
+            affectedItemType = CartItemType.TABLE
+        )
     }
 
     /**
@@ -597,7 +612,7 @@ class CartService(
                 isStaffCart = false,
                 platformId = platformId
             )
-            token = result.token
+            token = result.cartToken
         }
 
         request.gaReservations.orEmpty().forEach { ga ->
@@ -611,7 +626,7 @@ class CartService(
                 isStaffCart = false,
                 platformId = platformId
             )
-            token = result.token
+            token = result.cartToken
         }
 
         request.tableIdentifiers.orEmpty().forEach { tableCode ->
@@ -621,7 +636,7 @@ class CartService(
                 isStaffCart = false,
                 platformId = platformId
             )
-            token = result.token
+            token = result.cartToken
         }
 
         return cartQueryApi.getCartSummary(requireNotNull(token) { "Hold token missing after processing items" })

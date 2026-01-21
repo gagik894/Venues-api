@@ -13,42 +13,42 @@ interface CartApi {
      * @param request DTO containing all request data
      * @param token Optional existing cart token
      * @param isStaffCart Whether this is a staff cart (affects expiration timing)
-     * @return Response DTO with token and message
+     * @return Minimal mutation confirmation
      */
     fun addSeatToCart(
         request: AddSeatToCartRequest,
         token: UUID? = null,
         isStaffCart: Boolean = false,
         platformId: UUID? = null
-    ): CartSummaryResponse
+    ): CartMutationResponse
 
     /**
      * Adds GA tickets to cart.
      * @param request DTO containing all request data
      * @param token Optional existing cart token
      * @param isStaffCart Whether this is a staff cart (affects expiration timing)
-     * @return Response DTO with token and message
+     * @return Minimal mutation confirmation
      */
     fun addGAToCart(
         request: AddGAToCartRequest,
         token: UUID? = null,
         isStaffCart: Boolean = false,
         platformId: UUID? = null
-    ): CartSummaryResponse
+    ): CartMutationResponse
 
     /**
      * Adds a table to cart.
      * @param request DTO containing all request data
      * @param token Optional existing cart token
      * @param isStaffCart Whether this is a staff cart (affects expiration timing)
-     * @return Response DTO with token and message
+     * @return Minimal mutation confirmation
      */
     fun addTableToCart(
         request: AddTableToCartRequest,
         token: UUID? = null,
         isStaffCart: Boolean = false,
         platformId: UUID? = null
-    ): CartSummaryResponse
+    ): CartMutationResponse
 
     /**
      * Removes a specific seat from cart.

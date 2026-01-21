@@ -2,6 +2,8 @@ package app.venues.shared.idempotency
 
 import app.venues.shared.idempotency.annotation.Idempotent
 import app.venues.shared.idempotency.aspect.IdempotentAspect
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -12,15 +14,13 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.CookieValue
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestHeader
-import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.*
 
 class IdempotentAspectTest {
 
     private val idempotencyService: IdempotencyService = mockk(relaxed = true)
-    private val aspect = IdempotentAspect(idempotencyService)
+    private val objectMapper: ObjectMapper = jacksonObjectMapper()
+    private val aspect = IdempotentAspect(idempotencyService, objectMapper)
 
     private data class DummyResponse(val value: String)
 
@@ -58,6 +58,14 @@ class IdempotentAspectTest {
             @PathVariable("id") id: String?
         ): ResponseEntity<DummyResponse> {
             return ResponseEntity.ok(DummyResponse("booking"))
+        }
+
+        @Idempotent(endpoint = "cart:add-item", keyPrefix = "booking", scopeType = IdempotencyScopeType.CART_TOKEN)
+        fun addItem(
+            @RequestHeader("Idempotency-Key") idempotencyKey: String?,
+            @RequestBody body: DummyResponse
+        ): ResponseEntity<DummyResponse> {
+            return ResponseEntity.ok(DummyResponse("item-added"))
         }
     }
 
@@ -103,7 +111,7 @@ class IdempotentAspectTest {
         every { joinPoint.args } returns arrayOf("idem-1", "cart-token", "cookie-token")
         every { joinPoint.proceed() } returns ResponseEntity.ok(DummyResponse("ok"))
         every { idempotencyService.executeWithIdempotency(capture(contextSlot), any()) } answers {
-            secondArg<() -> Any>().invoke()
+            IdempotencyService.IdempotencyExecutionResult(secondArg<() -> Any>().invoke(), false)
         }
 
         val result = aspect.applyIdempotency(joinPoint, annotation)
@@ -136,7 +144,7 @@ class IdempotentAspectTest {
         every { joinPoint.args } returns arrayOf("idem-1", null, "cookie-token")
         every { joinPoint.proceed() } returns ResponseEntity.ok(DummyResponse("ok"))
         every { idempotencyService.executeWithIdempotency(capture(contextSlot), any()) } answers {
-            secondArg<() -> Any>().invoke()
+            IdempotencyService.IdempotencyExecutionResult(secondArg<() -> Any>().invoke(), false)
         }
 
         aspect.applyIdempotency(joinPoint, annotation)
@@ -161,7 +169,7 @@ class IdempotentAspectTest {
         every { joinPoint.args } returns arrayOf("idem-2", "platform-1")
         every { joinPoint.proceed() } returns DummyResponse("hold")
         every { idempotencyService.executeWithIdempotency(capture(contextSlot), any()) } answers {
-            secondArg<() -> Any>().invoke()
+            IdempotencyService.IdempotencyExecutionResult(secondArg<() -> Any>().invoke(), false)
         }
 
         aspect.applyIdempotency(joinPoint, annotation)
@@ -188,6 +196,7 @@ class IdempotentAspectTest {
 
     @Test
     fun `null custom scope when name missing`() {
+        // ... existing test content ...
         val controllerMethod = SampleController::class.java.getMethod(
             "customScopeMissingName",
             String::class.java
@@ -202,11 +211,44 @@ class IdempotentAspectTest {
         every { joinPoint.args } returns arrayOf("idem-3")
         every { joinPoint.proceed() } returns DummyResponse("custom")
         every { idempotencyService.executeWithIdempotency(capture(contextSlot), any()) } answers {
-            secondArg<() -> Any>().invoke()
+            IdempotencyService.IdempotencyExecutionResult(secondArg<() -> Any>().invoke(), false)
         }
 
         aspect.applyIdempotency(joinPoint, annotation)
 
         assertNull(contextSlot.captured.scopeId)
     }
+
+    @Test
+    fun `computes request hash when body is present`() {
+        val controllerMethod = SampleController::class.java.getMethod(
+            "addItem",
+            String::class.java,
+            DummyResponse::class.java
+        )
+        val annotation = controllerMethod.getAnnotation(Idempotent::class.java)
+        val joinPoint = mockk<ProceedingJoinPoint>(relaxed = true)
+        val signature = mockk<MethodSignature>()
+        val contextSlot = slot<IdempotencyContext<*>>()
+
+        val body = DummyResponse("some-value")
+
+        every { joinPoint.signature } returns signature
+        every { signature.method } returns controllerMethod
+        every { joinPoint.args } returns arrayOf("idem-hash", body)
+        every { joinPoint.proceed() } returns ResponseEntity.ok(DummyResponse("item-added"))
+        every { idempotencyService.executeWithIdempotency(capture(contextSlot), any()) } answers {
+            IdempotencyService.IdempotencyExecutionResult(secondArg<() -> Any>().invoke(), false)
+        }
+
+        aspect.applyIdempotency(joinPoint, annotation)
+
+        // Verify hash is present and correct (SHA-256 of {"value":"some-value"})
+        // We don't assert exact hash value to avoid brittleness with whitespace, 
+        // but we assert it is NOT null and looks like a hex string.
+        val hash = contextSlot.captured.requestHash
+        assertEquals(true, hash != null, "Request hash should not be null")
+        assertEquals(64, hash?.length, "SHA-256 hash length should be 64")
+    }
 }
+ 

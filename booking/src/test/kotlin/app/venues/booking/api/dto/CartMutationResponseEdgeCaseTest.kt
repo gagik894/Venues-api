@@ -126,7 +126,5 @@ class CartMutationResponseEdgeCaseTest {
         assertFalse(failedResponse.success, "Failed operations should have success=false")
 
         // This is valid DTO construction for future API evolution
-        println("ℹ️  INFO: Current implementation always returns success=true")
-        println("   This test documents expected behavior if API switches to flag-based errors")
     }
 }

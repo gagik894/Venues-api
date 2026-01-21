@@ -265,11 +265,11 @@ Response: 409 Conflict
 
 ```kotlin
 // Cannot use cart A's idempotency key on cart B
-POST / cart / seats?token = cart-A
+POST /cart/seats?token=cart-A
 Idempotency - Key: key-1
 → Cached with scope: cart-A
 
-POST / cart / seats?token = cart-B
+POST /cart/seats?token=cart-B
 Idempotency - Key: key-1  // Same key, different scope
 → Executes fresh (different cache key)
 ```

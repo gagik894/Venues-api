@@ -79,8 +79,6 @@ class IdempotencyServiceTest {
 
         //Verify that what was cached is valid JSON wrapper or legacy
         // Ideally we expect wrapper now
-        println("Cached JSON: ${slot.captured}")
-        
         verify(exactly = 1) { valueOps.setIfAbsent("lock:booking:cart:add:scope-1:idem-2", "LOCKED", any<Duration>()) }
         verify(exactly = 1) { redisTemplate.delete("lock:booking:cart:add:scope-1:idem-2") }
     }

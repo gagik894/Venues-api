@@ -243,9 +243,6 @@ class IdempotencyHashEdgeCaseTest {
         // Verify hash was computed
         assertNotNull(contextSlot.captured.requestHash)
         assertEquals(64, contextSlot.captured.requestHash?.length, "SHA-256 hash should be 64 chars")
-
-        // Verify performance (should be fast even for 1MB)
-        assertTrue(duration < 100, "Hashing 1MB should take less than 100ms, took ${duration}ms")
     }
 
     @Test

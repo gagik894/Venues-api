@@ -244,7 +244,7 @@ Response Body:
 
 ```kotlin
 // Attacker tries to reuse key with modified body
-POST / cart / seats
+POST /cart/seats
 Idempotency - Key: stolen-key-123  // Same key
 Body: { "code": "VIP-1" }        // Different seat!
 

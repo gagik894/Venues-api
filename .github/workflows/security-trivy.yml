@@ -34,7 +34,7 @@ jobs:
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $(pwd):/workspace \
-            aquasec/trivy:0.64.1 image \
+            aquasec/trivy:0.69.3 image \
             --format sarif \
             --output /workspace/trivy-results.sarif \
             --exit-code 1 \

@@ -12,7 +12,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(providers.gradleProperty("app.jvm.version").get().toInt())
     }
 }
 
@@ -63,7 +63,7 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(providers.gradleProperty("app.jvm.version").get().toInt())
     compilerOptions {
         freeCompilerArgs.addAll("-Xjsr305=strict")
     }

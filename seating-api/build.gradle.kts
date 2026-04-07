@@ -15,6 +15,6 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(providers.gradleProperty("app.jvm.version").get().toInt())
 }
 

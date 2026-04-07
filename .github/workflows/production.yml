@@ -103,7 +103,7 @@ jobs:
       # --- SECURITY SCANNING ---
       # 1. Run Trivy (Fail only on CRITICAL, warn on HIGH)
       - name: Run Trivy Security Scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'table'

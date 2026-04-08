@@ -29,7 +29,7 @@ dependencyManagement {
 dependencies {
     // API Contract Module
     api(project(":media-api"))
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // Audit logging
     implementation(project(":audit"))
@@ -63,4 +63,6 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+
 

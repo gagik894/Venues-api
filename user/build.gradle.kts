@@ -32,7 +32,7 @@ dependencies {
     api(project(":user-api"))
 
     // Expose common module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -68,4 +68,6 @@ allOpen {
 tasks.named<Test>("test") {
     useJUnitPlatform()
 }
+
+
 

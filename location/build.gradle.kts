@@ -32,7 +32,7 @@ dependencies {
     api(project(":venue-api"))
 
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // Audit logging
     implementation(project(":audit"))
@@ -73,4 +73,6 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+
 

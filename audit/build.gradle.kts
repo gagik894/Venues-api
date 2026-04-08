@@ -28,8 +28,7 @@ dependencyManagement {
 }
 
 dependencies {
-    api(project(":audit-api"))
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")

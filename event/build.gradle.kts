@@ -29,7 +29,7 @@ dependencyManagement {
 
 dependencies {
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
     api(project(":platform-api"))
 
     // API Contract Modules - depend on interfaces, not implementations
@@ -78,4 +78,6 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+
 

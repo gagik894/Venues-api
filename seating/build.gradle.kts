@@ -33,7 +33,7 @@ dependencies {
     api(project(":staff-api"))
     api(project(":event-api"))
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // Venue module dependency (seating charts belong to venues)
     api(project(":venue"))
@@ -75,4 +75,6 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+
 

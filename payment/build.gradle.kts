@@ -29,7 +29,7 @@ dependencyManagement {
 
 dependencies {
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // API Contract Modules
     api(project(":payment-api"))
@@ -70,3 +70,5 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+

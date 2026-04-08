@@ -29,7 +29,7 @@ dependencyManagement {
 
 dependencies {
     // Shared module
-    api(project(":shared"))
+    implementation(project(":shared"))
     api(project(":finance-api"))
 
     // API dependencies - depend on contracts, not implementations
@@ -70,3 +70,5 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+

@@ -32,7 +32,7 @@ dependencies {
     api(project(":organization-api"))
 
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // Location module for city/region reference data
     implementation(project(":location"))
@@ -72,4 +72,6 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+
 

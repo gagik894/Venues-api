@@ -29,7 +29,7 @@ dependencyManagement {
 
 dependencies {
     // Expose shared module as part of public API
-    api(project(":shared"))
+    implementation(project(":shared"))
 
     // API Contract Modules - depend on interfaces, not implementations
     // This enforces Hexagonal Architecture boundaries
@@ -78,3 +78,5 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+

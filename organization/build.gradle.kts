@@ -38,7 +38,7 @@ dependencies {
     implementation(project(":location"))
 
     // Audit logging
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
 
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")

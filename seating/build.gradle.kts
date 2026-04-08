@@ -36,10 +36,10 @@ dependencies {
     implementation(project(":shared"))
 
     // Venue module dependency (seating charts belong to venues)
-    api(project(":venue"))
+    api(project(":venue-api"))
 
     // Audit logging
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

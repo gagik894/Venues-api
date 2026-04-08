@@ -14,22 +14,22 @@ import java.util.*
  * Prefer using @Auditable annotation on controller methods where possible.
  */
 @Component
-class AuditActionRecorder(
+class AuditActionRecorderImpl(
     private val staffAuditPort: StaffAuditPort
-) {
+) : AuditActionRecorder {
     private val logger = KotlinLogging.logger {}
 
     /**
      * Record a successful action.
      */
-    fun success(
+    override fun success(
         action: String,
         staffId: UUID?,
         venueId: UUID?,
         subjectType: String,
         subjectId: String?,
-        organizationId: UUID? = null,
-        metadata: Map<String, Any?> = emptyMap()
+        organizationId: UUID?,
+        metadata: Map<String, Any?>
     ) {
         if (staffId == null) {
             logger.warn { "Cannot record audit without staffId: action=$action" }
@@ -50,15 +50,15 @@ class AuditActionRecorder(
     /**
      * Record a failed action.
      */
-    fun failure(
+    override fun failure(
         action: String,
         staffId: UUID?,
         venueId: UUID?,
         subjectType: String,
         subjectId: String?,
-        organizationId: UUID? = null,
-        metadata: Map<String, Any?> = emptyMap(),
-        reason: String? = null
+        organizationId: UUID?,
+        metadata: Map<String, Any?>,
+        reason: String?
     ) {
         if (staffId == null) {
             logger.warn { "Cannot record audit without staffId: action=$action" }
@@ -79,10 +79,10 @@ class AuditActionRecorder(
     /**
      * Create a builder for more complex audit entries.
      */
-    fun builder(staffId: UUID, action: AuditAction) = StaffAuditEntry.builder(staffId, action)
+    override fun builder(staffId: UUID, action: AuditAction) = StaffAuditEntry.builder(staffId, action)
 
     /**
      * Create a builder from action string.
      */
-    fun builder(staffId: UUID, action: String) = StaffAuditEntry.builder(staffId, action)
+    override fun builder(staffId: UUID, action: String) = StaffAuditEntry.builder(staffId, action)
 }

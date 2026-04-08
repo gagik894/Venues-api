@@ -39,7 +39,7 @@ dependencies {
     api(project(":seating-api"))  // SeatingApi for seating chart information
     api(project(":staff-api"))    // StaffApi for staff information
     api(project(":media-api"))    // MediaApi for file uploads
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
     implementation(project(":booking-api")) // For inventory events (SeatClosed/Opened)
 
     // Spring Boot starters - internal implementation details

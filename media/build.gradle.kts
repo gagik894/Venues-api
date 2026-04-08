@@ -32,7 +32,7 @@ dependencies {
     implementation(project(":shared"))
 
     // Audit logging
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
 
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")

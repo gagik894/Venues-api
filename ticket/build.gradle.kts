@@ -33,7 +33,7 @@ dependencies {
     implementation(project(":seating-api"))
     implementation(project(":booking-api"))
     implementation(project(":venue-api"))
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
 
     // Spring
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

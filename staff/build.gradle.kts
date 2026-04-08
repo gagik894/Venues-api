@@ -41,7 +41,7 @@ dependencies {
     implementation(project(":organization-api"))
 
     // Audit logging
-    implementation(project(":audit"))
+    implementation(project(":audit-api"))
 
     // Spring Boot starters - internal implementation details
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

@@ -36,6 +36,7 @@ include(":user-api")
 include(":venue-api")
 include(":seating-api")
 include(":platform-api")
+include(":location-api")
 
 // Feature Implementation Modules (Hexagonal Architecture Adapters)
 include(":user")

@@ -2,6 +2,7 @@ package app.venues.location.api.dto
 
 import app.venues.location.domain.City
 import app.venues.location.domain.Region
+import app.venues.location.service.toResponse
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -14,8 +15,8 @@ class LocationDtosTest {
             names = mapOf("en" to "Yerevan", "hy" to "Երևան")
         )
 
-        val localized = RegionResponse.from(region, "hy")
-        val fallback = RegionResponse.from(region, "ru")
+        val localized = region.toResponse("hy")
+        val fallback = region.toResponse("ru")
 
         assertEquals("Երևան", localized.name)
         assertEquals("Yerevan", fallback.name)
@@ -33,7 +34,7 @@ class LocationDtosTest {
             names = mapOf("en" to "Gyumri", "hy" to "Գյումրի")
         )
 
-        val localized = CityResponse.from(city, "hy")
+        val localized = city.toResponse("hy")
         assertEquals("Գյումրի", localized.name)
         assertEquals("Շիրակ", localized.region.name)
 
@@ -42,7 +43,7 @@ class LocationDtosTest {
             slug = "nameless-city",
             names = emptyMap()
         )
-        val slugFallbackResponse = CityResponse.from(slugFallbackCity, "ru")
+        val slugFallbackResponse = slugFallbackCity.toResponse("ru")
         assertEquals("nameless-city", slugFallbackResponse.name)
     }
 }

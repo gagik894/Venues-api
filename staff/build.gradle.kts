@@ -30,12 +30,13 @@ dependencyManagement {
 dependencies {
     // API Contract Module - this module implements the StaffApi interface
     api(project(":staff-api"))
+    api(project(":venue-api"))
 
     // Expose shared module as part of public API
     implementation(project(":shared"))
 
     // Location module for city/region reference data
-    implementation(project(":location"))
+    implementation(project(":location-api"))
 
     // Organization API for cross-module communication
     implementation(project(":organization-api"))

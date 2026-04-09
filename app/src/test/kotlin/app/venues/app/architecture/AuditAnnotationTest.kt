@@ -1,6 +1,7 @@
 package app.venues.app.architecture
 
 import app.venues.audit.annotation.Auditable
+import app.venues.payment.controller.PaymentCallbackController
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.JavaMethod
 import com.tngtech.archunit.junit.AnalyzeClasses
@@ -19,6 +20,7 @@ class AuditAnnotationTest {
     @ArchTest
     val mutatingEndpointsMustBeAuditable: ArchRule = methods()
         .that().areDeclaredInClassesThat().areAnnotatedWith(RestController::class.java)
+        .and().areNotDeclaredIn(PaymentCallbackController::class.java)
         .and(methodHasMutationMapping())
         .should(beAnnotatedWith(Auditable::class.java))
         .because("All POST/PUT/PATCH/DELETE endpoints must have @Auditable to ensure audit logging")

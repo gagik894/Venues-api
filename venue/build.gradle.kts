@@ -38,6 +38,7 @@ dependencies {
 
     // Location module for city/region reference data
     implementation(project(":location"))
+    implementation(project(":location-api"))
 
     // Audit logging
     implementation(project(":audit-api"))

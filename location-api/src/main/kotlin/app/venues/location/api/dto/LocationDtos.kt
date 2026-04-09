@@ -1,16 +1,16 @@
 package app.venues.location.api.dto
 
-import app.venues.location.domain.City
-import app.venues.location.domain.Region
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import org.springframework.data.domain.Page
 
 /**
  * Response DTO for Region data.
  *
  * @property code ISO/government code (e.g., "AM-ER")
  * @property names Multilingual names
+ * @property name Translated name
  * @property displayOrder Optional display order
  * @property isActive Active status
  */
@@ -20,19 +20,7 @@ data class RegionResponse(
     val name: String,
     val displayOrder: Int?,
     val isActive: Boolean
-) {
-    companion object {
-        fun from(region: Region, lang: String = "en"): RegionResponse {
-            return RegionResponse(
-                code = region.code,
-                names = region.names,
-                name = region.getName(lang),
-                displayOrder = region.displayOrder,
-                isActive = region.isActive
-            )
-        }
-    }
-}
+)
 
 /**
  * Request DTO for creating a new region (admin only).
@@ -76,6 +64,7 @@ data class UpdateRegionRequest(
  *
  * @property slug URL-friendly slug
  * @property names Multilingual names
+ * @property name Translated name
  * @property region Parent region (compact representation)
  * @property officialId Optional cadastre ID
  * @property displayOrder Optional display order
@@ -89,24 +78,7 @@ data class CityResponse(
     val officialId: String?,
     val displayOrder: Int?,
     val isActive: Boolean
-) {
-    companion object {
-        fun from(city: City, lang: String = "en"): CityResponse {
-            return CityResponse(
-                slug = city.slug,
-                names = city.names,
-                name = city.getName(lang),
-                region = RegionCompact(
-                    code = city.region.code,
-                    name = city.region.getName(lang)
-                ),
-                officialId = city.officialId,
-                displayOrder = city.displayOrder,
-                isActive = city.isActive
-            )
-        }
-    }
-}
+)
 
 /**
  * Compact region representation (for embedding in city responses).
@@ -156,7 +128,7 @@ data class CreateCityRequest(
 /**
  * Request DTO for updating a city (admin only).
  *
- * @property regionCode Updated parent region ID
+ * @property regionCode Updated parent region code
  * @property names Updated multilingual names
  * @property officialId Updated cadastre ID
  * @property displayOrder Updated display order
@@ -181,15 +153,4 @@ data class CityCompact(
     val slug: String,
     val name: String,
     val regionName: String
-) {
-    companion object {
-        fun from(city: City, lang: String = "en"): CityCompact {
-            return CityCompact(
-                slug = city.slug,
-                name = city.getName(lang),
-                regionName = city.region.getName(lang)
-            )
-        }
-    }
-}
-
+)

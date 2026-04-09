@@ -2,6 +2,7 @@ package app.venues.location.service
 
 import app.venues.common.exception.VenuesException
 import app.venues.location.api.dto.*
+import app.venues.location.api.service.LocationApi
 import app.venues.location.domain.City
 import app.venues.location.domain.Region
 import app.venues.location.repository.CityRepository
@@ -39,7 +40,7 @@ import org.springframework.transaction.annotation.Transactional
 class LocationService(
     private val regionRepository: RegionRepository,
     private val cityRepository: CityRepository
-) {
+) : LocationApi {
     private val logger = KotlinLogging.logger {}
 
     // ===========================================
@@ -55,9 +56,9 @@ class LocationService(
      * @return List of active regions
      */
     @Cacheable("regions", unless = "#result == null or #result.isEmpty()")
-    fun getAllActiveRegions(lang: String = "en"): List<RegionResponse> {
+    override fun getAllActiveRegions(lang: String): List<RegionResponse> {
         logger.debug { "Fetching all active regions (lang: $lang)" }
-        return regionRepository.findAllActive().map { RegionResponse.from(it, lang) }
+        return regionRepository.findAllActive().map { it.toResponse(lang) }
     }
 
     /**
@@ -66,9 +67,9 @@ class LocationService(
      * @return List of all regions
      */
     @Cacheable("regionsAll", unless = "#result == null or #result.isEmpty()")
-    fun getAllRegions(lang: String = "en"): List<RegionResponse> {
+    override fun getAllRegions(lang: String): List<RegionResponse> {
         logger.debug { "Fetching all regions (admin, lang: $lang)" }
-        return regionRepository.findAll().map { RegionResponse.from(it, lang) }
+        return regionRepository.findAll().map { it.toResponse(lang) }
     }
 
     /**
@@ -78,7 +79,7 @@ class LocationService(
      * @return Region data
      * @throws VenuesException.ResourceNotFound if region not found
      */
-    fun getRegionById(id: Long, lang: String = "en"): RegionResponse {
+    override fun getRegionById(id: Long, lang: String): RegionResponse {
         logger.debug { "Fetching region by ID: $id, lang: $lang" }
         val region = regionRepository.findById(id).orElseThrow {
             VenuesException.ResourceNotFound(
@@ -86,7 +87,7 @@ class LocationService(
                 errorCode = "REGION_NOT_FOUND"
             )
         }
-        return RegionResponse.from(region, lang)
+        return region.toResponse(lang)
     }
 
     /**
@@ -96,13 +97,13 @@ class LocationService(
      * @return Region data
      * @throws VenuesException.ResourceNotFound if region not found
      */
-    fun getRegionByCode(code: String, lang: String = "en"): RegionResponse {
+    override fun getRegionByCode(code: String, lang: String): RegionResponse {
         logger.debug { "Fetching region by code: $code, lang: $lang" }
         val region = regionRepository.findByCode(code) ?: throw VenuesException.ResourceNotFound(
             message = "Region not found with code: $code",
             errorCode = "REGION_NOT_FOUND"
         )
-        return RegionResponse.from(region, lang)
+        return region.toResponse(lang)
     }
 
     /**
@@ -114,7 +115,7 @@ class LocationService(
      */
     @Transactional
     @CacheEvict(cacheNames = ["regions", "regionsAll", "cities", "citiesByRegion"], allEntries = true)
-    fun createRegion(request: CreateRegionRequest): RegionResponse {
+    override fun createRegion(request: CreateRegionRequest): RegionResponse {
         logger.info { "Creating new region: ${request.code}" }
 
         // Validate unique code
@@ -135,7 +136,7 @@ class LocationService(
         val saved = regionRepository.save(region)
         logger.info { "Region created: ${saved.id}" }
 
-        return RegionResponse.from(saved)
+        return saved.toResponse()
     }
 
     /**
@@ -148,7 +149,7 @@ class LocationService(
      */
     @Transactional
     @CacheEvict(cacheNames = ["regions", "regionsAll", "cities", "citiesByRegion"], allEntries = true)
-    fun updateRegion(code: String, request: UpdateRegionRequest): RegionResponse {
+    override fun updateRegion(code: String, request: UpdateRegionRequest): RegionResponse {
         logger.info { "Updating region: $code" }
 
         val region = regionRepository.findByCode(code) ?: throw VenuesException.ResourceNotFound(
@@ -164,7 +165,7 @@ class LocationService(
         val saved = regionRepository.save(region)
         logger.info { "Region updated: ${saved.code}" }
 
-        return RegionResponse.from(saved)
+        return saved.toResponse()
     }
 
     // ===========================================
@@ -180,22 +181,22 @@ class LocationService(
      * @return List of active cities
      */
     @Cacheable("cities", unless = "#result == null or #result.isEmpty()")
-    fun getAllActiveCities(lang: String = "en"): List<CityResponse> {
+    override fun getAllActiveCities(lang: String): List<CityResponse> {
         logger.debug { "Fetching all active cities (lang: $lang)" }
-        return cityRepository.findAllActive().map { CityResponse.from(it, lang) }
+        return cityRepository.findAllActive().map { it.toResponse(lang) }
     }
 
     /**
      * Get active cities by region code.
      */
     @Cacheable(cacheNames = ["citiesByRegion"], key = "#regionCode", unless = "#result == null or #result.isEmpty()")
-    fun getCitiesByRegionCode(regionCode: String, lang: String = "en"): List<CityResponse> {
+    override fun getCitiesByRegionCode(regionCode: String, lang: String): List<CityResponse> {
         logger.debug { "Fetching cities for region code: $regionCode, lang: $lang" }
         val region = regionRepository.findByCode(regionCode) ?: throw VenuesException.ResourceNotFound(
             "Region not found with code: $regionCode",
             "REGION_NOT_FOUND"
         )
-        return cityRepository.findAllActiveByRegion(region).map { CityResponse.from(it, lang) }
+        return cityRepository.findAllActiveByRegion(region).map { it.toResponse(lang) }
     }
 
     /**
@@ -205,13 +206,13 @@ class LocationService(
      * @return City data
      * @throws VenuesException.ResourceNotFound if city not found
      */
-    fun getCityBySlug(slug: String, lang: String = "en"): CityResponse {
+    override fun getCityBySlug(slug: String, lang: String): CityResponse {
         logger.debug { "Fetching city by slug: $slug, lang: $lang" }
         val city = cityRepository.findBySlug(slug) ?: throw VenuesException.ResourceNotFound(
             message = "City not found with slug: $slug",
             errorCode = "CITY_NOT_FOUND"
         )
-        return CityResponse.from(city, lang)
+        return city.toResponse(lang)
     }
 
     /**
@@ -221,7 +222,7 @@ class LocationService(
      * @return City data
      * @throws VenuesException.ResourceNotFound if city not found
      */
-    fun getCityById(id: Long, lang: String = "en"): CityResponse {
+    override fun getCityById(id: Long, lang: String): CityResponse {
         logger.debug { "Fetching city by ID: $id, lang: $lang" }
         val city = cityRepository.findById(id).orElseThrow {
             VenuesException.ResourceNotFound(
@@ -229,7 +230,7 @@ class LocationService(
                 errorCode = "CITY_NOT_FOUND"
             )
         }
-        return CityResponse.from(city, lang)
+        return city.toResponse(lang)
     }
 
     /**
@@ -239,9 +240,9 @@ class LocationService(
      * @param pageable Pagination parameters
      * @return Page of matching cities
      */
-    fun searchCities(searchTerm: String, pageable: Pageable, lang: String = "en"): Page<CityResponse> {
+    override fun searchCities(searchTerm: String, pageable: Pageable, lang: String): Page<CityResponse> {
         logger.debug { "Searching cities: $searchTerm, lang: $lang" }
-        return cityRepository.searchByName(searchTerm, pageable).map { CityResponse.from(it, lang) }
+        return cityRepository.searchByName(searchTerm, pageable).map { it.toResponse(lang) }
     }
 
     /**
@@ -254,7 +255,7 @@ class LocationService(
      */
     @Transactional
     @CacheEvict(cacheNames = ["cities", "citiesByRegion"], allEntries = true)
-    fun createCity(request: CreateCityRequest): CityResponse {
+    override fun createCity(request: CreateCityRequest): CityResponse {
         logger.info { "Creating new city: ${request.slug}" }
 
         // Validate unique slug
@@ -283,7 +284,7 @@ class LocationService(
         val saved = cityRepository.save(city)
         logger.info { "City created: ${saved.id}" }
 
-        return CityResponse.from(saved)
+        return saved.toResponse()
     }
 
     /**
@@ -296,7 +297,7 @@ class LocationService(
      */
     @Transactional
     @CacheEvict(cacheNames = ["cities", "citiesByRegion"], allEntries = true)
-    fun updateCity(slug: String, request: UpdateCityRequest): CityResponse {
+    override fun updateCity(slug: String, request: UpdateCityRequest): CityResponse {
         logger.info { "Updating city: $slug" }
 
         val city = cityRepository.findBySlug(slug) ?: throw VenuesException.ResourceNotFound(
@@ -321,7 +322,7 @@ class LocationService(
         val saved = cityRepository.save(city)
         logger.info { "City updated: ${saved.id}" }
 
-        return CityResponse.from(saved)
+        return saved.toResponse()
     }
 
     /**
@@ -330,9 +331,9 @@ class LocationService(
      * @param lang Language code for names
      * @return List of compact city representations
      */
-    fun getCitiesCompact(lang: String = "en"): List<CityCompact> {
+    override fun getCitiesCompact(lang: String): List<CityCompact> {
         logger.debug { "Fetching compact city list (lang: $lang)" }
-        return cityRepository.findAllActive().map { CityCompact.from(it, lang) }
+        return cityRepository.findAllActive().map { it.toCompact(lang) }
     }
 }
 

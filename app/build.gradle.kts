@@ -43,6 +43,8 @@ dependencies {
     implementation(project(":ticket"))
     implementation(project(":media"))
     implementation(project(":audit"))
+    implementation(project(":location"))
+    implementation(project(":payment"))
 
     // Shared module dependency (includes common, security, web config, etc.)
     implementation(project(":shared"))
